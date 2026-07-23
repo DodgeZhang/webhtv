@@ -7,6 +7,20 @@
 -keep class is.xyz.mpv.MPVLib { *; }
 -keep class is.xyz.mpv.MPVLib$* { *; }
 
+# libplayer.so resolves this class and these methods by their literal JNI names.
+-keep class com.fongmi.android.tv.player.iso.IsoSessionManager {
+    public static long length(long);
+    public static int readAt(long, long, java.nio.ByteBuffer, int);
+    public static void close(long);
+    public static void prepareTrackMetadata(long, int);
+}
+
+# MPV owns one process-wide native context. Keep its lifecycle code intact so
+# release inlining does not amplify timing-sensitive create/destroy transitions.
+-keep,allowobfuscation class androidx.media3.mpvplayer.MpvPlayer { *; }
+-keep,allowobfuscation class androidx.media3.mpvplayer.MpvPlayer$* { *; }
+-keep,allowobfuscation class com.fongmi.android.tv.player.engine.MpvPlayerEngine { *; }
+
 # Gson
 -keep class com.google.gson.** { *; }
 -keep class com.fongmi.android.tv.remote.** { *; }

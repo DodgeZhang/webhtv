@@ -25,6 +25,7 @@ public class PlayerButtonSetting {
     public static final String SPEED = "speed";
     public static final String SCALE = "scale";
     public static final String LUT = "lut";
+    public static final String KARAOKE = "karaoke";
     public static final String RESET = "reset";
     public static final String REPEAT = "repeat";
     public static final String TEXT = "text";

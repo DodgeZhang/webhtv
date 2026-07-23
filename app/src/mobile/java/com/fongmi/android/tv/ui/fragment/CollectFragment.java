@@ -28,10 +28,10 @@ import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.databinding.FragmentCollectBinding;
+import com.fongmi.android.tv.model.SearchProgress;
 import com.fongmi.android.tv.model.SiteViewModel;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.setting.SiteHealthStore;
-import com.fongmi.android.tv.setting.SiteBlockSetting;
 import com.fongmi.android.tv.ui.activity.FolderActivity;
 import com.fongmi.android.tv.ui.activity.VideoActivity;
 import com.fongmi.android.tv.ui.adapter.CollectAdapter;
@@ -55,6 +55,8 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
     private CustomScroller mScroller;
     private SiteViewModel mViewModel;
     private List<Site> mSites;
+    private final List<Collect> mCollects = new ArrayList<>();
+    private final List<Vod> mAllResults = new ArrayList<>();
     private int collectWidth;
 
     public static CollectFragment newInstance(String keyword) {
@@ -141,6 +143,7 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
     private void setViewModel() {
         mViewModel = new ViewModelProvider(this).get(SiteViewModel.class).init();
         mViewModel.getSearch().observe(this, this::setCollect);
+        mViewModel.getSearchProgress().observe(this, this::setSearchProgress);
         mViewModel.getResult().observe(this, this::setSearch);
     }
 
@@ -149,7 +152,6 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
         mSites = new ArrayList<>();
         for (Site site : VodConfig.get().getSites()) {
             if (!site.isSearchable()) continue;
-            if (SiteBlockSetting.isBlocked(site)) continue;
             if (!TextUtils.isEmpty(siteKey) && !site.getKey().equals(siteKey)) continue;
             mSites.add(site);
         }
@@ -172,7 +174,10 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
 
     private void search() {
         if (mSites.isEmpty()) return;
-        mCollectAdapter.setItems(List.of(Collect.all()), () -> mViewModel.searchContent(mSites, getKeyword(), false));
+        mCollects.clear();
+        mAllResults.clear();
+        mCollects.add(Collect.all());
+        mCollectAdapter.setItems(new ArrayList<>(mCollects), () -> mViewModel.searchContent(mSites, getKeyword(), false));
     }
 
     private int getCount() {
@@ -233,9 +238,16 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
 
     private void setCollect(Result result) {
         if (result == null || result.getList().isEmpty()) return;
-        if (mCollectAdapter.getPosition() == 0) mSearchAdapter.addAll(result.getList());
-        mCollectAdapter.add(Collect.create(result.getList()));
-        mCollectAdapter.add(result.getList());
+        List<Vod> items = new ArrayList<>(result.getList());
+        mAllResults.addAll(items);
+        mCollects.get(0).getList().addAll(items);
+        mCollects.add(Collect.create(items));
+        mCollectAdapter.setItems(new ArrayList<>(mCollects));
+        if (mCollectAdapter.getPosition() == 0) mSearchAdapter.setItems(new ArrayList<>(mAllResults));
+    }
+
+    private void setSearchProgress(SearchProgress progress) {
+        if (progress != null) mCollectAdapter.setProgress(progress.current(), progress.total());
     }
 
     private void setSearch(Result result) {
@@ -243,7 +255,7 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
         mScroller.endLoading(result);
         boolean same = !result.getList().isEmpty() && mCollectAdapter.getActivated().getSite().equals(result.getVod().getSite());
         if (same) mCollectAdapter.getActivated().getList().addAll(result.getList());
-        if (same) mSearchAdapter.addAll(result.getList());
+        if (same) mSearchAdapter.setItems(new ArrayList<>(mCollectAdapter.getActivated().getList()));
     }
 
     @Override

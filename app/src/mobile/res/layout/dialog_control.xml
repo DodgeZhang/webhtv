@@ -76,6 +76,12 @@
                     android:id="@+id/timer"
                     style="@style/ControlSheetButton"
                     android:text="@string/play_timer" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/immersiveAudio"
+                    style="@style/ControlSheetButton"
+                    android:layout_weight="1.8"
+                    android:text="@string/player_immersive_audio_mode" />
             </androidx.appcompat.widget.LinearLayoutCompat>
 
             <androidx.appcompat.widget.LinearLayoutCompat
@@ -108,6 +114,12 @@
                     android:id="@+id/codecCapability"
                     style="@style/ControlSheetButton"
                     android:text="@string/codec_capability_short" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/panDiagnostic"
+                    style="@style/ControlSheetButton"
+                    android:contentDescription="@string/pan_diagnostic_title"
+                    android:text="@string/pan_diagnostic_entry" />
 
             </androidx.appcompat.widget.LinearLayoutCompat>
 

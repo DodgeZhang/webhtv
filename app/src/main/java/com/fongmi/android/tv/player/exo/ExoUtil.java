@@ -16,6 +16,7 @@ import android.view.accessibility.CaptioningManager;
 import androidx.annotation.NonNull;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
+import androidx.media3.common.ColorInfo;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
@@ -24,6 +25,7 @@ import androidx.media3.common.Player;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.LoadControl;
 import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RenderersFactory;
 import androidx.media3.exoplayer.audio.AudioSink;
@@ -71,11 +73,7 @@ import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegVideoRenderer;
 
 public class ExoUtil {
 
-    private static final int ENHANCED_MIN_BUFFER_MS = 30_000;
-    private static final int ENHANCED_MAX_BUFFER_MS = 120_000;
-    private static final int ENHANCED_BUFFER_FOR_PLAYBACK_MS = 1_500;
-    private static final int ENHANCED_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000;
-    private static final int ENHANCED_TARGET_BUFFER_BYTES = 256 * 1024 * 1024;
+    private static final int ENHANCED_TARGET_BUFFER_BYTES = 128 * 1024 * 1024;
     private static final long ENHANCED_LATE_THRESHOLD_TO_DROP_INPUT_US = 5_000L;
     private static final long ENHANCED_ADAPT_COOLDOWN_MS = 15_000L;
     private static final int ENHANCED_DROPPED_FRAMES_THRESHOLD = 24;
@@ -97,6 +95,7 @@ public class ExoUtil {
     }
 
     public static ExoPlayer buildPlayer(int decode, Player.Listener listener) {
+        if (PlaybackPerformanceSetting.isAuto(PlayerSetting.EXO)) ExoPerformanceSetting.beginAutoSession();
         EnhancedVideoProfile profile = getEnhancedVideoProfile(decode);
         List<EnhancedVideoProfile> profiles = getEnhancedVideoProfiles(decode);
         DefaultTrackSelector trackSelector = buildTrackSelector(decode);
@@ -106,6 +105,7 @@ public class ExoUtil {
                 .setMediaSourceFactory(buildMediaSourceFactory())
                 .setVideoChangeFrameRateStrategy(ExoPerformanceSetting.getFrameRateStrategy());
         if (PlaybackPerformanceSetting.isHighBufferEnabled()) builder.setLoadControl(buildEnhancedLoadControl());
+        else ExoPlaybackDiagnostics.logDefaultLoadControl(PlaybackPerformanceSetting.getProfile(PlayerSetting.EXO));
         if (PlaybackPerformanceSetting.isBandwidthMeterEnabled()) builder.setBandwidthMeter(buildEnhancedBandwidthMeter(profile));
         if (PlaybackPerformanceSetting.isDynamicSchedulingEnabled()) {
             builder.experimentalSetDynamicSchedulingEnabled(true);
@@ -336,26 +336,33 @@ public class ExoUtil {
         return profile;
     }
 
-    private static DefaultLoadControl buildEnhancedLoadControl() {
-        return new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(getMinBufferMs(), getMaxBufferMs(), ExoPerformanceSetting.getStartBufferMs(), ExoPerformanceSetting.getRebufferMs())
-                .setTargetBufferBytes(getTargetBufferBytes())
-                .setBackBuffer(PlayerSetting.getBackBufferMs(PlayerSetting.EXO), true)
-                .setPrioritizeTimeOverSizeThresholds(ExoPerformanceSetting.isPrioritizeTime())
+    private static LoadControl buildEnhancedLoadControl() {
+        int profile = PlaybackPerformanceSetting.getProfile(PlayerSetting.EXO);
+        boolean auto = profile == PlaybackPerformanceSetting.PROFILE_AUTO;
+        ExoLoadControlPolicy.BufferDurations durations = getBufferDurations();
+        ExoBufferBudget.Budget budget = getBufferBudget();
+        int startBufferMs = auto ? ExoPerformanceSetting.getAutoSessionStartBufferMs() : ExoPerformanceSetting.getStartBufferMs();
+        int rebufferMs = ExoPerformanceSetting.getRebufferMs();
+        int backBufferMs = PlayerSetting.getBackBufferMs(PlayerSetting.EXO);
+        boolean prioritizeTime = ExoPerformanceSetting.isPrioritizeTime();
+        ExoPlaybackDiagnostics.logLoadControl(profile, durations, budget, startBufferMs, rebufferMs, backBufferMs, prioritizeTime);
+        DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(durations.minBufferMs(), durations.maxBufferMs(), startBufferMs, auto ? AutoLoadControl.MAX_REBUFFER_MS : rebufferMs)
+                .setTargetBufferBytes(budget.effectiveTargetBytes())
+                .setBackBuffer(backBufferMs, true)
+                .setPrioritizeTimeOverSizeThresholds(prioritizeTime)
                 .build();
+        return auto ? new AutoLoadControl(loadControl) : loadControl;
     }
 
-    private static int getMinBufferMs() {
-        return Math.min(ENHANCED_MIN_BUFFER_MS, Math.max(15_000, PlayerSetting.getBuffer(PlayerSetting.EXO) * 3_000));
+    private static ExoLoadControlPolicy.BufferDurations getBufferDurations() {
+        return ExoLoadControlPolicy.resolve(PlaybackPerformanceSetting.getProfile(PlayerSetting.EXO), PlayerSetting.getBuffer(PlayerSetting.EXO));
     }
 
-    private static int getMaxBufferMs() {
-        return Math.max(ENHANCED_MAX_BUFFER_MS / 2, Math.min(ENHANCED_MAX_BUFFER_MS, getMinBufferMs() * 4));
-    }
-
-    private static int getTargetBufferBytes() {
-        int bytes = PlayerSetting.getBufferBytes(PlayerSetting.EXO);
-        return bytes > 0 ? bytes : ENHANCED_TARGET_BUFFER_BYTES;
+    static ExoBufferBudget.Budget getBufferBudget() {
+        int configured = PlayerSetting.getBufferBytes(PlayerSetting.EXO);
+        int requested = configured > 0 ? configured : ENHANCED_TARGET_BUFFER_BYTES;
+        return ExoBufferBudget.resolve(App.get(), requested);
     }
 
     private static DefaultBandwidthMeter buildEnhancedBandwidthMeter(EnhancedVideoProfile profile) {
@@ -457,7 +464,7 @@ public class ExoUtil {
         protected void buildVideoRenderers(Context context, int extensionRendererMode, MediaCodecSelector mediaCodecSelector, boolean enableDecoderFallback, Handler eventHandler, VideoRendererEventListener eventListener, long allowedVideoJoiningTimeMs, ArrayList<Renderer> out) {
             super.buildVideoRenderers(context, videoRenderMode, getVideoCodecSelector(mediaCodecSelector), enableDecoderFallback, eventHandler, eventListener, allowedVideoJoiningTimeMs, out);
             if (videoRenderMode == EXTENSION_RENDERER_MODE_OFF) {
-                out.add(new DolbyVisionHevcFallbackRenderer(context, getCodecAdapterFactory(), getVideoCodecSelector(mediaCodecSelector), allowedVideoJoiningTimeMs, enableDecoderFallback, eventHandler, eventListener));
+                out.add(new DolbyVisionHdr10FallbackRenderer(context, getCodecAdapterFactory(), getVideoCodecSelector(mediaCodecSelector), allowedVideoJoiningTimeMs, enableDecoderFallback, eventHandler, eventListener));
                 return;
             }
             try {
@@ -489,48 +496,63 @@ public class ExoUtil {
         }
     }
 
-    private static final class DolbyVisionHevcFallbackRenderer extends MediaCodecVideoRenderer {
+    private static final class DolbyVisionHdr10FallbackRenderer extends MediaCodecVideoRenderer {
 
-        DolbyVisionHevcFallbackRenderer(Context context, MediaCodecAdapter.Factory codecAdapterFactory, MediaCodecSelector mediaCodecSelector, long allowedJoiningTimeMs, boolean enableDecoderFallback, Handler eventHandler, VideoRendererEventListener eventListener) {
+        DolbyVisionHdr10FallbackRenderer(Context context, MediaCodecAdapter.Factory codecAdapterFactory, MediaCodecSelector mediaCodecSelector, long allowedJoiningTimeMs, boolean enableDecoderFallback, Handler eventHandler, VideoRendererEventListener eventListener) {
             super(context, codecAdapterFactory, mediaCodecSelector, allowedJoiningTimeMs, enableDecoderFallback, eventHandler, eventListener, DefaultRenderersFactory.MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY);
         }
 
         @Override
         public String getName() {
-            return "MediaCodecVideoRenderer-DV5-HEVC";
+            return "MediaCodecVideoRenderer-DV-HDR10";
         }
 
         @Override
         protected int supportsFormat(MediaCodecSelector mediaCodecSelector, Format format) throws androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException {
-            if (!isDolbyVisionProfile5(format)) return C.FORMAT_UNSUPPORTED_TYPE;
-            Format hevc = asHevc(format);
-            int support = super.supportsFormat(mediaCodecSelector, hevc);
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("exo-dv", "DV5 HEVC fallback support=%d codecs=%s size=%dx%d", support, format.codecs, format.width, format.height);
+            if (!isDolbyVisionHdr10Fallback(format)) return C.FORMAT_UNSUPPORTED_TYPE;
+            Format hdr10 = asHdr10Hevc(format);
+            int support = super.supportsFormat(mediaCodecSelector, hdr10);
+            if (SpiderDebug.isEnabled()) SpiderDebug.log("exo-dv", "DV HDR10 forced fallback support=%d codecs=%s size=%dx%d color=%s", support, format.codecs, format.width, format.height, hdr10.colorInfo);
             return support;
         }
 
         @Override
         protected List<MediaCodecInfo> getDecoderInfos(MediaCodecSelector mediaCodecSelector, Format format, boolean requiresSecureDecoder) throws androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException {
-            if (!isDolbyVisionProfile5(format)) return List.of();
-            List<MediaCodecInfo> infos = super.getDecoderInfos(mediaCodecSelector, asHevc(format), requiresSecureDecoder);
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("exo-dv", "DV5 HEVC fallback decoders=%s", decoderNames(infos));
+            if (!isDolbyVisionHdr10Fallback(format)) return List.of();
+            List<MediaCodecInfo> infos = super.getDecoderInfos(mediaCodecSelector, asHdr10Hevc(format), requiresSecureDecoder);
+            if (SpiderDebug.isEnabled()) SpiderDebug.log("exo-dv", "DV HDR10 forced fallback codecs=%s decoders=%s", format.codecs, decoderNames(infos));
             return infos;
         }
 
         @Override
         protected MediaCodecAdapter.Configuration getMediaCodecConfiguration(MediaCodecInfo codecInfo, Format format, MediaCrypto crypto, float codecOperatingRate) {
-            if (isDolbyVisionProfile5(format) && SpiderDebug.isEnabled()) SpiderDebug.log("exo-dv", "DV5 configure as HEVC decoder=%s codecMime=%s", codecInfo.name, codecInfo.codecMimeType);
-            return super.getMediaCodecConfiguration(codecInfo, isDolbyVisionProfile5(format) ? asHevc(format) : format, crypto, codecOperatingRate);
+            if (isDolbyVisionHdr10Fallback(format) && SpiderDebug.isEnabled()) SpiderDebug.log("exo-dv", "DV configure as HDR10 HEVC codecs=%s decoder=%s codecMime=%s", format.codecs, codecInfo.name, codecInfo.codecMimeType);
+            return super.getMediaCodecConfiguration(codecInfo, isDolbyVisionHdr10Fallback(format) ? asHdr10Hevc(format) : format, crypto, codecOperatingRate);
+        }
+
+        private static boolean isDolbyVisionHdr10Fallback(Format format) {
+            return isDolbyVisionProfile5(format) || isDolbyVisionProfile7(format);
         }
 
         private static boolean isDolbyVisionProfile5(Format format) {
-            if (format == null || !MimeTypes.VIDEO_DOLBY_VISION.equals(format.sampleMimeType) || format.codecs == null) return false;
-            String codecs = format.codecs.toLowerCase(java.util.Locale.US);
-            return codecs.startsWith("dvhe.05.") || codecs.startsWith("dvh1.05.");
+            return hasDolbyVisionProfile(format, "05");
         }
 
-        private static Format asHevc(Format format) {
-            return format.buildUpon().setSampleMimeType(MimeTypes.VIDEO_H265).setCodecs(null).build();
+        private static boolean isDolbyVisionProfile7(Format format) {
+            return hasDolbyVisionProfile(format, "07");
+        }
+
+        private static boolean hasDolbyVisionProfile(Format format, String profile) {
+            if (format == null || !MimeTypes.VIDEO_DOLBY_VISION.equals(format.sampleMimeType) || format.codecs == null) return false;
+            String codecs = format.codecs.toLowerCase(java.util.Locale.US);
+            return codecs.startsWith("dvhe." + profile + ".") || codecs.startsWith("dvh1." + profile + ".");
+        }
+
+        private static Format asHdr10Hevc(Format format) {
+            ColorInfo colorInfo = format.colorInfo == null
+                    ? new ColorInfo.Builder().setColorSpace(C.COLOR_SPACE_BT2020).setColorRange(C.COLOR_RANGE_LIMITED).setColorTransfer(C.COLOR_TRANSFER_ST2084).build()
+                    : format.colorInfo.buildUpon().setColorSpace(C.COLOR_SPACE_BT2020).setColorRange(C.COLOR_RANGE_LIMITED).setColorTransfer(C.COLOR_TRANSFER_ST2084).build();
+            return format.buildUpon().setSampleMimeType(MimeTypes.VIDEO_H265).setCodecs(null).setColorInfo(colorInfo).build();
         }
 
         private static String decoderNames(List<MediaCodecInfo> infos) {
