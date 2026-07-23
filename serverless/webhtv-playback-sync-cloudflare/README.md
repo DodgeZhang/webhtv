@@ -80,7 +80,7 @@
 ## 前置准备
 
 | 要求 | 说明 |
-|------|------|
+| --- | --- |
 | Cloudflare 账号 | [免费注册](https://dash.cloudflare.com/sign-up) |
 | GitHub 账号 | 需要将代码推送到 GitHub 仓库 |
 | 本项目代码 | 已在 `serverless/webhtv-playback-sync-cloudflare/` 目录 |
@@ -114,11 +114,11 @@
 2. 点击右上角 **New repository secret**，添加以下 4 个 Secret：
 
 | Secret 名称 | 说明 | 获取方式 |
-|---|---|---|
+| --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API Token | [创建方法](#如何获取-cloudflare-api-token) |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 账户 ID | [获取方法](#如何获取-cloudflare-account-id) |
 | `CLOUDFLARE_SUBDOMAIN` | Workers 子域名 | 账户设置 → Workers & Pages → 查看 workers.dev 子域 |
-| `WORKER_ACCESS_TOKEN` |  Worker 访问令牌（自定义字符串） | 自己生成一个，如 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `WORKER_ACCESS_TOKEN` | Worker 访问令牌（自定义字符串） | 自己生成一个，如 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 
 **可选 Secret：**
 - `CLOUDFLARE_KV_NAMESPACE_ID` — 预创建 KV 命名空间 ID。不设置则首次部署时自动创建
@@ -159,7 +159,7 @@ git commit -m "feat: 添加观影记录同步 Cloudflare Worker"
 git push origin main
 ```
 
-推送完成后，GitHub Actions 会自动触发部署流程。
+推送完成后，GitHub Actions 会自动触发部署流程1。
 
 ### 第四步：查看部署结果
 
@@ -215,7 +215,7 @@ git push origin main
 ### 故障排查
 
 | 错误 | 原因 | 解决 |
-|------|------|------|
+| --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN secret is not configured` | 未添加 Token Secret | 到仓库 Settings → Secrets 添加 |
 | `Invalid API Token` | Token 错误或已过期 | 重新在 Cloudflare 生成 Token |
 | `KV storage not configured` | 首次部署绑定未生效 | 等待 30 秒后重新运行 |
@@ -419,7 +419,7 @@ wrangler route add "sync.yourdomain.com/*" webhtv-playback-sync
 
 ### 接收观影记录（Webhook 推送）
 
-**`POST /api/playback/webhook`**
+`POST /api/playback/webhook`
 
 **请求头：**
 ```
@@ -483,7 +483,7 @@ X-WebHTV-Config-Name: <接口名称>       # 可选
 
 ### 批量接收观影记录
 
-**`POST /api/playback/progress/batch`**
+`POST /api/playback/progress/batch`
 
 **请求体：** 直接传 JSON 数组或带 `items`/`data`/`records` 包装的对象。
 
@@ -510,7 +510,7 @@ X-WebHTV-Config-Name: <接口名称>       # 可选
 
 ### 查询观影记录（远端同步拉取）
 
-**`GET /api/playback/records`**
+`GET /api/playback/records`
 
 **请求头：**
 ```
@@ -521,7 +521,7 @@ X-WebHTV-Config-Name: <接口名称>      # 可选
 
 **查询参数：**
 | 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
+| --- | --- | --- | --- |
 | `maxItems` | int | 否 | 返回最大条数，默认 1000，最大 2000 |
 | `siteKey` | string | 否 | 按站点过滤 |
 | `configKey` | string | 否 | 按接口 Key 过滤 |
@@ -566,7 +566,7 @@ X-WebHTV-Config-Name: <接口名称>      # 可选
 
 ### 删除观影记录
 
-**`DELETE /api/playback/progress`** 或 **`POST /api/playback/progress/delete`**
+`DELETE /api/playback/progress` 或 `POST /api/playback/progress/delete`
 
 **请求体（按 dedupeKey 删除）：**
 ```json
@@ -642,11 +642,11 @@ GET /api/server/capabilities
 2. 开启 **观影记录同步** 开关
 3. 找到 **Webhook 推送** 区域 → 点击 **添加**
 4. 填写配置：
-   - **名称**：随意，如 `Cloudflare 同步`
-   - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/webhook`
-   - **Token**：填入 `wrangler.toml` 中设置的 `ACCESS_TOKEN`
-   - **事件**：勾选 `progress`、`ended`（建议全选）
-   - **站点过滤**：留空表示同步所有站点
+  - **名称**：随意，如 `Cloudflare 同步`
+  - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/webhook`
+  - **Token**：填入 `wrangler.toml` 中设置的 `ACCESS_TOKEN`
+  - **事件**：勾选 `progress`、`ended`（建议全选）
+  - **站点过滤**：留空表示同步所有站点
 5. 保存后，播放节目时会自动推送记录到 Worker
 
 ### 配置远端同步拉取
@@ -654,20 +654,20 @@ GET /api/server/capabilities
 1. 打开 WebHTV App → **设置** → **观影记录同步**
 2. 找到 **远端同步** 区域 → 点击 **添加**
 3. 填写配置：
-   - **名称**：随意，如 `家庭影院同步`
-   - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/records`
-   - **Token**：填入 `wrangler.toml` 中设置的 `ACCESS_TOKEN`
-   - **站点过滤**：留空表示同步所有站点
-   - **接口过滤**：可选，按 configKey 过滤
-   - **启动时同步**：建议开启
-   - **定时同步间隔**：建议设为 30-60 分钟
-   - **最大记录数**：100-500
+  - **名称**：随意，如 `家庭影院同步`
+  - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/records`
+  - **Token**：填入 `wrangler.toml` 中设置的 `ACCESS_TOKEN`
+  - **站点过滤**：留空表示同步所有站点
+  - **接口过滤**：可选，按 configKey 过滤
+  - **启动时同步**：建议开启
+  - **定时同步间隔**：建议设为 30-60 分钟
+  - **最大记录数**：100-500
 4. 保存后，App 会在启动时和定时拉取 Worker 中的观影记录
 
 ### 两种模式对比
 
 | 特性 | Webhook 推送 | 远端同步拉取 |
-|------|-------------|-------------|
+| --- | --- | --- |
 | 数据流向 | App → Worker | Worker → App |
 | 实时性 | 播放时即刻推送 | 定时/启动时拉取 |
 | 适用场景 | 将本机记录备份到云端 | 从云端恢复/同步到本机 |
@@ -724,7 +724,7 @@ Cloudflare Workers 自带基础 DDoS 防护。如需更严格的限流：
 
 ## 常见问题排查
 
-### Q1: 部署后收到 `KV storage not configured` 错误
+### Q1: 部署后收到 KV storage not configured 错误
 
 **原因**：首次部署时 KV 绑定还未完全生效。
 
@@ -736,7 +736,7 @@ wrangler kv:namespace list
 # 确认 PLAYBACK_KV 存在且 ID 与配置一致
 ```
 
-### Q2: `Invalid token` 错误
+### Q2: Invalid token 错误
 
 **原因**：请求中未携带正确的 `X-WebHTV-Token` 头。
 
@@ -792,7 +792,7 @@ wrangler kv:namespace create "PLAYBACK_KV"
 ## Cloudflare 免费额度说明
 
 | 资源 | 免费额度 | 说明 |
-|------|---------|------|
+| --- | --- | --- |
 | Worker 调用 | 每天 100,000 次 | 个人用户完全够用 |
 | KV 存储 | 1 GB 总计 | 约可存储 10,000+ 条观影记录 |
 | KV 读写 | 每天 100,000 次 | 个人用户完全够用 |
