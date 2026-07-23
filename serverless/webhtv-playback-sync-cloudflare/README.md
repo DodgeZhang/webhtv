@@ -34,6 +34,7 @@
 - 📥 **Webhook 推送接收**：任何 WebHTV 设备在播放时自动将观影记录推送到此服务
 - 📤 **远端同步拉取**：其他设备从此服务拉取观影记录，实现多设备进度同步
 - 🔄 **双向同步**：支持 Webhook 推送 + 远端拉取两种模式可独立或组合使用
+- 🖥️ **Web 管理控制台**：通过浏览器访问 Worker URL 即可直观管理数据，查看统计、浏览记录、删除条目
 - 🔒 **Token 鉴权**：可选 `ACCESS_TOKEN` 保护，防止未授权访问
 - 🧹 **自动清理**：基于时间戳自动过期，避免存储无限增长
 - 📊 **去重合并**：基于 `dedupeKey` 实现幂等写入，新记录覆盖旧记录
@@ -214,6 +215,42 @@ git push origin main
 如果需要更换仓库或分支：
 1. Worker → Settings → Git → 点击 **"Disconnect"** 断开当前连接
 2. 重新点击 **"Connect to Git"** 选择新仓库或分支
+
+---
+
+## 🖥️ Web 管理控制台
+
+部署完成后，你可以直接通过浏览器访问 Worker 根路径，使用内置的 Web 管理控制台：
+
+### 访问地址
+
+```
+https://你的-worker-subdomain.workers.dev/
+```
+
+或直接访问：`https://你的-worker-subdomain.workers.dev/admin`
+
+### 功能特性
+
+| 功能 | 说明 |
+|------|------|
+| 📊 **数据概览** | 显示总记录数、站点数量、设备数量、数据保留天数等统计信息 |
+| 📋 **记录列表** | 分页浏览所有观影记录，显示影片名、站点、进度、观看状态、更新时间 |
+| 🔍 **搜索过滤** | 按影片名、站点名快速搜索记录 |
+| 🗑️ **单条删除** | 点击记录右侧删除按钮即可删除单条记录 |
+| 💥 **批量清空** | 一键清空全部观影记录（带二次确认） |
+| 🔄 **自动刷新** | 每 30 秒自动刷新数据，也可手动点击刷新按钮 |
+| 📱 **响应式设计** | 支持桌面、平板、手机等多种设备 |
+
+### 安全说明
+
+- 如果你配置了 `ACCESS_TOKEN`，管理页面会自动嵌入 token，无需额外登录
+- 建议在 **Cloudflare Dashboard → Worker → Settings → Triggers → Custom Domains** 绑定自定义域名，通过 HTTPS 加密传输
+- 管理页面的所有操作（删除、清空）都会经过 token 鉴权
+
+> 💡 管理页面内置统计 API：`GET /api/stats`，返回总记录数、站点数、客户端数等统计数据。支持 `?token=xxx` 查询参数鉴权。
+
+---
 
 ### 故障排查
 
@@ -446,6 +483,35 @@ GET /api/server/capabilities
   }
 ```
 
+### 数据统计
+
+```
+GET /api/stats
+→ {
+    "ok": true,
+    "totalRecords": 156,
+    "uniqueSites": 5,
+    "uniqueClients": 3,
+    "retentionDays": 90,
+    "oldestRecordAt": 1720000000000,
+    "newestRecordAt": 1722000000000,
+    "kvBound": true,
+    "serverMode": "cloudflare",
+    "serverName": "WebHTV Playback Sync Worker"
+  }
+```
+
+支持 `?token=xxx` 查询参数鉴权（当 `ACCESS_TOKEN` 已配置时）。
+
+### Web 管理页面
+
+```
+GET / 或 GET /admin
+→ 返回内置的 Web 管理控制台 HTML 页面
+```
+
+当 `ACCESS_TOKEN` 已配置时，页面会自动嵌入 token，所有 API 调用自动鉴权。
+
 ---
 
 ## App 端配置指南
@@ -524,13 +590,19 @@ Cloudflare Workers 自带基础 DDoS 防护。如需更严格的限流：
 2. 启用 **WAF**（Web Application Firewall）规则
 3. 使用 Cloudflare Access 限制特定 IP 访问
 
-### 绑定自定义域名
+### 绑定自定义域名（解决 workers.dev 访问问题）
 
-如果已有自己的域名，可以绑定到 Worker：
+如果你的 TV 无法访问 `*.workers.dev` 域名（国内部分 ISP 可能限制），绑定自定义域名是最佳解决方案：
 
-1. Worker → Settings → Triggers → Custom Domains
-2. 点击 **Add Custom Domain** → 输入你的子域名（如 `sync.yourdomain.com`）
-3. 按要求配置 DNS 记录
+1. **准备一个已解析的域名**（例如 `example.com`）
+2. 登录 Cloudflare Dashboard → **Workers & Pages** → 点击你的 Worker
+3. 进入 **Settings** 标签页 → 左侧菜单 **Triggers** → **Custom Domains**
+4. 点击 **Add Custom Domain**
+5. 输入你想使用的子域名（建议：`sync.example.com`）
+6. Cloudflare 会自动创建 DNS 记录并启用，或提示你添加 CNAME 记录
+7. 绑定成功后，在 App 中将远端同步 URL 改为：`https://sync.example.com/api/playback/records`
+
+> 💡 **没有域名？** 可以在 Cloudflare 上直接购买，或使用阿里云/腾讯云等国内服务商购买便宜的域名（约 10-30 元/年）。国内域名需备案才能在国内 CDN 使用，但绑定 Cloudflare Worker 无需备案。
 
 ---
 
@@ -561,11 +633,34 @@ Cloudflare Workers 自带基础 DDoS 防护。如需更严格的限流：
 
 ### Q4: Cloudflare Workers 域名无法在电视上访问
 
-**原因**：部分电视浏览器/系统可能无法访问 `*.workers.dev` 域名。
+**现象**：App 提示 `failed to connect to xxx.workers.dev/IP(port 443) after 10000ms`，但在电脑浏览器上 Worker 可正常访问。
 
-**解决**：
-1. 绑定自定义域名到 Worker（参考进阶配置）
-2. 确认电视 DNS 解析正常
+**原因**：
+- 部分 ISP（尤其是国内）可能限制了对 Cloudflare `workers.dev` 域名的访问
+- TV 系统的网络功能可能有更多限制
+- 路由器/防火墙可能拦截了出站 HTTPS 连接到特定 IP 段
+
+**排查步骤**：
+
+1. **先验证 Worker 本身正常**：在同一网络的手机/电脑浏览器访问 `https://你的子域.workers.dev/api/health`
+   - ✅ 能访问 → Worker 正常，问题在 TV 网络 → 用方案 B 或 C
+   - ❌ 不能访问 → 你的网络整体屏蔽了 `workers.dev` → 必须用方案 A
+
+2. **方案 A（推荐）：绑定自定义域名**
+   - 如果你有自己的域名，在 Cloudflare Dashboard → Worker → Settings → Triggers → Custom Domains 绑定
+   - 绑定后 App 端 URL 改为 `https://sync.你的域名.com/api/playback/records`
+
+3. **方案 B：修改 TV 的 DNS**
+   - 将 TV 的 DNS 改为 `1.1.1.1`（Cloudflare）或 `8.8.8.8`（Google）或 `114.114.114.114`（114 DNS）
+   - 部分 ISP 默认 DNS 可能解析 Cloudflare 到不可达的 IP
+
+4. **方案 C：检查路由器**
+   - 临时关闭路由器防火墙测试
+   - 检查是否有 Cloudflare IP 段的拦截规则
+
+5. **方案 D：手机热点测试**
+   - 将 TV 连接到手机热点（4G/5G）测试
+   - 如果移动网络可用，说明是宽带线路问题
 
 ### Q5: 如何重置所有数据
 
@@ -599,8 +694,10 @@ curl -X POST https://your-worker.workers.dev/api/playback/progress/delete \
 src/index.js
 ├── fetch()                    # Worker 入口（CORS + 错误处理）
 ├── handleRequest()            # 路由分发
-│   ├── GET  /api/health                       # 健康检查
-│   ├── GET  /api/server/capabilities           # 能力查询
+│   ├── GET  / 或 /admin                         # 🆕 Web 管理控制台
+│   ├── GET  /api/health                         # 健康检查
+│   ├── GET  /api/stats                          # 🆕 数据统计
+│   ├── GET  /api/server/capabilities             # 能力查询
 │   ├── POST /api/playback/webhook              # Webhook 推送入口
 │   ├── POST /api/playback/progress             # (同上，兼容)
 │   ├── POST /api/playback/progress/batch       # 批量写入
@@ -610,6 +707,7 @@ src/index.js
 │   ├── DELETE /api/playback/progress           # 删除记录
 │   ├── DELETE /api/playback/records             # (同上，兼容)
 │   └── POST /api/playback/progress/delete      # (同上，兼容)
+├── getStats()                 # 🆕 数据统计（总数/站点数/客户端数）
 ├── loadAllRecords()           # O(1) 读取 KV 单键 JSON 数组
 ├── saveAllRecords()           # 写入 KV 单键（含 TTL）
 ├── upsertRecord()             # 单条 upsert（按 dedupeKey 去重）
@@ -620,7 +718,12 @@ src/index.js
 ├── deleteRecords()            # 多种删除策略（dedupeKey/historyKey/siteKey）
 ├── filterRecords()             # 按条件过滤 + 过期过滤
 ├── toProgressInput()          # 转换为 App 可解析格式
-└── checkToken()               # Token 鉴权
+└── checkToken()               # Token 鉴权（支持 Header + Query 参数）
+
+src/dashboard.js 🆕
+├── DASHBOARD_HTML             # 管理控制台 HTML 模板（单文件 SPA）
+├── getDashboardHtml()         # 嵌入 token 生成完整 HTML
+└── getDashboardResponse()     # 返回 HTML Response
 
 存储设计：
 ┌───────────────────────────────────────────────┐
@@ -642,6 +745,7 @@ src/index.js
 
 ## 更新日志
 
+- **v1.4.0** - 新增 Web 管理控制台（`/`、`/admin`），支持数据概览、记录浏览、搜索过滤、删除操作；新增 `/api/stats` 统计接口；token 鉴权支持查询参数传递
 - **v1.3.0** - 优化 Cloudflare Connect to Git 部署教程，增加快速概览、5 步流程详解、更换仓库指南和扩展故障排查
 - **v1.2.0** - 改为 Cloudflare Connect to Git 部署方案，敏感变量迁移到 Dashboard Variables
 - **v1.1.0** - 重构为单 KV key 存储方案，大幅减少 KV 读写次数；添加字段校验

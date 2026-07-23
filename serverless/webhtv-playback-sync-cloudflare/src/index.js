@@ -1,3 +1,5 @@
+import dashboard from './dashboard.js';
+
 const SERVER_NAME = 'WebHTV Playback Sync Worker';
 const SERVER_MODE = 'cloudflare';
 const STORE_KEY = 'all_records';
@@ -14,7 +16,8 @@ const CAPABILITIES = {
   tokenAuth: true,
   ttlRetention: true,
   dedupeKey: true,
-  singleKeyStorage: true
+  singleKeyStorage: true,
+  webDashboard: true
 };
 
 export default {
@@ -34,7 +37,15 @@ async function handleRequest(request, env) {
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const method = request.method.toUpperCase();
 
+  if (method === 'GET' && (path === '/' || path === '/admin' || path === '/index.html')) {
+    return dashboard.getDashboardResponse(env);
+  }
+
   if (method === 'GET' && path === '/api/health') return json({ ok: true, time: Date.now() });
+
+  if (method === 'GET' && path === '/api/stats') {
+    return getStats(request, env);
+  }
 
   if (method === 'GET' && path === '/api/server/capabilities') {
     return json({
@@ -205,6 +216,55 @@ async function deleteRecords(request, env) {
   await saveAllRecords(kv, updated, env);
 
   return json({ ok: true, deleted, remaining: updated.length });
+}
+
+async function getStats(request, env) {
+  const kv = getKV(env);
+  const token = readToken(request);
+  if (env.ACCESS_TOKEN) checkToken(env, token);
+
+  if (!kv) {
+    return json({
+      ok: true,
+      totalRecords: 0,
+      uniqueSites: 0,
+      uniqueClients: 0,
+      retentionDays: env.RETENTION_DAYS || String(DEFAULT_RETENTION_DAYS),
+      kvBound: false,
+      serverMode: SERVER_MODE,
+      serverName: SERVER_NAME
+    });
+  }
+
+  const records = await loadAllRecords(kv);
+
+  const sites = new Set();
+  const clients = new Set();
+  let oldestTs = 0;
+  let newestTs = 0;
+
+  for (const r of records) {
+    if (r.siteKey) sites.add(r.siteKey);
+    if (r.clientKey) clients.add(r.clientKey);
+    const ts = r.timestamp || r.updatedAt || 0;
+    if (ts > 0) {
+      if (!oldestTs || ts < oldestTs) oldestTs = ts;
+      if (!newestTs || ts > newestTs) newestTs = ts;
+    }
+  }
+
+  return json({
+    ok: true,
+    totalRecords: records.length,
+    uniqueSites: sites.size,
+    uniqueClients: clients.size,
+    retentionDays: parseInt(env.RETENTION_DAYS || String(DEFAULT_RETENTION_DAYS), 10) || DEFAULT_RETENTION_DAYS,
+    oldestRecordAt: oldestTs || null,
+    newestRecordAt: newestTs || null,
+    kvBound: true,
+    serverMode: SERVER_MODE,
+    serverName: SERVER_NAME
+  });
 }
 
 function matchesDedupeKey(record, dedupeKey) {
@@ -427,6 +487,9 @@ function requireKV(env) {
 }
 
 function readToken(request) {
+  const url = new URL(request.url);
+  const queryToken = (url.searchParams.get('token') || '').trim();
+  if (queryToken) return queryToken;
   const headerToken = request.headers.get('x-webhtv-token') || request.headers.get('X-WebHTV-Token') || '';
   if (headerToken) return headerToken.trim();
   const auth = request.headers.get('authorization') || '';
