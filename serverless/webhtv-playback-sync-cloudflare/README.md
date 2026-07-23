@@ -2,45 +2,26 @@
 
 > 本文档为 [WebHTV](https://github.com/liu673cn/WebHTV) 项目提供基于 **Cloudflare Workers + KV 存储** 的观影记录同步服务端部署方案。
 
-> ☁️ **最快的部署方式**：[GitHub Actions 一键部署](#-github-actions-一键部署推荐) — 3 分钟完成，无需本地环境，`git push` 即自动部署到 Cloudflare Workers。
+> ☁️ **推荐部署方式**：[Cloudflare Connect to Git](#-cloudflare-connect-to-git-推荐) — 在 Cloudflare Dashboard 点击几下即可完成，之后每次 `git push` 自动部署到 Cloudflare Workers。
 
 ## 目录
 
 - [功能概述](#功能概述)
 - [工作原理](#工作原理)
 - [前置准备](#前置准备)
-- [☁️ GitHub Actions 一键部署（推荐）](#-github-actions-一键部署推荐)
-  - [工作流程](#工作流程-1)
-  - [第一步：在 GitHub 仓库中配置 Secrets](#第一步在-github-仓库中配置-secrets)
-  - [第二步：获取 Cloudflare 凭证](#第二步获取-cloudflare-凭证)
-  - [第三步：推送代码到 GitHub](#第三步推送代码到-github)
-  - [第四步：查看部署结果](#第四步查看部署结果)
-  - [第五步：手动触发部署（可选）](#第五步手动触发部署可选)
+- [☁️ Cloudflare Connect to Git（推荐）](#-cloudflare-connect-to-git推荐)
+  - [📋 快速概览](#-快速概览)
+  - [步骤 1：创建 KV 命名空间](#步骤-1创建-kv-命名空间)
+  - [步骤 2：配置 wrangler.toml 并推送到 GitHub](#步骤-2配置-wranglertoml-并推送到-github)
+  - [步骤 3：在 Cloudflare Dashboard 连接 GitHub 部署](#步骤-3在-cloudflare-dashboard-连接-github-部署)
+  - [步骤 4：配置环境变量（ACCESS_TOKEN 等）](#步骤-4配置环境变量access_token-等)
+  - [步骤 5：推送代码并自动部署 ✅](#步骤-5推送代码并自动部署-)
   - [后续更新 Worker](#后续更新-worker)
-  - [工作流配置文件](#工作流配置文件)
+  - [更换 GitHub 仓库或分支](#更换-github-仓库或分支)
   - [故障排查](#故障排查)
-- [手动部署步骤（本地方式）](#手动部署步骤本地方式)
-  - [第一步：安装 Node.js 和 Wrangler CLI](#第一步安装-nodejs-和-wrangler-cli)
-  - [第二步：登录 Cloudflare](#第二步登录-cloudflare)
-  - [第三步：创建 KV 命名空间](#第三步创建-kv-命名空间)
-  - [第四步：配置 wrangler.toml](#第四步配置-wranglertoml)
-  - [第五步：本地调试](#第五步本地调试)
-  - [第六步：部署到 Cloudflare](#第六步部署到-cloudflare)
-  - [第七步：配置自定义域名（可选）](#第七步配置自定义域名可选)
 - [API 接口说明](#api-接口说明)
-  - [接收观影记录（Webhook 推送）](#接收观影记录webhook-推送)
-  - [批量接收观影记录](#批量接收观影记录)
-  - [查询观影记录（远端同步拉取）](#查询观影记录远端同步拉取)
-  - [删除观影记录](#删除观影记录)
-  - [健康检查和能力查询](#健康检查和能力查询)
 - [App 端配置指南](#app-端配置指南)
-  - [配置 Webhook 推送](#配置-webhook-推送)
-  - [配置远端同步拉取](#配置远端同步拉取)
-  - [两种模式对比](#两种模式对比)
 - [进阶配置](#进阶配置)
-  - [访问令牌保护](#访问令牌保护)
-  - [数据保留策略](#数据保留策略)
-  - [限流与安全](#限流与安全)
 - [常见问题排查](#常见问题排查)
 - [Cloudflare 免费额度说明](#cloudflare-免费额度说明)
 
@@ -83,335 +64,169 @@
 | --- | --- |
 | Cloudflare 账号 | [免费注册](https://dash.cloudflare.com/sign-up) |
 | GitHub 账号 | 需要将代码推送到 GitHub 仓库 |
-| 本项目代码 | 已在 `serverless/webhtv-playback-sync-cloudflare/` 目录 |
+| 本项目代码 | Worker 代码在 `serverless/webhtv-playback-sync-cloudflare/` 子目录 |
+| 代码已推送到 GitHub | 你需要把 WebHTV 项目推送到 GitHub 仓库 |
 
-> 💡 使用 **GitHub Actions 一键部署** 方式时，**无需** 在本地安装 Node.js 或 Wrangler CLI，所有环境都由 GitHub Actions 自动配置。
+> 💡 使用 **Cloudflare Connect to Git** 方式时，**无需** 在本地安装 Node.js 或 Wrangler CLI，所有构建和部署都由 Cloudflare 自动完成。
 
-> 💡 仅在选择 [手动部署步骤（本地方式）](#手动部署步骤本地方式) 时才需要安装下面的工具。
+## ☁️ Cloudflare Connect to Git（推荐）
 
-## ☁️ GitHub Actions 一键部署（推荐）
+> 这是 Cloudflare 原生的一键部署方式——在 Dashboard 页面点击 **Continue with GitHub** 连接仓库，之后每次 `git push` 都会自动触发部署，**全程无需本地 Node.js 或 Wrangler CLI 环境**。
 
-> 这是最简单的部署方式——**代码推送到 GitHub 后自动部署到 Cloudflare Workers**，无需在本地安装任何工具。
+### 📋 快速概览
 
-### 工作流程
+整个流程只需 5 步，约 5 分钟完成：
 
-```
-┌──────────────┐     push      ┌──────────────┐    deploy     ┌──────────────┐
-│  你的电脑    │ ───────────► │   GitHub     │ ──────────► │  Cloudflare  │
-│  git push    │   main 分支  │   Actions    │   自动部署   │  Workers     │
-└──────────────┘              └──────────────┘              └──────────────┘
-                                       │
-                                       ▼
-                                  读取 Secrets
-                                  (API Token,
-                                   Account ID,
-                                   ACCESS_TOKEN)
-```
-
-### 第一步：在 GitHub 仓库中配置 Secrets
-
-1. 打开你的 GitHub 仓库 → **Settings** → **Secrets and variables** → **Actions**
-2. 点击右上角 **New repository secret**，添加以下 4 个 Secret：
-
-| Secret 名称 | 说明 | 获取方式 |
-| --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token | [创建方法](#如何获取-cloudflare-api-token) |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 账户 ID | [获取方法](#如何获取-cloudflare-account-id) |
-| `CLOUDFLARE_SUBDOMAIN` | Workers 子域名 | 账户设置 → Workers & Pages → 查看 workers.dev 子域 |
-| `WORKER_ACCESS_TOKEN` | Worker 访问令牌（自定义字符串） | 自己生成一个，如 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-
-**可选 Secret：**
-- `CLOUDFLARE_KV_NAMESPACE_ID` — 预创建 KV 命名空间 ID。不设置则首次部署时自动创建
-
-### 第二步：获取 Cloudflare 凭证
-
-#### 如何获取 CLOUDFLARE_API_TOKEN
-
-1. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com)
-2. 右上角头像 → **My Profile** → **API Tokens**
-3. 点击 **Create Token** → 选择 **Edit Cloudflare Workers** 模板
-4. **Permissions** 保持默认（Account / Workers / Edit）
-5. **Account Resources** → **Include** → 选择你的账户
-6. 点击 **Continue to summary** → **Create Token**
-7. **复制生成的 Token**（只显示一次！）→ 粘贴到 GitHub Secret
-
-#### 如何获取 CLOUDFLARE_ACCOUNT_ID
-
-1. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com)
-2. 选择你的账户 → 点击右上角头像 → **Your Profile** → **API Tokens**
-3. 或直接在账户首页 URL 中找到：`https://dash.cloudflare.com/?account=<ACCOUNT_ID>`
-4. 复制 `<ACCOUNT_ID>` 部分 → 粘贴到 GitHub Secret
-
-#### 如何获取 CLOUDFLARE_SUBDOMAIN
-
-1. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com)
-2. 左侧菜单 → **Workers & Pages**
-3. 找到你的 workers.dev 子域，格式如 `your-name-1234.workers.dev`
-4. 只取子域名部分（如 `your-name-1234`）→ 粘贴到 GitHub Secret
-
-### 第三步：推送代码到 GitHub
-
-```bash
-# 确保你的项目已经推送到 GitHub
-# Worker 代码位于 serverless/webhtv-playback-sync-cloudflare/ 目录
-git add .
-git commit -m "feat: 添加观影记录同步 Cloudflare Worker"
-git push origin main
-```
-
-推送完成后，GitHub Actions 会自动触发部署流程1。
-
-### 第四步：查看部署结果
-
-1. 打开 GitHub 仓库 → 顶部菜单点击 **Actions**
-2. 左侧选择 **Deploy Cloudflare Worker** 工作流
-3. 点击最新的运行记录查看详情
-4. 等待所有步骤显示 ✅ 绿色对勾
-
-部署成功后，Workflow 的最后一步会输出 Worker 访问地址：
-
-```
-╔══════════════════════════════════════════════════════════╗
-║           🎉 Deployment Successful!                     ║
-╠══════════════════════════════════════════════════════════╣
-║  Worker URL:  https://webhtv-playback-sync.your-name.workers.dev
-║  Health:      https://.../api/health
-║  Records API:  https://.../api/playback/records
-║  Webhook:     POST https://.../api/playback/webhook
-╚══════════════════════════════════════════════════════════╝
-```
-
-### 第五步：手动触发部署（可选）
-
-如果想在不推送代码的情况下重新部署：
-
-1. GitHub 仓库 → **Actions** → **Deploy Cloudflare Worker**
-2. 点击 **Run workflow** 按钮
-3. 选择分支 → 点击确认
-
-### 后续更新 Worker
-
-只需修改 `serverless/webhtv-playback-sync-cloudflare/` 下的代码并推送到 `main` 分支，GitHub Actions 会自动重新部署：
-
-```bash
-# 修改代码后
-git add serverless/webhtv-playback-sync-cloudflare/
-git commit -m "fix: 修复观影记录同步 bug"
-git push origin main
-# 等待 1-2 分钟即可自动部署完成
-```
-
-### 工作流配置文件
-
-完整的 GitHub Actions 工作流配置文件位于 [.github/workflows/deploy-cloudflare-worker.yml](file:///d:/交投资料/相关文档/07-Git文件/Github/WebHTV/webhtv/.github/workflows/deploy-cloudflare-worker.yml)，关键特性：
-
-- ✅ 自动安装 Node.js 20 + Wrangler CLI
-- ✅ 自动创建 KV 命名空间（首次部署）
-- ✅ 从 Secrets 自动生成 `wrangler.toml`
-- ✅ 部署后自动验证健康检查
-- ✅ 支持手动触发 `workflow_dispatch`
-- ✅ 并发保护（同时只有一个部署在运行）
-
-### 故障排查
-
-| 错误 | 原因 | 解决 |
-| --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN secret is not configured` | 未添加 Token Secret | 到仓库 Settings → Secrets 添加 |
-| `Invalid API Token` | Token 错误或已过期 | 重新在 Cloudflare 生成 Token |
-| `KV storage not configured` | 首次部署绑定未生效 | 等待 30 秒后重新运行 |
-| Worker URL 无法访问 | `CLOUDFLARE_SUBDOMAIN` 配置错误 | 检查 Subdomain 是否正确 |
-| `wrangler.toml` 中的 KV ID 为空 | Secret 未正确注入 | 检查 `CLOUDFLARE_KV_NAMESPACE_ID` 是否为空 |
-| `npm ci` 失败 | Worker 目录无 `package-lock.json` | 已修复为 `npm install` |
-
-> 💡 **注意**：如果你使用的是 fork 仓库，需要在 fork 后手动添加 Secrets。原仓库的 Secrets 不会自动同步到 fork。
-
-> 💡 **重要**：首次部署成功后，**请将 Workflow 日志中输出的 KV Namespace ID** 保存到 GitHub Secret `CLOUDFLARE_KV_NAMESPACE_ID` 中。否则每次部署都会自动创建新的 KV 命名空间，导致旧数据丢失。在 Workflow 日志中搜索 `Created KV namespace: xxx` 即可找到。
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| ① | 创建 KV 命名空间 | 在 Cloudflare Dashboard 获取 32 位 Namespace ID |
+| ② | 配置 `wrangler.toml` | 将 KV ID 写入配置文件，推送到 GitHub |
+| ③ | 连接 GitHub 部署 | Dashboard → Create application → Continue with GitHub |
+| ④ | 设置环境变量 | 在 Dashboard 中加密配置 `ACCESS_TOKEN` |
+| ⑤ | 完成 ✅ | 之后每次 `git push` 自动部署 |
 
 ---
 
-## 手动部署步骤（本地方式）
+### 步骤 1：创建 KV 命名空间
 
-> 如果你更喜欢在本地手动操作，可以使用下面的方法。
+Worker 使用 Cloudflare KV 存储观影记录。需要先在 Dashboard 创建 KV 命名空间并获取 ID：
 
-### 第一步：安装 Node.js 和 Wrangler CLI
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
+2. 左侧菜单 → **Workers & Pages**
+3. 点击 **KV** 标签页（或在 Workers 页面点击 "Manage R2, D1, KV, Queues..." 中的 KV）
+4. 点击 **Create a namespace**
+5. 填写名称：`PLAYBACK_KV` → 点击 **Create**
+6. 创建成功后，**复制 Namespace ID**（32 位十六进制字符串，类似 `abc123def456...`）
 
-```bash
-# 检查 Node.js 版本（需要 >= 18）
-node --version
+> ⚠️ **重要**：请妥善保存这个 ID，下一步需要填入 `wrangler.toml`。如果丢失，可在 KV 页面重新查看。
 
-# 全局安装 Wrangler CLI
-npm install -g wrangler
+### 步骤 2：配置 wrangler.toml 并推送到 GitHub
 
-# 验证安装
-wrangler --version
-```
+将上一步获取的 KV Namespace ID 填入 `wrangler.toml` 并推送到 GitHub：
 
-### 第二步：登录 Cloudflare
-
-```bash
-# 在浏览器中完成登录授权
-wrangler login
-
-# 登录成功后会显示你的账号名
-# 如需切换账号，使用：wrangler logout 然后重新 login
-```
-
-### 第三步：创建 KV 命名空间
-
-```bash
-# 进入项目目录
-cd serverless/webhtv-playback-sync-cloudflare
-
-# 创建 KV 命名空间（用于存储观影记录）
-wrangler kv:namespace create "PLAYBACK_KV"
-```
-
-**输出示例：**
-```
-🪄  Creating namespace with title "PLAYBACK_KV"
-✅  Success! Namespace created with ID: abc123def456abcdef78901234567890
-```
-
-> ⚠️ **请妥善保存这个 ID**，下一步需要用到。
-
-如果你已经有一个 KV 命名空间，可以直接复用：
-
-```bash
-# 列出你已有的 KV 命名空间
-wrangler kv:namespace list
-
-# 绑定已有的命名空间（跳过创建步骤）
-```
-
-### 第四步：配置 wrangler.toml
-
-复制示例配置并填入你的 KV 命名空间 ID：
-
-```bash
-# 如果你还没有 wrangler.toml，从示例复制
-cp wrangler.toml.example wrangler.toml
-```
-
-编辑 `wrangler.toml`，填入 KV ID 和访问令牌：
+1. 打开项目中的 `wrangler.toml` 文件
+2. 将 `REPLACE_WITH_YOUR_KV_NAMESPACE_ID` 替换为实际的 32 位 ID：
 
 ```toml
 name = "webhtv-playback-sync"
 main = "src/index.js"
-compatibility_date = "2026-06-01"
+compatibility_date = "2024-12-01"
 
-# ↓↓↓ 填入上一步获得的 KV Namespace ID ↓↓↓
 kv_namespaces = [
   { binding = "PLAYBACK_KV", id = "abc123def456abcdef78901234567890" }
 ]
 
 [vars]
-# 设置访问令牌（App 端配置时需要填写此 token）
-ACCESS_TOKEN = "你的自定义密钥-建议32位随机字符串"
+# ACCESS_TOKEN 留空，后面在 Cloudflare Dashboard 中加密配置
+ACCESS_TOKEN = ""
 
-# 单次查询最大返回条数
 MAX_ITEMS = "1000"
-
-# 数据保留天数（超过此时间的记录会被自动清理）
 RETENTION_DAYS = "90"
+MAX_RECORDS = "500"
 ```
 
-> 💡 **获取随机密钥**：在终端运行 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 生成一个 64 位十六进制字符串。
-
-### 第五步：本地调试
+3. 保存文件并提交到 GitHub：
 
 ```bash
-# 安装依赖
-npm install
-
-# 启动本地开发服务器
-npm run dev
+git add serverless/webhtv-playback-sync-cloudflare/wrangler.toml
+git commit -m "feat: 配置 KV namespace ID"
+git push origin main
 ```
 
-**输出示例：**
-```
-  [INFO]  Starting local server...
-  [INFO]  - http://localhost:8787
-  [INFO]  Ready on http://localhost:8787
-```
+> ⚠️ **安全提示**：`ACCESS_TOKEN` **不要**写入 `wrangler.toml`。敏感变量统一在 Cloudflare Dashboard 的 **Variables and secrets** 中配置，加密存储且不会暴露到仓库。
 
-在另一个终端测试 API：
+### 步骤 3：在 Cloudflare Dashboard 连接 GitHub 部署
+
+这是核心步骤——在 Cloudflare Dashboard 中通过 "Continue with GitHub" 连接你的仓库：
+
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
+2. 左侧菜单 → **Workers & Pages**
+3. 点击右上角 **Create application**
+4. 你会看到两个选项：
+   - **Workers**：创建 Worker（本项目使用此方式）
+   - **Pages**：创建 Pages 站点
+5. 选择 **Workers** 标签页 → 点击 **Create Worker**
+6. 在创建页面中，你会看到 **"Continue with GitHub"** 按钮，点击它
+7. 在弹出的 GitHub 授权页面中：
+   - **选择你的 WebHTV 仓库**（在下拉菜单中找到 `你的用户名/WebHTV`）
+   - **Root directory** 设置为 `serverless/webhtv-playback-sync-cloudflare`
+     > 💡 这是关键一步！因为 Worker 代码在仓库子目录中。如果代码在根目录则留空。
+   - **Framework preset** 选择 **None**（这是纯 Worker，无框架）
+   - **Build command** 留空（Worker 不需要构建步骤）
+   - **Output directory** 留空
+8. 点击 **Deploy** 按钮
+9. 等待几秒（通常 10-30 秒），部署完成后会自动跳转到 Worker 页面
+
+> 💡 如果部署失败，Cloudflare 会显示错误日志。常见原因是 Root directory 设置错误或 `wrangler.toml` 中 KV ID 为占位符。
+
+### 步骤 4：配置环境变量（ACCESS_TOKEN 等）
+
+Worker 部署完成后，需要配置 `ACCESS_TOKEN` 等敏感变量。**不要**将这些值写入 `wrangler.toml`（会暴露到 GitHub），而是在 Cloudflare Dashboard 中配置：
+
+1. 打开刚创建的 Worker 页面
+2. 点击 **Settings** 标签页
+3. 左侧菜单 → **Variables and secrets**
+4. 点击 **Add variable**，添加以下变量：
+
+| Variable name | Value | Encrypt | 说明 |
+|---|---|---|---|
+| `ACCESS_TOKEN` | 你的自定义密钥 | ✅ 勾选 | 访问令牌，App 端配置时使用 |
+| `MAX_ITEMS` | `1000` | 否 | 单次查询最大返回条数 |
+| `RETENTION_DAYS` | `90` | 否 | 数据保留天数 |
+| `MAX_RECORDS` | `500` | 否 | 最大存储记录数 |
+
+> 💡 **生成随机密钥**：在本地终端运行 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 可生成 64 位随机十六进制字符串。
+>
+> 💡 **没有 Node.js？** 也可以在网上搜索 "random hex generator" 生成随机字符串，或使用密码管理器生成。
+
+### 步骤 5：推送代码并自动部署 ✅
+
+现在，当你推送 Worker 相关代码到 GitHub 时，Cloudflare 会自动拉取最新代码并部署：
 
 ```bash
-# 健康检查
-curl http://localhost:8787/api/health
-
-# 推送一条观影记录
-curl -X POST http://localhost:8787/api/playback/webhook \
-  -H "Content-Type: application/json" \
-  -H "X-WebHTV-Token: 你的自定义密钥" \
-  -d '{
-    "schema": "webhtv.playback.v1",
-    "event": "ended",
-    "timestamp": 1722000000000,
-    "siteKey": "csp",
-    "vodId": "movie_001",
-    "vodName": "流浪地球2",
-    "episodeName": "正片",
-    "positionMs": 5400000,
-    "durationMs": 5400000,
-    "progress": 1.0,
-    "completed": true,
-    "speed": 1.0,
-    "configKey": "default",
-    "dedupeKey": "unique-dedupe-key-001"
-  }'
-
-# 查询观影记录
-curl http://localhost:8787/api/playback/records \
-  -H "X-WebHTV-Token: 你的自定义密钥"
+# 修改 Worker 代码后
+git add serverless/webhtv-playback-sync-cloudflare/
+git commit -m "fix: 修复观影记录同步 bug"
+git push origin main
 ```
 
-### 第六步：部署到 Cloudflare
+推送完成后：
+1. Cloudflare 检测到 GitHub 仓库有新 commit
+2. 自动拉取代码（使用 Root directory `serverless/webhtv-playback-sync-cloudflare`）
+3. 读取 `wrangler.toml` 配置（KV 绑定、环境变量等）
+4. 自动部署 Worker
+5. 通常 30 秒到 2 分钟完成
 
-```bash
-# 一键部署
-npm run deploy
-```
+你可以在 Cloudflare Dashboard → Worker → **Deployments** 标签页查看部署历史和状态。
 
-**输出示例：**
-```
-  [INFO]  Deploying your worker...
-  [INFO]  Uploaded ... (2.13 sec)
-  [INFO]  Submitting your worker...
-  [INFO]  Uploaded (2.09 sec)
-  [INFO]  Deployed your worker (2.81 sec)
-  [INFO]  Worker Version ID: v1-abcd1234...
-  [INFO]  Worker URL: https://webhtv-playback-sync-你的子域.workers.dev
-```
+---
 
-> ⚠️ **重要**：首次部署后，KV 命名空间绑定需要几秒钟完成。如遇 `KV storage not configured` 错误，等待 10-30 秒后重试。
+### 后续更新 Worker
 
-**部署后验证：**
+只需修改 `serverless/webhtv-playback-sync-cloudflare/` 下的代码并 `git push`，Cloudflare 自动重新部署，**无需任何额外操作**。
 
-```bash
-# 测试线上健康检查
-curl https://你的-worker-subdomain.workers.dev/api/health
+如需重新配置 KV 绑定或环境变量，直接在 Cloudflare Dashboard 修改即可，无需重新连接 GitHub。
 
-# 测试线上能力查询
-curl https://你的-worker-subdomain.workers.dev/api/server/capabilities
-```
+如需手动触发部署：在 Worker → Settings → Git → 点击 **"Force deploy"** 按钮。
 
-### 第七步：配置自定义域名（可选）
+### 更换 GitHub 仓库或分支
 
-如果已有自己的域名，可以绑定到 Worker：
+如果需要更换仓库或分支：
+1. Worker → Settings → Git → 点击 **"Disconnect"** 断开当前连接
+2. 重新点击 **"Connect to Git"** 选择新仓库或分支
 
-```bash
-# 在 Cloudflare Dashboard 中：
-# 1. 进入 Workers & Pages → 选择你的 Worker
-# 2. 点击 "Settings" → "Triggers" → "Custom Domains"
-# 3. 点击 "Add Custom Domain" → 输入你的子域名（如 sync.yourdomain.com）
-# 4. 按要求配置 DNS 记录
+### 故障排查
 
-# 也可以通过 wrangler 命令行配置
-wrangler route add "sync.yourdomain.com/*" webhtv-playback-sync
-```
-
-配置完成后，你就可以使用自定义域名作为 WebHTV App 的同步地址。
+| 错误/问题 | 原因 | 解决 |
+|---|---|---|
+| `No module named` / `Build failed` | Root directory 未正确设置 | 在 Worker → Settings → Git → 重新设置 Root directory 为 `serverless/webhtv-playback-sync-cloudflare` |
+| `KV storage not configured` | wrangler.toml 中 KV ID 错误或 KV 不存在 | 检查 ID 是否为 32 位十六进制，确认 KV namespace 在 Dashboard 中存在 |
+| Worker 部署成功但无法访问 | 首次部署绑定未完全生效 | 等待 30 秒后刷新 Worker 页面 |
+| `Invalid token` | 未在 Dashboard 配置 ACCESS_TOKEN 或值不匹配 | 到 Settings → Variables and secrets 添加或修改变量值 |
+| 推送代码后未自动部署 | GitHub 连接断开 | 在 Worker → Settings → Git → 重新连接 |
+| `wrangler.toml` 中的 KV ID 为占位符 | 未替换为真实 ID | 替换后 commit 并 push |
+| 部署成功但 API 返回 500 | KV 绑定问题或代码错误 | 查看 Worker → Logs 标签页的实时日志 |
+| GitHub 授权失败 | 权限问题 | 在 GitHub Settings → Applications → 撤销 Cloudflare 授权后重试 |
 
 ---
 
@@ -472,7 +287,6 @@ X-WebHTV-Config-Name: <接口名称>       # 可选
   "result": {
     "ok": true,
     "skipped": false,
-    "key": "sha256-hash-of-content",
     "dedupeKey": "sha256-hash-of-content",
     "historyKey": "csp/movie_001/1"
   }
@@ -642,11 +456,11 @@ GET /api/server/capabilities
 2. 开启 **观影记录同步** 开关
 3. 找到 **Webhook 推送** 区域 → 点击 **添加**
 4. 填写配置：
-  - **名称**：随意，如 `Cloudflare 同步`
-  - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/webhook`
-  - **Token**：填入 `wrangler.toml` 中设置的 `ACCESS_TOKEN`
-  - **事件**：勾选 `progress`、`ended`（建议全选）
-  - **站点过滤**：留空表示同步所有站点
+   - **名称**：随意，如 `Cloudflare 同步`
+   - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/webhook`
+   - **Token**：填入在 Cloudflare Dashboard 设置的 `ACCESS_TOKEN`
+   - **事件**：勾选 `progress`、`ended`（建议全选）
+   - **站点过滤**：留空表示同步所有站点
 5. 保存后，播放节目时会自动推送记录到 Worker
 
 ### 配置远端同步拉取
@@ -654,14 +468,14 @@ GET /api/server/capabilities
 1. 打开 WebHTV App → **设置** → **观影记录同步**
 2. 找到 **远端同步** 区域 → 点击 **添加**
 3. 填写配置：
-  - **名称**：随意，如 `家庭影院同步`
-  - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/records`
-  - **Token**：填入 `wrangler.toml` 中设置的 `ACCESS_TOKEN`
-  - **站点过滤**：留空表示同步所有站点
-  - **接口过滤**：可选，按 configKey 过滤
-  - **启动时同步**：建议开启
-  - **定时同步间隔**：建议设为 30-60 分钟
-  - **最大记录数**：100-500
+   - **名称**：随意，如 `家庭影院同步`
+   - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/records`
+   - **Token**：填入在 Cloudflare Dashboard 设置的 `ACCESS_TOKEN`
+   - **站点过滤**：留空表示同步所有站点
+   - **接口过滤**：可选，按 configKey 过滤
+   - **启动时同步**：建议开启
+   - **定时同步间隔**：建议设为 30-60 分钟
+   - **最大记录数**：100-500
 4. 保存后，App 会在启动时和定时拉取 Worker 中的观影记录
 
 ### 两种模式对比
@@ -686,12 +500,7 @@ GET /api/server/capabilities
 
 ### 访问令牌保护
 
-在 `wrangler.toml` 的 `[vars]` 中设置 `ACCESS_TOKEN`：
-
-```toml
-[vars]
-ACCESS_TOKEN = "my-secret-token-12345"
-```
+在 Cloudflare Dashboard → Worker → Settings → Variables and secrets 中添加加密变量 `ACCESS_TOKEN`。
 
 启用后，所有 API 请求都需携带 `X-WebHTV-Token` 头：
 
@@ -703,14 +512,9 @@ curl -H "X-WebHTV-Token: my-secret-token-12345" https://your-worker.workers.dev/
 
 ### 数据保留策略
 
-通过 `RETENTION_DAYS` 环境变量控制数据保留天数：
+通过 `RETENTION_DAYS` 环境变量控制数据保留天数（在 Dashboard Variables 中设置）。
 
-```toml
-[vars]
-RETENTION_DAYS = "30"    # 只保留最近 30 天的记录
-```
-
-Worker 会根据记录的 `timestamp`/`updatedAt` 字段自动计算过期时间，过期数据自动清除。
+Worker 会根据记录的 `timestamp`/`updatedAt` 字段自动过滤过期数据。
 
 ### 限流与安全
 
@@ -720,29 +524,31 @@ Cloudflare Workers 自带基础 DDoS 防护。如需更严格的限流：
 2. 启用 **WAF**（Web Application Firewall）规则
 3. 使用 Cloudflare Access 限制特定 IP 访问
 
+### 绑定自定义域名
+
+如果已有自己的域名，可以绑定到 Worker：
+
+1. Worker → Settings → Triggers → Custom Domains
+2. 点击 **Add Custom Domain** → 输入你的子域名（如 `sync.yourdomain.com`）
+3. 按要求配置 DNS 记录
+
 ---
 
 ## 常见问题排查
 
-### Q1: 部署后收到 KV storage not configured 错误
+### Q1: 部署后收到 `KV storage not configured` 错误
 
 **原因**：首次部署时 KV 绑定还未完全生效。
 
-**解决**：等待 10-30 秒后重新部署，或检查 `wrangler.toml` 中的 KV namespace ID 是否正确。
+**解决**：等待 10-30 秒后刷新页面，或在 Worker → Settings → KV 中检查绑定状态。
 
-```bash
-# 验证 KV 绑定
-wrangler kv:namespace list
-# 确认 PLAYBACK_KV 存在且 ID 与配置一致
-```
-
-### Q2: Invalid token 错误
+### Q2: `Invalid token` 错误
 
 **原因**：请求中未携带正确的 `X-WebHTV-Token` 头。
 
 **解决**：
-1. 检查 App 端 Webhook/远端同步配置中的 Token 是否与 `wrangler.toml` 中的 `ACCESS_TOKEN` 完全一致
-2. 如果不需要鉴权，暂时清空 `ACCESS_TOKEN` 变量
+1. 检查 App 端 Webhook/远端同步配置中的 Token 是否与 Dashboard 中设置的 `ACCESS_TOKEN` 完全一致
+2. 如果不需要鉴权，在 Dashboard Variables 中删除 `ACCESS_TOKEN` 变量
 
 ### Q3: App 端收不到同步数据
 
@@ -758,33 +564,19 @@ wrangler kv:namespace list
 **原因**：部分电视浏览器/系统可能无法访问 `*.workers.dev` 域名。
 
 **解决**：
-1. 绑定自定义域名到 Worker（参考第七步）
+1. 绑定自定义域名到 Worker（参考进阶配置）
 2. 确认电视 DNS 解析正常
-3. 改用 `webhtv-remote-cloudflare`（Durable Object 版本）作为中转方案
 
-### Q5: 数据量很大时查询变慢
-
-**原因**：单键存储方案在数据量 > 5000 条时，JSON 文件体积会较大（接近 25MB KV 限制）。
-
-**优化建议**：
-1. 使用 `siteKey`/`configKey` 参数过滤，减少返回量
-2. 通过 `MAX_RECORDS` 环境变量限制最大记录数（默认 500）
-3. 定期通过 API 清理旧数据
-4. 如需更大规模（>5000 条），考虑迁移到 Cloudflare D1 数据库
-
-### Q6: 如何重置所有数据
+### Q5: 如何重置所有数据
 
 ```bash
-# 方法一：通过 API 删除
+# 通过 API 删除全部数据
 curl -X POST https://your-worker.workers.dev/api/playback/progress/delete \
   -H "X-WebHTV-Token: your-token" \
   -H "Content-Type: application/json" \
   -d '{"confirm": true, "scope": "all"}'
 
-# 方法二：通过 wrangler 清空 KV
-wrangler kv:namespace delete --namespace-id=your-namespace-id
-# 然后重新创建
-wrangler kv:namespace create "PLAYBACK_KV"
+# 或在 Cloudflare Dashboard → KV → 手动删除所有记录
 ```
 
 ---
@@ -796,7 +588,6 @@ wrangler kv:namespace create "PLAYBACK_KV"
 | Worker 调用 | 每天 100,000 次 | 个人用户完全够用 |
 | KV 存储 | 1 GB 总计 | 约可存储 10,000+ 条观影记录 |
 | KV 读写 | 每天 100,000 次 | 个人用户完全够用 |
-| Durable Object | 免费额度内 | 本项目不使用 DO |
 
 > 💡 **个人用户完全免费**。如果家庭使用（2-3 台设备，每天几百次调用），免费额度绰绰有余。
 
@@ -851,5 +642,7 @@ src/index.js
 
 ## 更新日志
 
-- **v1.1.0** - 重构为单 KV key 存储方案，大幅减少 KV 读写次数；添加字段校验；添加 MAX_RECORDS 自动裁剪
+- **v1.3.0** - 优化 Cloudflare Connect to Git 部署教程，增加快速概览、5 步流程详解、更换仓库指南和扩展故障排查
+- **v1.2.0** - 改为 Cloudflare Connect to Git 部署方案，敏感变量迁移到 Dashboard Variables
+- **v1.1.0** - 重构为单 KV key 存储方案，大幅减少 KV 读写次数；添加字段校验
 - **v1.0.0** - 初始版本，支持 Webhook 推送、远端同步拉取、批量操作、Token 鉴权、TTL 自动清理

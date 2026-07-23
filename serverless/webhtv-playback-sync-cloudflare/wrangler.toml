@@ -5,7 +5,7 @@ compatibility_date = "2024-12-01"
 # KV 存储绑定 - 在 Cloudflare Dashboard 创建 KV 命名空间后，将 ID 填入下方
 # 创建方式：Dashboard → Workers & Pages → KV → Create a namespace
 kv_namespaces = [
-  { binding = "PLAYBACK_KV", id = "your-kv-namespace-id-here" }
+  { binding = "PLAYBACK_KV", id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" }
 ]
 
 [vars]
