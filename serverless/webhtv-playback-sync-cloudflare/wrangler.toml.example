@@ -1,0 +1,20 @@
+name = "webhtv-playback-sync"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+kv_namespaces = [
+  { binding = "PLAYBACK_KV", id = "your-kv-namespace-id-here" }
+]
+
+[vars]
+# 访问令牌 - 设置后所有 API 需携带 X-WebHTV-Token 头
+ACCESS_TOKEN = ""
+
+# 远端同步单次查询最大返回条数（1-2000）
+MAX_ITEMS = "1000"
+
+# 数据保留天数 - 超过此时间的记录在查询时自动过滤
+RETENTION_DAYS = "90"
+
+# 最大存储记录数 - 超出时自动丢弃最旧记录（建议 500-5000）
+MAX_RECORDS = "500"

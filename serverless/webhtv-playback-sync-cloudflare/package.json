@@ -1,0 +1,15 @@
+{
+  "name": "webhtv-playback-sync-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WebHTV 观影记录同步 Cloudflare Worker - 用于 WebHTV 多设备观影进度同步",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/index.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
