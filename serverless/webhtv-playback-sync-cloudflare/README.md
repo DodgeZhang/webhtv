@@ -79,7 +79,7 @@
 整个流程只需 5 步，约 5 分钟完成：
 
 | 步骤 | 操作 | 说明 |
-|------|------|------|
+| --- | --- | --- |
 | ① | 创建 KV 命名空间 | 在 Cloudflare Dashboard 获取 32 位 Namespace ID |
 | ② | 配置 `wrangler.toml` | 将 KV ID 写入配置文件，推送到 GitHub |
 | ③ | 连接 GitHub 部署 | Dashboard → Create application → Continue with GitHub |
@@ -126,7 +126,7 @@ RETENTION_DAYS = "90"
 MAX_RECORDS = "500"
 ```
 
-3. 保存文件并提交到 GitHub：
+1. 保存文件并提交到 GitHub：
 
 ```bash
 git add serverless/webhtv-playback-sync-cloudflare/wrangler.toml
@@ -144,19 +144,19 @@ git push origin main
 2. 左侧菜单 → **Workers & Pages**
 3. 点击右上角 **Create application**
 4. 你会看到两个选项：
-   - **Workers**：创建 Worker（本项目使用此方式）
-   - **Pages**：创建 Pages 站点
+  - **Workers**：创建 Worker（本项目使用此方式）
+  - **Pages**：创建 Pages 站点
 5. 选择 **Workers** 标签页 → 点击 **Create Worker**
 6. 在创建页面中，你会看到 **"Continue with GitHub"** 按钮，点击它
 7. 在弹出的 GitHub 授权页面中：
-   - **选择你的 WebHTV 仓库**（在下拉菜单中找到 `你的用户名/WebHTV`）
-   - **Root directory** 设置为 `serverless/webhtv-playback-sync-cloudflare`
-     > 💡 这是关键一步！因为 Worker 代码在仓库子目录中。如果代码在根目录则留空。
-   - **Framework preset** 选择 **None**（这是纯 Worker，无框架）
-   - **Build command** 留空（Worker 不需要构建步骤）
-   - **Output directory** 留空
-8. 点击 **Deploy** 按钮
-9. 等待几秒（通常 10-30 秒），部署完成后会自动跳转到 Worker 页面
+  - **选择你的 WebHTV 仓库**（在下拉菜单中找到 `你的用户名/WebHTV`）
+  - **Root directory** 设置为 `serverless/webhtv-playback-sync-cloudflare`
+> 💡 这是关键一步！因为 Worker 代码在仓库子目录中。如果代码在根目录则留空。
+- **Framework preset** 选择 **None**（这是纯 Worker，无框架）
+  - **Build command** 留空（Worker 不需要构建步骤）
+  - **Output directory** 留空
+1. 点击 **Deploy** 按钮
+2. 等待几秒（通常 10-30 秒），部署完成后会自动跳转到 Worker 页面
 
 > 💡 如果部署失败，Cloudflare 会显示错误日志。常见原因是 Root directory 设置错误或 `wrangler.toml` 中 KV ID 为占位符。
 
@@ -170,14 +170,14 @@ Worker 部署完成后，需要配置 `ACCESS_TOKEN` 等敏感变量。**不要*
 4. 点击 **Add variable**，添加以下变量：
 
 | Variable name | Value | Encrypt | 说明 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `ACCESS_TOKEN` | 你的自定义密钥 | ✅ 勾选 | 访问令牌，App 端配置时使用 |
 | `MAX_ITEMS` | `1000` | 否 | 单次查询最大返回条数 |
 | `RETENTION_DAYS` | `90` | 否 | 数据保留天数 |
 | `MAX_RECORDS` | `500` | 否 | 最大存储记录数 |
 
 > 💡 **生成随机密钥**：在本地终端运行 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 可生成 64 位随机十六进制字符串。
->
+> 
 > 💡 **没有 Node.js？** 也可以在网上搜索 "random hex generator" 生成随机字符串，或使用密码管理器生成。
 
 ### 步骤 5：推送代码并自动部署 ✅
@@ -233,7 +233,7 @@ https://你的-worker-subdomain.workers.dev/
 ### 功能特性
 
 | 功能 | 说明 |
-|------|------|
+| --- | --- |
 | 📊 **数据概览** | 显示总记录数、站点数量、设备数量、数据保留天数等统计信息 |
 | 📋 **记录列表** | 分页浏览所有观影记录，显示影片名、站点、进度、观看状态、更新时间 |
 | 🔍 **搜索过滤** | 按影片名、站点名快速搜索记录 |
@@ -255,7 +255,7 @@ https://你的-worker-subdomain.workers.dev/
 ### 故障排查
 
 | 错误/问题 | 原因 | 解决 |
-|---|---|---|
+| --- | --- | --- |
 | `No module named` / `Build failed` | Root directory 未正确设置 | 在 Worker → Settings → Git → 重新设置 Root directory 为 `serverless/webhtv-playback-sync-cloudflare` |
 | `KV storage not configured` | wrangler.toml 中 KV ID 错误或 KV 不存在 | 检查 ID 是否为 32 位十六进制，确认 KV namespace 在 Dashboard 中存在 |
 | Worker 部署成功但无法访问 | 首次部署绑定未完全生效 | 等待 30 秒后刷新 Worker 页面 |
@@ -522,11 +522,11 @@ GET / 或 GET /admin
 2. 开启 **观影记录同步** 开关
 3. 找到 **Webhook 推送** 区域 → 点击 **添加**
 4. 填写配置：
-   - **名称**：随意，如 `Cloudflare 同步`
-   - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/webhook`
-   - **Token**：填入在 Cloudflare Dashboard 设置的 `ACCESS_TOKEN`
-   - **事件**：勾选 `progress`、`ended`（建议全选）
-   - **站点过滤**：留空表示同步所有站点
+  - **名称**：随意，如 `Cloudflare 同步`
+  - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/webhook`
+  - **Token**：填入在 Cloudflare Dashboard 设置的 `ACCESS_TOKEN`
+  - **事件**：勾选 `progress`、`ended`（建议全选）
+  - **站点过滤**：留空表示同步所有站点
 5. 保存后，播放节目时会自动推送记录到 Worker
 
 ### 配置远端同步拉取
@@ -534,14 +534,14 @@ GET / 或 GET /admin
 1. 打开 WebHTV App → **设置** → **观影记录同步**
 2. 找到 **远端同步** 区域 → 点击 **添加**
 3. 填写配置：
-   - **名称**：随意，如 `家庭影院同步`
-   - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/records`
-   - **Token**：填入在 Cloudflare Dashboard 设置的 `ACCESS_TOKEN`
-   - **站点过滤**：留空表示同步所有站点
-   - **接口过滤**：可选，按 configKey 过滤
-   - **启动时同步**：建议开启
-   - **定时同步间隔**：建议设为 30-60 分钟
-   - **最大记录数**：100-500
+  - **名称**：随意，如 `家庭影院同步`
+  - **URL**：`https://你的-worker-subdomain.workers.dev/api/playback/records`
+  - **Token**：填入在 Cloudflare Dashboard 设置的 `ACCESS_TOKEN`
+  - **站点过滤**：留空表示同步所有站点
+  - **接口过滤**：可选，按 configKey 过滤
+  - **启动时同步**：建议开启
+  - **定时同步间隔**：建议设为 30-60 分钟
+  - **最大记录数**：100-500
 4. 保存后，App 会在启动时和定时拉取 Worker 中的观影记录
 
 ### 两种模式对比
@@ -608,13 +608,13 @@ Cloudflare Workers 自带基础 DDoS 防护。如需更严格的限流：
 
 ## 常见问题排查
 
-### Q1: 部署后收到 `KV storage not configured` 错误
+### Q1: 部署后收到 KV storage not configured 错误
 
 **原因**：首次部署时 KV 绑定还未完全生效。
 
 **解决**：等待 10-30 秒后刷新页面，或在 Worker → Settings → KV 中检查绑定状态。
 
-### Q2: `Invalid token` 错误
+### Q2: Invalid token 错误
 
 **原因**：请求中未携带正确的 `X-WebHTV-Token` 头。
 
@@ -643,24 +643,24 @@ Cloudflare Workers 自带基础 DDoS 防护。如需更严格的限流：
 **排查步骤**：
 
 1. **先验证 Worker 本身正常**：在同一网络的手机/电脑浏览器访问 `https://你的子域.workers.dev/api/health`
-   - ✅ 能访问 → Worker 正常，问题在 TV 网络 → 用方案 B 或 C
-   - ❌ 不能访问 → 你的网络整体屏蔽了 `workers.dev` → 必须用方案 A
+  - ✅ 能访问 → Worker 正常，问题在 TV 网络 → 用方案 B 或 C
+  - ❌ 不能访问 → 你的网络整体屏蔽了 `workers.dev` → 必须用方案 A
 
-2. **方案 A（推荐）：绑定自定义域名**
-   - 如果你有自己的域名，在 Cloudflare Dashboard → Worker → Settings → Triggers → Custom Domains 绑定
-   - 绑定后 App 端 URL 改为 `https://sync.你的域名.com/api/playback/records`
+1. **方案 A（推荐）：绑定自定义域名**
+  - 如果你有自己的域名，在 Cloudflare Dashboard → Worker → Settings → Triggers → Custom Domains 绑定
+  - 绑定后 App 端 URL 改为 `https://sync.你的域名.com/api/playback/records`
 
-3. **方案 B：修改 TV 的 DNS**
-   - 将 TV 的 DNS 改为 `1.1.1.1`（Cloudflare）或 `8.8.8.8`（Google）或 `114.114.114.114`（114 DNS）
-   - 部分 ISP 默认 DNS 可能解析 Cloudflare 到不可达的 IP
+1. **方案 B：修改 TV 的 DNS**
+  - 将 TV 的 DNS 改为 `1.1.1.1`（Cloudflare）或 `8.8.8.8`（Google）或 `114.114.114.114`（114 DNS）
+  - 部分 ISP 默认 DNS 可能解析 Cloudflare 到不可达的 IP
 
-4. **方案 C：检查路由器**
-   - 临时关闭路由器防火墙测试
-   - 检查是否有 Cloudflare IP 段的拦截规则
+1. **方案 C：检查路由器**
+  - 临时关闭路由器防火墙测试
+  - 检查是否有 Cloudflare IP 段的拦截规则
 
-5. **方案 D：手机热点测试**
-   - 将 TV 连接到手机热点（4G/5G）测试
-   - 如果移动网络可用，说明是宽带线路问题
+1. **方案 D：手机热点测试**
+  - 将 TV 连接到手机热点（4G/5G）测试
+  - 如果移动网络可用，说明是宽带线路问题
 
 ### Q5: 如何重置所有数据
 
