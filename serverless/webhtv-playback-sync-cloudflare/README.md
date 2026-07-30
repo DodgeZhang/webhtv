@@ -114,7 +114,7 @@ main = "src/index.js"
 compatibility_date = "2024-12-01"
 
 kv_namespaces = [
-  { binding = "PLAYBACK_KV", id = "abc123def456abcdef78901234567890" }
+  { binding = "PLAYBACK_KV", id = "your-kv-namespace-id-here" }
 ]
 
 [vars]
