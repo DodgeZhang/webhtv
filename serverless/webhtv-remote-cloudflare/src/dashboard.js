@@ -138,6 +138,11 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   thead { background: var(--bg-card); }
   th { padding: 14px 16px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  th.sortable { cursor: pointer; user-select: none; transition: color 0.15s, background 0.15s; }
+  th.sortable:hover { color: var(--accent); background: var(--bg-elevated); }
+  th.sortable .sort-arrow { display: inline-block; margin-left: 4px; font-size: 10px; opacity: 0.3; transition: opacity 0.15s; }
+  th.sortable.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+  th.sortable:hover .sort-arrow { opacity: 0.7; }
   td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
   tbody tr { transition: background 0.15s; }
   tbody tr:hover { background: var(--bg-card); }
@@ -316,11 +321,11 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <table>
         <thead>
           <tr>
-            <th>影片</th>
-            <th>站点</th>
-            <th>进度</th>
-            <th>状态</th>
-            <th>更新时间</th>
+            <th class="sortable" data-sortkey="vodName" onclick="sortBy('vodName')">影片<span class="sort-arrow">↕</span></th>
+            <th class="sortable" data-sortkey="siteKey" onclick="sortBy('siteKey')">站点<span class="sort-arrow">↕</span></th>
+            <th class="sortable" data-sortkey="progress" onclick="sortBy('progress')">进度<span class="sort-arrow">↕</span></th>
+            <th class="sortable" data-sortkey="status" onclick="sortBy('status')">状态<span class="sort-arrow">↕</span></th>
+            <th class="sortable" data-sortkey="updatedAt" onclick="sortBy('updatedAt')">更新时间<span class="sort-arrow">↕</span></th>
             <th style="width: 60px;"></th>
           </tr>
         </thead>
@@ -356,7 +361,9 @@ const state = {
   page: 1,
   pageSize: 20,
   search: '',
-  filtered: []
+  filtered: [],
+  sortKey: 'updatedAt',
+  sortDir: 'desc'
 };
 
 // ============ 登录与凭证管理 ============
@@ -537,7 +544,59 @@ function applyFilter() {
       (r.siteName || '').toLowerCase().includes(q)
     );
   }
+  applySort();
   state.page = 1;
+}
+
+// 排序：点击列头切换排序字段和方向
+function sortBy(key) {
+  if (state.sortKey === key) {
+    state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sortKey = key;
+    state.sortDir = (key === 'updatedAt') ? 'desc' : 'asc';
+  }
+  applySort();
+  renderRecords();
+  updateSortIndicators();
+}
+
+// 计算单条记录在当前排序键下的比较值
+function getSortValue(r, key) {
+  switch (key) {
+    case 'vodName':  return (r.vodName || '').toLowerCase();
+    case 'siteKey':  return (r.siteName || r.siteKey || '').toLowerCase();
+    case 'progress': return r.progress || 0;
+    case 'status':   return (r.completed || (r.progress && r.progress >= 0.95)) ? 1 : 0;
+    case 'updatedAt':return r.updatedAt || r.updated_at || 0;
+    default:         return 0;
+  }
+}
+
+function applySort() {
+  const key = state.sortKey;
+  const dir = state.sortDir === 'asc' ? 1 : -1;
+  state.filtered.sort((a, b) => {
+    const va = getSortValue(a, key);
+    const vb = getSortValue(b, key);
+    if (va < vb) return -1 * dir;
+    if (va > vb) return  1 * dir;
+    return 0;
+  });
+}
+
+// 更新表头排序箭头指示器
+function updateSortIndicators() {
+  document.querySelectorAll('th.sortable').forEach(th => {
+    const arrow = th.querySelector('.sort-arrow');
+    if (th.dataset.sortkey === state.sortKey) {
+      th.classList.add('sorted');
+      arrow.textContent = state.sortDir === 'asc' ? '↑' : '↓';
+    } else {
+      th.classList.remove('sorted');
+      arrow.textContent = '↕';
+    }
+  });
 }
 
 function renderRecords() {
@@ -580,6 +639,7 @@ function renderRecords() {
   }).join('');
 
   renderPagination(totalPages);
+  updateSortIndicators();
 }
 
 function renderPagination(totalPages) {

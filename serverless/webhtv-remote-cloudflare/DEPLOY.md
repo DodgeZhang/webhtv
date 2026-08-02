@@ -10,7 +10,7 @@
 2. [GitHub 仓库准备](#2-github-仓库准备)
 3. [Cloudflare 账户准备](#3-cloudflare-账户准备)
 4. [一键部署（推荐）](#4-一键部署推荐)
-5. [手动部署（Wrangler CLI）](#5-手动部署wrangler-cli)
+5. [手动部署（Wrangler CLI，备选方案）](#5-手动部署wrangler-cli备选方案)
 6. [App 端配置](#6-app-端配置)
 7. [管理控制台使用](#7-管理控制台使用)
 8. [验证部署](#8-验证部署)
@@ -72,60 +72,82 @@ git push -u origin main
 
 ## 4. 一键部署（推荐）
 
-通过 Cloudflare 的 **Deploy to Cloudflare Workers** 按钮，直接从 GitHub 仓库一键部署。
+通过 Cloudflare Dashboard 的 **Workers Builds** 功能，全程在浏览器中完成部署，无需安装任何本地工具。
 
-### 步骤 1：获取 API Token
+### 步骤 1：Fork 仓库
 
-1. 访问 [https://dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
-2. 点击 **Create Token**
-3. 选择 **Edit Cloudflare Workers** 模板
-4. 在 Account Resources 中选择你的账户
-5. 点击 **Continue to summary** → **Create Token**
-6. **复制 Token 值**（只显示一次，请妥善保存）
+参见 [第 2 节](#2-github-仓库准备)，确保你的 GitHub 账号下已有 Fork 的 `webhtv` 仓库。
 
-### 步骤 2：通过 Wrangler 部署（最可靠）
+### 步骤 2：在 Cloudflare 创建 Worker 并连接 GitHub
 
-```bash
-# 1. 克隆你的 Fork
-git clone https://github.com/<你的用户名>/webhtv.git
-cd webhtv/serverless/webhtv-remote-cloudflare
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
+2. 左侧菜单点击 **Workers 和 Pages**
+3. 点击 **创建** 按钮
+4. 选择 **Workers** 选项卡
+5. 点击 **连接到 Git**
 
-# 2. 安装依赖
-npm install
+### 步骤 3：授权 Cloudflare 访问 GitHub
 
-# 3. 复制配置模板
-cp wrangler.toml.example wrangler.toml
+1. 弹出 GitHub 授权页面，点击 **授权 Cloudflare Workers and Pages**
+2. 选择 **Only select repositories**，在列表中搜索并勾选你 Fork 的 `webhtv` 仓库
+3. 点击 **安装和授权**
+4. 回到 Cloudflare 页面后，在仓库列表中选择 `webhtv`
 
-# 4. 登录 Cloudflare
-npx wrangler login
-# 浏览器会打开授权页面，点击 Allow
+### 步骤 4：配置构建和部署
 
-# 5. 部署
-npm run deploy
-```
+在 **构建配置** 页面填写以下信息：
 
-部署成功后，终端会输出你的 Worker 地址：
+| 配置项 | 填写值 |
+|--------|--------|
+| **项目名称** | `webhtv-remote-cloudflare`（可自定义） |
+| **生产分支** | `main` |
+| **根目录（高级）** | `serverless/webhtv-remote-cloudflare` |
+| **构建命令** | `npm install` |
+| **部署命令** | `npx wrangler deploy` |
+
+> ⚠️ **根目录必须填写** `serverless/webhtv-remote-cloudflare`，这是 Worker 代码所在的子目录。如果不填，Cloudflare 会从仓库根目录构建，导致找不到 `wrangler.toml`。
+
+填写完成后，点击 **保存并部署**。
+
+### 步骤 5：等待构建完成
+
+Cloudflare 会自动执行以下操作：
+
+1. 克隆你的 GitHub 仓库
+2. 进入 `serverless/webhtv-remote-cloudflare` 目录
+3. 运行 `npm install` 安装依赖
+4. 运行 `npx wrangler deploy` 部署 Worker
+5. 自动执行 Durable Object 迁移（创建 `RELAY_DO` 和 `PLAYBACK_DO`）
+
+构建过程通常需要 1-2 分钟。在 **部署** 页面可以实时查看构建日志。
+
+部署成功后，你会在页面顶部看到 Worker 地址：
+
 ```
 https://webhtv-remote-cloudflare.<你的子域名>.workers.dev
 ```
 
-### 步骤 3：验证 Durable Object 绑定
+### 步骤 6：验证 Durable Object 绑定
 
-部署完成后，验证 PLAYBACK_DO 是否正确绑定：
+部署完成后，打开新浏览器标签页，访问以下地址验证 PLAYBACK_DO 是否正确绑定：
 
-```bash
-curl https://webhtv-remote-cloudflare.<你的子域名>.workers.dev/api/server/capabilities
+```
+https://webhtv-remote-cloudflare.<你的子域名>.workers.dev/api/server/capabilities
 ```
 
 响应中应包含 `"playbackSync": true`，表示观影记录同步已就绪。
 
-如果看到 `"playbackSync": false`，说明 Durable Object 迁移未生效，请检查 `wrangler.toml` 中的 `[[migrations]]` 配置。
+如果看到 `"playbackSync": false`，说明 Durable Object 迁移未生效，请检查仓库中 `wrangler.toml` 是否包含 `[[migrations]]` 配置。
+
+### 步骤 7：后续更新（自动）
+
+配置完成后，每次你向 GitHub 仓库的 `main` 分支推送代码，Cloudflare 会**自动触发重新部署**。你也可以在 Workers 和 Pages → 你的项目 → 部署 页面手动点击 **重试部署**。
 
 ---
 
-## 5. 手动部署（Wrangler CLI）
+## 5. 手动部署（Wrangler CLI，备选方案）
 
-如果一键部署遇到问题，可以使用手动方式。
+> 如果第 4 节的网页部署遇到问题，可以使用命令行方式手动部署。此方式需要本地安装 Node.js 和 Wrangler。
 
 ### 步骤 1：安装 Wrangler
 
@@ -213,16 +235,18 @@ openssl rand -hex 32
 1. 进入 **增强功能 → 观影记录同步 → 远端同步**
 2. 点击 **新增同步源**
 3. 填写：
-   - **URL**：`https://<你的 Worker 域名>/api/playback/sync`
+   - **URL**：`https://<你的 Worker 域名>/api/playback/sync`（完整 API 地址）
    - **Token**：上一步生成的 Token
 4. 保存
+
+> ⚠️ **必须填写完整路径** `/api/playback/sync`。App 会直接使用你填写的 URL 发起请求，不会自动拼接路径。如果只填基地址（如 `https://your-worker.workers.dev`），App 会访问根路径收到 HTML 页面，导致 `MalformedJsonException` 报错。
 
 ### 配置 Webhook 上报
 
 1. 进入 **增强功能 → 观影记录同步 → Webhook 上报**
 2. 点击 **新增端点**
 3. 填写：
-   - **URL**：与远端同步源**完全相同**的地址
+   - **URL**：与远端同步源**完全相同**的完整 API 地址（含 `/api/playback/sync`）
    - **Token**：与远端同步源**完全相同**的 Token
    - **字段预设**：选择「基础」「标准」或「完整」（匿名预设不支持）
 4. 保存
@@ -316,18 +340,19 @@ curl 'https://<你的 Worker 域名>/api/playback/sync/status' \
 ```bash
 cd webhtv/serverless/webhtv-remote-cloudflare
 
+# CLI 模式（config-key 可直接填点播接口 URL，自动计算 SHA-256）
 python test_sync.py \
   --url https://<你的 Worker 域名> \
   --token <你的 token> \
-  --config-key <你的 configKey>
+  --config-key <你的 configKey 或点播接口 URL>
 ```
 
 测试脚本会运行 9 项检查：网络连通性、健康检查、服务器能力、同步状态、写入进度、拉取增量、删除墓碑、批量写入、认证验证，并在末尾输出诊断报告。
 
-GUI 模式（需 tkinter）：
+GUI 模式（直接运行，弹出图形界面输入配置）：
 
 ```bash
-python test_sync.py --url ... --token ... --config-key ... --gui
+python test_sync.py
 ```
 
 ---
@@ -386,14 +411,21 @@ python test_sync.py --url ... --token ... --config-key ... --gui
 
 ### Q6: Worker 部署后访问返回 403 或 Error 1010
 
-**原因**：Cloudflare WAF/Bot Fight Mode 拦截了请求。
+**原因**：Cloudflare WAF/Bot Fight Mode 拦截了请求。Bot Fight Mode 会拦截所有非浏览器 User-Agent（如 Python-urllib、curl 默认 UA），返回 `error code: 1010`。
+
+**判断方法**：用浏览器直接访问 `/api/health`，如果返回 `{"ok":true}` 但 curl/Python 返回 403+1010，即可确认。
 
 **解决**：
 
-1. 进入 Cloudflare Dashboard → Security → Bots
-2. 关闭 **Bot Fight Mode**
-3. 如使用自定义域名，进入 Security → WAF → Rules
-4. 添加跳过规则：`URI Path starts with "/api/"` → Skip All
+1. 进入 Cloudflare Dashboard → 选择你的域名 → 安全性 → 自动程序
+2. 关闭 **Bot 战斗模式（Bot Fight Mode）**
+3. 如使用自定义域名，进入 安全性 → WAF → 自定义规则
+4. 创建放行规则：
+   - 表达式：`(http.host eq "你的域名" and starts_with(http.request.uri.path, "/api/"))`
+   - 操作：跳过（Skip）→ 勾选所有 WAF 检查
+5. 部署规则后立即生效
+
+> **注意**：App 端使用自定义 User-Agent（OkHttp），一般不会触发 Bot Fight Mode。但测试脚本和 curl 需要设置浏览器 UA 或关闭 Bot Fight Mode。
 
 ### Q7: 迁移失败 "cannot modify migration tag"
 

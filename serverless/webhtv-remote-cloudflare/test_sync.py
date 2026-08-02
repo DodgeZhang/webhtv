@@ -16,11 +16,16 @@ WebHTV 观影记录同步测试脚本 — 适配 webhtv-remote-cloudflare (Durab
   6. 存储引擎：Durable Object 内置 SQLite，无需 KV 绑定
 
 使用方式:
+  # 直接运行（默认启动 GUI，弹出地址/Token/Config Key 输入框）
+  python test_sync.py
+
+  # CLI 模式（config-key 可直接填点播接口 URL，自动计算 SHA-256）
   python test_sync.py --url https://your-worker.workers.dev --token YOUR_TOKEN --config-key YOUR_CONFIG_KEY
-  python test_sync.py --url ... --token ... --config-key ... --gui    # 启动 GUI
+  python test_sync.py --url ... --token ... --config-key https://example.com/config.json
 """
 
 import argparse
+import hashlib
 import json
 import os
 import socket
@@ -61,6 +66,8 @@ def http_request(url, method='GET', headers=None, body=None, timeout=15):
     """发送 HTTP 请求并返回 (status, response_headers, response_body)"""
     if headers is None:
         headers = {}
+    # 设置浏览器 UA，避免被 Cloudflare Bot Fight Mode 拦截 (Error 1010)
+    headers.setdefault('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     prepared = _prepare_headers(headers)
     data = None
     if body is not None:
@@ -90,17 +97,37 @@ def http_request(url, method='GET', headers=None, body=None, timeout=15):
 # 日志工具
 # ============================================================
 
+# 日志输出回调（GUI 模式下设为写入 Text 控件的函数；CLI 模式下为 None）
+_LOG_SINK = None
+_STOP_FLAG = False
+
 def log(level, msg):
     ts = datetime.now().strftime('%H:%M:%S.') + f'{int(datetime.now().microsecond / 1000):03d}'
     icons = {'INFO': 'INFO', 'OK': '  OK', 'ERR': ' ERR', 'WARN': 'WARN', 'DBG': ' DBG'}
-    print(f'[{ts}] [{icons.get(level, level):>6}] {msg}')
+    icon = icons.get(level, level)
+    line = f'[{ts}] [{icon:>6}] {msg}'
+    if _LOG_SINK:
+        _LOG_SINK(level, line)
+    else:
+        print(line)
 
 def log_separator(title=''):
-    print()
-    print('=' * 70)
-    if title:
-        print(f'  {title}')
-        print('=' * 70)
+    line = '=' * 70
+    if _LOG_SINK:
+        _LOG_SINK('SEP', '')
+        _LOG_SINK('SEP', line)
+        if title:
+            _LOG_SINK('SEP', f'  {title}')
+            _LOG_SINK('SEP', line)
+    else:
+        print()
+        print(line)
+        if title:
+            print(f'  {title}')
+            print(line)
+
+def is_stopped():
+    return _STOP_FLAG
 
 
 # ============================================================
@@ -510,6 +537,9 @@ class SyncTester:
         passed = 0
         failed = 0
         for test in tests:
+            if is_stopped():
+                log('WARN', '测试已被用户停止')
+                break
             try:
                 if test():
                     passed += 1
@@ -520,11 +550,12 @@ class SyncTester:
                 failed += 1
 
         # 认证测试单独运行（不阻断）
-        try:
-            self.test_auth()
-            passed += 1
-        except Exception:
-            failed += 1
+        if not is_stopped():
+            try:
+                self.test_auth()
+                passed += 1
+            except Exception:
+                failed += 1
 
         self._print_report(passed, failed)
         return failed == 0
@@ -699,87 +730,395 @@ class SyncTester:
 
 
 # ============================================================
-# GUI (可选)
+# GUI
 # ============================================================
 
-def run_gui(tester):
-    """启动简单的 GUI 界面 (使用 tkinter)"""
+CONFIG_FILE = os.path.join(os.path.expanduser('~'), '.webhtv-sync-test', 'config.json')
+
+def _compute_config_key(url):
+    """SHA-256 计算点播接口 URL 的 configKey（与 App 端 PlaybackConfigIdentity.keyForUrl 一致）"""
+    trimmed = (url or '').strip()
+    if not trimmed:
+        return ''
+    return hashlib.sha256(trimmed.encode('utf-8')).hexdigest()
+
+def _is_sha256_hex(value):
+    return len(value) == 64 and all(c in '0123456789abcdef' for c in value.lower())
+
+def _load_config():
+    try:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_config(config):
+    try:
+        os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def run_gui():
+    """启动 GUI 界面"""
+    global _LOG_SINK, _STOP_FLAG
     try:
         import tkinter as tk
-        from tkinter import ttk, scrolledtext, messagebox
+        from tkinter import ttk, scrolledtext, filedialog, messagebox
     except ImportError:
-        log('ERR', 'GUI 需要 tkinter，请使用命令行模式运行')
+        print('GUI 需要 tkinter，请使用命令行模式运行')
         return
+
+    # ---- 颜色配置 ----
+    BG = '#1e1e2e'
+    BG_ENTRY = '#2a2a3e'
+    FG = '#e4e6f4'
+    FG_MUTED = '#9aa0c3'
+    COLOR_MAP = {
+        'OK': '#34d399',
+        'ERR': '#f87171',
+        'WARN': '#fbbf24',
+        'INFO': FG,
+        'DBG': '#6b7094',
+        'SEP': '#4a5070',
+    }
+    RESULT_ICON = {'ok': '✅', 'fail': '❌', 'warn': '⚠️', 'skip': '⏭️'}
+
+    # ---- 测试项定义 ----
+    TEST_DEFS = [
+        ('network', '🌐 网络连通性'),
+        ('health', '🏥 健康检查'),
+        ('capabilities', '⚙️ 服务器能力'),
+        ('status', '📊 同步状态'),
+        ('push_progress', '📮 写入进度'),
+        ('pull', '📥 拉取增量'),
+        ('delete', '🗑️ 删除墓碑'),
+        ('batch', '📦 批量写入'),
+        ('auth', '🔐 认证验证'),
+    ]
 
     root = tk.Tk()
     root.title('WebHTV 观影记录同步测试 (DO 后端)')
-    root.geometry('900x700')
+    root.geometry('980x780')
+    root.minsize(800, 600)
+    root.configure(bg=BG)
 
-    # 配置区
-    config_frame = ttk.LabelFrame(root, text='配置', padding=10)
-    config_frame.pack(fill='x', padx=10, pady=5)
+    # ---- 样式 ----
+    style = ttk.Style()
+    try:
+        style.theme_use('clam')
+    except Exception:
+        pass
+    style.configure('TFrame', background=BG)
+    style.configure('TLabel', background=BG, foreground=FG, font=('Microsoft YaHei UI', 10))
+    style.configure('TLabelframe', background=BG, foreground=FG_MUTED, font=('Microsoft YaHei UI', 10, 'bold'))
+    style.configure('TLabelframe.Label', background=BG, foreground=FG_MUTED)
+    style.configure('TButton', font=('Microsoft YaHei UI', 10))
+    style.configure('TCheckbutton', background=BG, foreground=FG, font=('Microsoft YaHei UI', 9))
+    style.configure('Horizontal.TProgressbar', thickness=8)
 
-    ttk.Label(config_frame, text='Worker URL:').grid(row=0, column=0, sticky='w', padx=5)
-    url_entry = ttk.Entry(config_frame, width=50)
-    url_entry.grid(row=0, column=1, padx=5, pady=3)
+    saved = _load_config()
 
-    ttk.Label(config_frame, text='Token:').grid(row=1, column=0, sticky='w', padx=5)
-    token_entry = ttk.Entry(config_frame, width=50, show='*')
-    token_entry.grid(row=1, column=1, padx=5, pady=3)
+    # ---- 顶部配置区 ----
+    config_frame = ttk.LabelFrame(root, text='  连接配置  ', padding=12)
+    config_frame.pack(fill='x', padx=12, pady=(10, 6))
 
-    ttk.Label(config_frame, text='Config-Key:').grid(row=2, column=0, sticky='w', padx=5)
-    configkey_entry = ttk.Entry(config_frame, width=50)
-    configkey_entry.grid(row=2, column=1, padx=5, pady=3)
+    ttk.Label(config_frame, text='Worker URL:').grid(row=0, column=0, sticky='w', padx=(0, 8), pady=3)
+    url_var = tk.StringVar(value=saved.get('url', ''))
+    ttk.Entry(config_frame, textvariable=url_var, width=55).grid(row=0, column=1, columnspan=3, sticky='ew', pady=3)
+
+    ttk.Label(config_frame, text='Token:').grid(row=1, column=0, sticky='w', padx=(0, 8), pady=3)
+    token_var = tk.StringVar(value=saved.get('token', ''))
+    token_entry = ttk.Entry(config_frame, textvariable=token_var, width=55, show='*')
+    token_entry.grid(row=1, column=1, columnspan=3, sticky='ew', pady=3)
+
+    def toggle_token_visibility():
+        token_entry.config(show='' if show_token_var.get() else '*')
+    show_token_var = tk.BooleanVar(value=False)
+    ttk.Checkbutton(config_frame, text='显示', variable=show_token_var, command=toggle_token_visibility).grid(row=1, column=4, padx=4)
+
+    ttk.Label(config_frame, text='Config Key:').grid(row=2, column=0, sticky='w', padx=(0, 8), pady=3)
+    configkey_var = tk.StringVar(value=saved.get('config_key', ''))
+    configkey_entry = ttk.Entry(config_frame, textvariable=configkey_var, width=55)
+    configkey_entry.grid(row=2, column=1, columnspan=3, sticky='ew', pady=3)
+
+    # URL→Key 计算按钮
+    def compute_key():
+        raw = configkey_var.get().strip()
+        if not raw:
+            messagebox.showinfo('提示', '请在 Config Key 输入框中填入点播接口 URL')
+            return
+        if _is_sha256_hex(raw):
+            messagebox.showinfo('提示', f'输入已经是 configKey:\n{raw}')
+            return
+        key = _compute_config_key(raw)
+        configkey_var.set(key)
+        messagebox.showinfo('计算成功', f'点播接口 URL 的 SHA-256:\n{key}')
+
+    ttk.Button(config_frame, text='URL→SHA256', command=compute_key).grid(row=2, column=4, padx=4, pady=3)
+
+    ttk.Label(config_frame, text='（输入点播接口URL点"URL→SHA256"自动计算，或直接粘贴64位configKey）',
+              foreground=FG_MUTED, font=('Microsoft YaHei UI', 8)).grid(row=3, column=1, columnspan=4, sticky='w', pady=(0, 2))
+
+    save_cfg_var = tk.BooleanVar(value=True)
+    ttk.Checkbutton(config_frame, text='保存配置到本地', variable=save_cfg_var).grid(row=3, column=0, sticky='w')
+
+    config_frame.columnconfigure(1, weight=1)
+
+    # ---- 测试选择区 ----
+    test_frame = ttk.LabelFrame(root, text='  测试项目（勾选要运行的测试）  ', padding=10)
+    test_frame.pack(fill='x', padx=12, pady=6)
+
+    test_vars = {}
+    for i, (key, label) in enumerate(TEST_DEFS):
+        var = tk.BooleanVar(value=True)
+        test_vars[key] = var
+        r, c = divmod(i, 3)
+        ttk.Checkbutton(test_frame, text=label, variable=var).grid(row=r, column=c, sticky='w', padx=8, pady=2)
+    for c in range(3):
+        test_frame.columnconfigure(c, weight=1, uniform='test')
+
+    def select_all_tests():
+        for v in test_vars.values(): v.set(True)
+    def deselect_all_tests():
+        for v in test_vars.values(): v.set(False)
+    ttk.Button(test_frame, text='全选', command=select_all_tests).grid(row=3, column=0, sticky='w', padx=8, pady=(4, 0))
+    ttk.Button(test_frame, text='全不选', command=deselect_all_tests).grid(row=3, column=1, sticky='w', padx=8, pady=(4, 0))
+
+    # ---- 操作按钮区 ----
+    btn_frame = ttk.Frame(root)
+    btn_frame.pack(fill='x', padx=12, pady=4)
+
+    progress_var = tk.DoubleVar(value=0)
+    progress_label_var = tk.StringVar(value='就绪')
+
+    def on_start():
+        url = url_var.get().strip()
+        token = token_var.get().strip()
+        raw_ck = configkey_var.get().strip()
+
+        if not url:
+            messagebox.showwarning('提示', '请填写 Worker URL')
+            return
+        if not token:
+            messagebox.showwarning('提示', '请填写 Token')
+            return
+        if not raw_ck:
+            messagebox.showwarning('提示', '请填写 Config Key 或点播接口 URL')
+            return
+
+        # 智能识别：如果是 URL 则自动计算
+        if _is_sha256_hex(raw_ck):
+            config_key = raw_ck.lower()
+        elif raw_ck.startswith('http'):
+            config_key = _compute_config_key(raw_ck)
+            if not config_key:
+                messagebox.showerror('错误', 'Config Key 计算失败')
+                return
+            configkey_var.set(config_key)
+        else:
+            config_key = raw_ck.lower()
+
+        # 保存配置
+        if save_cfg_var.get():
+            _save_config({'url': url, 'token': token, 'config_key': config_key})
+
+        # 确定要运行的测试
+        selected = [k for k, v in test_vars.items() if v.get()]
+        if not selected:
+            messagebox.showwarning('提示', '请至少选择一个测试项')
+            return
+
+        # 清空日志和结果
+        log_text.config(state='normal')
+        log_text.delete('1.0', 'end')
+        for widget in result_inner.winfo_children():
+            widget.destroy()
+        global _STOP_FLAG
+        _STOP_FLAG = False
+        start_btn.config(state='disabled')
+        stop_btn.config(state='normal')
+        progress_var.set(0)
+        progress_label_var.set('准备中...')
+
+        def worker():
+            global _LOG_SINK
+            tester = SyncTester(url, token, config_key)
+            tester.results = {}
+
+            # 构建 selected 测试方法映射
+            method_map = {
+                'network': tester.test_network,
+                'health': tester.test_health,
+                'capabilities': tester.test_capabilities,
+                'status': tester.test_status,
+                'push_progress': tester.test_push_progress,
+                'pull': tester.test_pull,
+                'delete': tester.test_delete,
+                'batch': tester.test_batch,
+                'auth': tester.test_auth,
+            }
+
+            log_separator('WebHTV 观影记录同步测试 (Durable Object 后端)')
+            log('INFO', f'目标: {url}')
+            masked = token[:8] + '...' + token[-4:] if len(token) > 12 else '***'
+            log('INFO', f'Token: {masked}')
+            log('INFO', f'Config-Key: {config_key}')
+            log('INFO', f'时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+            log('INFO', f'选中测试: {len(selected)} 项')
+
+            passed = 0
+            failed = 0
+            total = len(selected)
+            for idx, key in enumerate(selected):
+                if _STOP_FLAG:
+                    log('WARN', '测试已被用户停止')
+                    break
+                label = dict(TEST_DEFS).get(key, key)
+                progress_label_var.set(f'{idx+1}/{total}  {label}')
+                root.after(0, lambda l=label, k=key: update_result_row(k, l, 'running', ''))
+                try:
+                    ok = method_map[key]()
+                    if ok:
+                        passed += 1
+                    else:
+                        failed += 1
+                except Exception as e:
+                    log('ERR', f'{label} 测试异常: {e}')
+                    failed += 1
+                r = tester.results.get(key, {})
+                status = r.get('status', 'fail')
+                detail = tester._detail_ok(key, r) if status == 'ok' else f"HTTP {r.get('http_code', '?')}"
+                root.after(0, lambda k=key, l=label, s=status, d=detail: update_result_row(k, l, s, d))
+                progress_var.set((idx + 1) / total * 100)
+
+            if not _STOP_FLAG:
+                progress_label_var.set(f'完成: {passed} 通过, {failed} 失败')
+                log_separator('测试结果汇总')
+                log('INFO', f'总计: {total}  |  通过: {passed}  |  失败: {failed}')
+                log_separator('异常诊断与处理建议')
+                suggestions = tester._build_suggestions()
+                if not suggestions:
+                    log('OK', '🎉 全部测试通过，无需处理。')
+                else:
+                    for i, sug in enumerate(suggestions, 1):
+                        log('WARN', f'[{i}] {sug["title"]}')
+                        for tip in sug.get('tips', []):
+                            log('INFO', f'      {tip}')
+            else:
+                progress_label_var.set(f'已停止: {passed} 通过, {failed} 失败')
+
+            root.after(0, lambda: (start_btn.config(state='normal'), stop_btn.config(state='disabled')))
+
+        Thread(target=worker, daemon=True).start()
+
+    def on_stop():
+        global _STOP_FLAG
+        _STOP_FLAG = True
+        log('WARN', '正在停止测试...')
+        stop_btn.config(state='disabled')
+
+    def on_clear():
+        log_text.config(state='normal')
+        log_text.delete('1.0', 'end')
+        for widget in result_inner.winfo_children():
+            widget.destroy()
+        progress_var.set(0)
+        progress_label_var.set('就绪')
+
+    def on_export():
+        content = log_text.get('1.0', 'end')
+        if not content.strip():
+            messagebox.showinfo('提示', '日志为空')
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension='.log',
+            filetypes=[('日志文件', '*.log'), ('文本文件', '*.txt'), ('所有文件', '*.*')],
+            initialfile=f'webhtv-sync-test-{datetime.now().strftime("%Y%m%d-%H%M%S")}.log'
+        )
+        if path:
+            try:
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                messagebox.showinfo('成功', f'日志已保存到:\n{path}')
+            except Exception as e:
+                messagebox.showerror('错误', f'保存失败: {e}')
+
+    start_btn = ttk.Button(btn_frame, text='▶ 开始测试', command=on_start)
+    start_btn.pack(side='left', padx=(0, 6))
+    stop_btn = ttk.Button(btn_frame, text='⏹ 停止', command=on_stop, state='disabled')
+    stop_btn.pack(side='left', padx=6)
+    ttk.Button(btn_frame, text='🗑 清空', command=on_clear).pack(side='left', padx=6)
+    ttk.Button(btn_frame, text='💾 导出日志', command=on_export).pack(side='left', padx=6)
+
+    ttk.Label(btn_frame, textvariable=progress_label_var, foreground=FG_MUTED).pack(side='right', padx=4)
+
+    # ---- 进度条 ----
+    ttk.Progressbar(root, variable=progress_var, maximum=100, mode='determinate').pack(fill='x', padx=12, pady=2)
+
+    # ---- 主体区域：左日志 + 右结果 ----
+    body_frame = ttk.Frame(root)
+    body_frame.pack(fill='both', expand=True, padx=12, pady=6)
 
     # 日志区
-    log_frame = ttk.LabelFrame(root, text='日志', padding=5)
-    log_frame.pack(fill='both', expand=True, padx=10, pady=5)
-    log_text = scrolledtext.ScrolledText(log_frame, wrap='word', font=('Consolas', 10))
+    log_frame = ttk.LabelFrame(body_frame, text='  日志  ', padding=4)
+    log_frame.pack(side='left', fill='both', expand=True, padx=(0, 4))
+    log_text = scrolledtext.ScrolledText(log_frame, wrap='word', font=('Consolas', 9),
+                                          bg=BG_ENTRY, fg=FG, insertbackground=FG,
+                                          selectbackground='#3a3a5e', borderwidth=0,
+                                          padx=8, pady=6)
     log_text.pack(fill='both', expand=True)
+    for tag, color in COLOR_MAP.items():
+        log_text.tag_config(tag, foreground=color)
 
-    def gui_log(level, msg):
-        ts = datetime.now().strftime('%H:%M:%S.')
-        ts += f'{int(datetime.now().microsecond / 1000):03d}'
-        log_text.insert('end', f'[{ts}] [{level:>6}] {msg}\n')
+    # 结果区
+    result_frame = ttk.LabelFrame(body_frame, text='  测试结果  ', padding=8)
+    result_frame.pack(side='right', fill='y', padx=(4, 0))
+    result_inner = ttk.Frame(result_frame)
+    result_inner.pack(fill='both', expand=True)
+
+    result_rows = {}
+
+    def update_result_row(key, label, status, detail):
+        if key in result_rows:
+            for w in result_rows[key]:
+                w.destroy()
+        row_frame = ttk.Frame(result_inner)
+        row_frame.pack(fill='x', pady=1)
+        icon = {'ok': '✅', 'fail': '❌', 'warn': '⚠️', 'skip': '⏭️', 'running': '⏳'}.get(status, '❓')
+        color = {'ok': '#34d399', 'fail': '#f87171', 'warn': '#fbbf24', 'running': '#60a5fa'}.get(status, FG)
+        lbl_icon = tk.Label(row_frame, text=icon, bg=BG, fg=color, font=('Microsoft YaHei UI', 10), width=2)
+        lbl_icon.pack(side='left')
+        lbl_text = tk.Label(row_frame, text=label, bg=BG, fg=FG, font=('Microsoft YaHei UI', 9), anchor='w', width=14)
+        lbl_text.pack(side='left')
+        lbl_detail = tk.Label(row_frame, text=detail, bg=BG, fg=FG_MUTED, font=('Microsoft YaHei UI', 8), anchor='w')
+        lbl_detail.pack(side='left', fill='x', expand=True)
+        result_rows[key] = [row_frame, lbl_icon, lbl_text, lbl_detail]
+
+    # ---- 日志回调 ----
+    def gui_log_sink(level, line):
+        log_text.config(state='normal')
+        if level == 'SEP' and not line:
+            log_text.insert('end', '\n')
+        else:
+            tag = level if level in COLOR_MAP else 'INFO'
+            log_text.insert('end', line + '\n', tag)
         log_text.see('end')
+        log_text.config(state='disabled')
+        root.update_idletasks()
 
-    def run_tests():
-        url = url_entry.get().strip()
-        token = token_entry.get().strip()
-        ck = configkey_entry.get().strip().lower()
-        if not url or not token or not ck:
-            messagebox.showwarning('提示', '请填写所有配置项')
-            return
-        log_text.delete('1.0', 'end')
-        run_btn.config(state='disabled')
-        root.update()
+    _LOG_SINK = gui_log_sink
 
-        # 重写 log 函数
-        import builtins
-        original_print = builtins.print
-
-        def capture_print(*args, **kwargs):
-            text = ' '.join(str(a) for a in args)
-            log_text.insert('end', text + '\n')
-            log_text.see('end')
-            root.update()
-
-        builtins.print = capture_print
-        try:
-            t = SyncTester(url, token, ck)
-            t.run_all()
-        except Exception as e:
-            gui_log('ERR', f'测试异常: {e}')
-        finally:
-            builtins.print = original_print
-            run_btn.config(state='normal')
-
-    btn_frame = ttk.Frame(root)
-    btn_frame.pack(fill='x', padx=10, pady=5)
-    run_btn = ttk.Button(btn_frame, text='▶ 开始测试', command=run_tests)
-    run_btn.pack(side='left', padx=5)
+    # ---- 底部状态栏 ----
+    status_bar = ttk.Frame(root)
+    status_bar.pack(fill='x', padx=12, pady=(0, 8))
+    ttk.Label(status_bar, text=f'配置文件: {CONFIG_FILE}', foreground=FG_MUTED,
+              font=('Microsoft YaHei UI', 8)).pack(side='left')
 
     root.mainloop()
+    _LOG_SINK = None
 
 
 # ============================================================
@@ -788,19 +1127,29 @@ def run_gui(tester):
 
 def main():
     parser = argparse.ArgumentParser(description='WebHTV 观影记录同步测试 (Durable Object 后端)')
-    parser.add_argument('--url', required=True, help='Worker URL, 例如 https://your-worker.workers.dev')
-    parser.add_argument('--token', required=True, help='访问令牌 (X-WebHTV-Token)')
-    parser.add_argument('--config-key', required=True, help='点播接口标识 (X-WebHTV-Config-Key)')
-    parser.add_argument('--gui', action='store_true', help='启动 GUI 界面')
+    parser.add_argument('--url', help='Worker URL, 例如 https://your-worker.workers.dev')
+    parser.add_argument('--token', help='访问令牌 (X-WebHTV-Token)')
+    parser.add_argument('--config-key', help='点播接口标识 (X-WebHTV-Config-Key) 或点播接口 URL')
+    parser.add_argument('--cli', action='store_true', help='强制使用命令行模式（默认无参数时启动 GUI）')
     args = parser.parse_args()
 
-    tester = SyncTester(args.url, args.token, args.config_key.lower())
+    # 无任何参数时默认启动 GUI
+    if not args.cli and not args.url and not args.token and not args.config_key:
+        run_gui()
+        return
 
-    if args.gui:
-        run_gui(tester)
-    else:
-        ok = tester.run_all()
-        sys.exit(0 if ok else 1)
+    # 指定了 --cli 或任何连接参数时走命令行模式
+    if not args.url or not args.token or not args.config_key:
+        parser.error('CLI 模式需要 --url, --token, --config-key 参数（无参数运行将启动 GUI）')
+
+    config_key = args.config_key
+    if not _is_sha256_hex(config_key) and config_key.startswith('http'):
+        config_key = _compute_config_key(config_key)
+        print(f'已从 URL 计算 configKey: {config_key}')
+
+    tester = SyncTester(args.url, args.token, config_key.lower())
+    ok = tester.run_all()
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == '__main__':
