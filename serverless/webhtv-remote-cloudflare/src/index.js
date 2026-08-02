@@ -1,5 +1,6 @@
 import { createRelayState, handleRelayRequest, snapshotRelayState } from './relay.js';
 import { handlePlaybackSyncGateway, isPlaybackSyncPath, WebHTVPlaybackSyncDO } from './playback-sync.js';
+import { getDashboardResponse } from './dashboard.js';
 
 export { WebHTVPlaybackSyncDO };
 
@@ -43,7 +44,12 @@ export class WebHTVRemoteRelayDO {
 
 export default {
   async fetch(request, env) {
-    if (isPlaybackSyncPath(new URL(request.url).pathname)) return handlePlaybackSyncGateway(request, env);
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    if (request.method === 'GET' && (pathname === '/' || pathname === '/dashboard' || pathname === '/index.html')) {
+      return getDashboardResponse();
+    }
+    if (isPlaybackSyncPath(pathname)) return handlePlaybackSyncGateway(request, env);
     if (env && env.RELAY_DO) return env.RELAY_DO.getByName(RELAY_DO_NAME).fetch(request);
     return handleRelayRequest(request, {
       serverName: SERVER_NAME,
