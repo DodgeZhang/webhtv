@@ -232,9 +232,12 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="form-hint">用 openssl rand -hex 32 生成，与 App 中填写的完全一致</div>
     </div>
     <div class="form-group">
-      <label>Config Key（点播接口标识）</label>
-      <input type="text" id="loginConfigKey" class="form-input" placeholder="abcdef0123456789" value="">
-      <div class="form-hint">App 中点播接口的 configKey，区分不同接口的数据空间</div>
+      <label>Config Key 或 点播接口 URL</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="loginConfigKey" class="form-input" placeholder="接口 URL 或 configKey (sha256)" value="" style="flex:1;">
+        <button type="button" class="btn" onclick="toggleConfigMode()" id="configModeBtn" style="white-space:nowrap;">URL→Key</button>
+      </div>
+      <div class="form-hint" id="configKeyHint">App 中点播接口的 URL，控制台自动计算 configKey（与 App 自动携带的 X-WebHTV-Config-Key 一致）</div>
     </div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="doLogin()">
       🔗 连接
@@ -357,17 +360,57 @@ const state = {
 };
 
 // ============ 登录与凭证管理 ============
+// configKey 输入模式：'url' = 输入接口URL自动计算sha256，'key' = 直接输入configKey
+let configKeyMode = 'url';
+
 function loadCredentials() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
     if (saved.baseUrl) document.getElementById('loginUrl').value = saved.baseUrl;
     if (saved.token) document.getElementById('loginToken').value = saved.token;
     if (saved.configKey) document.getElementById('loginConfigKey').value = saved.configKey;
+    if (saved.configKeyMode) { configKeyMode = saved.configKeyMode; updateConfigModeUI(); }
   } catch (e) {}
 }
 
 function saveCredentials(baseUrl, token, configKey) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ baseUrl, token, configKey }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ baseUrl, token, configKey, configKeyMode }));
+}
+
+function toggleConfigMode() {
+  configKeyMode = configKeyMode === 'url' ? 'key' : 'url';
+  updateConfigModeUI();
+  // 切换时清空当前输入，避免混淆
+  document.getElementById('loginConfigKey').value = '';
+}
+
+function updateConfigModeUI() {
+  const btn = document.getElementById('configModeBtn');
+  const input = document.getElementById('loginConfigKey');
+  const hint = document.getElementById('configKeyHint');
+  if (configKeyMode === 'url') {
+    btn.textContent = 'URL→Key';
+    input.placeholder = 'https://example.com/config.json';
+    hint.textContent = 'App 中点播接口的 URL，控制台自动计算 configKey（与 App 自动携带的 X-WebHTV-Config-Key 一致）';
+  } else {
+    btn.textContent = 'Key模式';
+    input.placeholder = 'a1b2c3d4...（64位 sha256）';
+    hint.textContent = '直接输入 configKey（sha256 哈希值），与 App 发送的 X-WebHTV-Config-Key 头完全一致';
+  }
+}
+
+// SHA-256 计算（浏览器原生 Web Crypto API）
+async function computeConfigKey(url) {
+  const trimmed = (url || '').trim();
+  if (!trimmed) return '';
+  const data = new TextEncoder().encode(trimmed);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 判断输入是否已经是 configKey（64位十六进制 = sha256 结果）
+function isSha256Hex(value) {
+  return /^[0-9a-f]{64}$/.test((value || '').trim().toLowerCase());
 }
 
 function showLogin() {
@@ -378,11 +421,24 @@ function showLogin() {
 async function doLogin() {
   const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\\/+$/, '');
   const token = document.getElementById('loginToken').value.trim();
-  const configKey = document.getElementById('loginConfigKey').value.trim().toLowerCase();
+  const rawInput = document.getElementById('loginConfigKey').value.trim();
 
   if (!baseUrl) { showToast('请填写 Worker 地址', 'error'); return; }
   if (!token) { showToast('请填写 Token', 'error'); return; }
-  if (!configKey) { showToast('请填写 Config Key', 'error'); return; }
+  if (!rawInput) { showToast('请填写点播接口 URL 或 Config Key', 'error'); return; }
+
+  // 智能识别：如果输入已经是 64 位 sha256，直接使用；否则按 URL 计算
+  let configKey;
+  if (isSha256Hex(rawInput)) {
+    configKey = rawInput.toLowerCase();
+  } else if (configKeyMode === 'url' || rawInput.startsWith('http')) {
+    configKey = await computeConfigKey(rawInput);
+    if (!configKey) { showToast('Config Key 计算失败', 'error'); return; }
+    showToast('已从 URL 计算 configKey: ' + configKey.substring(0, 12) + '...', 'info');
+  } else {
+    // key 模式下输入了非 sha256 的值，当作普通 configKey 使用
+    configKey = rawInput.toLowerCase();
+  }
 
   state.baseUrl = baseUrl;
   state.token = token;
@@ -393,7 +449,7 @@ async function doLogin() {
     await loadData();
     document.getElementById('loginOverlay').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
-    document.getElementById('configKeyDisplay').textContent = '接口: ' + configKey;
+    document.getElementById('configKeyDisplay').textContent = '接口: ' + configKey.substring(0, 12) + '...';
   } catch (e) {
     showToast('连接失败: ' + e.message, 'error');
   }
@@ -661,7 +717,7 @@ if (saved.baseUrl && saved.token && saved.configKey) {
   doLogin().then(() => {
     document.getElementById('loginOverlay').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
-    document.getElementById('configKeyDisplay').textContent = '接口: ' + state.configKey;
+    document.getElementById('configKeyDisplay').textContent = '接口: ' + state.configKey.substring(0, 12) + '...';
   }).catch(() => {});
 }
 </script>
