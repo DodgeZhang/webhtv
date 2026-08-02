@@ -4,16 +4,14 @@
 WebHTV 观影记录同步测试脚本 — 适配 webhtv-remote-cloudflare (Durable Object + SQLite 后端)
 
 与旧版 KV 后端 (webhtv-playback-sync-cloudflare) 的关键差异：
-  1. 认证：X-WebHTV-Token (必填) + X-WebHTV-Config-Key (必填)
-     token 由用户自行生成 (openssl rand -hex 32)，不写入 Worker 环境变量
-  2. API 统一端点：/api/playback/sync
+  1. API 统一端点：/api/playback/sync
      - GET  → 按游标拉取增量进度和删除墓碑
      - POST → 写入进度 (playback.progress) 或删除墓碑 (playback.deleted)
-  3. 状态端点：GET /api/playback/sync/status
-  4. 删除方式：POST /api/playback/sync 发送 {event:"playback.deleted", scope:"item|site|all", ...}
+  2. 状态端点：GET /api/playback/sync/status
+  3. 删除方式：POST /api/playback/sync 发送 {event:"playback.deleted", scope:"item|site|all", ...}
      而非旧版的 DELETE /api/playback/records
-  5. 分页：基于单调游标 since/nextSince，而非 maxItems
-  6. 存储引擎：Durable Object 内置 SQLite，无需 KV 绑定
+  4. 分页：基于单调游标 since/nextSince，而非 maxItems
+  5. 存储引擎：Durable Object 内置 SQLite，无需 KV 绑定
 
 使用方式:
   # 直接运行（默认启动 GUI，弹出地址/Token/Config Key 输入框）
@@ -36,6 +34,70 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from threading import Thread
+
+# ============================================================
+# 控制台编码兼容修复 (Windows 打包为 EXE 后尤其重要)
+# ------------------------------------------------------------
+# 现象: Windows 默认 GBK (代码页 936) 控制台, 打印中文/Emoji
+#       (如 ✅❌⚠️) 会抛出 UnicodeEncodeError: 'gbk' codec ...
+# 修复: 1) 设置 PYTHONUTF8=1 让 Python I/O 默认 UTF-8
+#       2) 重定向 sys.stdout/stderr 为 UTF-8 编码 + errors='replace'
+#       3) Win32 API 设置控制台输入/输出代码页为 65001 (UTF-8)
+# ============================================================
+def _fixup_console_encoding():
+    if sys.platform != 'win32':
+        return
+    os.environ.setdefault('PYTHONUTF8', '1')
+    # Python 3.7+ 支持 TextIOWrapper.reconfigure
+    for stream_name in ('stdout', 'stderr'):
+        try:
+            stream = getattr(sys, stream_name, None)
+            if stream is None or not hasattr(stream, 'reconfigure'):
+                continue
+            try:
+                stream.reconfigure(encoding='utf-8', errors='replace')
+            except Exception:
+                # reconfigure 失败时 fallback: 重建 wrapper
+                try:
+                    import io
+                    buf = getattr(stream, 'buffer', stream)
+                    new_stream = io.TextIOWrapper(
+                        buf, encoding='utf-8', errors='replace',
+                        line_buffering=getattr(stream, 'line_buffering', True)
+                    )
+                    setattr(sys, stream_name, new_stream)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    # Win32 控制台代码页 (仅真实控制台生效，IDE/管道无副作用)
+    try:
+        import ctypes
+        _CP_UTF8 = 65001
+        kernel32 = ctypes.windll.kernel32
+        try:
+            kernel32.SetConsoleOutputCP(_CP_UTF8)
+        except Exception:
+            pass
+        try:
+            kernel32.SetConsoleCP(_CP_UTF8)
+        except Exception:
+            pass
+        # 启用 VT100 转义序列支持 (Windows 10 1607+)
+        try:
+            _STD_OUTPUT_HANDLE = -11
+            _ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+            hStdOut = kernel32.GetStdHandle(_STD_OUTPUT_HANDLE)
+            mode = ctypes.c_ulong()
+            if kernel32.GetConsoleMode(hStdOut, ctypes.byref(mode)):
+                mode.value |= _ENABLE_VIRTUAL_TERMINAL_PROCESSING
+                kernel32.SetConsoleMode(hStdOut, mode)
+        except Exception:
+            pass
+    except Exception:
+        pass
+_fixup_console_encoding()
+del _fixup_console_encoding
 
 # ============================================================
 # HTTP 请求工具
@@ -145,9 +207,11 @@ class SyncTester:
 
     def _headers(self, extra=None):
         h = {
-            'X-WebHTV-Token': self.token,
             'X-WebHTV-Config-Key': self.config_key,
         }
+        # Token 留空时不发送 X-WebHTV-Token 头（无 Token 模式）
+        if self.token:
+            h['X-WebHTV-Token'] = self.token
         if extra:
             h.update(extra)
         return h
@@ -522,7 +586,10 @@ class SyncTester:
     def run_all(self):
         log_separator('WebHTV 观影记录同步测试 (Durable Object 后端)')
         log('INFO', f'目标: {self.base_url}')
-        log('INFO', f'Token: {self.token[:8]}...{self.token[-4:] if len(self.token) > 12 else "***"}')
+        if self.token:
+            log('INFO', f'Token: {self.token[:8]}...{self.token[-4:] if len(self.token) > 12 else "***"}')
+        else:
+            log('INFO', 'Token: (空 · 无 Token 模式 · 公共命名空间 user-no-token)')
         log('INFO', f'Config-Key: {self.config_key}')
         log('INFO', f'时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
 
@@ -834,7 +901,7 @@ def run_gui():
     url_var = tk.StringVar(value=saved.get('url', ''))
     ttk.Entry(config_frame, textvariable=url_var, width=55).grid(row=0, column=1, columnspan=3, sticky='ew', pady=3)
 
-    ttk.Label(config_frame, text='Token:').grid(row=1, column=0, sticky='w', padx=(0, 8), pady=3)
+    ttk.Label(config_frame, text='Token (可选):').grid(row=1, column=0, sticky='w', padx=(0, 8), pady=3)
     token_var = tk.StringVar(value=saved.get('token', ''))
     token_entry = ttk.Entry(config_frame, textvariable=token_var, width=55, show='*')
     token_entry.grid(row=1, column=1, columnspan=3, sticky='ew', pady=3)
@@ -866,6 +933,9 @@ def run_gui():
 
     ttk.Label(config_frame, text='（输入点播接口URL点"URL→SHA256"自动计算，或直接粘贴64位configKey）',
               foreground=FG_MUTED, font=('Microsoft YaHei UI', 8)).grid(row=3, column=1, columnspan=4, sticky='w', pady=(0, 2))
+
+    ttk.Label(config_frame, text='（Token 留空 = 无 Token 模式，使用公共命名空间 user-no-token，与其他无 Token 用户共享数据）',
+              foreground='#fbbf24', font=('Microsoft YaHei UI', 8)).grid(row=4, column=1, columnspan=4, sticky='w', pady=(0, 2))
 
     save_cfg_var = tk.BooleanVar(value=True)
     ttk.Checkbutton(config_frame, text='保存配置到本地', variable=save_cfg_var).grid(row=3, column=0, sticky='w')
@@ -907,12 +977,16 @@ def run_gui():
         if not url:
             messagebox.showwarning('提示', '请填写 Worker URL')
             return
-        if not token:
-            messagebox.showwarning('提示', '请填写 Token')
-            return
         if not raw_ck:
             messagebox.showwarning('提示', '请填写 Config Key 或点播接口 URL')
             return
+        # Token 留空时进入公共命名空间（无 Token 模式）
+        if not token:
+            if not messagebox.askyesno(
+                '无 Token 模式确认',
+                '未填写 Token，将使用公共命名空间 user-no-token（与其他无 Token 用户共享数据，无隔离）。\n\n是否继续？'
+            ):
+                return
 
         # 智能识别：如果是 URL 则自动计算
         if _is_sha256_hex(raw_ck):
@@ -1182,11 +1256,11 @@ def _interactive_cli_mode():
         print('  ✗ URL 必须以 http:// 或 https:// 开头')
         sys.exit(1)
 
-    # 2. Token
-    token = input(f'  Token [{("*" * len(default_token)) if default_token else ""}]: ').strip()
+    # 2. Token（可选，留空使用公共命名空间）
+    token = input(f'  Token (可选，留空=无Token模式) [{"*" * len(default_token) if default_token else ""}]: ').strip()
     if not token:
-        print('  ✗ Token 不能为空')
-        sys.exit(1)
+        print('  → 未填写 Token，将使用公共命名空间 user-no-token（与其他无 Token 用户共享数据）')
+        token = ''
 
     # 3. Config Key
     config_key = input(f'  Config Key (或点播接口 URL) [{default_config_key}]: ').strip()
@@ -1208,7 +1282,10 @@ def _interactive_cli_mode():
 
     print()
     print(f'  URL:       {url}')
-    print(f'  Token:     {token[:8]}{"*" * (len(token) - 8) if len(token) > 8 else ""}')
+    if token:
+        print(f'  Token:     {token[:8]}{"*" * (len(token) - 8) if len(token) > 8 else ""}')
+    else:
+        print(f'  Token:     (空 · 无 Token 模式 · 公共命名空间)')
     print(f'  ConfigKey: {config_key}')
     print()
 
@@ -1227,7 +1304,7 @@ def _interactive_cli_mode():
 def main():
     parser = argparse.ArgumentParser(description='WebHTV 观影记录同步测试 (Durable Object 后端)')
     parser.add_argument('--url', help='Worker URL, 例如 https://your-worker.workers.dev')
-    parser.add_argument('--token', help='访问令牌 (X-WebHTV-Token)')
+    parser.add_argument('--token', default='', help='访问令牌 (X-WebHTV-Token)，可选；留空使用公共命名空间 user-no-token')
     parser.add_argument('--config-key', help='点播接口标识 (X-WebHTV-Config-Key) 或点播接口 URL')
     parser.add_argument('--cli', action='store_true', help='强制使用命令行模式（默认无参数时启动 GUI）')
     args = parser.parse_args()
@@ -1240,9 +1317,9 @@ def main():
             _interactive_cli_mode()
         return
 
-    # 指定了 --cli 或任何连接参数时走命令行模式
-    if not args.url or not args.token or not args.config_key:
-        parser.error('CLI 模式需要 --url, --token, --config-key 参数（无参数运行将启动 GUI）')
+    # 指定了 --cli 或任何连接参数时走命令行模式（Token 可选）
+    if not args.url or not args.config_key:
+        parser.error('CLI 模式需要 --url, --config-key 参数（--token 可选，留空使用公共命名空间；无参数运行将启动 GUI）')
 
     config_key = args.config_key
     if not _is_sha256_hex(config_key) and config_key.startswith('http'):

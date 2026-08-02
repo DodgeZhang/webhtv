@@ -214,7 +214,15 @@ npm run deploy
 
 ## 6. App 端配置
 
-### 生成 Token
+### Token 说明（选填）
+
+Token 用于隔离不同用户的数据：
+- **填 Token**：你的数据存在独立的命名空间 `user-sha256(Token)`，其他用户无法访问
+- **留空（无 Token 模式）**：使用公共命名空间 `user-no-token`，与其他所有未填写 Token 的用户共享数据（无隔离，适合个人测试或单用户场景）
+
+> ⚠️ 多人使用或有隐私需求的场景，**必须填写自己的 Token**。留空可能导致你的观影记录与他人互相覆盖或暴露。
+
+### 生成 Token（推荐）
 
 在终端中生成一个安全的随机 Token：
 
@@ -226,7 +234,7 @@ openssl rand -hex 32
 -join ((48..57)+(97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
 ```
 
-将生成的 Token 保存好，**不要公开**。Token 就是你的用户空间凭证，不同 Token 隔离不同数据。
+将生成的 Token 保存好，**不要公开**。
 
 ### 配置远端同步源
 
@@ -236,7 +244,7 @@ openssl rand -hex 32
 2. 点击 **新增同步源**
 3. 填写：
    - **URL**：`https://<你的 Worker 域名>/api/playback/sync`（完整 API 地址）
-   - **Token**：上一步生成的 Token
+   - **Token**：上一步生成的 Token（选填，留空使用公共命名空间）
 4. 保存
 
 > ⚠️ **必须填写完整路径** `/api/playback/sync`。App 会直接使用你填写的 URL 发起请求，不会自动拼接路径。如果只填基地址（如 `https://your-worker.workers.dev`），App 会访问根路径收到 HTML 页面，导致 `MalformedJsonException` 报错。
@@ -247,13 +255,13 @@ openssl rand -hex 32
 2. 点击 **新增端点**
 3. 填写：
    - **URL**：与远端同步源**完全相同**的完整 API 地址（含 `/api/playback/sync`）
-   - **Token**：与远端同步源**完全相同**的 Token
+   - **Token**：与远端同步源**完全相同**的 Token（留空使用公共命名空间）
    - **字段预设**：选择「基础」「标准」或「完整」（匿名预设不支持）
 4. 保存
 
 ### 多设备同步
 
-在其他设备上填写**相同的 URL 和 Token**，即进入同一个用户空间。不同用户应使用不同 Token。
+在其他设备上填写**相同的 URL 和 Token**，即进入同一个用户空间。留空 Token 的设备自动进入公共命名空间。
 
 ---
 
@@ -341,13 +349,21 @@ curl 'https://<你的 Worker 域名>/api/playback/sync/status' \
 cd webhtv/serverless/webhtv-remote-cloudflare
 
 # CLI 模式（config-key 可直接填点播接口 URL，自动计算 SHA-256）
+# 带 Token 模式（推荐，数据隔离）
 python test_sync.py \
   --url https://<你的 Worker 域名> \
   --token <你的 token> \
   --config-key <你的 configKey 或点播接口 URL>
+
+# 无 Token 模式（可选，使用公共命名空间 user-no-token）
+python test_sync.py \
+  --url https://<你的 Worker 域名> \
+  --config-key <你的 configKey 或点播接口 URL>
 ```
 
 测试脚本会运行 9 项检查：网络连通性、健康检查、服务器能力、同步状态、写入进度、拉取增量、删除墓碑、批量写入、认证验证，并在末尾输出诊断报告。
+
+> 💡 `--token` 参数可选，留空时使用公共命名空间（与其他无 Token 用户共享数据）。GUI 模式下 Token 字段同样可选，留空时会弹出确认对话框。
 
 GUI 模式（直接运行，弹出图形界面输入配置）：
 
@@ -370,15 +386,22 @@ python test_sync.py
 3. 重新部署：`npm run deploy`
 4. 如果之前部署过旧版本且修改了 `v1` tag，需要删除 Worker 后重新创建
 
-### Q2: 401 Missing X-WebHTV-Token
+### Q2: 返回 401 Missing X-WebHTV-Token
 
-**原因**：请求未携带 Token 或 Token 为空。
+**原因**：使用了旧版服务端代码（官方原始版本强制 Token 必填）。
 
 **解决**：
+- 如果你希望 Token 为选填（支持无 Token 模式），确认你使用的 `src/playback-sync.js` 已包含本次修改：
+  ```javascript
+  // 旧版（强制必填）
+  if (!token) return playbackError(401, 'Missing X-WebHTV-Token');
 
-- Token 由用户自行生成，**不写入** Worker 环境变量
-- 确认 App/Webhook 配置中的 Token 与你生成的完全一致
-- Token 通过 `X-WebHTV-Token` 请求头传递，不是 URL 参数
+  // 新版（支持选填）
+  const namespace = token
+    ? `user-${await sha256(token)}`
+    : 'user-no-token';
+  ```
+- 如果是标准的官方上游代码，未做此修改，则 Token 仍然为必填，需要按 [第 6 节](#6-app-端配置) 生成并填写 Token。
 
 ### Q3: 400 Missing X-WebHTV-Config-Key
 
