@@ -1125,6 +1125,100 @@ def run_gui():
 # 主入口
 # ============================================================
 
+def _can_run_gui():
+    """检测当前环境是否支持 tkinter GUI。
+    Code Runner 的嵌入式输出面板不支持 tkinter，会导致 Tk() 崩溃。
+    通过以下特征判断：
+      1. sys.stdout 不是 TTY（Code Runner 的输出面板不是真正的终端）
+      2. 环境变量中存在 Code Runner 特征
+      3. 尝试创建隐藏的 Tk 窗口，如果失败则降级
+    """
+    # Code Runner 环境变量特征
+    code_runner_vars = ['VSCODE_OUTPUT', 'CODE_RUNNER', 'RUN_CODE']
+    for var in code_runner_vars:
+        if os.environ.get(var):
+            return False
+
+    # 非 Windows 环境下检查 DISPLAY
+    if sys.platform != 'win32' and not os.environ.get('DISPLAY'):
+        return False
+
+    # 尝试创建隐藏 Tk 窗口验证
+    try:
+        import tkinter as tk
+        root = tk.Tk()
+        root.withdraw()
+        root.update_idletasks()
+        root.destroy()
+        return True
+    except Exception:
+        return False
+
+
+def _interactive_cli_mode():
+    """交互式 CLI 模式：在终端中逐项询问配置，然后运行测试"""
+    print('╔══════════════════════════════════════════════════════════╗')
+    print('║     WebHTV 观影记录同步测试 (交互式 CLI 模式)            ║')
+    print('╚══════════════════════════════════════════════════════════╝')
+    print()
+    print('提示：GUI 不可用，已自动降级为交互式命令行模式。')
+    print('      如需 GUI，请使用 "Run Python File" 按钮或在终端中运行。')
+    print()
+
+    # 读取已保存的配置作为默认值
+    saved = _load_config()
+    default_url = saved.get('url', 'https://webhtv-remote-cloudflare.<subdomain>.workers.dev')
+    default_token = saved.get('token', '')
+    default_config_key = saved.get('config_key', '')
+
+    # 1. Worker URL
+    url = input(f'  Worker URL [{default_url}]: ').strip() or default_url
+    if not url.startswith('http'):
+        print('  ✗ URL 必须以 http:// 或 https:// 开头')
+        sys.exit(1)
+
+    # 2. Token
+    token = input(f'  Token [{("*" * len(default_token)) if default_token else ""}]: ').strip()
+    if not token:
+        print('  ✗ Token 不能为空')
+        sys.exit(1)
+
+    # 3. Config Key
+    config_key = input(f'  Config Key (或点播接口 URL) [{default_config_key}]: ').strip()
+    if not config_key:
+        print('  ✗ Config Key 不能为空')
+        sys.exit(1)
+
+    # 如果输入的是 URL，自动计算 SHA-256
+    if not _is_sha256_hex(config_key) and config_key.startswith('http'):
+        original = config_key
+        config_key = _compute_config_key(config_key)
+        print(f'  → 已从 URL 计算 configKey: {config_key}')
+
+    # 保存配置
+    try:
+        _save_config({'url': url, 'token': token, 'config_key': config_key})
+    except Exception:
+        pass
+
+    print()
+    print(f'  URL:       {url}')
+    print(f'  Token:     {token[:8]}{"*" * (len(token) - 8) if len(token) > 8 else ""}')
+    print(f'  ConfigKey: {config_key}')
+    print()
+
+    # 确认
+    confirm = input('  开始测试？[Y/n]: ').strip().lower()
+    if confirm in ('n', 'no'):
+        print('  已取消。')
+        return
+
+    print()
+    tester = SyncTester(url, token, config_key.lower())
+    ok = tester.run_all()
+    sys.exit(0 if ok else 1)
+
+
 def main():
     parser = argparse.ArgumentParser(description='WebHTV 观影记录同步测试 (Durable Object 后端)')
     parser.add_argument('--url', help='Worker URL, 例如 https://your-worker.workers.dev')
@@ -1133,9 +1227,12 @@ def main():
     parser.add_argument('--cli', action='store_true', help='强制使用命令行模式（默认无参数时启动 GUI）')
     args = parser.parse_args()
 
-    # 无任何参数时默认启动 GUI
+    # 无任何参数时：尝试 GUI，不可用时降级为交互式 CLI
     if not args.cli and not args.url and not args.token and not args.config_key:
-        run_gui()
+        if _can_run_gui():
+            run_gui()
+        else:
+            _interactive_cli_mode()
         return
 
     # 指定了 --cli 或任何连接参数时走命令行模式
