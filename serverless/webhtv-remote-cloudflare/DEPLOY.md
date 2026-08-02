@@ -478,14 +478,14 @@ Cloudflare 免费计划限额：
 
 ## 附录：API 速查表
 
-| 方法 | 路径 | 用途 | 必需请求头 |
-|------|------|------|-----------|
+| 方法 | 路径 | 用途 | 请求头 |
+|------|------|------|--------|
 | GET | `/api/health` | 健康检查 | 无 |
 | GET | `/api/server/capabilities` | 服务器能力 | 无 |
 | GET | `/` | 管理控制台 | 无 |
-| GET | `/api/playback/sync` | 拉取增量 | Token, Config-Key |
-| GET | `/api/playback/sync/status` | 查看状态 | Token, Config-Key |
-| POST | `/api/playback/sync` | 写入/删除 | Token, Config-Key |
+| GET | `/api/playback/sync` | 拉取增量 | Config-Key (必填)，Token (选填，默认共享命名空间) |
+| GET | `/api/playback/sync/status` | 查看状态 | Config-Key (必填)，Token (选填) |
+| POST | `/api/playback/sync` | 写入/删除 | Config-Key (必填)，Token (选填) |
 
 ### 拉取增量请求头
 

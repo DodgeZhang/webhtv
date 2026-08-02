@@ -473,16 +473,18 @@ class SyncTester:
     # --- 测试 8: 认证验证 ---
     def test_auth(self):
         log_separator('测试 8/8: 认证验证 (缺少 Token / Config-Key)')
-        # 不带 Token
-        log('INFO', '测试 1: 不带 X-WebHTV-Token')
+        # 不带 Token（无 Token 模式合法，应返回 200 或服务端响应数据）
+        log('INFO', '测试 1: 不带 X-WebHTV-Token（无 Token 模式）')
         status, _, body = http_request(
             self._url('/api/playback/sync/status'), 'GET',
             headers={'X-WebHTV-Config-Key': self.config_key}, timeout=10
         )
         log('DBG', f'HTTP {status}: {body[:200]}')
-        no_token_ok = (status == 401)
+        # 无 Token 模式现在是合法的：路由到 user-no-token 命名空间
+        # 因此应返回 200（空状态或有数据的 status）
+        no_token_ok = (status == 200)
 
-        # 不带 Config-Key
+        # 不带 Config-Key（Config-Key 仍然是强制必填）
         log('INFO', '测试 2: 不带 X-WebHTV-Config-Key')
         status2, _, body2 = http_request(
             self._url('/api/playback/sync/status'), 'GET',
@@ -491,7 +493,7 @@ class SyncTester:
         log('DBG', f'HTTP {status2}: {body2[:200]}')
         no_configkey_ok = (status2 == 400)
 
-        # 错误 Token
+        # 错误 Token：路由到独立命名空间但仍应返回 200
         log('INFO', '测试 3: 错误的 Token')
         status3, _, body3 = http_request(
             self._url('/api/playback/sync/status'), 'GET',
@@ -499,19 +501,20 @@ class SyncTester:
             timeout=10
         )
         log('DBG', f'HTTP {status3}: {body3[:200]}')
-        wrong_token_ok = (status3 in (401, 400))
+        # 错误 Token 现在是合法命名空间 (user-sha256(wrong-token))，应返回 200
+        wrong_token_ok = (status3 == 200)
 
         if no_token_ok and no_configkey_ok and wrong_token_ok:
-            log('OK', '认证机制验证通过: 缺 Token→401, 缺 Config-Key→400, 错误 Token→拒绝')
+            log('OK', '认证机制验证通过: 缺 Token→200(公共命名空间), 缺 Config-Key→400(必填校验), 错误 Token→独立命名空间(200)')
         else:
-            log('WARN', f'认证验证部分异常: no_token={no_token_ok}, no_configkey={no_configkey_ok}, '
-                       f'wrong_token={wrong_token_ok}')
+            log('WARN', f'认证验证部分异常: no_token={no_token_ok} (期望 200), no_configkey={no_configkey_ok} (期望 400), '
+                       f'wrong_token={wrong_token_ok} (期望 200)')
 
         self.results['auth'] = {
             'status': 'ok' if (no_token_ok and no_configkey_ok) else 'warn',
-            'no_token_rejected': no_token_ok,
+            'no_token_allowed_public_ns': no_token_ok,
             'no_configkey_rejected': no_configkey_ok,
-            'wrong_token_rejected': wrong_token_ok
+            'wrong_token_isolated_ns': wrong_token_ok
         }
         return True
 
@@ -674,10 +677,12 @@ class SyncTester:
         # 认证问题
         auth = self.results.get('auth', {})
         if auth.get('status') in ('fail', 'warn'):
-            if not auth.get('no_token_rejected'):
+            if not auth.get('no_token_allowed_public_ns'):
                 suggestions.append({
-                    'title': '🔐 缺少 Token 时未返回 401',
-                    'tips': ['服务端未正确拦截无 Token 请求，检查 Worker 是否正常部署']
+                    'title': '🔐 无 Token 模式未正常工作 (缺 Token 未返回 200)',
+                    'tips': ['服务端 playback-sync.js 可能不是最新版本',
+                             '重新部署 Worker: npm run deploy',
+                             '或者服务端启用了严格的 Token 校验（旧版行为）']
                 })
             if not auth.get('no_configkey_rejected'):
                 suggestions.append({

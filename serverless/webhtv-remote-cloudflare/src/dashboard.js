@@ -200,6 +200,16 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 
   .config-key-display { font-size: 12px; color: var(--text-muted); margin-left: 8px; cursor: pointer; }
   .config-key-display:hover { color: var(--accent); }
+  .token-badge {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: #7c2d1226;
+    color: #fb923c;
+    border: 1px solid #fdba7466;
+    white-space: nowrap;
+  }
+  .token-badge::before { content: '⚠️ 无 Token · 公共命名空间'; }
 
   footer { text-align: center; padding: 32px 24px; color: var(--text-muted); font-size: 13px; }
   footer a { color: var(--accent); text-decoration: none; }
@@ -232,9 +242,9 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="form-hint">部署后的 Worker 域名，无需加 /api 路径</div>
     </div>
     <div class="form-group">
-      <label>Token（访问令牌）</label>
-      <input type="password" id="loginToken" class="form-input" placeholder="你生成的随机 token" value="">
-      <div class="form-hint">用 openssl rand -hex 32 生成，与 App 中填写的完全一致</div>
+      <label>Token（访问令牌，可选）</label>
+      <input type="password" id="loginToken" class="form-input" placeholder="留空 = 无 Token 模式（与其他无 Token 用户共享命名空间）" value="">
+      <div class="form-hint">用 <code>openssl rand -hex 32</code> 生成，与 App 中填写的一致。留空时使用公共命名空间（无数据隔离）。</div>
     </div>
     <div class="form-group">
       <label>Config Key 或 点播接口 URL</label>
@@ -260,6 +270,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       </div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;">
+      <span id="tokenBadge" class="token-badge" style="display:none;" title="当前未使用 Token"></span>
       <span class="config-key-display" id="configKeyDisplay" onclick="showLogin()" title="点击切换"></span>
       <div id="statusBadge" class="status-badge">
         <span class="dot"></span>
@@ -431,8 +442,9 @@ async function doLogin() {
   const rawInput = document.getElementById('loginConfigKey').value.trim();
 
   if (!baseUrl) { showToast('请填写 Worker 地址', 'error'); return; }
-  if (!token) { showToast('请填写 Token', 'error'); return; }
   if (!rawInput) { showToast('请填写点播接口 URL 或 Config Key', 'error'); return; }
+  // Token 留空时给出提示（无数据隔离，与其他无 Token 用户共享命名空间）
+  if (!token) { showToast('当前使用无 Token 模式：与其他未配置 Token 的用户共享命名空间（无数据隔离）', 'warn'); }
 
   // 智能识别：如果输入已经是 64 位 sha256，直接使用；否则按 URL 计算
   let configKey;
@@ -451,6 +463,10 @@ async function doLogin() {
   state.token = token;
   state.configKey = configKey;
   saveCredentials(baseUrl, token, configKey);
+
+  // 更新无 Token 徽章
+  const tokenBadge = document.getElementById('tokenBadge');
+  if (tokenBadge) tokenBadge.style.display = token ? 'none' : 'inline-block';
 
   try {
     await loadData();
@@ -770,14 +786,17 @@ document.getElementById('searchInput').addEventListener('input', (e) => {
 
 // 初始化
 loadCredentials();
-// 如果有已保存的凭证，自动尝试连接
+// 如果有已保存的凭证，自动尝试连接（Token 为空但 URL+ConfigKey 有值也自动连接）
 const saved = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (e) { return {}; } })();
-if (saved.baseUrl && saved.token && saved.configKey) {
-  state.baseUrl = saved.baseUrl; state.token = saved.token; state.configKey = saved.configKey;
+if (saved.baseUrl && saved.configKey) {
+  state.baseUrl = saved.baseUrl; state.token = saved.token || ''; state.configKey = saved.configKey;
   doLogin().then(() => {
     document.getElementById('loginOverlay').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
     document.getElementById('configKeyDisplay').textContent = '接口: ' + state.configKey.substring(0, 12) + '...';
+    // 恢复 Token 徽章
+    const tokenBadge = document.getElementById('tokenBadge');
+    if (tokenBadge) tokenBadge.style.display = state.token ? 'none' : 'inline-block';
   }).catch(() => {});
 }
 </script>

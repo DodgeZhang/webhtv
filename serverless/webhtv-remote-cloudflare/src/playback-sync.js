@@ -19,10 +19,13 @@ export async function handlePlaybackSyncGateway(request, env) {
   if (!env || !env.PLAYBACK_DO) return playbackError(503, 'PLAYBACK_DO is not configured');
 
   const token = playbackToken(request);
-  if (!token) return playbackError(401, 'Missing X-WebHTV-Token');
   if (token.length > 512) return playbackError(400, 'X-WebHTV-Token is too long');
 
-  const namespace = `user-${await sha256(token)}`;
+  // Token 为空时使用固定的"无 Token 模式"命名空间，与 App 端行为对齐
+  // 无 Token 模式下所有未配置 Token 的用户共享同一命名空间
+  const namespace = token
+    ? `user-${await sha256(token)}`
+    : 'user-no-token';
   return env.PLAYBACK_DO.getByName(namespace).fetch(request);
 }
 
