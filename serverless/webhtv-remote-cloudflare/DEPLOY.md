@@ -23,7 +23,7 @@
 ### 必需条件
 
 | 条件 | 说明 |
-|------|------|
+| --- | --- |
 | GitHub 账号 | 用于 Fork 仓库和触发自动部署 |
 | Cloudflare 账号 | 免费计划即可，无需绑定信用卡 |
 | WebHTV App | 已安装最新版 WebHTV 的 TV 端或手机端 |
@@ -65,8 +65,6 @@ git push -u origin main
 
 1. 访问 [https://dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up) 注册账户
 2. 免费计划即可，无需选择付费方案
-3. 登录后进入 Dashboard 主页
-4. 记住你的 **Account ID**（右侧边栏 → Account ID），后续部署需要
 
 ---
 
@@ -82,9 +80,8 @@ git push -u origin main
 
 1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
 2. 左侧菜单点击 **Workers 和 Pages**
-3. 点击 **创建** 按钮
-4. 选择 **Workers** 选项卡
-5. 点击 **连接到 Git**
+3. 点击 **创建应用程序** 按钮
+4. 点击 **Continue with GitHub **按钮
 
 ### 步骤 3：授权 Cloudflare 访问 GitHub
 
@@ -98,12 +95,11 @@ git push -u origin main
 在 **构建配置** 页面填写以下信息：
 
 | 配置项 | 填写值 |
-|--------|--------|
+| --- | --- |
 | **项目名称** | `webhtv-remote-cloudflare`（可自定义） |
-| **生产分支** | `main` |
-| **根目录（高级）** | `serverless/webhtv-remote-cloudflare` |
 | **构建命令** | `npm install` |
 | **部署命令** | `npx wrangler deploy` |
+| **根目录（高级设置）** | `serverless/webhtv-remote-cloudflare` |
 
 > ⚠️ **根目录必须填写** `serverless/webhtv-remote-cloudflare`，这是 Worker 代码所在的子目录。如果不填，Cloudflare 会从仓库根目录构建，导致找不到 `wrangler.toml`。
 
@@ -127,21 +123,25 @@ Cloudflare 会自动执行以下操作：
 https://webhtv-remote-cloudflare.<你的子域名>.workers.dev
 ```
 
-### 步骤 6：验证 Durable Object 绑定
+> 后续更新（自动）：配置完成后，每次你向 GitHub 仓库的 `main` 分支推送代码，Cloudflare 会**自动触发重新部署**。你也可以在 Workers 和 Pages → 你的项目 → 部署 页面手动点击 **重试部署**。
+### 步骤 6：生成 Token后续APP配置使用（可选）
 
-部署完成后，打开新浏览器标签页，访问以下地址验证 PLAYBACK_DO 是否正确绑定：
+在终端中生成一个安全的随机 Token：
 
+```bash
+# Linux / macOS
+openssl rand -hex 32
+
+# Windows PowerShell
+-join ((48..57)+(97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
 ```
-https://webhtv-remote-cloudflare.<你的子域名>.workers.dev/api/server/capabilities
-```
-
-响应中应包含 `"playbackSync": true`，表示观影记录同步已就绪。
-
-如果看到 `"playbackSync": false`，说明 Durable Object 迁移未生效，请检查仓库中 `wrangler.toml` 是否包含 `[[migrations]]` 配置。
-
-### 步骤 7：后续更新（自动）
-
-配置完成后，每次你向 GitHub 仓库的 `main` 分支推送代码，Cloudflare 会**自动触发重新部署**。你也可以在 Workers 和 Pages → 你的项目 → 部署 页面手动点击 **重试部署**。
+将生成的 Token 保存好，**不要公开**。
+> **Token 说明（选填）**
+> Token 用于隔离不同用户的数据：
+> - **填 Token**：你的数据存在独立的命名空间 `user-sha256(Token)`，其他用户无法访问
+> - **留空（无 Token 模式）**：使用公共命名空间 `user-no-token`，与其他所有未填写 Token 的用户共享数据（无隔离，适合个人测试或单用户场景）
+> 
+> ⚠️ 多人使用或有隐私需求的场景，**必须填写自己的 Token**。留空可能导致你的观影记录与他人互相覆盖或暴露。
 
 ---
 
@@ -211,92 +211,7 @@ npm run deploy
 4. 保存后 Cloudflare 会自动配置 DNS 和 SSL 证书
 
 ---
-
-## 6. App 端配置
-
-### Token 说明（选填）
-
-Token 用于隔离不同用户的数据：
-- **填 Token**：你的数据存在独立的命名空间 `user-sha256(Token)`，其他用户无法访问
-- **留空（无 Token 模式）**：使用公共命名空间 `user-no-token`，与其他所有未填写 Token 的用户共享数据（无隔离，适合个人测试或单用户场景）
-
-> ⚠️ 多人使用或有隐私需求的场景，**必须填写自己的 Token**。留空可能导致你的观影记录与他人互相覆盖或暴露。
-
-### 生成 Token（推荐）
-
-在终端中生成一个安全的随机 Token：
-
-```bash
-# Linux / macOS
-openssl rand -hex 32
-
-# Windows PowerShell
--join ((48..57)+(97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
-```
-
-将生成的 Token 保存好，**不要公开**。
-
-### 配置远端同步源
-
-在 WebHTV App 中：
-
-1. 进入 **增强功能 → 观影记录同步 → 远端同步**
-2. 点击 **新增同步源**
-3. 填写：
-   - **URL**：`https://<你的 Worker 域名>/api/playback/sync`（完整 API 地址）
-   - **Token**：上一步生成的 Token（选填，留空使用公共命名空间）
-4. 保存
-
-> ⚠️ **必须填写完整路径** `/api/playback/sync`。App 会直接使用你填写的 URL 发起请求，不会自动拼接路径。如果只填基地址（如 `https://your-worker.workers.dev`），App 会访问根路径收到 HTML 页面，导致 `MalformedJsonException` 报错。
-
-### 配置 Webhook 上报
-
-1. 进入 **增强功能 → 观影记录同步 → Webhook 上报**
-2. 点击 **新增端点**
-3. 填写：
-   - **URL**：与远端同步源**完全相同**的完整 API 地址（含 `/api/playback/sync`）
-   - **Token**：与远端同步源**完全相同**的 Token（留空使用公共命名空间）
-   - **字段预设**：选择「基础」「标准」或「完整」（匿名预设不支持）
-4. 保存
-
-### 多设备同步
-
-在其他设备上填写**相同的 URL 和 Token**，即进入同一个用户空间。留空 Token 的设备自动进入公共命名空间。
-
----
-
-## 7. 管理控制台使用
-
-部署后，直接在浏览器中访问你的 Worker 域名即可打开管理控制台：
-
-```
-https://<你的 Worker 域名>/
-```
-
-### 首次登录
-
-控制台会显示登录表单，填写三项信息：
-
-| 字段 | 说明 |
-|------|------|
-| **Worker 地址** | `https://your-worker.workers.dev`（不含 /api 路径） |
-| **Token** | 你生成的访问令牌 |
-| **Config Key** | App 中点播接口的 configKey（小写） |
-
-凭证会保存在浏览器 localStorage 中，下次访问自动连接。
-
-### 功能说明
-
-- **统计面板**：显示活跃记录数、删除墓碑数、同步游标、保留天数
-- **记录列表**：展示当前 configKey 下所有观影进度，支持搜索和分页
-- **删除记录**：点击单条记录的 🗑️ 按钮发送删除墓碑
-- **清空全部**：发送 `scope=all` 删除墓碑，清空当前 configKey 下所有记录
-
-> **注意**：控制台按 configKey 隔离数据。切换不同点播接口时，需要重新填写对应的 configKey。
-
----
-
-## 8. 验证部署
+## 6. 验证部署
 
 ### 快速验证（curl）
 
@@ -343,33 +258,75 @@ curl 'https://<你的 Worker 域名>/api/playback/sync/status' \
 
 ### Python 测试脚本
 
-使用项目自带的测试脚本进行全面验证：
-
-```bash
-cd webhtv/serverless/webhtv-remote-cloudflare
-
-# CLI 模式（config-key 可直接填点播接口 URL，自动计算 SHA-256）
-# 带 Token 模式（推荐，数据隔离）
-python test_sync.py \
-  --url https://<你的 Worker 域名> \
-  --token <你的 token> \
-  --config-key <你的 configKey 或点播接口 URL>
-
-# 无 Token 模式（可选，使用公共命名空间 user-no-token）
-python test_sync.py \
-  --url https://<你的 Worker 域名> \
-  --config-key <你的 configKey 或点播接口 URL>
-```
-
-测试脚本会运行 9 项检查：网络连通性、健康检查、服务器能力、同步状态、写入进度、拉取增量、删除墓碑、批量写入、认证验证，并在末尾输出诊断报告。
-
-> 💡 `--token` 参数可选，留空时使用公共命名空间（与其他无 Token 用户共享数据）。GUI 模式下 Token 字段同样可选，留空时会弹出确认对话框。
-
 GUI 模式（直接运行，弹出图形界面输入配置）：
 
 ```bash
+cd serverless/webhtv-remote-cloudflare 
+
 python test_sync.py
 ```
+
+---
+
+## 7. App 端配置
+
+### 配置远端同步源
+
+在 WebHTV App 中：
+
+1. 进入 **增强功能 → 观影记录同步 → 远端同步**
+2. 点击 **新增同步源**
+3. 填写：
+  - **URL**：`https://<你的 Worker 域名>/api/playback/sync`（完整 API 地址）
+  - **Token**：上一步生成的 Token（选填，留空使用公共命名空间）
+4. 保存
+
+> ⚠️ **必须填写完整路径** `/api/playback/sync`。App 会直接使用你填写的 URL 发起请求，不会自动拼接路径。如果只填基地址（如 `https://your-worker.workers.dev`），App 会访问根路径收到 HTML 页面，导致 `MalformedJsonException` 报错。
+
+### 配置 Webhook 上报
+
+1. 进入 **增强功能 → 观影记录同步 → Webhook 上报**
+2. 点击 **新增端点**
+3. 填写：
+  - **URL**：与远端同步源**完全相同**的完整 API 地址（含 `/api/playback/sync`）
+  - **Token**：与远端同步源**完全相同**的 Token（留空使用公共命名空间）
+  - **字段预设**：选择「基础」「标准」或「完整」（匿名预设不支持）
+4. 保存
+
+### 多设备同步
+
+在其他设备上填写**相同的 URL 和 Token**，即进入同一个用户空间。留空 Token 的设备自动进入公共命名空间。
+
+---
+
+## 8. 管理控制台使用
+
+部署后，直接在浏览器中访问你的 Worker 域名即可打开管理控制台：
+
+```
+https://<你的 Worker 域名>/
+```
+
+### 首次登录
+
+控制台会显示登录表单，填写三项信息：
+
+| 字段 | 说明 |
+| --- | --- |
+| **Worker 地址** | `https://your-worker.workers.dev`（不含 /api 路径） |
+| **Token** | 你生成的访问令牌 |
+| **Config Key** | App 中点播接口的 configKey（小写） |
+
+凭证会保存在浏览器 localStorage 中，下次访问自动连接。
+
+### 功能说明
+
+- **统计面板**：显示活跃记录数、删除墓碑数、同步游标、保留天数
+- **记录列表**：展示当前 configKey 下所有观影进度，支持搜索和分页
+- **删除记录**：点击单条记录的 🗑️ 按钮发送删除墓碑
+- **清空全部**：发送 `scope=all` 删除墓碑，清空当前 configKey 下所有记录
+
+> **注意**：控制台按 configKey 隔离数据。切换不同点播接口时，需要重新填写对应的 configKey。
 
 ---
 
@@ -392,15 +349,15 @@ python test_sync.py
 
 **解决**：
 - 如果你希望 Token 为选填（支持无 Token 模式），确认你使用的 `src/playback-sync.js` 已包含本次修改：
-  ```javascript
-  // 旧版（强制必填）
-  if (!token) return playbackError(401, 'Missing X-WebHTV-Token');
+```javascript
+// 旧版（强制必填）
+if (!token) return playbackError(401, 'Missing X-WebHTV-Token');
 
-  // 新版（支持选填）
-  const namespace = token
-    ? `user-${await sha256(token)}`
-    : 'user-no-token';
-  ```
+// 新版（支持选填）
+const namespace = token
+? `user-${await sha256(token)}`
+: 'user-no-token';
+```
 - 如果是标准的官方上游代码，未做此修改，则 Token 仍然为必填，需要按 [第 6 节](#6-app-端配置) 生成并填写 Token。
 
 ### Q3: 400 Missing X-WebHTV-Config-Key
@@ -444,8 +401,8 @@ python test_sync.py
 2. 关闭 **Bot 战斗模式（Bot Fight Mode）**
 3. 如使用自定义域名，进入 安全性 → WAF → 自定义规则
 4. 创建放行规则：
-   - 表达式：`(http.host eq "你的域名" and starts_with(http.request.uri.path, "/api/"))`
-   - 操作：跳过（Skip）→ 勾选所有 WAF 检查
+  - 表达式：`(http.host eq "你的域名" and starts_with(http.request.uri.path, "/api/"))`
+  - 操作：跳过（Skip）→ 勾选所有 WAF 检查
 5. 部署规则后立即生效
 
 > **注意**：App 端使用自定义 User-Agent（OkHttp），一般不会触发 Bot Fight Mode。但测试脚本和 curl 需要设置浏览器 UA 或关闭 Bot Fight Mode。
@@ -465,7 +422,7 @@ python test_sync.py
 Cloudflare 免费计划限额：
 
 | 资源 | 免费额度 | 重置周期 |
-|------|---------|---------|
+| --- | --- | --- |
 | Workers 请求 | 100,000 次/天 | UTC 0 点（北京时间 8:00） |
 | Durable Object 请求 | 100,000 次/天 | UTC 0 点 |
 | Durable Object 持续时间 | 400,000 GB·秒/天 | UTC 0 点 |
@@ -502,7 +459,7 @@ Cloudflare 免费计划限额：
 ## 附录：API 速查表
 
 | 方法 | 路径 | 用途 | 请求头 |
-|------|------|------|--------|
+| --- | --- | --- | --- |
 | GET | `/api/health` | 健康检查 | 无 |
 | GET | `/api/server/capabilities` | 服务器能力 | 无 |
 | GET | `/` | 管理控制台 | 无 |
@@ -513,7 +470,7 @@ Cloudflare 免费计划限额：
 ### 拉取增量请求头
 
 | 请求头 | 说明 | 默认值 |
-|--------|------|--------|
+| --- | --- | --- |
 | `X-WebHTV-Since` | 游标 (上次拉取的 nextSince) | 0 |
 | `X-WebHTV-Limit` | 单次拉取上限 | 100 (最大 1000) |
 
@@ -549,7 +506,7 @@ Cloudflare 免费计划限额：
 ```
 
 | scope | 必需字段 | 说明 |
-|-------|---------|------|
+| --- | --- | --- |
 | `item` | historyKey 或 siteKey+vodId | 删除单条记录 |
 | `site` | siteKey | 删除整个站点的记录 |
 | `all` | 无 (清空当前 configKey) | 必须显式指定 |
