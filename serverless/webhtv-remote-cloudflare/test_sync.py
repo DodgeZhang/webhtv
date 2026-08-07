@@ -404,6 +404,61 @@ class SyncTester:
         self.results['push_progress'] = {'status': 'fail', 'http_code': status}
         return False
 
+    # --- 测试 4b: 直播流写入 (durationMs=0，如虎牙 .flv 直播) ---
+    def test_push_live(self):
+        log_separator('测试 4b: 直播流写入 (durationMs=0，模拟虎牙 .flv 直播)')
+        event_id = f'test-live-{int(time.time())}'
+        now_ms = int(time.time() * 1000)
+        # 模拟直播流：durationMs=0，positionMs>0（当前播放位置）
+        # 直播 URL 作为 episodeUrl，虎牙房间号作为 vodId
+        payload = {
+            'schema': 'webhtv.playback.v1',
+            'event': 'playback.progress',
+            'eventId': event_id,
+            'timestamp': now_ms,
+            'configKey': self.config_key,
+            'historyKey': 'huya@@@2367547387@@@0',
+            'siteKey': 'huya',
+            'vodId': '2367547387',
+            'vodName': '虎牙直播间测试',
+            'episodeName': '原画',
+            'episodeUrl': 'https://al.flv.huya.com/src/2367547387-2367547387-10168538598895255552-4735218230-10057-A-0-1-imgplus.flv?codec=264&ctype=huya_pc_exe&wsSecret=abc&wsTime=def',
+            'positionMs': 30000,
+            'durationMs': 0,
+            'speed': 1.0
+        }
+        headers = self._headers({
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-WebHTV-Webhook-Id': event_id,
+            'Idempotency-Key': event_id,
+        })
+        log('INFO', f'写入直播流进度: eventId={event_id}, durationMs=0')
+        status, resp_headers, body = http_request(
+            self._url('/api/playback/sync'), 'POST',
+            headers=headers, body=payload, timeout=15
+        )
+        log('INFO', f'HTTP {status}')
+        log('DBG', f'响应: {body[:800]}')
+        if status == 200:
+            try:
+                data = json.loads(body)
+                applied = data.get('applied', 0)
+                log('OK', f'直播流写入成功: applied={applied}')
+                self.results['push_live'] = {
+                    'status': 'ok', 'http_code': 200,
+                    'event_id': event_id, 'applied': applied
+                }
+                return True
+            except Exception as e:
+                log('ERR', f'JSON 解析失败: {e}')
+        elif status == 400:
+            log('ERR', f'请求格式错误 (直播流未通过校验): {body[:200]}')
+            log('WARN', '服务端可能未更新支持 durationMs=0 的直播流模式，请重新部署 Worker')
+        elif status == 401:
+            log('ERR', 'Token 缺失或无效')
+        self.results['push_live'] = {'status': 'fail', 'http_code': status}
+        return False
+
     # --- 测试 5: 拉取增量记录 ---
     def test_pull(self):
         log_separator('测试 5/8: 拉取增量 GET /api/playback/sync?since=0')
@@ -599,6 +654,7 @@ class SyncTester:
             self.test_capabilities,
             self.test_status,
             self.test_push_progress,
+            self.test_push_live,
             self.test_pull,
             self.test_delete,
             self.test_batch,
@@ -642,6 +698,7 @@ class SyncTester:
             'capabilities': '⚙️  服务器能力',
             'status': '📊 同步状态',
             'push_progress': '📮 写入进度',
+            'push_live': '📺 直播流写入',
             'pull': '📥 拉取增量',
             'delete': '🗑️  删除墓碑',
             'batch': '📦 批量写入',
@@ -690,6 +747,8 @@ class SyncTester:
             return f"items={r.get('items', 0)}, tombstones={r.get('tombstones', 0)}"
         if key == 'push_progress':
             return f"applied={r.get('applied', 0)}, skipped={r.get('skipped', 0)}"
+        if key == 'push_live':
+            return f"durationMs=0, applied={r.get('applied', 0)}"
         if key == 'pull':
             return f"changes={r.get('changes', 0)}, upserts={r.get('upserts', 0)}"
         if key == 'delete':
@@ -738,6 +797,21 @@ class SyncTester:
                     '     tag = "v2"',
                     '     new_sqlite_classes = ["WebHTVPlaybackSyncDO"]',
                     '  3. 重新部署: npm run deploy',
+                ]
+            })
+
+        # 直播流写入失败（durationMs=0 被拒绝）
+        live = self.results.get('push_live', {})
+        if live.get('status') == 'fail':
+            suggestions.append({
+                'title': '📺 直播流写入失败 (durationMs=0 被拒绝)',
+                'tips': [
+                    '服务端返回 HTTP 400，说明未支持直播流的 durationMs=0 场景',
+                    '原因: 旧版 playback-sync.js 强制要求 durationMs > 0',
+                    '解决方案: 重新部署包含直播流支持的 Worker',
+                    '  1. 确认 src/playback-sync.js 中包含 isLiveStream 逻辑',
+                    '  2. 重新部署: npm run deploy',
+                    '  3. 部署后再次运行测试验证',
                 ]
             })
 
