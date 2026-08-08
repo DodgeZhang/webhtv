@@ -394,26 +394,15 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
   if (!vodId) throw playbackHttpError(400, 'vodId is required');
   const vodName = cleanString(raw.vodName || raw.vod_name || raw.name || raw.title, 2048);
   const episodeName = cleanString(raw.episodeName || raw.episode || raw.episodeTitle || raw.vodRemarks || raw.remarks, 2048);
-  // Reject explicitly negative values before positiveNumber() converts them to 0.
-  // Use ?? (nullish coalescing) instead of || so that 0 is not treated as falsy.
-  const rawPositionMs = Number(raw.positionMs ?? raw.position ?? raw.position_ms ?? raw.pos ?? 0);
-  const rawDurationMs = Number(raw.durationMs ?? raw.duration ?? raw.duration_ms ?? 0);
-  if (Number.isFinite(rawPositionMs) && rawPositionMs < 0) throw playbackHttpError(400, 'positionMs must not be negative');
-  if (Number.isFinite(rawDurationMs) && rawDurationMs < 0) throw playbackHttpError(400, 'durationMs must not be negative');
-  const positionMs = Math.max(0, rawPositionMs);
-  const durationMs = Math.max(0, rawDurationMs);
+  const positionMs = positiveNumber(raw.positionMs || raw.position || raw.position_ms || raw.pos);
+  const durationMs = positiveNumber(raw.durationMs || raw.duration || raw.duration_ms);
   if (!vodName) throw playbackHttpError(400, 'vodName is required');
   if (!episodeName) throw playbackHttpError(400, 'episodeName is required');
-  // Allow positionMs = 0 (stream just started) and durationMs = 0 (live stream with no fixed duration).
-  // Live streams (e.g. Huya .flv) report durationMs = 0 because ExoPlayer cannot determine the end time.
-  const isLiveStream = durationMs <= 0;
+  if (positionMs <= 0) throw playbackHttpError(400, 'positionMs must be greater than 0');
+  if (durationMs <= 0) throw playbackHttpError(400, 'durationMs must be greater than 0');
   const updatedAt = positiveTimestamp(raw.updatedAt || raw.updated_at || raw.timestamp || raw.updateTime, now);
-  // A live stream never "completes" — ignore explicit completed=true when duration is unknown.
-  const completed = isLiveStream ? false : (eventName === 'playback.ended' || booleanValue(raw.completed));
+  const completed = eventName === 'playback.ended' || booleanValue(raw.completed);
   const suppliedProgress = boundedNumber(raw.progress, 0, 1);
-  // When duration is unknown (live stream), do not clamp positionMs and force progress to 0.
-  const clampedPosition = isLiveStream ? positionMs : Math.min(positionMs, durationMs);
-  const computedProgress = isLiveStream ? 0 : (suppliedProgress > 0 ? suppliedProgress : Math.min(positionMs, durationMs) / durationMs);
   const payload = compactObject({
     schema: PLAYBACK_SCHEMA,
     action: 'upsert',
@@ -430,9 +419,9 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     flag: cleanString(raw.flag || raw.vodFlag || raw.line || raw.source, 2048),
     episodeName,
     episodeUrl: cleanString(raw.episodeUrl || raw.episode_url || raw.url || raw.playUrl, 8192),
-    positionMs: clampedPosition,
+    positionMs: Math.min(positionMs, durationMs),
     durationMs,
-    progress: computedProgress,
+    progress: suppliedProgress > 0 ? suppliedProgress : Math.min(positionMs, durationMs) / durationMs,
     speed: positiveNumber(raw.speed) || 1,
     completed,
     updatedAt,
