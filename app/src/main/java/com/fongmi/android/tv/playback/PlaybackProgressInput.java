@@ -82,8 +82,10 @@ public class PlaybackProgressInput {
         if (TextUtils.isEmpty(vodId)) return "vodId不能为空";
         if (TextUtils.isEmpty(vodName)) return "vodName不能为空";
         if (TextUtils.isEmpty(episodeName)) return "episodeName不能为空";
-        if (positionMs <= 0) return "positionMs必须大于0";
-        if (durationMs <= 0) return "durationMs必须大于0";
+        // 允许 positionMs = 0 (直播刚启动) 和 durationMs = 0 (直播流无固定时长)
+        // 直播流(如虎牙.flv)的 durationMs 为 0，ExoPlayer 无法确定结束时间
+        if (positionMs < 0) return "positionMs不能为负数";
+        if (durationMs < 0) return "durationMs不能为负数";
         if (positionMs > durationMs && durationMs > 0) positionMs = durationMs;
         return "";
     }
