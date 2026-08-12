@@ -160,21 +160,13 @@ export class WebHTVPlaybackSyncDO {
     const changes = [];
     for (const row of selected) {
       try {
-        const item = JSON.parse(row.payload);
-        // Clear configKey so the APP's targetCid() falls back to the current
-        // default VodConfig CID instead of skipping with "接口不匹配" when
-        // the user has reset their APP data and reconfigured the sync source.
-        delete item.configKey;
-        changes.push(item);
+        changes.push(JSON.parse(row.payload));
       } catch {
         // Ignore an individually corrupted row without breaking all other records.
       }
     }
     const nextSince = selected.length ? String(selected[selected.length - 1].seq) : String(since);
-    // Alias "data" → "changes" for APP compatibility: APP's asArray() looks for
-    // {items, records, data, list} but not "changes". Without this alias the APP
-    // would treat the entire response wrapper as a single record and silently skip all items.
-    return playbackJson({ changes, data: changes, nextSince, hasMore });
+    return playbackJson({ changes, nextSince, hasMore });
   }
 
   status(request, url) {
