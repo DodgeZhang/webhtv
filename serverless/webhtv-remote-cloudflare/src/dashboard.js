@@ -416,8 +416,8 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
           <span>启用同标题去重</span>
         </div>
         <div class="settings-subtitle">
-          按 <span class="mono">vodName</span> 对记录进行展示层去重：同片名只保留 <strong>更新时间最新</strong> 的一条。
-          <strong style="color: var(--text-secondary);">不会物理删除任何数据</strong>，关闭开关后所有原始记录立即恢复。
+          按 <span class="mono">vodName</span> 去重：同片名只保留 <strong>更新时间最新</strong> 的一条，旧记录被物理删除并生成墓碑。
+          APP 通过同步收到删除通知后会同步清理本地副本，确保两端展示一致。开启瞬间会立即清理历史重复数据。
         </div>
       </div>
     </div>
@@ -640,14 +640,14 @@ async function loadData() {
   }
 }
 
-// 基于游标分页拉取全部增量变更
-// 当开关启用时追加 &dedupe=1，后端按 vodName + MAX(updated_at) 过滤。
+// 基于游标分页拉取全部增量变更。
+// 去重通过后端物理删除 + 墓碑实现，pull 返回的 upsert/delete 已是最终一致的数据，
+// APP 与 dashboard 收到完全相同的增量，无需前端额外过滤。
 async function pullAllChanges() {
   const all = [];
   let since = 0;
-  const dedupe = state.dedupeEnabled ? '&dedupe=1' : '';
   for (let i = 0; i < 20; i++) {
-    const data = await fetchJSON('/api/playback/sync?since=' + since + '&limit=1000' + dedupe);
+    const data = await fetchJSON('/api/playback/sync?since=' + since + '&limit=1000');
     if (data.changes && data.changes.length) all.push(...data.changes);
     since = Number(data.nextSince || 0);
     if (!data.hasMore) break;
@@ -665,16 +665,7 @@ function updateStatus(ok) {
 function renderStats() {
   if (!state.status) return;
   const s = state.status;
-  const elTotal = document.getElementById('totalCount');
-  const raw = Number(s.items ?? 0);
-  const eff = Number(s.effectiveItems ?? raw);
-  if (state.dedupeEnabled && eff !== raw) {
-    elTotal.innerHTML =
-      escape(String(eff)) +
-      '<div class="stat-effective-hint">原始 ' + escape(String(raw)) + ' · 已按同标题折叠</div>';
-  } else {
-    elTotal.textContent = raw;
-  }
+  document.getElementById('totalCount').textContent = s.items ?? 0;
   document.getElementById('tombstoneCount').textContent = s.tombstones ?? 0;
   document.getElementById('nextSince').textContent = s.nextSince ?? '-';
   document.getElementById('retentionDays').textContent = s.retentionDays ?? '-';
@@ -709,10 +700,13 @@ async function onDedupeToggleChange(evt) {
       body: JSON.stringify({ dedupeEnabled: desired })
     });
     setDedupeToggleState(res.dedupeEnabled, false);
+    const cleaned = Number(res.cleanedCount || 0);
     showToast(
       res.dedupeEnabled
-        ? '已启用同标题去重：列表将只显示每个影片最新的一条记录'
-        : '已关闭同标题去重：所有原始记录已恢复显示',
+        ? (cleaned > 0
+            ? `已启用同标题去重，已清理 ${cleaned} 条重复记录，APP 将在下次同步时收到删除通知`
+            : '已启用同标题去重：后续同名记录将只保留最新一条')
+        : '已关闭同标题去重：后续记录不再去重',
       'success'
     );
     // 切换后立即应用：无刷新重新拉一次列表和统计

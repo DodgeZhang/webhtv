@@ -198,23 +198,15 @@ export class WebHTVPlaybackSyncDO {
     const since = parseCursor(request.headers.get('x-webhtv-since') || url.searchParams.get('since'));
     const limit = parseLimit(request.headers.get('x-webhtv-limit') || url.searchParams.get('limit'));
 
-    // Opt-in display-only dedupe.  Default (App sync, device restore) must keep
-    // the full raw record set so individual per-site progress is preserved.
-    // The dashboard uses ?dedupe=1 along with the per-config setting to show a
-    // single "latest per title" view WITHOUT deleting any underlying row.
-    const wantDedupe = (url.searchParams.get('dedupe') === '1') && this.isDedupeEnabled(configKey);
-
+    // 去重通过物理删除 + 墓碑实现（见 applyUpsert / updateSettings），不再依赖
+    // 查询层过滤。pull 返回 upsert + delete（墓碑），APP 和 dashboard 收到
+    // 完全一致的增量变更，确保两端数据同步。
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const rows = this.sql.exec(`
       SELECT seq, kind, payload FROM (
         SELECT seq, 'upsert' AS kind, payload
           FROM playback_items
          WHERE config_key = ? AND seq > ?
-           ${wantDedupe ? `AND (vod_name = '' OR (vod_name, updated_at) IN (
-             SELECT vod_name, MAX(updated_at) FROM playback_items
-              WHERE config_key = ? AND vod_name <> ''
-              GROUP BY vod_name
-           ))` : ''}
         UNION ALL
         SELECT seq, 'delete' AS kind, payload
           FROM playback_tombstones
@@ -222,10 +214,7 @@ export class WebHTVPlaybackSyncDO {
       )
       ORDER BY seq ASC
       LIMIT ?
-    `, ...(wantDedupe
-      ? [configKey, since, configKey, configKey, cutoff, since, limit + 1]
-      : [configKey, since,                       configKey, cutoff, since, limit + 1]
-    )).toArray();
+    `, configKey, since, configKey, cutoff, since, limit + 1).toArray();
 
     const hasMore = rows.length > limit;
     const selected = hasMore ? rows.slice(0, limit) : rows;
@@ -254,29 +243,12 @@ export class WebHTVPlaybackSyncDO {
         SELECT seq FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ?
       )
     `, configKey, configKey, cutoff).one();
-
-    // Effective (展示层) 记录数：若启用同标题去重，按 vod_name 分组只计更新时间最新的一条。
-    // 注意：vod_name 为空的记录不会被去重（保持原样，与 ingest/pull 过滤规则一致）。
-    let effectiveItems = Number(items.count || 0);
-    if (dedupeEnabled) {
-      const eff = this.sql.exec(`
-        SELECT COUNT(*) AS count FROM (
-          SELECT 1 FROM playback_items
-          WHERE config_key = ?
-            AND (vod_name = '' OR (vod_name, updated_at) IN (
-              SELECT vod_name, MAX(updated_at) FROM playback_items
-               WHERE config_key = ? AND vod_name <> ''
-               GROUP BY vod_name
-            ))
-        )
-      `, configKey, configKey).one();
-      effectiveItems = Number(eff.count || 0);
-    }
+    // 去重通过物理删除实现（开关开启时），因此 items 已是去重后的真实条数，
+    // APP 与 dashboard 看到的是同一份数据，无需 effectiveItems 区分。
     return playbackJson({
       ok: true,
       configKey,
       items: Number(items.count || 0),
-      effectiveItems,
       tombstones: Number(tombstones.count || 0),
       nextSince: String(latest.seq || 0),
       retentionDays: 90,
@@ -311,10 +283,9 @@ export class WebHTVPlaybackSyncDO {
       ok: true,
       configKey,
       dedupeEnabled: this.isDedupeEnabled(configKey),
-      // Reasoning guidance, surfaced to the dashboard tooltip:
       dedupePolicy: {
-        scope: 'display-only',
-        description: '同标题去重只作用于展示层，不会物理删除任何数据；关闭后所有原始记录立即恢复可见。',
+        scope: 'physical-dedup',
+        description: '开启时，写入新记录会物理删除同名旧记录并建墓碑；APP 通过增量同步收到 delete 事件后删除本地副本，与 dashboard 保持一致。开启瞬间会立即清理历史重复数据。',
         tiebreaker: 'updated_at (最大者保留，空 vod_name 保留全部)'
       }
     });
@@ -331,11 +302,23 @@ export class WebHTVPlaybackSyncDO {
       throw playbackHttpError(400, 'dedupeEnabled must be a boolean (true/false)');
     }
     return this.state.storage.transactionSync(() => {
+      const wasEnabled = this.isDedupeEnabled(configKey);
       this.setDedupeEnabled(configKey, Boolean(enabled));
+      const nowEnabled = this.isDedupeEnabled(configKey);
+
+      // OFF→ON：对现有历史数据执行一次性同标题去重清理。
+      // 物理删除同名旧记录 + 建墓碑，使 APP 在下次 pull 时收到 delete 事件，
+      // 删除本地副本，与 dashboard 保持一致。
+      let cleanedCount = 0;
+      if (!wasEnabled && nowEnabled) {
+        cleanedCount = this.cleanupDuplicateTitles(configKey);
+      }
+
       return playbackJson({
         ok: true,
         configKey,
-        dedupeEnabled: this.isDedupeEnabled(configKey),
+        dedupeEnabled: nowEnabled,
+        cleanedCount,
         updatedAt: Date.now()
       });
     });
@@ -374,20 +357,24 @@ export class WebHTVPlaybackSyncDO {
       const seq = this.nextSequence();
       const payload = JSON.stringify(event.payload);
       const vodName = cleanString(event.payload?.vodName, 2048);
+      const dedupeEnabled = this.isDedupeEnabled(event.configKey);
 
-      // Per-user display-only dedupe policy (see /settings, ?dedupe=1 on pull):
-      // we NEVER physically delete rows or write dedup tombstones here anymore,
-      // because the requirement explicitly states "不物理删除任何数据，仅在数据展示
-      // 层面进行过滤处理，以便在关闭开关时能够完整恢复所有记录".  Historical
-      // dedup-deleted rows remain tombstoned as-is so that already-synced devices
-      // stay consistent; new writes always persist every record, and the display
-      // layer is responsible for collapsing same-title rows to the latest.
-      //
-      // The only guard we keep at ingest time is the same-item "newer exists"
-      // skip above (L369), which prevents overwriting newer progress for the
-      // EXACT same item.  For cross-site / different episodes / different quality
-      // duplicates the user can now always toggle the switch later to pick which
-      // way they want to see the list.
+      // 同标题去重（开关开启时）：
+      // 预检查 — 若已存在更新的同名记录（不同 item_key，例如离线设备重放缓冲），
+      // 跳过插入以保留最新进度，避免旧事件覆盖新进度。
+      if (vodName && dedupeEnabled) {
+        const newerSibling = firstRow(this.sql.exec(
+          'SELECT 1 AS found FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at > ? LIMIT 1',
+          event.configKey,
+          vodName,
+          event.itemKey,
+          event.updatedAt
+        ));
+        if (newerSibling) {
+          this.recordEvent(event.configKey, event.eventId, receivedAt);
+          return resultFor(event, 'skipped', 0, 'A newer same-title record exists');
+        }
+      }
 
       this.sql.exec(`
         INSERT INTO playback_items
@@ -403,9 +390,92 @@ export class WebHTVPlaybackSyncDO {
           payload = excluded.payload
       `, event.configKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, vodName, event.updatedAt, seq, payload);
 
+      // 同标题去重（开关开启时）：物理删除同 vodName 的旧记录并建墓碑。
+      // 墓碑通过 pull 增量同步传播到 APP，APP 收到 delete 事件后删除本地副本，
+      // 从而与 dashboard 展示保持一致（解决 pull 查询过滤无法清除已同步数据的问题）。
+      if (vodName && dedupeEnabled) {
+        this.dedupSameTitle(event.configKey, vodName, event.itemKey, event.updatedAt);
+      }
+
       this.recordEvent(event.configKey, event.eventId, receivedAt);
       return resultFor(event, current ? 'updated' : 'created', seq, '');
     });
+  }
+
+  // 物理删除同 vodName 且 updated_at < newerThan 的旧记录，并为每条创建 item 级墓碑。
+  // 墓碑通过 pull 增量同步传播到 APP，确保已同步设备删除本地副本，与 dashboard 一致。
+  // 返回删除的行数。
+  dedupSameTitle(configKey, vodName, keepItemKey, newerThan) {
+    const duplicates = this.sql.exec(
+      'SELECT item_key, history_key, site_key, vod_id, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at < ?',
+      configKey,
+      vodName,
+      keepItemKey,
+      newerThan
+    ).toArray();
+
+    for (const dup of duplicates) {
+      const dupKey = String(dup.item_key || '');
+      if (!dupKey) continue;
+      const markerKey = `item\n${dupKey}`;
+      const existingTomb = firstRow(this.sql.exec(
+        'SELECT 1 AS found FROM playback_tombstones WHERE config_key = ? AND marker_key = ? LIMIT 1',
+        configKey,
+        markerKey
+      ));
+      if (!existingTomb) {
+        const tombSeq = this.nextSequence();
+        const tombPayload = JSON.stringify({
+          schema: PLAYBACK_SCHEMA,
+          action: 'delete',
+          event: 'playback.deleted',
+          configKey,
+          historyKey: String(dup.history_key || ''),
+          siteKey: String(dup.site_key || ''),
+          vodId: String(dup.vod_id || ''),
+          scope: 'item',
+          deletedAt: Number(dup.updated_at || newerThan),
+          reason: 'vod-name-dedup'
+        });
+        this.sql.exec(`
+          INSERT OR IGNORE INTO playback_tombstones
+            (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
+          VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?)
+        `, configKey, markerKey, String(dup.history_key || ''), String(dup.site_key || ''), String(dup.vod_id || ''), Number(dup.updated_at || newerThan), tombSeq, tombPayload);
+      }
+      this.sql.exec(
+        'DELETE FROM playback_items WHERE config_key = ? AND item_key = ? AND vod_name = ?',
+        configKey,
+        dupKey,
+        vodName
+      );
+    }
+    return duplicates.length;
+  }
+
+  // 一次性清理：遍历所有有重复 vodName 的组，保留 updated_at 最大的，物理删除其余 + 建墓碑。
+  // 在开关从 OFF→ON 时调用，确保历史重复数据也被清理并通过墓碑传播到 APP。
+  cleanupDuplicateTitles(configKey) {
+    const dupNames = this.sql.exec(`
+      SELECT vod_name FROM playback_items
+      WHERE config_key = ? AND vod_name <> ''
+      GROUP BY vod_name
+      HAVING COUNT(*) > 1
+    `, configKey).toArray();
+
+    let total = 0;
+    for (const row of dupNames) {
+      const name = String(row.vod_name || '');
+      if (!name) continue;
+      const newest = firstRow(this.sql.exec(
+        'SELECT item_key, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? ORDER BY updated_at DESC LIMIT 1',
+        configKey,
+        name
+      ));
+      if (!newest) continue;
+      total += this.dedupSameTitle(configKey, name, String(newest.item_key), Number(newest.updated_at));
+    }
+    return total;
   }
 
   applyDelete(event, receivedAt) {

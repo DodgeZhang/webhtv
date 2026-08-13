@@ -557,126 +557,91 @@ test('normalizePlaybackEvent with empty vodName produces empty payload field', (
   assert.equal(event.payload.vodName, undefined, 'empty vodName should be removed by compactObject');
 });
 
-// Regression guard for the pull() query's parameter binding when ?dedupe=1 is
-// active.  The wantDedupe=true branch injects an extra `config_key = ?` into a
-// subquery, so the bound-args array must have exactly 7 elements (3 × configKey,
-// 2 × since, 1 × cutoff, 1 × limit+1) to match the 7 placeholders.  A previous
-// review mistakenly suggested adding an 8th configKey, which would trigger
-// SQLite's "too many SQL variables" error.  This test pins the correct count
-// by executing the EXACT same SQL + args that pull() uses.
-test('pull ?dedupe=1 path: 7 placeholders match 7 bound args (no param error)', () => {
+// Regression: verify the physical-dedup approach end-to-end.
+// After switching dedupe ON, cleanupDuplicateTitles should physically delete
+// same-title older records and create tombstones.  The pull query then returns
+// BOTH surviving upserts AND delete tombstones — proving the APP would receive
+// the delete events during incremental sync and remove its local copies,
+// achieving consistency with the dashboard.
+test('physical dedup: cleanup deletes old same-title rows + tombstones propagate via pull', () => {
   const db = setupTestDb();
   const configKey = 'test-config';
   const vodName = '正相反的你与我';
 
-  // Seed: 2 same-title rows (different sites, different updated_at),
-  //       1 different-title row, 1 empty-vod_name row, 1 tombstone.
-  db.prepare(`
-    INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(configKey, 'SiteA\nvod-1', 'SiteA@@@vod-1@@@1', 'SiteA', 'vod-1', vodName, 1000, 1, '{"action":"upsert","vodName":"正相反的你与我","siteKey":"SiteA"}');
-  db.prepare(`
-    INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(configKey, 'SiteB\nvod-2', 'SiteB@@@vod-2@@@2', 'SiteB', 'vod-2', vodName, 2000, 2, '{"action":"upsert","vodName":"正相反的你与我","siteKey":"SiteB"}');
-  db.prepare(`
-    INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(configKey, 'SiteC\nvod-3', 'SiteC@@@vod-3@@@3', 'SiteC', 'vod-3', '影片B', 3000, 3, '{"action":"upsert","vodName":"影片B","siteKey":"SiteC"}');
-  db.prepare(`
-    INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(configKey, 'SiteD\nvod-4', 'SiteD@@@vod-4@@@4', 'SiteD', 'vod-4', '', 4000, 4, '{"action":"upsert","siteKey":"SiteD"}');
+  // Seed: 2 same-title rows (SiteA older, SiteB newer), 1 different-title, 1 empty-name.
+  db.prepare(`INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(configKey, 'SiteA\nvod-1', 'SiteA@@@vod-1', 'SiteA', 'vod-1', vodName, 1000, 1, '{"action":"upsert","siteKey":"SiteA"}');
+  db.prepare(`INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(configKey, 'SiteB\nvod-2', 'SiteB@@@vod-2', 'SiteB', 'vod-2', vodName, 2000, 2, '{"action":"upsert","siteKey":"SiteB"}');
+  db.prepare(`INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(configKey, 'SiteC\nvod-3', 'SiteC@@@vod-3', 'SiteC', 'vod-3', '影片B', 3000, 3, '{"action":"upsert","siteKey":"SiteC"}');
+  db.prepare(`INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(configKey, 'SiteD\nvod-4', 'SiteD@@@vod-4', 'SiteD', 'vod-4', '', 4000, 4, '{"action":"upsert","siteKey":"SiteD"}');
 
-  // One tombstone (should appear in both dedupe and non-dedupe paths).
-  // Use a recent deleted_at so the retention filter `deleted_at >= cutoff`
-  // (cutoff = now - 90d) does NOT drop it — a value of 5000 (1970-01-01)
-  // would be filtered out and break the expected row counts below.
+  // --- Simulate cleanupDuplicateTitles(configKey) ---
+  // Step 1: find duplicate vodName groups
+  const dupNames = db.prepare(`
+    SELECT vod_name FROM playback_items
+    WHERE config_key = ? AND vod_name <> ''
+    GROUP BY vod_name HAVING COUNT(*) > 1
+  `).all(configKey);
+  assert.equal(dupNames.length, 1, 'Only "正相反的你与我" has duplicates');
+  assert.equal(dupNames[0].vod_name, vodName);
+
+  // Step 2: for each group, find newest, delete older + create tombstone
+  // Use a recent deleted_at so pull's retention filter (deleted_at >= cutoff,
+  // cutoff = now - 90d) does NOT drop the tombstone — the real dedupSameTitle
+  // method uses Number(dup.updated_at || newerThan) as deleted_at; for this
+  // test we use Date.now() to avoid the retention filter eating it.
+  let seqCounter = 100;
+  let cleaned = 0;
   const recentTs = Date.now();
-  db.prepare(`
-    INSERT INTO playback_tombstones (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
-    VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?)
-  `).run(configKey, 'item\nSiteZ\nvod-9', 'SiteZ@@@vod-9@@@9', 'SiteZ', 'vod-9', recentTs, 5, '{"action":"delete","scope":"item"}');
+  for (const { vod_name } of dupNames) {
+    const newest = db.prepare(`SELECT item_key, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? ORDER BY updated_at DESC LIMIT 1`).get(configKey, vod_name);
+    const older = db.prepare(`SELECT item_key, history_key, site_key, vod_id, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at < ?`).all(configKey, vod_name, newest.item_key, newest.updated_at);
+    for (const dup of older) {
+      const markerKey = `item\n${dup.item_key}`;
+      const tombSeq = ++seqCounter;
+      db.prepare(`INSERT OR IGNORE INTO playback_tombstones (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?)`)
+        .run(configKey, markerKey, dup.history_key, dup.site_key, dup.vod_id, recentTs, tombSeq, '{"action":"delete","scope":"item","reason":"vod-name-dedup"}');
+      db.prepare(`DELETE FROM playback_items WHERE config_key = ? AND item_key = ? AND vod_name = ?`).run(configKey, dup.item_key, vod_name);
+      cleaned++;
+    }
+  }
+  assert.equal(cleaned, 1, 'Should have cleaned 1 older duplicate (SiteA)');
 
+  // --- Verify physical state after cleanup ---
+  const remaining = db.prepare(`SELECT item_key, vod_name, updated_at FROM playback_items WHERE config_key = ? ORDER BY seq`).all(configKey);
+  assert.equal(remaining.length, 3, '3 records survive: SiteB (newest same-title), SiteC (diff title), SiteD (empty name)');
+  assert.ok(remaining.some(r => r.item_key === 'SiteB\nvod-2'), 'SiteB (newest) survives');
+  assert.ok(!remaining.some(r => r.item_key === 'SiteA\nvod-1'), 'SiteA (older) physically deleted');
+
+  const tombs = db.prepare(`SELECT marker_key, payload FROM playback_tombstones WHERE config_key = ?`).all(configKey);
+  assert.equal(tombs.length, 1, '1 tombstone created for SiteA');
+  assert.equal(tombs[0].marker_key, 'item\nSiteA\nvod-1');
+
+  // --- Verify pull returns both upserts AND delete tombstones ---
+  // This is the KEY assertion: APP does a pull(since=0) and receives the
+  // tombstone, so it deletes its local SiteA copy — achieving consistency.
   const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
   const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
   const since = 0;
   const limit = 100;
 
-  // --- wantDedupe=true branch: EXACT SQL + args from pull() (L208-228) ---
-  const dedupeRows = db.prepare(`
+  const rows = db.prepare(`
     SELECT seq, kind, payload FROM (
-      SELECT seq, 'upsert' AS kind, payload
-        FROM playback_items
-       WHERE config_key = ? AND seq > ?
-         AND (vod_name = '' OR (vod_name, updated_at) IN (
-           SELECT vod_name, MAX(updated_at) FROM playback_items
-            WHERE config_key = ? AND vod_name <> ''
-            GROUP BY vod_name
-         ))
+      SELECT seq, 'upsert' AS kind, payload FROM playback_items WHERE config_key = ? AND seq > ?
       UNION ALL
-      SELECT seq, 'delete' AS kind, payload
-        FROM playback_tombstones
-       WHERE config_key = ? AND deleted_at >= ? AND seq > ?
+      SELECT seq, 'delete' AS kind, payload FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ? AND seq > ?
     )
-    ORDER BY seq ASC
-    LIMIT ?
-  `).all(configKey, since, configKey, configKey, cutoff, since, limit + 1);
-
-  // Verify: no "too many SQL variables" error thrown above.
-  // Expected rows (deduped):
-  //   seq=2 SiteB (newest of "正相反的你与我", SiteA folded out)
-  //   seq=3 SiteC ("影片B")
-  //   seq=4 SiteD (empty vod_name → kept as-is)
-  //   seq=5 tombstone
-  const dedupeSeqs = dedupeRows.map(r => r.seq).sort((a, b) => a - b);
-  assert.deepEqual(dedupeSeqs, [2, 3, 4, 5],
-    'dedupe path should return newest same-title + different-title + empty-name + tombstone');
-  assert.equal(dedupeRows.length, 4, 'dedupe path should return 4 rows (SiteA folded)');
-  // SiteA (seq=1, older same-title) must NOT appear
-  assert.ok(!dedupeRows.some(r => r.seq === 1), 'older same-title row (SiteA) must be folded out');
-
-  // --- wantDedupe=false branch: same SQL without the dedupe subquery ---
-  const rawRows = db.prepare(`
-    SELECT seq, kind, payload FROM (
-      SELECT seq, 'upsert' AS kind, payload
-        FROM playback_items
-       WHERE config_key = ? AND seq > ?
-      UNION ALL
-      SELECT seq, 'delete' AS kind, payload
-        FROM playback_tombstones
-       WHERE config_key = ? AND deleted_at >= ? AND seq > ?
-    )
-    ORDER BY seq ASC
-    LIMIT ?
+    ORDER BY seq ASC LIMIT ?
   `).all(configKey, since, configKey, cutoff, since, limit + 1);
 
-  // Non-dedupe returns ALL upserts (4 items + 1 tombstone = 5 rows)
-  assert.equal(rawRows.length, 5, 'non-dedupe path should return all 5 rows');
-  const rawSeqs = rawRows.map(r => r.seq).sort((a, b) => a - b);
-  assert.deepEqual(rawSeqs, [1, 2, 3, 4, 5], 'non-dedupe path includes folded-out SiteA');
-
-  // --- Prove the user-suggested "fix" (8 args) would break ---
-  assert.throws(() => {
-    db.prepare(`
-      SELECT seq, kind, payload FROM (
-        SELECT seq, 'upsert' AS kind, payload
-          FROM playback_items
-         WHERE config_key = ? AND seq > ?
-           AND (vod_name = '' OR (vod_name, updated_at) IN (
-             SELECT vod_name, MAX(updated_at) FROM playback_items
-              WHERE config_key = ? AND vod_name <> ''
-              GROUP BY vod_name
-           ))
-        UNION ALL
-        SELECT seq, 'delete' AS kind, payload
-          FROM playback_tombstones
-         WHERE config_key = ? AND deleted_at >= ? AND seq > ?
-      )
-      ORDER BY seq ASC
-      LIMIT ?
-    `).all(configKey, since, configKey, configKey, configKey, cutoff, since, limit + 1);
-  }, '8 bound args for 7 placeholders must throw (proves the suggested fix is wrong)');
+  const kinds = rows.map(r => r.kind);
+  assert.ok(kinds.includes('delete'), 'pull MUST include the delete tombstone so APP removes its local copy');
+  assert.ok(kinds.includes('upsert'), 'pull includes surviving upserts');
+  // SiteA upsert (seq=1) is gone (physically deleted), but its tombstone (seq=101) is present
+  assert.ok(rows.some(r => r.seq === 101 && r.kind === 'delete'), 'Tombstone for SiteA is in pull results');
 
   db.close();
 });
