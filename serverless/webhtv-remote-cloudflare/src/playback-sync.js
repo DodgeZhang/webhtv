@@ -62,54 +62,92 @@ export class WebHTVPlaybackSyncDO {
   }
 
   migrate() {
-    this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS playback_meta (
-        key TEXT PRIMARY KEY,
-        value INTEGER NOT NULL
-      );
-      INSERT OR IGNORE INTO playback_meta (key, value) VALUES ('sequence', 0);
-      INSERT OR IGNORE INTO playback_meta (key, value) VALUES ('last_cleanup', 0);
+    // Wrap the ENTIRE migration (base schema + v3 vod_name upgrade) in a single
+    // transaction.  Cloudflare DO's transactionSync() auto-issues BEGIN/COMMIT
+    // and rolls back on any exception, guaranteeing the DB never ends up in a
+    // half-migrated state (e.g. column added but backfill UPDATE incomplete, or
+    // backfill finished but dedup index missing).  migrate() runs inside
+    // state.blockConcurrencyWhile() so no fetch() can observe partial progress.
+    this.state.storage.transactionSync(() => {
+      this.sql.exec(`
+        CREATE TABLE IF NOT EXISTS playback_meta (
+          key TEXT PRIMARY KEY,
+          value INTEGER NOT NULL
+        );
+        INSERT OR IGNORE INTO playback_meta (key, value) VALUES ('sequence', 0);
+        INSERT OR IGNORE INTO playback_meta (key, value) VALUES ('last_cleanup', 0);
 
-      CREATE TABLE IF NOT EXISTS playback_items (
-        config_key TEXT NOT NULL,
-        item_key TEXT NOT NULL,
-        history_key TEXT NOT NULL,
-        site_key TEXT NOT NULL,
-        vod_id TEXT NOT NULL,
-        updated_at INTEGER NOT NULL,
-        seq INTEGER NOT NULL,
-        payload TEXT NOT NULL,
-        PRIMARY KEY (config_key, item_key)
-      );
-      CREATE INDEX IF NOT EXISTS idx_playback_items_config_seq
-        ON playback_items (config_key, seq);
+        CREATE TABLE IF NOT EXISTS playback_items (
+          config_key TEXT NOT NULL,
+          item_key TEXT NOT NULL,
+          history_key TEXT NOT NULL,
+          site_key TEXT NOT NULL,
+          vod_id TEXT NOT NULL,
+          updated_at INTEGER NOT NULL,
+          seq INTEGER NOT NULL,
+          payload TEXT NOT NULL,
+          PRIMARY KEY (config_key, item_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_playback_items_config_seq
+          ON playback_items (config_key, seq);
 
-      CREATE TABLE IF NOT EXISTS playback_tombstones (
-        config_key TEXT NOT NULL,
-        marker_key TEXT NOT NULL,
-        scope TEXT NOT NULL,
-        history_key TEXT NOT NULL,
-        site_key TEXT NOT NULL,
-        vod_id TEXT NOT NULL,
-        deleted_at INTEGER NOT NULL,
-        seq INTEGER NOT NULL,
-        payload TEXT NOT NULL,
-        PRIMARY KEY (config_key, marker_key)
-      );
-      CREATE INDEX IF NOT EXISTS idx_playback_tombstones_config_seq
-        ON playback_tombstones (config_key, seq);
-      CREATE INDEX IF NOT EXISTS idx_playback_tombstones_deleted_at
-        ON playback_tombstones (deleted_at);
+        CREATE TABLE IF NOT EXISTS playback_tombstones (
+          config_key TEXT NOT NULL,
+          marker_key TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          history_key TEXT NOT NULL,
+          site_key TEXT NOT NULL,
+          vod_id TEXT NOT NULL,
+          deleted_at INTEGER NOT NULL,
+          seq INTEGER NOT NULL,
+          payload TEXT NOT NULL,
+          PRIMARY KEY (config_key, marker_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_playback_tombstones_config_seq
+          ON playback_tombstones (config_key, seq);
+        CREATE INDEX IF NOT EXISTS idx_playback_tombstones_deleted_at
+          ON playback_tombstones (deleted_at);
 
-      CREATE TABLE IF NOT EXISTS playback_events (
-        config_key TEXT NOT NULL,
-        event_id TEXT NOT NULL,
-        received_at INTEGER NOT NULL,
-        PRIMARY KEY (config_key, event_id)
-      );
-      CREATE INDEX IF NOT EXISTS idx_playback_events_received_at
-        ON playback_events (received_at);
-    `);
+        CREATE TABLE IF NOT EXISTS playback_events (
+          config_key TEXT NOT NULL,
+          event_id TEXT NOT NULL,
+          received_at INTEGER NOT NULL,
+          PRIMARY KEY (config_key, event_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_playback_events_received_at
+          ON playback_events (received_at);
+      `);
+
+      // Migration v3: add vod_name column to playback_items for same-title deduplication.
+      // Existing rows are backfilled from the payload JSON.
+      this.migrateV3VodName();
+    });
+  }
+
+  migrateV3VodName() {
+    // NOTE: This helper is always called inside migrate()'s enclosing
+    // transactionSync() block, so individual SQL statements below are already
+    // covered by the outer atomic scope.  We deliberately do NOT open a nested
+    // transaction here because SQLite only supports savepoint-style nesting;
+    // keeping everything in one tx avoids edge cases around implicit COMMITs.
+    const colExists = this.sql.exec(
+      "SELECT 1 FROM pragma_table_info('playback_items') WHERE name = 'vod_name' LIMIT 1"
+    ).toArray().length > 0;
+    if (colExists) {
+      this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_vodname ON playback_items (config_key, vod_name)");
+      return;
+    }
+    // Three steps that MUST either all succeed or all be rolled back together:
+    //   1. ALTER TABLE  – adds the new column with a safe DEFAULT so reads work
+    //                     even mid-migration (but mid-migration reads are
+    //                     blocked anyway by blockConcurrencyWhile + transaction).
+    //   2. UPDATE       – extracts vodName from the JSON payload of existing
+    //                     rows so deduplication works on historical data.
+    //   3. CREATE INDEX – makes the same-title lookup O(log n) instead of O(n).
+    this.sql.exec('ALTER TABLE playback_items ADD COLUMN vod_name TEXT NOT NULL DEFAULT ""');
+    // Backfill existing rows: extract vodName from payload JSON.
+    this.sql.exec(`UPDATE playback_items SET vod_name = COALESCE(json_extract(payload, '$.vodName'), '') WHERE vod_name = ''`);
+    this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_vodname ON playback_items (config_key, vod_name)");
   }
 
   async ingest(request) {
@@ -224,18 +262,99 @@ export class WebHTVPlaybackSyncDO {
 
       const seq = this.nextSequence();
       const payload = JSON.stringify(event.payload);
+      const vodName = cleanString(event.payload?.vodName, 2048);
+
+      // --- Same-title staleness guard (pre-check) ---
+      // If a NEWER record already exists for the same vodName under a different
+      // item_key (e.g. same movie already reported from another site), this event
+      // is stale (typically an offline device replaying its buffer) and must NOT
+      // be inserted — otherwise the dedup below would be forced to choose between
+      // the newer existing row and this older one, risking deletion of the newest
+      // progress.  Mirrors the same-item_key skip above but extended to same-title.
+      if (vodName) {
+        const newerSibling = firstRow(this.sql.exec(
+          'SELECT 1 AS found FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at > ? LIMIT 1',
+          event.configKey,
+          vodName,
+          event.itemKey,
+          event.updatedAt
+        ));
+        if (newerSibling) {
+          this.recordEvent(event.configKey, event.eventId, receivedAt);
+          return resultFor(event, 'skipped', 0, 'A newer same-title record exists');
+        }
+      }
+
       this.sql.exec(`
         INSERT INTO playback_items
-          (config_key, item_key, history_key, site_key, vod_id, updated_at, seq, payload)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(config_key, item_key) DO UPDATE SET
           history_key = excluded.history_key,
           site_key = excluded.site_key,
           vod_id = excluded.vod_id,
+          vod_name = excluded.vod_name,
           updated_at = excluded.updated_at,
           seq = excluded.seq,
           payload = excluded.payload
-      `, event.configKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, event.updatedAt, seq, payload);
+      `, event.configKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, vodName, event.updatedAt, seq, payload);
+
+      // --- Same-title deduplication ---
+      // When a movie title (vodName) matches existing records but the item_key differs
+      // (e.g. same movie from a different site / different episode / different quality),
+      // keep only the newest entry.  Only STRICTLY OLDER duplicates are removed (the
+      // pre-check above already guarantees no newer sibling exists, so every remaining
+      // same-title row is older than this one).  Create item-scope tombstones for the
+      // removed rows so other devices receive the deletion via pull sync and stay
+      // consistent.
+      if (vodName) {
+        const duplicates = this.sql.exec(
+          'SELECT item_key, history_key, site_key, vod_id, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at < ?',
+          event.configKey,
+          vodName,
+          event.itemKey,
+          event.updatedAt
+        ).toArray();
+
+        for (const dup of duplicates) {
+          const dupKey = String(dup.item_key || '');
+          if (!dupKey) continue;
+          // Create an item-scope tombstone so pull sync propagates the deletion.
+          const markerKey = `item\n${dupKey}`;
+          const existingTomb = firstRow(this.sql.exec(
+            'SELECT 1 AS found FROM playback_tombstones WHERE config_key = ? AND marker_key = ? LIMIT 1',
+            event.configKey,
+            markerKey
+          ));
+          if (!existingTomb) {
+            const tombSeq = this.nextSequence();
+            const tombPayload = JSON.stringify({
+              schema: PLAYBACK_SCHEMA,
+              action: 'delete',
+              event: 'playback.deleted',
+              configKey: event.configKey,
+              historyKey: String(dup.history_key || ''),
+              siteKey: String(dup.site_key || ''),
+              vodId: String(dup.vod_id || ''),
+              scope: 'item',
+              deletedAt: Number(dup.updated_at || event.updatedAt),
+              reason: 'vod-name-dedup'
+            });
+            this.sql.exec(`
+              INSERT OR IGNORE INTO playback_tombstones
+                (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
+              VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?)
+            `, event.configKey, markerKey, String(dup.history_key || ''), String(dup.site_key || ''), String(dup.vod_id || ''), Number(dup.updated_at || event.updatedAt), tombSeq, tombPayload);
+          }
+          this.sql.exec(
+            'DELETE FROM playback_items WHERE config_key = ? AND item_key = ? AND vod_name = ?',
+            event.configKey,
+            dupKey,
+            vodName
+          );
+        }
+      }
+
       this.recordEvent(event.configKey, event.eventId, receivedAt);
       return resultFor(event, current ? 'updated' : 'created', seq, '');
     });
@@ -402,8 +521,7 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
   if (Number.isFinite(rawDurationMs) && rawDurationMs < 0) throw playbackHttpError(400, 'durationMs must not be negative');
   const positionMs = Math.max(0, rawPositionMs);
   const durationMs = Math.max(0, rawDurationMs);
-  if (!vodName) throw playbackHttpError(400, 'vodName is required');
-  if (!episodeName) throw playbackHttpError(400, 'episodeName is required');
+  if (!vodName && !episodeName) throw playbackHttpError(400, 'vodName or episodeName is required');
   // Allow positionMs = 0 (stream just started) and durationMs = 0 (live stream with no fixed duration).
   // Live streams (e.g. Huya .flv) report durationMs = 0 because ExoPlayer cannot determine the end time.
   const isLiveStream = durationMs <= 0;

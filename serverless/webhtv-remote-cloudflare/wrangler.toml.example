@@ -18,6 +18,12 @@ new_sqlite_classes = ["WebHTVRemoteRelayDO"]
 tag = "v2"
 new_sqlite_classes = ["WebHTVPlaybackSyncDO"]
 
+# Migration v3: same-title deduplication (vod_name column, dedup index)
+# Existing PLAYBACK_DO instances will auto-apply the schema change on next access.
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = []
+
 # No KV, R2, external database, or required environment variable is needed.
 # RELAY_DO keeps short-lived relay state consistent across devices.
 # PLAYBACK_DO stores playback progress and 90-day deletion tombstones in SQLite.
