@@ -7,10 +7,21 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 const PLAYBACK_SCHEMA = 'webhtv.playback.v1';
 
+// Per-config_key playback_meta key namespace.  A single DO serves many configKeys
+// (namespaced by Token or the shared empty-token namespace), so settings must
+// be scoped per configKey rather than global.
+const META_KEY_DEDUPE_ENABLED = (configKey) => `cfg:${configKey}:dedupe_enabled`;
+// Default: off, matching "展示层过滤不物理删除" — the dashboard user can
+// choose to enable it explicitly after reviewing the non-destructive behavior.
+const DEFAULT_DEDUPE_ENABLED = false;
+
 export function isPlaybackSyncPath(pathname) {
   const path = normalizePath(pathname);
   if (PLAYBACK_SYNC_PATHS.has(path)) return true;
-  for (const base of PLAYBACK_SYNC_PATHS) if (path === `${base}/status`) return true;
+  for (const base of PLAYBACK_SYNC_PATHS) {
+    if (path === `${base}/status`) return true;
+    if (path === `${base}/settings`) return true;
+  }
   return false;
 }
 
@@ -44,9 +55,17 @@ export class WebHTVPlaybackSyncDO {
       this.cleanup();
       const url = new URL(request.url);
       const path = normalizePath(url.pathname);
-      const status = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/status`);
-      if (status) {
+      const isStatus = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/status`);
+      if (isStatus) {
         if (request.method === 'GET') return playbackCors(this.status(request, url));
+        return playbackError(405, 'Method not allowed');
+      }
+      const isSettings = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/settings`);
+      if (isSettings) {
+        if (request.method === 'GET') return playbackCors(this.getSettings(request));
+        if (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH') {
+          return playbackCors(await this.updateSettings(request));
+        }
         return playbackError(405, 'Method not allowed');
       }
       if (!PLAYBACK_SYNC_PATHS.has(path)) return playbackError(404, 'Not found');
@@ -178,12 +197,24 @@ export class WebHTVPlaybackSyncDO {
     const configKey = requireConfigKey(request);
     const since = parseCursor(request.headers.get('x-webhtv-since') || url.searchParams.get('since'));
     const limit = parseLimit(request.headers.get('x-webhtv-limit') || url.searchParams.get('limit'));
+
+    // Opt-in display-only dedupe.  Default (App sync, device restore) must keep
+    // the full raw record set so individual per-site progress is preserved.
+    // The dashboard uses ?dedupe=1 along with the per-config setting to show a
+    // single "latest per title" view WITHOUT deleting any underlying row.
+    const wantDedupe = (url.searchParams.get('dedupe') === '1') && this.isDedupeEnabled(configKey);
+
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const rows = this.sql.exec(`
       SELECT seq, kind, payload FROM (
         SELECT seq, 'upsert' AS kind, payload
           FROM playback_items
          WHERE config_key = ? AND seq > ?
+           ${wantDedupe ? `AND (vod_name = '' OR (vod_name, updated_at) IN (
+             SELECT vod_name, MAX(updated_at) FROM playback_items
+              WHERE config_key = ? AND vod_name <> ''
+              GROUP BY vod_name
+           ))` : ''}
         UNION ALL
         SELECT seq, 'delete' AS kind, payload
           FROM playback_tombstones
@@ -191,7 +222,10 @@ export class WebHTVPlaybackSyncDO {
       )
       ORDER BY seq ASC
       LIMIT ?
-    `, configKey, since, configKey, cutoff, since, limit + 1).toArray();
+    `, ...(wantDedupe
+      ? [configKey, since, configKey, configKey, cutoff, since, limit + 1]
+      : [configKey, since,                       configKey, cutoff, since, limit + 1]
+    )).toArray();
 
     const hasMore = rows.length > limit;
     const selected = hasMore ? rows.slice(0, limit) : rows;
@@ -209,6 +243,7 @@ export class WebHTVPlaybackSyncDO {
 
   status(request, url) {
     const configKey = requireConfigKey(request);
+    const dedupeEnabled = this.isDedupeEnabled(configKey);
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const items = this.sql.exec('SELECT COUNT(*) AS count FROM playback_items WHERE config_key = ?', configKey).one();
     const tombstones = this.sql.exec('SELECT COUNT(*) AS count FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ?', configKey, cutoff).one();
@@ -219,14 +254,90 @@ export class WebHTVPlaybackSyncDO {
         SELECT seq FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ?
       )
     `, configKey, configKey, cutoff).one();
+
+    // Effective (展示层) 记录数：若启用同标题去重，按 vod_name 分组只计更新时间最新的一条。
+    // 注意：vod_name 为空的记录不会被去重（保持原样，与 ingest/pull 过滤规则一致）。
+    let effectiveItems = Number(items.count || 0);
+    if (dedupeEnabled) {
+      const eff = this.sql.exec(`
+        SELECT COUNT(*) AS count FROM (
+          SELECT 1 FROM playback_items
+          WHERE config_key = ?
+            AND (vod_name = '' OR (vod_name, updated_at) IN (
+              SELECT vod_name, MAX(updated_at) FROM playback_items
+               WHERE config_key = ? AND vod_name <> ''
+               GROUP BY vod_name
+            ))
+        )
+      `, configKey, configKey).one();
+      effectiveItems = Number(eff.count || 0);
+    }
     return playbackJson({
       ok: true,
       configKey,
       items: Number(items.count || 0),
+      effectiveItems,
       tombstones: Number(tombstones.count || 0),
       nextSince: String(latest.seq || 0),
       retentionDays: 90,
+      dedupeEnabled,
       endpoint: `${url.origin}${basePlaybackPath(url.pathname)}`
+    });
+  }
+
+  // ---------- per-config_key settings ----------
+
+  isDedupeEnabled(configKey) {
+    const row = firstRow(this.sql.exec(
+      'SELECT value FROM playback_meta WHERE key = ? LIMIT 1',
+      META_KEY_DEDUPE_ENABLED(configKey)
+    ));
+    if (!row) return DEFAULT_DEDUPE_ENABLED;
+    return Number(row.value || 0) === 1;
+  }
+
+  setDedupeEnabled(configKey, enabled) {
+    const val = enabled ? 1 : 0;
+    this.sql.exec(
+      'INSERT INTO playback_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      META_KEY_DEDUPE_ENABLED(configKey),
+      val
+    );
+  }
+
+  getSettings(request) {
+    const configKey = requireConfigKey(request);
+    return playbackJson({
+      ok: true,
+      configKey,
+      dedupeEnabled: this.isDedupeEnabled(configKey),
+      // Reasoning guidance, surfaced to the dashboard tooltip:
+      dedupePolicy: {
+        scope: 'display-only',
+        description: '同标题去重只作用于展示层，不会物理删除任何数据；关闭后所有原始记录立即恢复可见。',
+        tiebreaker: 'updated_at (最大者保留，空 vod_name 保留全部)'
+      }
+    });
+  }
+
+  async updateSettings(request) {
+    const body = await readPlaybackJson(request);
+    const configKey = requireConfigKey(request, body);
+    const enabled = body && typeof body.dedupeEnabled === 'boolean'
+      ? body.dedupeEnabled
+      : (body && (body.dedupeEnabled === 1 || body.dedupeEnabled === '1' || body.dedupeEnabled === 'true'));
+    if (body && 'dedupeEnabled' in body && typeof body.dedupeEnabled !== 'boolean'
+        && !['1', '0', 'true', 'false', 1, 0].includes(body.dedupeEnabled)) {
+      throw playbackHttpError(400, 'dedupeEnabled must be a boolean (true/false)');
+    }
+    return this.state.storage.transactionSync(() => {
+      this.setDedupeEnabled(configKey, Boolean(enabled));
+      return playbackJson({
+        ok: true,
+        configKey,
+        dedupeEnabled: this.isDedupeEnabled(configKey),
+        updatedAt: Date.now()
+      });
     });
   }
 
@@ -264,26 +375,19 @@ export class WebHTVPlaybackSyncDO {
       const payload = JSON.stringify(event.payload);
       const vodName = cleanString(event.payload?.vodName, 2048);
 
-      // --- Same-title staleness guard (pre-check) ---
-      // If a NEWER record already exists for the same vodName under a different
-      // item_key (e.g. same movie already reported from another site), this event
-      // is stale (typically an offline device replaying its buffer) and must NOT
-      // be inserted — otherwise the dedup below would be forced to choose between
-      // the newer existing row and this older one, risking deletion of the newest
-      // progress.  Mirrors the same-item_key skip above but extended to same-title.
-      if (vodName) {
-        const newerSibling = firstRow(this.sql.exec(
-          'SELECT 1 AS found FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at > ? LIMIT 1',
-          event.configKey,
-          vodName,
-          event.itemKey,
-          event.updatedAt
-        ));
-        if (newerSibling) {
-          this.recordEvent(event.configKey, event.eventId, receivedAt);
-          return resultFor(event, 'skipped', 0, 'A newer same-title record exists');
-        }
-      }
+      // Per-user display-only dedupe policy (see /settings, ?dedupe=1 on pull):
+      // we NEVER physically delete rows or write dedup tombstones here anymore,
+      // because the requirement explicitly states "不物理删除任何数据，仅在数据展示
+      // 层面进行过滤处理，以便在关闭开关时能够完整恢复所有记录".  Historical
+      // dedup-deleted rows remain tombstoned as-is so that already-synced devices
+      // stay consistent; new writes always persist every record, and the display
+      // layer is responsible for collapsing same-title rows to the latest.
+      //
+      // The only guard we keep at ingest time is the same-item "newer exists"
+      // skip above (L369), which prevents overwriting newer progress for the
+      // EXACT same item.  For cross-site / different episodes / different quality
+      // duplicates the user can now always toggle the switch later to pick which
+      // way they want to see the list.
 
       this.sql.exec(`
         INSERT INTO playback_items
@@ -298,62 +402,6 @@ export class WebHTVPlaybackSyncDO {
           seq = excluded.seq,
           payload = excluded.payload
       `, event.configKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, vodName, event.updatedAt, seq, payload);
-
-      // --- Same-title deduplication ---
-      // When a movie title (vodName) matches existing records but the item_key differs
-      // (e.g. same movie from a different site / different episode / different quality),
-      // keep only the newest entry.  Only STRICTLY OLDER duplicates are removed (the
-      // pre-check above already guarantees no newer sibling exists, so every remaining
-      // same-title row is older than this one).  Create item-scope tombstones for the
-      // removed rows so other devices receive the deletion via pull sync and stay
-      // consistent.
-      if (vodName) {
-        const duplicates = this.sql.exec(
-          'SELECT item_key, history_key, site_key, vod_id, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at < ?',
-          event.configKey,
-          vodName,
-          event.itemKey,
-          event.updatedAt
-        ).toArray();
-
-        for (const dup of duplicates) {
-          const dupKey = String(dup.item_key || '');
-          if (!dupKey) continue;
-          // Create an item-scope tombstone so pull sync propagates the deletion.
-          const markerKey = `item\n${dupKey}`;
-          const existingTomb = firstRow(this.sql.exec(
-            'SELECT 1 AS found FROM playback_tombstones WHERE config_key = ? AND marker_key = ? LIMIT 1',
-            event.configKey,
-            markerKey
-          ));
-          if (!existingTomb) {
-            const tombSeq = this.nextSequence();
-            const tombPayload = JSON.stringify({
-              schema: PLAYBACK_SCHEMA,
-              action: 'delete',
-              event: 'playback.deleted',
-              configKey: event.configKey,
-              historyKey: String(dup.history_key || ''),
-              siteKey: String(dup.site_key || ''),
-              vodId: String(dup.vod_id || ''),
-              scope: 'item',
-              deletedAt: Number(dup.updated_at || event.updatedAt),
-              reason: 'vod-name-dedup'
-            });
-            this.sql.exec(`
-              INSERT OR IGNORE INTO playback_tombstones
-                (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
-              VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?)
-            `, event.configKey, markerKey, String(dup.history_key || ''), String(dup.site_key || ''), String(dup.vod_id || ''), Number(dup.updated_at || event.updatedAt), tombSeq, tombPayload);
-          }
-          this.sql.exec(
-            'DELETE FROM playback_items WHERE config_key = ? AND item_key = ? AND vod_name = ?',
-            event.configKey,
-            dupKey,
-            vodName
-          );
-        }
-      }
 
       this.recordEvent(event.configKey, event.eventId, receivedAt);
       return resultFor(event, current ? 'updated' : 'created', seq, '');

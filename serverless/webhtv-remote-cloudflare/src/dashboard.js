@@ -215,6 +215,98 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   footer a { color: var(--accent); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
 
+  /* -------- 同标题去重：设置卡片 + 开关 -------- */
+  .settings-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    position: relative;
+    overflow: hidden;
+  }
+  .settings-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent) 0%, #22d3ee 100%);
+  }
+  .settings-left {
+    display: flex; align-items: center; gap: 16px;
+    min-width: 0; flex: 1 1 420px;
+  }
+  .settings-icon {
+    flex-shrink: 0;
+    width: 44px; height: 44px; border-radius: 12px;
+    background: rgba(108, 124, 255, 0.15);
+    color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: inset 0 0 0 1px rgba(108, 124, 255, 0.25);
+  }
+  .settings-text { min-width: 0; }
+  .settings-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .settings-subtitle { font-size: 12px; color: var(--text-muted); line-height: 1.6; max-width: 560px; }
+  .settings-subtitle .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--bg); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-secondary); font-size: 11px; }
+  .switch-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .switch-label-state { font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+  .switch-label-state.on  { color: var(--success); }
+  .switch-label-state.off { color: var(--text-muted); }
+
+  /* iOS 风格 switch，高对比双态视觉反馈 */
+  .switch {
+    --w: 56px;
+    --h: 30px;
+    --p: 3px;
+    --knob: calc(var(--h) - var(--p) * 2);
+    position: relative;
+    display: inline-block;
+    width: var(--w);
+    height: var(--h);
+    flex-shrink: 0;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; cursor: pointer;
+    inset: 0;
+    background: var(--border);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 999px;
+    transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .slider::before {
+    content: '';
+    position: absolute;
+    height: var(--knob);
+    width: var(--knob);
+    left: var(--p);
+    top: 50%;
+    transform: translateY(-50%);
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.06);
+    transition: transform 0.25s cubic-bezier(.4,.2,.2,1), width 0.15s ease;
+  }
+  .switch input:checked + .slider {
+    background: linear-gradient(135deg, #6c7cff 0%, #22d3ee 100%);
+    border-color: rgba(108, 124, 255, 0.45);
+    box-shadow: 0 0 0 3px rgba(108, 124, 255, 0.15), inset 0 1px 2px rgba(0,0,0,0.15);
+  }
+  .switch input:checked + .slider::before {
+    transform: translate(calc(var(--w) - var(--knob) - var(--p) * 2), -50%);
+  }
+  .switch input:focus-visible + .slider {
+    box-shadow: 0 0 0 3px rgba(108, 124, 255, 0.3), inset 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .switch input:disabled + .slider { cursor: not-allowed; opacity: 0.55; }
+  .stat-effective-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
   @media (max-width: 900px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     header { flex-direction: column; gap: 16px; align-items: flex-start; }
@@ -315,6 +407,29 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- 同标题去重：展示层开关（不物理删除） -->
+  <div class="settings-card" id="dedupeSettingsCard" aria-live="polite">
+    <div class="settings-left">
+      <div class="settings-icon" aria-hidden="true">🪞</div>
+      <div class="settings-text">
+        <div class="settings-title">
+          <span>启用同标题去重</span>
+        </div>
+        <div class="settings-subtitle">
+          按 <span class="mono">vodName</span> 对记录进行展示层去重：同片名只保留 <strong>更新时间最新</strong> 的一条。
+          <strong style="color: var(--text-secondary);">不会物理删除任何数据</strong>，关闭开关后所有原始记录立即恢复。
+        </div>
+      </div>
+    </div>
+    <div class="switch-wrap">
+      <label class="switch" title="启用 / 关闭 同标题去重">
+        <input type="checkbox" id="dedupeToggle" aria-label="启用同标题去重" autocomplete="off">
+        <span class="slider"></span>
+      </label>
+      <div class="switch-label-state" id="dedupeLabelState">OFF</div>
+    </div>
+  </div>
+
   <div class="section">
     <div class="section-header">
       <div class="section-title">
@@ -374,7 +489,8 @@ const state = {
   search: '',
   filtered: [],
   sortKey: 'updatedAt',
-  sortDir: 'desc'
+  sortDir: 'desc',
+  dedupeEnabled: false
 };
 
 // ============ 登录与凭证管理 ============
@@ -508,6 +624,9 @@ async function loadData() {
       pullAllChanges()
     ]);
     state.status = statusData;
+    if (typeof statusData.dedupeEnabled === 'boolean') {
+      setDedupeToggleState(statusData.dedupeEnabled, true);
+    }
     // 只展示 action=upsert 的记录，过滤掉 delete 墓碑
     state.records = syncData.filter(c => c.action !== 'delete');
     applyFilter();
@@ -522,11 +641,13 @@ async function loadData() {
 }
 
 // 基于游标分页拉取全部增量变更
+// 当开关启用时追加 &dedupe=1，后端按 vodName + MAX(updated_at) 过滤。
 async function pullAllChanges() {
   const all = [];
   let since = 0;
+  const dedupe = state.dedupeEnabled ? '&dedupe=1' : '';
   for (let i = 0; i < 20; i++) {
-    const data = await fetchJSON('/api/playback/sync?since=' + since + '&limit=1000');
+    const data = await fetchJSON('/api/playback/sync?since=' + since + '&limit=1000' + dedupe);
     if (data.changes && data.changes.length) all.push(...data.changes);
     since = Number(data.nextSince || 0);
     if (!data.hasMore) break;
@@ -544,10 +665,65 @@ function updateStatus(ok) {
 function renderStats() {
   if (!state.status) return;
   const s = state.status;
-  document.getElementById('totalCount').textContent = s.items ?? 0;
+  const elTotal = document.getElementById('totalCount');
+  const raw = Number(s.items ?? 0);
+  const eff = Number(s.effectiveItems ?? raw);
+  if (state.dedupeEnabled && eff !== raw) {
+    elTotal.innerHTML =
+      escape(String(eff)) +
+      '<div class="stat-effective-hint">原始 ' + escape(String(raw)) + ' · 已按同标题折叠</div>';
+  } else {
+    elTotal.textContent = raw;
+  }
   document.getElementById('tombstoneCount').textContent = s.tombstones ?? 0;
   document.getElementById('nextSince').textContent = s.nextSince ?? '-';
   document.getElementById('retentionDays').textContent = s.retentionDays ?? '-';
+}
+
+// -------- 同标题去重：开关 UI + API --------
+
+function setDedupeToggleState(enabled, silent) {
+  state.dedupeEnabled = Boolean(enabled);
+  const toggle = document.getElementById('dedupeToggle');
+  const label  = document.getElementById('dedupeLabelState');
+  if (toggle) {
+    toggle.checked = state.dedupeEnabled;
+    toggle.setAttribute('aria-checked', state.dedupeEnabled ? 'true' : 'false');
+  }
+  if (label) {
+    label.textContent = state.dedupeEnabled ? 'ON' : 'OFF';
+    label.classList.toggle('on',  state.dedupeEnabled);
+    label.classList.toggle('off', !state.dedupeEnabled);
+  }
+  // 避免首次从 statusData 回填时再触发一次 onChange 无限递归
+  if (!silent) renderStats();
+}
+
+async function onDedupeToggleChange(evt) {
+  const desired = Boolean(evt.target.checked);
+  const toggle = document.getElementById('dedupeToggle');
+  if (toggle) toggle.disabled = true;
+  try {
+    const res = await fetchJSON('/api/playback/sync/settings', {
+      method: 'POST',
+      body: JSON.stringify({ dedupeEnabled: desired })
+    });
+    setDedupeToggleState(res.dedupeEnabled, false);
+    showToast(
+      res.dedupeEnabled
+        ? '已启用同标题去重：列表将只显示每个影片最新的一条记录'
+        : '已关闭同标题去重：所有原始记录已恢复显示',
+      'success'
+    );
+    // 切换后立即应用：无刷新重新拉一次列表和统计
+    await loadData();
+  } catch (e) {
+    // 回滚 UI 到实际状态
+    setDedupeToggleState(state.dedupeEnabled, false);
+    showToast('切换失败: ' + e.message, 'error');
+  } finally {
+    if (toggle) toggle.disabled = false;
+  }
 }
 
 function applyFilter() {
@@ -783,6 +959,12 @@ function relativeTime(ts) {
 document.getElementById('searchInput').addEventListener('input', (e) => {
   state.search = e.target.value; applyFilter(); renderRecords();
 });
+
+// 同标题去重开关：切换即实时生效
+(() => {
+  const toggle = document.getElementById('dedupeToggle');
+  if (toggle) toggle.addEventListener('change', onDedupeToggleChange);
+})();
 
 // 初始化
 loadCredentials();

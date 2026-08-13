@@ -556,3 +556,127 @@ test('normalizePlaybackEvent with empty vodName produces empty payload field', (
   // compactObject removes empty strings, so vodName should not be in payload at all
   assert.equal(event.payload.vodName, undefined, 'empty vodName should be removed by compactObject');
 });
+
+// Regression guard for the pull() query's parameter binding when ?dedupe=1 is
+// active.  The wantDedupe=true branch injects an extra `config_key = ?` into a
+// subquery, so the bound-args array must have exactly 7 elements (3 × configKey,
+// 2 × since, 1 × cutoff, 1 × limit+1) to match the 7 placeholders.  A previous
+// review mistakenly suggested adding an 8th configKey, which would trigger
+// SQLite's "too many SQL variables" error.  This test pins the correct count
+// by executing the EXACT same SQL + args that pull() uses.
+test('pull ?dedupe=1 path: 7 placeholders match 7 bound args (no param error)', () => {
+  const db = setupTestDb();
+  const configKey = 'test-config';
+  const vodName = '正相反的你与我';
+
+  // Seed: 2 same-title rows (different sites, different updated_at),
+  //       1 different-title row, 1 empty-vod_name row, 1 tombstone.
+  db.prepare(`
+    INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(configKey, 'SiteA\nvod-1', 'SiteA@@@vod-1@@@1', 'SiteA', 'vod-1', vodName, 1000, 1, '{"action":"upsert","vodName":"正相反的你与我","siteKey":"SiteA"}');
+  db.prepare(`
+    INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(configKey, 'SiteB\nvod-2', 'SiteB@@@vod-2@@@2', 'SiteB', 'vod-2', vodName, 2000, 2, '{"action":"upsert","vodName":"正相反的你与我","siteKey":"SiteB"}');
+  db.prepare(`
+    INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(configKey, 'SiteC\nvod-3', 'SiteC@@@vod-3@@@3', 'SiteC', 'vod-3', '影片B', 3000, 3, '{"action":"upsert","vodName":"影片B","siteKey":"SiteC"}');
+  db.prepare(`
+    INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(configKey, 'SiteD\nvod-4', 'SiteD@@@vod-4@@@4', 'SiteD', 'vod-4', '', 4000, 4, '{"action":"upsert","siteKey":"SiteD"}');
+
+  // One tombstone (should appear in both dedupe and non-dedupe paths).
+  // Use a recent deleted_at so the retention filter `deleted_at >= cutoff`
+  // (cutoff = now - 90d) does NOT drop it — a value of 5000 (1970-01-01)
+  // would be filtered out and break the expected row counts below.
+  const recentTs = Date.now();
+  db.prepare(`
+    INSERT INTO playback_tombstones (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
+    VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?)
+  `).run(configKey, 'item\nSiteZ\nvod-9', 'SiteZ@@@vod-9@@@9', 'SiteZ', 'vod-9', recentTs, 5, '{"action":"delete","scope":"item"}');
+
+  const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
+  const since = 0;
+  const limit = 100;
+
+  // --- wantDedupe=true branch: EXACT SQL + args from pull() (L208-228) ---
+  const dedupeRows = db.prepare(`
+    SELECT seq, kind, payload FROM (
+      SELECT seq, 'upsert' AS kind, payload
+        FROM playback_items
+       WHERE config_key = ? AND seq > ?
+         AND (vod_name = '' OR (vod_name, updated_at) IN (
+           SELECT vod_name, MAX(updated_at) FROM playback_items
+            WHERE config_key = ? AND vod_name <> ''
+            GROUP BY vod_name
+         ))
+      UNION ALL
+      SELECT seq, 'delete' AS kind, payload
+        FROM playback_tombstones
+       WHERE config_key = ? AND deleted_at >= ? AND seq > ?
+    )
+    ORDER BY seq ASC
+    LIMIT ?
+  `).all(configKey, since, configKey, configKey, cutoff, since, limit + 1);
+
+  // Verify: no "too many SQL variables" error thrown above.
+  // Expected rows (deduped):
+  //   seq=2 SiteB (newest of "正相反的你与我", SiteA folded out)
+  //   seq=3 SiteC ("影片B")
+  //   seq=4 SiteD (empty vod_name → kept as-is)
+  //   seq=5 tombstone
+  const dedupeSeqs = dedupeRows.map(r => r.seq).sort((a, b) => a - b);
+  assert.deepEqual(dedupeSeqs, [2, 3, 4, 5],
+    'dedupe path should return newest same-title + different-title + empty-name + tombstone');
+  assert.equal(dedupeRows.length, 4, 'dedupe path should return 4 rows (SiteA folded)');
+  // SiteA (seq=1, older same-title) must NOT appear
+  assert.ok(!dedupeRows.some(r => r.seq === 1), 'older same-title row (SiteA) must be folded out');
+
+  // --- wantDedupe=false branch: same SQL without the dedupe subquery ---
+  const rawRows = db.prepare(`
+    SELECT seq, kind, payload FROM (
+      SELECT seq, 'upsert' AS kind, payload
+        FROM playback_items
+       WHERE config_key = ? AND seq > ?
+      UNION ALL
+      SELECT seq, 'delete' AS kind, payload
+        FROM playback_tombstones
+       WHERE config_key = ? AND deleted_at >= ? AND seq > ?
+    )
+    ORDER BY seq ASC
+    LIMIT ?
+  `).all(configKey, since, configKey, cutoff, since, limit + 1);
+
+  // Non-dedupe returns ALL upserts (4 items + 1 tombstone = 5 rows)
+  assert.equal(rawRows.length, 5, 'non-dedupe path should return all 5 rows');
+  const rawSeqs = rawRows.map(r => r.seq).sort((a, b) => a - b);
+  assert.deepEqual(rawSeqs, [1, 2, 3, 4, 5], 'non-dedupe path includes folded-out SiteA');
+
+  // --- Prove the user-suggested "fix" (8 args) would break ---
+  assert.throws(() => {
+    db.prepare(`
+      SELECT seq, kind, payload FROM (
+        SELECT seq, 'upsert' AS kind, payload
+          FROM playback_items
+         WHERE config_key = ? AND seq > ?
+           AND (vod_name = '' OR (vod_name, updated_at) IN (
+             SELECT vod_name, MAX(updated_at) FROM playback_items
+              WHERE config_key = ? AND vod_name <> ''
+              GROUP BY vod_name
+           ))
+        UNION ALL
+        SELECT seq, 'delete' AS kind, payload
+          FROM playback_tombstones
+         WHERE config_key = ? AND deleted_at >= ? AND seq > ?
+      )
+      ORDER BY seq ASC
+      LIMIT ?
+    `).all(configKey, since, configKey, configKey, configKey, cutoff, since, limit + 1);
+  }, '8 bound args for 7 placeholders must throw (proves the suggested fix is wrong)');
+
+  db.close();
+});
