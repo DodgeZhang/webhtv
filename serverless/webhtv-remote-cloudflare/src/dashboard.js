@@ -704,7 +704,7 @@ async function onDedupeToggleChange(evt) {
     showToast(
       res.dedupeEnabled
         ? (cleaned > 0
-            ? `已启用同标题去重，已清理 ${cleaned} 条重复记录，APP 将在下次同步时收到删除通知`
+            ? \`已启用同标题去重，已清理 \${cleaned} 条重复记录，APP 将在下次同步时收到删除通知\`
             : '已启用同标题去重：后续同名记录将只保留最新一条')
         : '已关闭同标题去重：后续记录不再去重',
       'success'
