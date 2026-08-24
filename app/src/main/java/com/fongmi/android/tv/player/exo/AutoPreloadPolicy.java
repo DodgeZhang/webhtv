@@ -77,7 +77,251 @@ final class AutoPreloadPolicy {
     }
 
     void disrupt(long nowMs) {
+<<<<<<< HEAD
         pause(nowMs, RESUME_DELAY_MS);
+=======
+        disrupt(nowMs, Reason.DISRUPTED);
+    }
+
+    void disrupt(long nowMs, Reason reason) {
+        pause(Math.max(0, nowMs), RESUME_DELAY_MS,
+                reason == null ? Reason.DISRUPTED : reason);
+    }
+
+    private Reason hardPauseReason(Inputs input) {
+        if (!input.sessionMatches()) return Reason.SESSION_MISMATCH;
+        if (input.memoryPreloadPaused()) return Reason.MEMORY_PRESSURE;
+        SystemEvidence system = input.system();
+        if (system.networkUsable()) {
+            if (Boolean.FALSE.equals(system.available())) return Reason.NETWORK_UNAVAILABLE;
+            if (Boolean.FALSE.equals(system.validated())) return Reason.NETWORK_UNVALIDATED;
+            if (system.dataSaver() == PlaybackAutoContext.DataSaverState.ENABLED) {
+                return Reason.DATA_SAVER;
+            }
+        }
+        if (system.powerUsable()
+                && system.power() == PlaybackAutoContext.PowerState.POWER_SAVE) {
+            return Reason.POWER_SAVE;
+        }
+        if (system.thermalUsable()
+                && (system.thermal() == PlaybackAutoContext.ThermalState.SEVERE
+                || system.thermal() == PlaybackAutoContext.ThermalState.CRITICAL)) {
+            return Reason.THERMAL_PRESSURE;
+        }
+        if (unknownAppProxyRecovery(input)
+                && input.bufferedMs() < APP_PROXY_RECOVERY_BUFFER_MS) {
+            return Reason.FOREGROUND_RECOVERY;
+        }
+        if (input.loading() && input.bufferedMs() < PreCachePolicy.INITIAL_SAFE_BUFFER_MS) {
+            return Reason.FRONT_BUFFER_LOW;
+        }
+        if (input.bufferedMs() < FRONT_BUFFER_PAUSE_MS) return Reason.FRONT_BUFFER_LOW;
+
+        TrendEvidence trend = TrendEvidence.from(input.trend(), input.nowElapsedMs());
+        if (trend.usable()) {
+            if (trend.timeToEmptyMs() >= 0
+                    && trend.timeToEmptyMs() <= CRITICAL_TIME_TO_EMPTY_MS) {
+                return Reason.TIME_TO_EMPTY;
+            }
+            if (trend.slopeMsPerSecond() <= PAUSE_SLOPE_MS_PER_SECOND
+                    && input.bufferedMs() < NORMAL_BUFFER_MS) {
+                return Reason.BUFFER_DECLINING;
+            }
+        }
+
+        ThroughputEvidence throughput = input.throughput();
+        if (throughput.usable()
+                && throughput.pathTrust() != ExoThroughputPathPolicy.Trust.BLOCKED
+                && input.mediaBitrateBitsPerSecond() > 0) {
+            double effectiveRatio = ratio(
+                    throughput.effectiveBitsPerSecond(), input.mediaBitrateBitsPerSecond());
+            double shortRatio = ratio(
+                    throughput.shortBitsPerSecond(), input.mediaBitrateBitsPerSecond());
+            if (effectiveRatio > 0 && effectiveRatio < PAUSE_RATIO) {
+                return Reason.THROUGHPUT_DEFICIT;
+            }
+            if (shortRatio > 0 && shortRatio < SHORT_PAUSE_RATIO) {
+                return Reason.SHORT_WINDOW_DEFICIT;
+            }
+        }
+        return null;
+    }
+
+    private boolean resumeEligible(Inputs input) {
+        long requiredBuffer = unknownAppProxyRecovery(input)
+                ? APP_PROXY_RECOVERY_BUFFER_MS
+                : input.route() == PlaybackRoute.EXTERNAL_LOOPBACK_PROXY
+                ? EXTERNAL_LOOPBACK_RESUME_BUFFER_MS
+                : NORMAL_BUFFER_MS;
+        if (input.bufferedMs() < requiredBuffer) return false;
+        TrendEvidence trend = TrendEvidence.from(input.trend(), input.nowElapsedMs());
+        if (trend.usable()) {
+            if (trend.timeToEmptyMs() >= 0
+                    && trend.timeToEmptyMs() <= WARNING_TIME_TO_EMPTY_MS) return false;
+            if (trend.slopeMsPerSecond() < NORMAL_SLOPE_MS_PER_SECOND) return false;
+        }
+        ThroughputEvidence throughput = input.throughput();
+        if (!throughput.usable()
+                || throughput.pathTrust() == ExoThroughputPathPolicy.Trust.BLOCKED
+                || input.mediaBitrateBitsPerSecond() <= 0) {
+            return true;
+        }
+        double effectiveRatio = ratio(
+                throughput.effectiveBitsPerSecond(), input.mediaBitrateBitsPerSecond());
+        double shortRatio = ratio(
+                throughput.shortBitsPerSecond(), input.mediaBitrateBitsPerSecond());
+        return (effectiveRatio <= 0 || effectiveRatio >= RESUME_RATIO)
+                && (shortRatio <= 0 || shortRatio >= SHORT_RESUME_RATIO);
+    }
+
+    private Reason cautionReason(Inputs input, boolean holdingFast) {
+        SystemEvidence system = input.system();
+        if (system.networkUsable()) {
+            if (Boolean.TRUE.equals(system.roaming())) return Reason.ROAMING;
+            if (Boolean.TRUE.equals(system.metered())) return Reason.METERED;
+        }
+        if (system.networkCostUsable()) {
+            if (system.networkCost() == PlaybackAutoContext.NetworkCost.ROAMING) {
+                return Reason.ROAMING;
+            }
+            if (system.networkCost() == PlaybackAutoContext.NetworkCost.METERED) {
+                return Reason.METERED;
+            }
+        }
+        if (system.thermalUsable()
+                && system.thermal() == PlaybackAutoContext.ThermalState.MODERATE) {
+            return Reason.THERMAL_MODERATE;
+        }
+        if (system.networkUsable()
+                && system.dataSaver() == PlaybackAutoContext.DataSaverState.WHITELISTED) {
+            return Reason.DATA_SAVER_WHITELISTED;
+        }
+        if (!system.explicitlySafe()) return Reason.SYSTEM_EVIDENCE_UNKNOWN;
+        if (system.transport() == PlaybackAutoContext.NetworkTransport.VPN) {
+            return Reason.VPN;
+        }
+        if (input.route() == PlaybackRoute.OTHER) return Reason.PATH_LIMITED;
+        if (input.bufferedMs() < NORMAL_BUFFER_MS) return Reason.FRONT_BUFFER_MARGIN;
+
+        TrendEvidence trend = TrendEvidence.from(input.trend(), input.nowElapsedMs());
+        if (!trend.usable()) return Reason.BUFFER_EVIDENCE_UNKNOWN;
+        if (trend.timeToEmptyMs() >= 0
+                && trend.timeToEmptyMs() <= WARNING_TIME_TO_EMPTY_MS) {
+            return Reason.TIME_TO_EMPTY;
+        }
+        if (trend.slopeMsPerSecond() < NORMAL_SLOPE_MS_PER_SECOND) {
+            return Reason.BUFFER_DECLINING;
+        }
+
+        if (input.route() == PlaybackRoute.EXTERNAL_LOOPBACK_PROXY) {
+            if (input.bufferedMs() < EXTERNAL_LOOPBACK_NORMAL_BUFFER_MS) {
+                return Reason.EXTERNAL_BUFFER_MARGIN;
+            }
+            return null;
+        }
+
+        ThroughputEvidence throughput = input.throughput();
+        if (!throughput.usable()) return Reason.THROUGHPUT_EVIDENCE_UNKNOWN;
+        if (throughput.pathTrust() != ExoThroughputPathPolicy.Trust.TRUSTED
+                || !confidenceAtLeast(
+                throughput.pathConfidence(), PlaybackAutoContext.Confidence.MEDIUM)) {
+            return Reason.PATH_LIMITED;
+        }
+        if (throughput.preloadContended() && !input.preloadActive()) {
+            return Reason.PRELOAD_CONTENTION;
+        }
+        if (!confidenceAtLeast(
+                throughput.confidence(), PlaybackAutoContext.Confidence.LOW)) {
+            return Reason.THROUGHPUT_EVIDENCE_UNKNOWN;
+        }
+        if (throughput.predictionErrorPermille() < 0
+                || throughput.predictionErrorPermille()
+                > NORMAL_MAX_PREDICTION_ERROR_PERMILLE) {
+            return Reason.PREDICTION_ERROR;
+        }
+        if (input.mediaBitrateBitsPerSecond() <= 0) return Reason.MEDIA_BITRATE_UNKNOWN;
+        double effectiveRatio = ratio(
+                throughput.effectiveBitsPerSecond(), input.mediaBitrateBitsPerSecond());
+        double shortRatio = ratio(
+                throughput.shortBitsPerSecond(), input.mediaBitrateBitsPerSecond());
+        if (effectiveRatio < NORMAL_RATIO || shortRatio < NORMAL_SHORT_RATIO) {
+            return Reason.THROUGHPUT_MARGIN;
+        }
+        if (materiallyBelow(
+                throughput.shortBitsPerSecond(), throughput.longBitsPerSecond(), 80)) {
+            return Reason.SHORT_WINDOW_DECLINE;
+        }
+        if (holdingFast && !fastHoldEligible(input)) return Reason.FAST_FALLBACK;
+        return null;
+    }
+
+    private boolean fastEligible(Inputs input, boolean holdingFast) {
+        if (!supportsFast(input.route()) || input.bufferedMs() < FAST_BUFFER_MS) return false;
+        SystemEvidence system = input.system();
+        if (!system.explicitlySafe()
+                || system.transport() == PlaybackAutoContext.NetworkTransport.VPN) return false;
+        TrendEvidence trend = TrendEvidence.from(input.trend(), input.nowElapsedMs());
+        if (!trend.usable()
+                || !trend.confidenceAtLeast(ForwardBufferTrend.Confidence.MEDIUM)
+                || trend.slopeMsPerSecond() < 0) return false;
+
+        ThroughputEvidence throughput = input.throughput();
+        if (!throughput.usable()
+                || throughput.pathTrust() != ExoThroughputPathPolicy.Trust.TRUSTED
+                || !confidenceAtLeast(
+                throughput.pathConfidence(), PlaybackAutoContext.Confidence.MEDIUM)
+                || !confidenceAtLeast(
+                throughput.confidence(), PlaybackAutoContext.Confidence.MEDIUM)
+                || throughput.longSampleCount() < ExoThroughputEstimator.MIN_UPGRADE_SAMPLES
+                || throughput.longWindowMs() < ExoThroughputEstimator.MIN_UPGRADE_WINDOW_MS
+                || throughput.predictionErrorPermille() < 0
+                || throughput.predictionErrorPermille()
+                > ExoThroughputEstimator.MAX_UPGRADE_ERROR_PERMILLE
+                || throughput.preloadContended() && !(holdingFast && input.preloadActive())
+                || input.mediaBitrateBitsPerSecond() <= 0) return false;
+        return ratio(throughput.effectiveBitsPerSecond(), input.mediaBitrateBitsPerSecond())
+                >= FAST_RATIO
+                && ratio(throughput.shortBitsPerSecond(), input.mediaBitrateBitsPerSecond())
+                >= FAST_WINDOW_RATIO
+                && ratio(throughput.longBitsPerSecond(), input.mediaBitrateBitsPerSecond())
+                >= FAST_WINDOW_RATIO
+                && !materiallyBelow(
+                throughput.shortBitsPerSecond(), throughput.longBitsPerSecond(), 80);
+    }
+
+    private boolean fastHoldEligible(Inputs input) {
+        if (!supportsFast(input.route())
+                || input.bufferedMs() < FAST_FALLBACK_BUFFER_MS
+                || !input.system().explicitlySafe()
+                || input.system().transport() == PlaybackAutoContext.NetworkTransport.VPN) {
+            return false;
+        }
+        TrendEvidence trend = TrendEvidence.from(input.trend(), input.nowElapsedMs());
+        if (!trend.usable() || trend.slopeMsPerSecond() < NORMAL_SLOPE_MS_PER_SECOND) {
+            return false;
+        }
+        ThroughputEvidence throughput = input.throughput();
+        if (!throughput.usable()
+                || throughput.pathTrust() != ExoThroughputPathPolicy.Trust.TRUSTED
+                || !confidenceAtLeast(
+                throughput.pathConfidence(), PlaybackAutoContext.Confidence.MEDIUM)
+                || throughput.predictionErrorPermille() < 0
+                || throughput.predictionErrorPermille()
+                > NORMAL_MAX_PREDICTION_ERROR_PERMILLE
+                || throughput.preloadContended() && !input.preloadActive()
+                || materiallyBelow(
+                throughput.shortBitsPerSecond(), throughput.longBitsPerSecond(), 80)
+                || input.mediaBitrateBitsPerSecond() <= 0) return false;
+        return ratio(throughput.effectiveBitsPerSecond(), input.mediaBitrateBitsPerSecond())
+                >= FAST_FALLBACK_RATIO
+                && ratio(throughput.shortBitsPerSecond(), input.mediaBitrateBitsPerSecond())
+                >= FAST_FALLBACK_SHORT_RATIO;
+    }
+
+    private void pause(long nowMs, long delayMs, Reason reason) {
+        mode = Mode.PAUSED;
+        resumeAfterMs = Math.max(resumeAfterMs, nowMs + Math.max(0, delayMs));
+>>>>>>> upstream/beta
         fastBlockedUntilMs = Math.max(fastBlockedUntilMs, nowMs + FAST_COOLDOWN_MS);
     }
 

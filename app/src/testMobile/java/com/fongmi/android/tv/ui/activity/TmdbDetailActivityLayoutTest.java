@@ -360,14 +360,14 @@ public class TmdbDetailActivityLayoutTest {
         String nativeLayout = readLeanbackLayout("view_control_vod_action.xml");
         String fusionLayout = readLayout("activity_tmdb_detail.xml");
         List<String> nativeOrder = List.of("next", "prev", "episodes", "reset", "search", "change2", "fullscreen", "player", "decode", "playParams", "panDiagnostic", "codecCapability", "speed", "scale", "actionQuality", "lut", "karaoke", "immersiveAudio", "text", "audio", "video", "opening", "ending", "danmaku", "adFeedback", "title", "cast", "timer", "repeat");
-        List<String> fusionOrder = List.of("playerNext", "playerPrev", "playerEpisodes", "playerRefresh", "playerChangeSource", "playerFullscreenAction", "playerExternal", "playerDecode", "playerPlayParams", "playerMultiThreadProxy", "playerCodecCapability", "playerSpeed", "playerScale", "playerQuality", "playerLut", "playerParse", "playerDisplay", "playerTextTrack", "playerAudioTrack", "playerVideoTrack", "playerOpening", "playerEnding", "playerDanmaku", "playerAdFeedback", "playerChapter", "playerRepeat");
+        List<String> fusionOrder = List.of("playerNext", "playerPrev", "playerEpisodes", "playerRefresh", "playerChangeSource", "playerSearch", "playerFullscreenAction", "playerExternal", "playerDecode", "playerPlayParams", "playerMultiThreadProxy", "playerCodecCapability", "playerSpeed", "playerScale", "playerQuality", "playerLut", "playerParse", "playerDisplay", "playerTextTrack", "playerAudioTrack", "playerVideoTrack", "playerOpening", "playerEnding", "playerDanmaku", "playerAdFeedback", "playerChapter", "playerRepeat");
 
         assertAndroidIdOrder("native leanback player control order", nativeLayout, nativeOrder);
         assertAndroidIdOrder("fusion inline player control order", fusionLayout, fusionOrder);
         for (String id : List.of("actionParse", "display")) {
             assertFalse("native leanback layout must not expose unbound action " + id, nativeLayout.contains("@+id/" + id));
         }
-        for (String id : List.of("playerSearch", "playerPanDiagnostic", "playerKaraoke", "playerImmersiveAudio", "playerCastAction", "playerTimer")) {
+        for (String id : List.of("playerPanDiagnostic", "playerKaraoke", "playerImmersiveAudio", "playerCastAction", "playerTimer")) {
             assertFalse("fusion layout must not expose unsupported action " + id, fusionLayout.contains("@+id/" + id));
         }
 
@@ -409,6 +409,87 @@ public class TmdbDetailActivityLayoutTest {
                         && source.contains("new AiAdDetectionService(config).analyze(request)")
                         && source.contains("AdRulePreviewDialog.create(result).show(this, confirmedResult ->")
                         && source.contains("UserAdRuleStore.add(rule);"));
+    }
+
+    /**
+     * 内嵌快搜靠反射调用两个 flavor 各自的 QuickSearchDialog，编译器管不到。
+     * 任一方法被改名/删掉都会静默退化成"点搜索没反应"，只能在这里钉住契约。
+     */
+    @Test
+    public void inlineQuickSearchReflectionTargetsExistInBothFlavors() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+
+        assertTrue("inline search must reuse the native incremental search stream, not a one-shot dialog",
+                source.contains("inlineSearchModel().searchContent(sites, keyword, true);")
+                        && source.contains("inlineSearchModel().getSearch().observe(this, result ->")
+                        && source.contains("inlineSearchModel().getSearchProgress().observe(this, progress ->"));
+
+        for (String flavor : List.of("leanback", "mobile")) {
+            String dialog = readFlavorJava(flavor, "com", "fongmi", "android", "tv", "ui", "dialog", "QuickSearchDialog.java");
+            assertTrue(flavor + " QuickSearchDialog must keep create() for inline search reflection",
+                    dialog.contains("public static QuickSearchDialog create()"));
+            assertTrue(flavor + " QuickSearchDialog must keep listener(QuickAdapter.OnClickListener) for inline search reflection",
+                    dialog.contains("public QuickSearchDialog listener(QuickAdapter.OnClickListener listener)"));
+            assertTrue(flavor + " QuickSearchDialog must keep items(List<Vod>) for inline search reflection",
+                    dialog.contains("public QuickSearchDialog items(List<Vod> items)"));
+            assertTrue(flavor + " QuickSearchDialog must keep show(FragmentActivity) for inline search reflection",
+                    dialog.contains("public void show(FragmentActivity activity)"));
+            assertTrue(flavor + " QuickSearchDialog must keep addAll(List<Vod>) for incremental inline search results",
+                    dialog.contains("public void addAll(List<Vod> items)"));
+
+            String adapter = readFlavorJava(flavor, "com", "fongmi", "android", "tv", "ui", "adapter", "QuickAdapter.java");
+            assertTrue(flavor + " QuickAdapter must keep OnClickListener.onItemClick(Vod) for the inline search proxy",
+                    adapter.contains("public interface OnClickListener") && adapter.contains("void onItemClick(Vod item);"));
+        }
+
+        String leanbackDialog = readFlavorJava("leanback", "com", "fongmi", "android", "tv", "ui", "dialog", "QuickSearchDialog.java");
+        assertTrue("leanback QuickSearchDialog must keep setProgress for the TV site-progress readout",
+                leanbackDialog.contains("public void setProgress(int current, int total, boolean finished)"));
+
+        String mobileDialog = readFlavorJava("mobile", "com", "fongmi", "android", "tv", "ui", "dialog", "QuickSearchDialog.java");
+        assertTrue("mobile QuickSearchDialog must keep the in-sheet re-search hooks used by inline search",
+                mobileDialog.contains("public interface OnSearchListener")
+                        && mobileDialog.contains("public QuickSearchDialog searchListener(OnSearchListener listener)")
+                        && mobileDialog.contains("public void clear()"));
+
+        assertTrue("inline search proxies must forward Object methods, otherwise hashCode/equals unbox a null",
+                source.contains("if (method.getDeclaringClass() == Object.class) return method.invoke(this, args);"));
+        assertTrue("closing inline search must dismiss the dialog, not just drop the reference",
+                source.contains("invokeQuiet(dialog, \"dismissAllowingStateLoss\", new Class<?>[0]);"));
+        int close = source.indexOf("private void closeInlineSearch()");
+        assertTrue("inline search must clear its dialog reference before dismissing, or onDismiss re-enters closeInlineSearch",
+                close >= 0
+                        && source.indexOf("inlineQuickSearchDialog = null;", close) < source.indexOf("invokeQuiet(dialog, \"dismissAllowingStateLoss\"", close));
+        assertTrue("reloading the detail page must tear down any open inline search",
+                source.indexOf("closeInlineSearch();", source.indexOf("private void resetDetailState()")) > source.indexOf("private void resetDetailState()"));
+    }
+
+    /**
+     * release 开启 minify 后混淆会改掉方法名，反射直接失效并静默退回全局搜索页，
+     * 而 debug 包永远复现不出来 —— 只能靠这里守住 keep 规则。
+     */
+    @Test
+    public void inlineQuickSearchReflectionTargetsSurviveMinification() throws Exception {
+        Path rulesPath = Path.of("app", "proguard-rules.pro");
+        if (!Files.exists(rulesPath)) rulesPath = Path.of("proguard-rules.pro");
+        String rules = new String(Files.readAllBytes(rulesPath), StandardCharsets.UTF_8);
+
+        // -keepclassmembernames implies allowshrinking, so reflection-only methods could still be
+        // removed. The rule must be -keepclassmembers to survive R8.
+        assertTrue("proguard must keep QuickSearchDialog members (not just names) for inline search reflection",
+                rules.contains("-keepclassmembers class com.fongmi.android.tv.ui.dialog.QuickSearchDialog {"));
+        for (String member : List.of("create()", "show(androidx.fragment.app.FragmentActivity)", "addAll(java.util.List)",
+                "clear()", "listener(***)", "items(java.util.List)",
+                "setProgress(int, int, boolean)", "searchListener(***)", "dismissListener(***)")) {
+            assertTrue("proguard QuickSearchDialog keep rule is missing " + member, rules.contains(member));
+        }
+        assertTrue("proguard must keep the inherited dismissAllowingStateLoss reached by inline search reflection",
+                rules.contains("-keepclassmembers class * extends androidx.fragment.app.DialogFragment {")
+                        && rules.contains("public void dismissAllowingStateLoss();"));
+        assertTrue("proguard must keep the QuickAdapter click interface used by the inline search proxy",
+                rules.contains("-keep interface com.fongmi.android.tv.ui.adapter.QuickAdapter$OnClickListener { *; }"));
+        assertTrue("proguard must keep QuickSearchDialog nested listener interfaces used by the inline search proxy",
+                rules.contains("-keep interface com.fongmi.android.tv.ui.dialog.QuickSearchDialog$* { *; }"));
     }
 
     @Test
@@ -1621,7 +1702,7 @@ public class TmdbDetailActivityLayoutTest {
                         && activity.contains("button.setMinWidth(ResUtil.dp2px(64));")
                         && activity.contains("ThemeColors colors = currentThemeColors();")
                         && activity.contains("background.setColor(focused ? colors.control : selected ? colors.chipActive : colors.chip);")
-                        && activity.contains("background.setStroke(ResUtil.dp2px(focused ? 2 : CHIP_STROKE_DP), focused ? colors.accent : selected ? colors.accent : colors.line);")
+                        && activity.contains("background.setStroke(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : selected ? 2 : CHIP_STROKE_DP), focused ? FOCUS_STROKE : selected ? colors.accent : colors.line);")
                         && activity.contains("button.setTextColor(colors.primary);")
                         && activity.contains("button.setBackground(background);")
                         && activity.contains("button.setActivated(selected);")
@@ -2390,9 +2471,9 @@ public class TmdbDetailActivityLayoutTest {
                         && !activity.contains("binding.episodeViewMode.setText(switchToList ? R.string.detail_episode_view_list : R.string.detail_episode_view_grid);")
                         && !activity.contains("binding.episodeFileName.setText(showScraped ? R.string.detail_episode_file_name_original : R.string.detail_episode_file_name_scraped);"));
 
-        assertIconOnlyEpisodeTool(layout, "episodeReverse", "ic_action_reverse", "detail_episode_reverse");
-        assertIconOnlyEpisodeTool(layout, "episodeFileName", "ic_action_rename", "detail_episode_file_name_scraped_action");
-        assertIconOnlyEpisodeTool(layout, "episodeViewMode", "ic_site_grid", "detail_episode_view_grid_action");
+        assertIconOnlyEpisodeTool(layout, "episodeReverse", "ic_action_sort_asc", "detail_episode_reverse");
+        assertIconOnlyEpisodeTool(layout, "episodeFileName", "ic_action_name_full", "detail_episode_file_name_scraped_action");
+        assertIconOnlyEpisodeTool(layout, "episodeViewMode", "ic_site_list", "detail_episode_view_grid_action");
     }
 
 
@@ -3071,6 +3152,32 @@ public class TmdbDetailActivityLayoutTest {
     }
 
     @Test
+    public void seasonSourceRouteChipsAreDistinguishableFromRealFlags() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String bindRoutes = javaBlockAt(source, "private void bindSeasonSourceRoutes(");
+        String label = javaBlockAt(source, "private String seasonSourceRouteLabel(");
+
+        assertTrue("route chips must be labelled as source switches, not as playback lines",
+                label.contains("R.string.detail_source_route_chip"));
+        assertTrue("a same-site route must be named by its entry so it cannot read as the header source label",
+                label.contains("R.string.detail_source_route_chip_entry"));
+        assertTrue("route chip labels must honour the user's custom site name like the header does",
+                label.contains("getDisplayName()"));
+        assertFalse("route chip labels must not fall back to the raw site name",
+                label.contains("site().getName()"));
+        assertTrue("an entry with no usable name must still get a non-empty label",
+                label.contains("TextUtils.isEmpty(entryName)"));
+        assertFalse("a same-site route stays reachable in one click, so it must not be filtered out",
+                bindRoutes.contains("currentKey)) continue"));
+        assertTrue("duplicate entry names must not produce two identical chips",
+                bindRoutes.contains("distinctChipLabel("));
+        int capture = bindRoutes.indexOf("String currentKey = getKeyText();");
+        int submit = bindRoutes.indexOf("detailTasks.submit(");
+        assertTrue("the intent site key must be bound to this submission, not read back later",
+                capture >= 0 && submit > capture);
+    }
+
+    @Test
     public void initialStandaloneFlagLoadsSeasonBindingBeforeRoutesAndEpisodes() throws Exception {
         String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
         String bindFlags = source.substring(source.indexOf("private void bindFlags()"),
@@ -3141,6 +3248,49 @@ public class TmdbDetailActivityLayoutTest {
                 clear.contains("vod.getFlags()"));
     }
 
+    @Test
+    public void explicitFlagSelectionPersistsIndependentlyOfPlaybackProgress() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String initial = javaBlockAt(source, "private Flag findInitialFlag(");
+        String preferred = javaBlockAt(source, "private Flag findPreferredFlag(");
+        String save = javaBlockAt(source, "private void savePreferredFlag(");
+        String bindFlags = javaBlockAt(source, "private void bindFlags(");
+        String switchInline = javaBlockAt(source, "private void switchNativeEnhancedInlineFlag(");
+        String updateHistory = javaBlockAt(source, "private void updateInlineHistory(");
+
+        // 线路偏好必须独立落盘：History.vodFlag 只在起播且 position>0 时才写，
+        // 详情直放模式下「切了线路没起播」或「从播放器返回后再切」都写不进去，
+        // 进程被杀后重进就会退回 flags.get(0)。
+        assertTrue("explicit flag taps must persist the selection without waiting for playback",
+                bindFlags.contains("savePreferredFlag(flag)"));
+        assertTrue("native enhanced inline flag switches must persist the selection too",
+                switchInline.contains("savePreferredFlag(flag)"));
+        assertTrue("starting playback must refresh the preference so cross-line resume cannot leave it stale",
+                updateHistory.contains("savePreferredFlag(selectedFlag)"));
+
+        assertTrue("the persisted preference must be consulted when resolving the initial flag",
+                initial.contains("findPreferredFlag(flags)"));
+        assertTrue("season preload must resolve the flag the same way or it prefetches the wrong season",
+                javaBlockAt(source, "private Flag initialStandaloneFlag(").contains("findPreferredFlag(flags)"));
+        assertTrue("an explicit intent target must still outrank the stored preference",
+                initial.indexOf("TmdbUIAdapter.selectPlaybackFlag(") < initial.indexOf("findPreferredFlag("));
+        assertTrue("the stored preference must outrank the history fallback and the flags.get(0) default",
+                initial.indexOf("findPreferredFlag(") < initial.indexOf("history.getSourceBindingKey()")
+                        && initial.indexOf("findPreferredFlag(") < initial.indexOf("flags.get(0)"));
+
+        assertTrue("preference lookup must key off the stable flag key to separate same-named lines",
+                preferred.contains("TmdbUIAdapter.flagKey(flags.get(i), i)"));
+        assertTrue("preference lookup must degrade to the flag name when source ordering shifts",
+                preferred.indexOf("TmdbUIAdapter.flagKey(flags.get(i), i)")
+                        < preferred.indexOf("flag.getFlag()"));
+        assertTrue("writes must record both the stable key and the flag name",
+                save.contains("TmdbUIAdapter.flagKey(flag, index)") && save.contains("flag.getFlag()"));
+        assertTrue("an unknown flag index must not be written as a stable key, Flag.stableKey clamps it to #0",
+                save.contains("index < 0 ? \"\" : TmdbUIAdapter.flagKey(flag, index)"));
+        assertTrue("the preference file must be flushed off the main thread",
+                save.contains("Task.execute(() -> FlagPreferenceCache.get().save())"));
+    }
+
     private static Path findMainJavaPath() {
         Path moduleRelative = Path.of("src", "main", "java");
         if (Files.exists(moduleRelative)) return moduleRelative;
@@ -3166,6 +3316,12 @@ public class TmdbDetailActivityLayoutTest {
     private static String readJava(String first, String... more) throws Exception {
         Path sourcePath = findMainJavaPath().resolve(Path.of(first, more));
         return new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+    }
+
+    private static String readFlavorJava(String flavor, String first, String... more) throws Exception {
+        Path moduleRelative = Path.of("src", flavor, "java");
+        Path base = Files.exists(moduleRelative) ? moduleRelative : Path.of("app", "src", flavor, "java");
+        return new String(Files.readAllBytes(base.resolve(Path.of(first, more))), StandardCharsets.UTF_8);
     }
 
     private static Path findLeanbackResPath() {

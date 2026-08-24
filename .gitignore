@@ -38,3 +38,5 @@ app/signing/
 plans/
 .tokensave
 .codebase-memory
+graphify-out/
+.codex/task-state/

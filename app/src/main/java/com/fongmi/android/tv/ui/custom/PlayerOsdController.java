@@ -418,7 +418,10 @@ public class PlayerOsdController {
                 "可支撑 " + new DecimalFormat("0.00x").format(player.getNetworkProtectionSupportedSpeed()),
                 "当前 " + new DecimalFormat("0.00x").format(player.getEffectiveSpeed()));
         boolean localSource = PlaybackDiagnosticsSourcePolicy.isLocal(player.getUrl());
+        String currentNetworkSpeed = !TextUtils.isEmpty(lastSpeedText)
+                ? lastSpeedText : getBandwidthEstimateText(snapshot);
         String network = localSource ? "本地文件 / 不检测网速" : player.isExo() ? join(" / ",
+                !TextUtils.isEmpty(currentNetworkSpeed) ? "当前 " + currentNetworkSpeed : "",
                 consumption > 0 ? "消费需求 " + formatBitrate(consumption) : "",
                 stableThroughput > 0 ? "稳定吞吐 " + formatBitrate(stableThroughput) : "",
                 stableThroughput > 0 && consumption > 0 ? "网络余量 " + formatSignedBitrate(stableThroughput - consumption) : "")
@@ -458,6 +461,7 @@ public class PlayerOsdController {
                 row("音频", audioText),
                 row("网络", network),
 <<<<<<< HEAD
+<<<<<<< HEAD
                 TextUtils.isEmpty(nativeCache) ? "" : row("MPV缓存", nativeCache),
                 TextUtils.isEmpty(renderDiagnostics) ? "" : row("MPV渲染", renderDiagnostics),
                 TextUtils.isEmpty(runtimeDiagnostics) ? "" : row("MPV运行", runtimeDiagnostics),
@@ -466,6 +470,9 @@ public class PlayerOsdController {
                 row("来源", summarizeSource(player.getUrl())));
 =======
                 player.isExo() && !localSource ? row("保流畅", strategy) : "",
+=======
+                player.isExo() && !localSource ? row("动态网络保护", strategy) : "",
+>>>>>>> upstream/beta
                 TextUtils.isEmpty(renderDiagnostics) ? "" : row("MPV渲染", renderDiagnostics),
                 TextUtils.isEmpty(runtimeDiagnostics) ? "" : row("MPV运行", runtimeDiagnostics),
                 TextUtils.isEmpty(gpu) ? "" : row("GPU", gpu),

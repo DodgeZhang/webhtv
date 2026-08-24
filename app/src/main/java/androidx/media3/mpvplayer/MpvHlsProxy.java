@@ -1587,7 +1587,263 @@ public final class MpvHlsProxy extends NanoHTTPD {
         private volatile int lastStatus;
         private volatile long lastErrorAtMs;
         private volatile String lastUrl;
+<<<<<<< HEAD
         private volatile List<Segment> segments = List.of();
+=======
+        private volatile PlaybackResourceClassifier.Classification classification;
+        private final HlsManifestTimelineTracker hlsTimeline = new HlsManifestTimelineTracker();
+        private final HlsProxyLiveLagTracker liveLag =
+                new HlsProxyLiveLagTracker();
+        private volatile HlsPlaylistRewriter.Variant selectedVariant;
+        private volatile int variantCount;
+        private volatile List<HlsVariant> variants = List.of();
+        private volatile List<HlsPlaylistRewriter.Segment> segments = List.of();
+        private final Map<Long, List<HlsPlaylistRewriter.Segment>> variantSegments =
+                new ConcurrentHashMap<>();
+
+        private void recordVariants(List<HlsPlaylistRewriter.VariantEntry> variants) {
+            variantCount = variants.size();
+            this.variants = buildVariantLadder(variants);
+        }
+
+        private synchronized boolean recordSelectedVariant(HlsPlaylistRewriter.Variant variant) {
+            if (variant.equals(selectedVariant)) return false;
+            selectedVariant = variant;
+            return true;
+        }
+
+        private void recordSegments(
+                @Nullable HlsPlaylistRewriter.Variant variant,
+                List<HlsPlaylistRewriter.Segment> segments) {
+            List<HlsPlaylistRewriter.Segment> safe = segments == null
+                    ? List.of() : List.copyOf(segments);
+            long bits = variantBits(variant);
+            if (bits > 0) variantSegments.put(bits, safe);
+            else this.segments = safe;
+        }
+
+        private void clearSegments(@Nullable HlsPlaylistRewriter.Variant variant) {
+            long bits = variantBits(variant);
+            if (bits > 0) variantSegments.remove(bits);
+            else segments = List.of();
+        }
+
+        private List<HlsPlaylistRewriter.Segment> segmentsForVariant(
+                long selectedBitsPerSecond) {
+            return resolveAutomaticPreloadSegments(
+                    variantSegments, segments, selectedBitsPerSecond);
+        }
+
+        private static long variantBits(
+                @Nullable HlsPlaylistRewriter.Variant variant) {
+            if (variant == null
+                    || variant.kind() != HlsPlaylistRewriter.VariantKind.STREAM) return 0;
+            return Math.max(0, variant.bandwidth() > 0
+                    ? variant.bandwidth() : variant.averageBandwidth());
+        }
+
+        private String variantText() {
+            HlsPlaylistRewriter.Variant variant = selectedVariant;
+            if (variant == null) return variantCount == 0 ? "" : " variants " + variantCount;
+            return " variant " + variant.width() + "x" + variant.height() + " peak " + variant.bandwidth() + " average " + variant.averageBandwidth();
+        }
+
+        private HlsVariantSnapshot variantSnapshot() {
+            return new HlsVariantSnapshot(variants, variantCount);
+        }
+
+        private void observeHls(
+                String playlistUrl,
+                PlaybackResourceClassifier.Classification observation) {
+            hlsTimeline.observe(playlistUrl == null ? "direct" : Util.md5(playlistUrl), observation);
+        }
+
+        private PlaybackResourceClassifier.Classification resourceClassification(
+                long nowElapsedMs) {
+            PlaybackResourceClassifier.Classification fallback = classification;
+            return hlsTimeline.snapshot(fallback, nowElapsedMs).classification();
+        }
+
+        private void observeLivePlaylist(
+                String playlistKey,
+                List<HlsPlaylistRewriter.MediaUnit> mediaUnits,
+                long observedAtElapsedMs) {
+            liveLag.observePlaylist(
+                    playlistKey, mediaUnits, observedAtElapsedMs);
+        }
+
+        private void clearLivePlaylist(String playlistKey) {
+            liveLag.clearPlaylist(playlistKey);
+        }
+
+        private void observeLiveMediaRequest(
+                String uri,
+                long requestedAtElapsedMs) {
+            liveLag.observeMediaRequest(uri, requestedAtElapsedMs);
+        }
+
+        private HlsProxyLiveLagTracker.Snapshot liveLagSnapshot(
+                long nowElapsedMs,
+                long nativeBufferedDurationMs) {
+            return liveLag.snapshot(nowElapsedMs, nativeBufferedDurationMs);
+        }
+    }
+
+    public record LiveLagSnapshot(
+            boolean known,
+            long lowerBoundMs,
+            long nativeBufferedDurationMs,
+            boolean outsideWindow) {
+
+        public LiveLagSnapshot {
+            lowerBoundMs = Math.max(0, lowerBoundMs);
+            nativeBufferedDurationMs = Math.max(0,
+                    nativeBufferedDurationMs);
+        }
+
+        public static LiveLagSnapshot unknown() {
+            return new LiveLagSnapshot(false, 0, 0, false);
+        }
+    }
+
+    record HlsVariant(
+            long bandwidthBitsPerSecond,
+            long averageBandwidthBitsPerSecond,
+            int width,
+            int height) {
+
+        private static HlsVariant from(HlsPlaylistRewriter.Variant variant) {
+            return new HlsVariant(
+                    Math.max(0, variant.bandwidth()),
+                    Math.max(0, variant.averageBandwidth()),
+                    Math.max(0, variant.width()),
+                    Math.max(0, variant.height()));
+        }
+
+        long selectionBitsPerSecond() {
+            return bandwidthBitsPerSecond > 0
+                    ? bandwidthBitsPerSecond : averageBandwidthBitsPerSecond;
+        }
+    }
+
+    record HlsVariantSnapshot(
+            List<HlsVariant> variants,
+            int declaredVariantCount) {
+
+        HlsVariantSnapshot {
+            variants = variants == null ? List.of() : List.copyOf(variants);
+            declaredVariantCount = Math.max(0, declaredVariantCount);
+        }
+
+        static HlsVariantSnapshot empty() {
+            return new HlsVariantSnapshot(List.of(), 0);
+        }
+    }
+
+    record PreloadRuntimeSnapshot(
+            boolean preloadConfigured,
+            boolean vod,
+            long upstreamBitsPerSecond,
+            boolean throughputKnown,
+            boolean throughputFresh,
+            long throughputSampleAtElapsedMs,
+            long throughputAgeMs,
+            int acceptedThroughputSamples,
+            int rejectedThroughputSamples,
+            String lastThroughputRejectReason,
+            int foregroundRequests,
+            boolean cacheEnabled,
+            boolean cacheStorageKnown,
+            boolean cacheBudgetAvailable,
+            boolean cacheCircuitOpen,
+            long cachePhysicalBytes,
+            long cacheReservedBytes,
+            long cacheNewWriteBudgetBytes,
+            long cacheEffectiveCapacityBytes,
+            int preloadTasks) {
+
+        PreloadRuntimeSnapshot {
+            upstreamBitsPerSecond = Math.max(0, upstreamBitsPerSecond);
+            acceptedThroughputSamples = Math.max(0, acceptedThroughputSamples);
+            rejectedThroughputSamples = Math.max(0, rejectedThroughputSamples);
+            lastThroughputRejectReason = lastThroughputRejectReason == null
+                    ? "none" : lastThroughputRejectReason;
+            foregroundRequests = Math.max(0, foregroundRequests);
+            cachePhysicalBytes = Math.max(0, cachePhysicalBytes);
+            cacheReservedBytes = Math.max(0, cacheReservedBytes);
+            cacheNewWriteBudgetBytes = Math.max(0, cacheNewWriteBudgetBytes);
+            cacheEffectiveCapacityBytes = Math.max(0, cacheEffectiveCapacityBytes);
+            preloadTasks = Math.max(0, preloadTasks);
+        }
+    }
+
+    static List<HlsVariant> buildVariantLadder(
+            List<HlsPlaylistRewriter.VariantEntry> variants) {
+        Map<Long, HlsVariant> byBitrate = new LinkedHashMap<>();
+        if (variants != null) {
+            for (HlsPlaylistRewriter.VariantEntry entry : variants) {
+                HlsPlaylistRewriter.Variant variant = entry == null
+                        ? null : entry.variant();
+                if (variant == null
+                        || variant.kind()
+                        != HlsPlaylistRewriter.VariantKind.STREAM) continue;
+                HlsVariant safe = HlsVariant.from(variant);
+                if (safe.selectionBitsPerSecond() <= 0) continue;
+                byBitrate.putIfAbsent(safe.selectionBitsPerSecond(), safe);
+            }
+        }
+        List<HlsVariant> ladder = new ArrayList<>(byBitrate.values());
+        ladder.sort(java.util.Comparator.comparingLong(
+                HlsVariant::selectionBitsPerSecond));
+        return List.copyOf(ladder);
+    }
+
+    static List<HlsPlaylistRewriter.Segment> resolveAutomaticPreloadSegments(
+            Map<Long, List<HlsPlaylistRewriter.Segment>> variantSegments,
+            List<HlsPlaylistRewriter.Segment> directSegments,
+            long selectedBitsPerSecond) {
+        Map<Long, List<HlsPlaylistRewriter.Segment>> variants =
+                variantSegments == null ? Map.of() : variantSegments;
+        List<HlsPlaylistRewriter.Segment> direct = directSegments == null
+                ? List.of() : directSegments;
+        long selected = Math.max(0, selectedBitsPerSecond);
+        if (!variants.isEmpty()) {
+            if (selected <= 0) {
+                if (variants.size() != 1) return List.of();
+                return List.copyOf(variants.values().iterator().next());
+            }
+            List<HlsPlaylistRewriter.Segment> exact = variants.get(selected);
+            if (exact != null) return List.copyOf(exact);
+            return List.of();
+        }
+        return List.copyOf(direct);
+    }
+
+    static int resolvePreloadSubmissionBudget(int pendingTasks) {
+        return Math.max(0, MAX_PENDING_PRELOAD_SEGMENTS - Math.max(0, pendingTasks));
+    }
+
+    /**
+     * Resolves the actual native-selected track bitrate against the proxy ladder.
+     * Proxy child-playlist request order is not selection evidence because FFmpeg
+     * parses every child playlist in an HLS master.
+     */
+    @Nullable
+    static HlsVariant resolveSelectedVariant(
+            List<HlsVariant> variants,
+            long selectedBitsPerSecond) {
+        long selected = Math.max(0, selectedBitsPerSecond);
+        if (selected <= 0) return null;
+        if (variants != null) {
+            for (HlsVariant variant : variants) {
+                if (variant != null
+                        && variant.selectionBitsPerSecond() == selected) {
+                    return variant;
+                }
+            }
+        }
+        return new HlsVariant(selected, 0, 0, 0);
+>>>>>>> upstream/beta
     }
 
     private static final class LimitedInputStream extends FilterInputStream {

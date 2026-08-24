@@ -50,6 +50,8 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
     private Player progressPlayer;
     private long lastPausedBufferLogAtMs;
     private long lastPausedBufferedPosition;
+    private long lastBufferReadLogAtMs;
+    private long lastBufferReadEffectiveMs = -1;
     private long pendingSeekPosition = C.TIME_UNSET;
     private long pendingSeekOrigin = C.TIME_UNSET;
     private long pendingSeekDeadlineMs;
@@ -160,6 +162,47 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
         }
     }
 
+<<<<<<< HEAD
+=======
+    private long effectiveBufferedPosition(Player progress) {
+        long buffered = Math.max(0, progress.getBufferedPosition());
+        String mediaKey = PlaybackDiskBufferStore.mediaKey(progress.getCurrentMediaItem());
+        long diskBuffered = PlaybackDiskBufferStore.process().contiguousEnd(
+                mediaKey, buffered, DISK_RANGE_GAP_TOLERANCE_MS);
+        long effective = Math.max(buffered, diskBuffered);
+        long duration = progress.getDuration();
+        long bounded = duration > 0 ? Math.min(effective, duration) : effective;
+        long now = SystemClock.elapsedRealtime();
+        if (SpiderDebug.isEnabled()
+                && (bounded != lastBufferReadEffectiveMs
+                || now - lastBufferReadLogAtMs >= PAUSED_BUFFER_LOG_INTERVAL_MS)) {
+            lastBufferReadLogAtMs = now;
+            lastBufferReadEffectiveMs = bounded;
+            SpiderDebug.log("playback-progress",
+                    "action=buffer-read source=%s positionMs=%d nativeBufferedMs=%d diskBufferedMs=%d effectiveBufferedMs=%d key=%s",
+                    progress == player ? "controller" : "direct-engine",
+                    Math.max(0, progress.getCurrentPosition()), buffered, diskBuffered, bounded,
+                    Integer.toHexString(mediaKey == null ? 0 : mediaKey.hashCode()));
+        }
+        return bounded;
+    }
+
+    private void logPausedBufferProgress(Player progress, long position, long buffered) {
+        if (progress.isPlaying() || buffered <= lastPausedBufferedPosition) return;
+        long now = SystemClock.elapsedRealtime();
+        if (lastPausedBufferLogAtMs > 0
+                && now - lastPausedBufferLogAtMs < PAUSED_BUFFER_LOG_INTERVAL_MS) return;
+        lastPausedBufferLogAtMs = now;
+        lastPausedBufferedPosition = buffered;
+        if (SpiderDebug.isEnabled()) {
+            SpiderDebug.log("playback-progress",
+                    "mode=paused source=%s positionMs=%d bufferedPositionMs=%d bufferedDurationMs=%d",
+                    progress == player ? "controller" : "direct-engine",
+                    position, buffered, Math.max(0, buffered - position));
+        }
+    }
+
+>>>>>>> upstream/beta
     private void resetView() {
         positionView.setText("00:00");
         durationView.setText("00:00");

@@ -13,6 +13,7 @@ import androidx.media3.common.Player;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.exoplayer.source.preload.PreCacheHelper;
 
+import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.player.PlaybackRoute;
 import com.fongmi.android.tv.player.PlaybackTrace;
 import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
@@ -34,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 
 public class PreCache implements Player.Listener {
 
-    private static final String TAG = "PreCache";
+    private static final String TAG = "TV-exo-preload";
     private static final long TICK_MS = 5000;
     private static final long MIN_STEP_MS = 5000;
     private static final long MAX_STEP_MS = 30000;
@@ -56,7 +57,12 @@ public class PreCache implements Player.Listener {
 
         @Override
         public void onPrepareError(MediaItem mediaItem, IOException exception) {
+<<<<<<< HEAD
             finishTask(PreloadLifecycleTracker.TaskEvent.Outcome.PREPARE_ERROR, "prepare-error", exception);
+=======
+            if (BuildConfig.DEBUG) Log.w(TAG, "prepare failed " + errorDetails(exception));
+            handleTaskError(PreloadLifecycleTracker.TaskEvent.Outcome.PREPARE_ERROR, "prepare-error", exception);
+>>>>>>> upstream/beta
         }
 
         @Override
@@ -87,9 +93,23 @@ public class PreCache implements Player.Listener {
         stop("replace-media");
         this.playbackTraceId = PlaybackTrace.normalize(playbackTraceId);
         PriorityTaskDataSource.resetDiagnostics();
+<<<<<<< HEAD
         if (!PreloadSetting.isPreload(PlayerSetting.EXO) || !canPreCache(mediaItem)) return;
 <<<<<<< HEAD
 =======
+=======
+        boolean enabled = PreloadSetting.isPreload(PlayerSetting.EXO);
+        PreCacheEligibility eligibility = eligibility(mediaItem);
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "start enabled=" + enabled
+                    + " eligible=" + eligibility.eligible()
+                    + " reason=" + eligibility.reason()
+                    + " scheme=" + eligibility.scheme()
+                    + " concatenating=" + eligibility.concatenating()
+                    + " mime=" + eligibility.mimeType());
+        }
+        if (!enabled || !eligibility.eligible()) return;
+>>>>>>> upstream/beta
         boolean automaticPreload = PlaybackPerformanceSetting.isAuto(
                 PlayerSetting.EXO,
                 PlaybackPerformanceCatalog.PRELOAD);
@@ -98,10 +118,15 @@ public class PreCache implements Player.Listener {
                 PlaybackPerformanceCatalog.PRELOAD_THREADS,
                 PlaybackPerformanceCatalog.PRELOAD_TIME);
         boolean automatic = automaticPreload || automaticTuning;
-        if (automatic && !PlaybackExperimentSetting.isAllowed(
-                PlaybackExperimentPolicy.Action.EXO_AUTO_PRELOAD)) {
-            if (!automaticPreload) automatic = false;
-            else {
+        boolean experimentAllowed = PlaybackExperimentSetting.isAllowed(
+                PlaybackExperimentPolicy.Action.EXO_AUTO_PRELOAD);
+        if (automatic && !experimentAllowed) {
+            if (!automaticPreload) {
+                automatic = false;
+            } else {
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "start skipped reason=experiment-suppressed automatic=true");
+                }
                 PlaybackTrace.log("exo-preload", this.playbackTraceId,
                         "event=experiment-suppressed action=keep-foreground-only");
                 return;
@@ -112,13 +137,34 @@ public class PreCache implements Player.Listener {
         this.handler = new Handler(player.getApplicationLooper());
         this.routeResolution = routeResolution == null ? PlaybackRoute.resolve(mediaItem.localConfiguration.uri.toString()) : routeResolution;
         this.route = this.routeResolution.route();
+<<<<<<< HEAD
         this.autoPolicy = PlaybackPerformanceSetting.isAuto(PlayerSetting.EXO) ? new AutoPreloadPolicy() : null;
+=======
+        this.autoPolicy = automatic ? new AutoPreloadPolicy() : null;
+        this.autoSession = autoPolicy == null
+                ? PlaybackAutoContext.SessionToken.none() : currentAutoSession();
+        this.lastAutoInputs = null;
+        this.lastAutoDecision = null;
+        // Keep the exact MediaItem used by foreground playback.  Preload must
+        // not infer or override a MIME type from a route classifier: signed
+        // direct-media URLs are commonly classified as HLS while returning a
+        // media segment/stream, which makes Exo hand them to HlsMediaSource
+        // and repeatedly fail with "Input does not start with #EXTM3U".
+>>>>>>> upstream/beta
         this.helper = createHelper(mediaItem);
 <<<<<<< HEAD
 =======
         if (this.helper == null) {
+            if (BuildConfig.DEBUG) Log.i(TAG, "start skipped reason=worker-unavailable");
             stop("worker-unavailable");
             return;
+        }
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "session active automatic=" + automatic
+                    + " experimentAllowed=" + experimentAllowed
+                    + " threads=" + PreloadSetting.getPreloadThreads(PlayerSetting.EXO)
+                    + " chunkMs=" + PreloadSetting.getPreloadDurationMs(PlayerSetting.EXO)
+                    + " aheadMs=" + PreloadSetting.getPreloadAheadDurationMs(PlayerSetting.EXO));
         }
         bindMemoryPressure();
         bindSystemConditions();
@@ -385,10 +431,45 @@ public class PreCache implements Player.Listener {
         return created;
     }
 
-    private boolean canPreCache(MediaItem mediaItem) {
-        if (mediaItem == null || mediaItem.localConfiguration == null) return false;
+    private String errorDetails(Throwable error) {
+        if (error == null) return "type=-";
+        StringBuilder details = new StringBuilder();
+        Throwable current = error;
+        for (int depth = 0; current != null && depth < 4; depth++) {
+            if (depth > 0) details.append(" <- ");
+            details.append(current.getClass().getSimpleName());
+            String message = current.getMessage();
+            if (message != null && !message.isBlank()) {
+                String safe = message.replaceAll("https?://\\S+", "<url>")
+                        .replace('\n', ' ').replace('\r', ' ');
+                details.append(':').append(safe, 0, Math.min(safe.length(), 240));
+            }
+            current = current.getCause();
+        }
+        return details.toString();
+    }
+
+    private PreCacheEligibility eligibility(MediaItem mediaItem) {
+        if (mediaItem == null) {
+            return new PreCacheEligibility(false, "missing-item", "-", false, "-");
+        }
+        if (mediaItem.localConfiguration == null) {
+            return new PreCacheEligibility(false, "missing-local-config", "-", false, "-");
+        }
         MediaItem.LocalConfiguration local = mediaItem.localConfiguration;
-        return canPreCache(local.uri.getScheme(), local.uri.toString());
+        String scheme = local.uri.getScheme();
+        String url = local.uri.toString();
+        boolean http = "http".equalsIgnoreCase(scheme)
+                || "https".equalsIgnoreCase(scheme);
+        boolean concatenating = MediaSourceFactory.isConcatenatingUrl(url);
+        String reason = !http ? "unsupported-scheme"
+                : concatenating ? "concatenating-url" : "eligible";
+        return new PreCacheEligibility(
+                canPreCache(scheme, url),
+                reason,
+                scheme == null ? "-" : scheme,
+                concatenating,
+                local.mimeType == null ? "-" : local.mimeType);
     }
 
     static boolean canPreCache(String scheme, String url) {
@@ -488,6 +569,18 @@ public class PreCache implements Player.Listener {
         boolean automaticPreload = PlaybackPerformanceSetting.isAuto(
                 PlayerSetting.EXO,
                 PlaybackPerformanceCatalog.PRELOAD);
+        // A short throughput/buffer warning must reduce the disk task size, not
+        // disable disk preloading. Foreground playback already owns the higher
+        // priority data source, so keeping a single small background task is
+        // safe and preserves the old continuously-growing disk buffer.
+        if (automaticPreload && !decision.enabled()
+                && !isHardAutomaticPause(decision.reason())) {
+            return new AutoPreloadPolicy.Decision(
+                    AutoPreloadPolicy.NORMAL_THREADS,
+                    AutoPreloadPolicy.DEGRADED_DURATION_MS,
+                    "degraded",
+                    decision.reason() + "-continuous");
+        }
         if (automaticPreload && !decision.enabled()) return decision;
         int effectiveThreads = PlaybackPerformanceSetting.isAuto(
                 PlayerSetting.EXO,
@@ -505,6 +598,15 @@ public class PreCache implements Player.Listener {
                 effectiveDurationMs,
                 decision.mode(),
                 decision.reason());
+    }
+
+    private static boolean isHardAutomaticPause(String reason) {
+        return switch (reason == null ? "" : reason) {
+            case "session-mismatch", "memory-pressure", "network-unavailable",
+                    "network-unvalidated", "data-saver", "power-save",
+                    "thermal-pressure" -> true;
+            default -> false;
+        };
     }
 
     private PlaybackAutoContext.SessionToken currentAutoSession() {
@@ -829,7 +931,18 @@ public class PreCache implements Player.Listener {
         if (event == null) return;
         String type = event.type() == PreloadLifecycleTracker.TaskEvent.Type.START ? "task-start" : "task-end";
         String outcome = event.outcome() == null ? "-" : event.outcome().label();
-        PlaybackTrace.log("exo-preload", playbackTraceId, "event=%s session=%d task=%d generation=%d outcome=%s startMs=%d lengthMs=%d %s", type, event.sessionId(), event.taskId(), event.generation(), outcome, event.startMs(), event.lengthMs(), detail(format, args));
+        String detail = detail(format, args);
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "event=" + type
+                    + " session=" + event.sessionId()
+                    + " task=" + event.taskId()
+                    + " generation=" + event.generation()
+                    + " outcome=" + outcome
+                    + " startMs=" + event.startMs()
+                    + " lengthMs=" + event.lengthMs()
+                    + " " + detail);
+        }
+        PlaybackTrace.log("exo-preload", playbackTraceId, "event=%s session=%d task=%d generation=%d outcome=%s startMs=%d lengthMs=%d %s", type, event.sessionId(), event.taskId(), event.generation(), outcome, event.startMs(), event.lengthMs(), detail);
     }
 
     private void finishTask(PreloadLifecycleTracker.TaskEvent.Outcome outcome, String reason, Throwable error) {
@@ -883,6 +996,11 @@ public class PreCache implements Player.Listener {
         private boolean isFailed() {
             return failed;
         }
+    }
+
+    private record PreCacheEligibility(boolean eligible, String reason,
+                                       String scheme, boolean concatenating,
+                                       String mimeType) {
     }
 
     private enum BufferGate {
