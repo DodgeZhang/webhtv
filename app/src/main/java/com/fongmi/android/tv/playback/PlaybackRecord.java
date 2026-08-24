@@ -40,14 +40,20 @@ public class PlaybackRecord {
     public String vodName;
     public String vodPic;
     public String flag;
+    public String sourceBindingKey;
     public String episodeName;
     public String episodeUrl;
     public Integer episodeIndex;
+    public String mediaType;
+    public int tmdbId;
+    public int seasonNumber;
+    public int tmdbEpisodeNumber;
     public String state;
     public long positionMs;
     public long durationMs;
     public double progress;
     public float speed;
+    public boolean speedOverride;
     public boolean completed;
     public String appVersion;
     public String client;
@@ -69,8 +75,12 @@ public class PlaybackRecord {
         this.vodName = "";
         this.vodPic = "";
         this.flag = "";
+        this.sourceBindingKey = "";
         this.episodeName = "";
         this.episodeUrl = "";
+        this.mediaType = "";
+        this.seasonNumber = -1;
+        this.tmdbEpisodeNumber = -1;
         this.state = "idle";
         this.speed = 1f;
         this.appVersion = BuildConfig.VERSION_NAME;
@@ -98,12 +108,15 @@ public class PlaybackRecord {
         record.vodName = safe(history.getVodName());
         record.vodPic = safe(history.getVodPic());
         record.flag = safe(history.getVodFlag());
+        record.sourceBindingKey = safe(history.getSourceBindingKey());
         record.episodeName = safe(history.getVodRemarks());
         record.episodeUrl = safe(history.getEpisodeUrl());
+        applyTmdbIdentity(record, history);
         record.positionMs = position(history, player);
         record.durationMs = duration(history, player);
         record.progress = progress(record.positionMs, record.durationMs);
         record.speed = speed(history, player);
+        record.speedOverride = history.hasUserSpeed();
         record.state = state(player);
         record.completed = completed(record.state, record.positionMs, record.durationMs);
         record.dedupeKey = dedupeKey(record);
@@ -111,6 +124,47 @@ public class PlaybackRecord {
         return record;
     }
 
+<<<<<<< HEAD
+=======
+    public static PlaybackRecord deleted(PlaybackProgressDeleteInput input, int cid) {
+        PlaybackRecord record = new PlaybackRecord();
+        if (input == null) return record;
+        input.normalize();
+        if (input.deletedAt <= 0) input.deletedAt = System.currentTimeMillis();
+        record.event = "playback.deleted";
+        record.eventId = UUID.randomUUID().toString();
+        record.timestamp = input.deletedAt;
+        record.deletedAt = input.deletedAt;
+        record.scope = input.isAllScope() ? "all" : input.isSiteScope() ? "site"
+                : input.isSeasonScope() ? "season" : "item";
+        record.cid = cid;
+        record.configKey = TextUtils.isEmpty(input.configKey) ? PlaybackConfigIdentity.keyForCid(cid) : input.configKey;
+        record.configName = PlaybackConfigIdentity.nameForCid(cid);
+        record.historyKey = safe(input.historyKey);
+        record.siteKey = safe(input.siteKey);
+        record.siteName = siteName(record.siteKey);
+        record.vodId = safe(input.vodId);
+        record.episodeName = safe(input.episodeName);
+        record.mediaType = safe(input.mediaType);
+        record.tmdbId = input.tmdbId;
+        record.seasonNumber = input.seasonNumber;
+        record.state = "deleted";
+        record.dedupeKey = sha256(join(record.configKey, record.scope, record.historyKey,
+                record.siteKey, record.vodId, record.mediaType,
+                String.valueOf(record.tmdbId), String.valueOf(record.seasonNumber)));
+        record.clientKey = clientKey();
+        return record;
+    }
+
+    static void applyTmdbIdentity(PlaybackRecord record, History history) {
+        if (record == null || history == null) return;
+        record.mediaType = safe(history.getMediaType()).trim().toLowerCase(Locale.ROOT);
+        record.tmdbId = history.getTmdbId();
+        record.seasonNumber = history.getTmdbSeasonNumber();
+        record.tmdbEpisodeNumber = history.getTmdbEpisodeNumber();
+    }
+
+>>>>>>> upstream/dev
     public PlaybackRecord withEvent(String event) {
         PlaybackRecord record = copy();
         record.event = event == null ? "" : event;
@@ -138,14 +192,20 @@ public class PlaybackRecord {
         if (policy.includes("vodName")) record.vodName = vodName;
         if (policy.includes("vodPic")) record.vodPic = vodPic;
         if (policy.includes("flag")) record.flag = flag;
+        if (policy.includes("sourceBindingKey")) record.sourceBindingKey = sourceBindingKey;
         if (policy.includes("episodeName")) record.episodeName = episodeName;
         if (policy.includes("episodeUrl")) record.episodeUrl = episodeUrl;
         if (policy.includes("episodeIndex")) record.episodeIndex = episodeIndex;
+        if (policy.includes("mediaType")) record.mediaType = mediaType;
+        if (policy.includes("tmdbId")) record.tmdbId = tmdbId;
+        if (policy.includes("seasonNumber")) record.seasonNumber = seasonNumber;
+        if (policy.includes("tmdbEpisodeNumber")) record.tmdbEpisodeNumber = tmdbEpisodeNumber;
         if (policy.includes("state")) record.state = state;
         if (policy.includes("positionMs")) record.positionMs = positionMs;
         if (policy.includes("durationMs")) record.durationMs = durationMs;
         if (policy.includes("progress")) record.progress = progress;
         if (policy.includes("speed")) record.speed = speed;
+        if (policy.includes("speedOverride")) record.speedOverride = speedOverride;
         if (policy.includes("completed")) record.completed = completed;
         if (policy.includes("appVersion")) record.appVersion = appVersion;
         if (policy.includes("client")) record.client = client;
@@ -171,15 +231,30 @@ public class PlaybackRecord {
         if (policy.includes("vodName")) object.addProperty("vodName", vodName);
         if (policy.includes("vodPic")) object.addProperty("vodPic", vodPic);
         if (policy.includes("flag")) object.addProperty("flag", flag);
+        if (policy.includes("sourceBindingKey")) object.addProperty("sourceBindingKey", sourceBindingKey);
         if (policy.includes("episodeName")) object.addProperty("episodeName", episodeName);
         if (policy.includes("episodeUrl")) object.addProperty("episodeUrl", episodeUrl);
         if (policy.includes("episodeIndex") && episodeIndex != null) object.addProperty("episodeIndex", episodeIndex);
+<<<<<<< HEAD
         if (policy.includes("state")) object.addProperty("state", state);
         if (policy.includes("positionMs")) object.addProperty("positionMs", positionMs);
         if (policy.includes("durationMs")) object.addProperty("durationMs", durationMs);
         if (policy.includes("progress")) object.addProperty("progress", progress);
         if (policy.includes("speed")) object.addProperty("speed", speed);
         if (policy.includes("completed")) object.addProperty("completed", completed);
+=======
+        if (policy.includes("mediaType") && !TextUtils.isEmpty(mediaType)) object.addProperty("mediaType", mediaType);
+        if (policy.includes("tmdbId") && tmdbId > 0) object.addProperty("tmdbId", tmdbId);
+        if (policy.includes("seasonNumber") && seasonNumber >= 0) object.addProperty("seasonNumber", seasonNumber);
+        if (!deletion && policy.includes("tmdbEpisodeNumber") && tmdbEpisodeNumber > 0) object.addProperty("tmdbEpisodeNumber", tmdbEpisodeNumber);
+        if (!deletion && policy.includes("state")) object.addProperty("state", state);
+        if (!deletion && policy.includes("positionMs")) object.addProperty("positionMs", positionMs);
+        if (!deletion && policy.includes("durationMs")) object.addProperty("durationMs", durationMs);
+        if (!deletion && policy.includes("progress")) object.addProperty("progress", progress);
+        if (!deletion && policy.includes("speed")) object.addProperty("speed", speed);
+        if (!deletion && policy.includes("speedOverride")) object.addProperty("speedOverride", speedOverride);
+        if (!deletion && policy.includes("completed")) object.addProperty("completed", completed);
+>>>>>>> upstream/dev
         if (policy.includes("appVersion")) object.addProperty("appVersion", appVersion);
         if (policy.includes("client")) object.addProperty("client", client);
         if (policy.includes("clientKey") && !TextUtils.isEmpty(clientKey)) object.addProperty("clientKey", clientKey);
@@ -204,14 +279,20 @@ public class PlaybackRecord {
         record.vodName = vodName;
         record.vodPic = vodPic;
         record.flag = flag;
+        record.sourceBindingKey = sourceBindingKey;
         record.episodeName = episodeName;
         record.episodeUrl = episodeUrl;
         record.episodeIndex = episodeIndex;
+        record.mediaType = mediaType;
+        record.tmdbId = tmdbId;
+        record.seasonNumber = seasonNumber;
+        record.tmdbEpisodeNumber = tmdbEpisodeNumber;
         record.state = state;
         record.positionMs = positionMs;
         record.durationMs = durationMs;
         record.progress = progress;
         record.speed = speed;
+        record.speedOverride = speedOverride;
         record.completed = completed;
         record.appVersion = appVersion;
         record.client = client;
@@ -236,14 +317,20 @@ public class PlaybackRecord {
         vodName = "";
         vodPic = "";
         flag = "";
+        sourceBindingKey = "";
         episodeName = "";
         episodeUrl = "";
         episodeIndex = null;
+        mediaType = "";
+        tmdbId = 0;
+        seasonNumber = -1;
+        tmdbEpisodeNumber = -1;
         state = "";
         positionMs = 0;
         durationMs = 0;
         progress = 0;
         speed = 0;
+        speedOverride = false;
         completed = false;
         appVersion = "";
         client = "";
@@ -342,7 +429,10 @@ public class PlaybackRecord {
     }
 
     private static String dedupeKey(PlaybackRecord record) {
-        return sha256(join(record.configKey, record.historyKey, record.siteKey, record.vodId, record.vodName, record.flag, record.episodeName, record.episodeUrl));
+        return sha256(join(record.configKey, record.historyKey, record.siteKey, record.vodId,
+                record.vodName, record.flag, record.sourceBindingKey, record.episodeName, record.episodeUrl,
+                record.mediaType, String.valueOf(record.tmdbId),
+                String.valueOf(record.seasonNumber), String.valueOf(record.tmdbEpisodeNumber)));
     }
 
     private static String clientKey() {

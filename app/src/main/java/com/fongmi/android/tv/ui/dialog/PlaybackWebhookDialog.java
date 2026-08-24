@@ -43,6 +43,7 @@ import java.util.Set;
 
 public class PlaybackWebhookDialog extends BaseAlertDialog {
 
+<<<<<<< HEAD
     private static final String[] FIELD_KEYS = new String[]{"cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "completed", "episodeUrl", "episodeIndex", "appVersion", "client", "clientKey"};
     private static final List<String> PROTOCOL_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "sessionId", "dedupeKey");
     private static final List<String> BASIC_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "sessionId", "dedupeKey", "cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "completed");
@@ -50,6 +51,15 @@ public class PlaybackWebhookDialog extends BaseAlertDialog {
     private static final List<String> FULL_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "sessionId", "dedupeKey", "cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "completed", "appVersion", "client", "episodeUrl", "episodeIndex", "clientKey");
     private static final List<String> ANONYMOUS_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "sessionId", "dedupeKey", "historyKey(sha256)", "state", "positionMs", "durationMs", "progress", "speed", "completed");
     private static final List<String> DEFAULT_CUSTOM_FIELDS = Arrays.asList("cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "completed");
+=======
+    private static final String[] FIELD_KEYS = new String[]{"cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "speedOverride", "completed", "episodeUrl", "episodeIndex", "appVersion", "client", "clientKey"};
+    private static final List<String> PROTOCOL_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "scope", "deletedAt", "sessionId", "dedupeKey");
+    private static final List<String> BASIC_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "scope", "deletedAt", "sessionId", "dedupeKey", "cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "speedOverride", "completed");
+    private static final List<String> STANDARD_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "scope", "deletedAt", "sessionId", "dedupeKey", "cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "speedOverride", "completed", "appVersion", "client");
+    private static final List<String> FULL_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "scope", "deletedAt", "sessionId", "dedupeKey", "cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "speedOverride", "completed", "appVersion", "client", "episodeUrl", "episodeIndex", "clientKey");
+    private static final List<String> ANONYMOUS_FIELDS = Arrays.asList("schema", "event", "eventId", "timestamp", "scope", "deletedAt", "sessionId", "dedupeKey", "historyKey(sha256)", "state", "positionMs", "durationMs", "progress", "speed", "speedOverride", "completed");
+    private static final List<String> DEFAULT_CUSTOM_FIELDS = Arrays.asList("cid", "configKey", "configName", "historyKey", "siteKey", "siteName", "vodId", "vodName", "vodPic", "flag", "episodeName", "state", "positionMs", "durationMs", "progress", "speed", "speedOverride", "completed");
+>>>>>>> upstream/dev
 
     private DialogPlaybackWebhookBinding binding;
     private WebhookConfig editing;

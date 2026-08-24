@@ -13,6 +13,7 @@ final class MpvOptionPriorityPolicy {
             "gpu-context",
             "gpu-api",
             "opengl-es",
+            "android-vulkan-aimagereader-backend",
             "hwdec",
             "hwdec-codecs",
             "ao",
@@ -27,6 +28,11 @@ final class MpvOptionPriorityPolicy {
             "demuxer-max-bytes",
             "demuxer-max-back-bytes",
             "demuxer-readahead-secs",
+<<<<<<< HEAD
+=======
+            "demuxer-hysteresis-secs",
+            "demuxer-dovi-profile7",
+>>>>>>> upstream/dev
             "framedrop",
             "video-sync",
             "interpolation",
@@ -78,5 +84,16 @@ final class MpvOptionPriorityPolicy {
 
     static String priorityName(boolean performanceOptionsPriority) {
         return performanceOptionsPriority ? "performance" : "mpv.conf";
+    }
+
+    static String resolveVideoOutput(boolean performanceOptionsPriority,
+                                     String appVideoOutput,
+                                     String configuredVideoOutput) {
+        if (!performanceOptionsPriority
+                && configuredVideoOutput != null
+                && !configuredVideoOutput.isEmpty()) {
+            return configuredVideoOutput;
+        }
+        return appVideoOutput;
     }
 }

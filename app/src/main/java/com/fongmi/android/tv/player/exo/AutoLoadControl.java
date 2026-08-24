@@ -15,11 +15,62 @@ import com.fongmi.android.tv.setting.ExoPerformanceSetting;
 
 final class AutoLoadControl implements LoadControl {
 
+<<<<<<< HEAD
     static final int MAX_REBUFFER_MS = 8_000;
     private final DefaultLoadControl delegate;
 
     AutoLoadControl(DefaultLoadControl delegate) {
         this.delegate = delegate;
+=======
+    private final AutoTargetLoadControl delegate;
+    private final int fallbackStreamingStartBufferMs;
+    private final ExoPlaybackThresholdCoordinator thresholdCoordinator;
+    private final boolean automaticStartBuffer;
+    private final boolean automaticRebuffer;
+
+    AutoLoadControl(
+            AutoTargetLoadControl delegate,
+            ExoLoadControlPolicy.AutomaticConfiguration configuration) {
+        this(
+                delegate,
+                configuration,
+                ExoPlaybackThresholdCoordinator.process(),
+                true,
+                true);
+    }
+
+    AutoLoadControl(
+            AutoTargetLoadControl delegate,
+            ExoLoadControlPolicy.AutomaticConfiguration configuration,
+            boolean automaticStartBuffer,
+            boolean automaticRebuffer) {
+        this(
+                delegate,
+                configuration,
+                ExoPlaybackThresholdCoordinator.process(),
+                automaticStartBuffer,
+                automaticRebuffer);
+    }
+
+    AutoLoadControl(
+            AutoTargetLoadControl delegate,
+            ExoLoadControlPolicy.AutomaticConfiguration configuration,
+            ExoPlaybackThresholdCoordinator thresholdCoordinator) {
+        this(delegate, configuration, thresholdCoordinator, true, true);
+    }
+
+    AutoLoadControl(
+            AutoTargetLoadControl delegate,
+            ExoLoadControlPolicy.AutomaticConfiguration configuration,
+            ExoPlaybackThresholdCoordinator thresholdCoordinator,
+            boolean automaticStartBuffer,
+            boolean automaticRebuffer) {
+        this.delegate = delegate;
+        this.fallbackStreamingStartBufferMs = configuration.streamingStartBufferMs();
+        this.thresholdCoordinator = thresholdCoordinator;
+        this.automaticStartBuffer = automaticStartBuffer;
+        this.automaticRebuffer = automaticRebuffer;
+>>>>>>> upstream/dev
     }
 
     @Override
@@ -65,8 +116,74 @@ final class AutoLoadControl implements LoadControl {
     @Override
     public boolean shouldStartPlayback(Parameters parameters) {
         boolean delegateReady = delegate.shouldStartPlayback(parameters);
+<<<<<<< HEAD
         if (!parameters.rebuffering || delegateReady) return delegateReady;
         return reachedAdaptiveThreshold(parameters.bufferedDurationUs, parameters.playbackSpeed, parameters.targetLiveOffsetUs, ExoPerformanceSetting.getAutoSessionRebufferMs());
+=======
+        if (PlayerId.PRELOAD.equals(parameters.playerId)) return delegateReady;
+        if (parameters.rebuffering ? !automaticRebuffer : !automaticStartBuffer) {
+            return delegateReady;
+        }
+        ExoLoadControlModePolicy.Decision mode = delegate.currentModeDecision(parameters.playerId);
+        long now = SystemClock.elapsedRealtime();
+        ExoPlaybackThresholdPolicy.Inputs inputs =
+                ExoPlaybackThresholdCoordinator.captureInputs(
+                        ExoPerformanceSetting.getEffectiveStartBufferMs(),
+                        ExoPerformanceSetting.getEffectiveRebufferMs(),
+                        mediaDurationMs(parameters.bufferedDurationUs),
+                        mediaDurationMs(parameters.targetLiveOffsetUs),
+                        parameters.rebuffering,
+                        now);
+        ExoPlaybackThresholdCoordinator.Episode episode = parameters.rebuffering
+                ? ExoPlaybackThresholdCoordinator.Episode.REBUFFER
+                : ExoPlaybackThresholdCoordinator.Episode.STARTUP;
+        ExoPlaybackThresholdCoordinator.Selection selection =
+                thresholdCoordinator.lockEpisode(episode, inputs);
+        if (!selection.session().active()) {
+            return legacyShouldStartPlayback(delegateReady, parameters, mode);
+        }
+        if (selection.newlyLocked()) {
+            ExoPlaybackDiagnostics.logPlaybackThreshold(selection);
+            publishThresholdTelemetry(selection, inputs, now);
+        }
+        if (mode.mode() == ExoLoadControlModePolicy.Mode.LOCAL_TIME
+                || selection.policy().reason()
+                == ExoPlaybackThresholdPolicy.Reason.LOCAL_RESOURCE) {
+            return delegateReady;
+        }
+
+        int thresholdMs = effectiveDynamicThresholdMs(
+                selection.thresholdMs(),
+                parameters.rebuffering,
+                mode.appProxyVodFallback(),
+                parameters.playbackSpeed,
+                selection.policy().riskLevel());
+        boolean adaptiveReady = reachedAdaptiveThreshold(
+                parameters.bufferedDurationUs,
+                parameters.playbackSpeed,
+                parameters.targetLiveOffsetUs,
+                thresholdMs);
+        boolean targetSizeReady = delegate.isTargetBufferSizeReached(
+                parameters.playerId);
+        if (mode.mode().controlledTimePriority()) {
+            int controlledThresholdMs = controlledTimeThresholdMs(thresholdMs);
+            boolean controlledReady = reachedAdaptiveThreshold(
+                    parameters.bufferedDurationUs,
+                    parameters.playbackSpeed,
+                    parameters.targetLiveOffsetUs,
+                    controlledThresholdMs);
+            return shouldStartControlledPlayback(
+                    controlledReady,
+                    delegate.canContinueControlledRescue(parameters.playerId),
+                    targetSizeReady,
+                    adaptiveReady);
+        }
+        return shouldStartDynamicPlayback(
+                parameters.rebuffering,
+                mode.appProxyVodFallback(),
+                targetSizeReady,
+                adaptiveReady);
+>>>>>>> upstream/dev
     }
 
     @Override
@@ -80,4 +197,199 @@ final class AutoLoadControl implements LoadControl {
         long playoutBufferedUs = Util.getPlayoutDurationForMediaDuration(bufferedDurationUs, playbackSpeed);
         return playoutBufferedUs >= requiredUs;
     }
+<<<<<<< HEAD
+=======
+
+    static int controlledTimeThresholdMs(int configuredThresholdMs) {
+        return Math.min(
+                Math.max(0, configuredThresholdMs),
+                ExoLoadControlModePolicy.SINGLE_TRACK_RESCUE_BUFFER_MS);
+    }
+
+    static boolean shouldStartControlledPlayback(
+            boolean controlledReady,
+            boolean rescueCanContinue,
+            boolean targetSizeReady,
+            boolean adaptiveReady) {
+        if (rescueCanContinue) return controlledReady;
+        return shouldStartDynamicPlayback(targetSizeReady, adaptiveReady);
+    }
+
+    static boolean shouldStartDynamicPlayback(
+            boolean targetSizeReady,
+            boolean adaptiveReady) {
+        return targetSizeReady || adaptiveReady;
+    }
+
+    static boolean shouldStartDynamicPlayback(
+            boolean rebuffering,
+            boolean appProxyVodFallback,
+            boolean targetSizeReady,
+            boolean adaptiveReady) {
+        if (rebuffering && appProxyVodFallback) return adaptiveReady;
+        return shouldStartDynamicPlayback(targetSizeReady, adaptiveReady);
+    }
+
+    static int effectiveDynamicThresholdMs(
+            int selectedThresholdMs,
+            boolean rebuffering,
+            boolean appProxyVodFallback,
+            float playbackSpeed,
+            ExoPlaybackThresholdPolicy.RiskLevel riskLevel) {
+        int selected = Math.max(0, selectedThresholdMs);
+        if (!rebuffering || !appProxyVodFallback) return selected;
+        ExoPlaybackThresholdPolicy.RiskLevel risk = riskLevel == null
+                ? ExoPlaybackThresholdPolicy.RiskLevel.NONE : riskLevel;
+        boolean minimumProtectionStillFailing =
+                Math.abs(playbackSpeed - ExoNetworkProtectionPolicy.AUTO_MIN_SPEED) <= 0.005f
+                        && risk == ExoPlaybackThresholdPolicy.RiskLevel.CRITICAL;
+        return minimumProtectionStillFailing
+                ? selected
+                : Math.min(selected, ExoLoadControlModePolicy.SINGLE_TRACK_RESCUE_BUFFER_MS);
+    }
+
+    static long effectiveBackBufferDurationUs(
+            long configuredDurationUs,
+            boolean suppressed) {
+        return suppressed ? 0 : Math.max(0, configuredDurationUs);
+    }
+
+    static boolean shouldContinuePreloading(
+            boolean delegateAllowed,
+            boolean memoryPaused) {
+        return delegateAllowed && !memoryPaused;
+    }
+
+    private boolean legacyShouldStartPlayback(
+            boolean delegateReady,
+            Parameters parameters,
+            ExoLoadControlModePolicy.Decision mode) {
+        if (mode.mode().controlledTimePriority()) {
+            int configuredThresholdMs = parameters.rebuffering
+                    ? ExoPerformanceSetting.getEffectiveRebufferMs()
+                    : fallbackStreamingStartBufferMs;
+            int controlledThresholdMs = controlledTimeThresholdMs(
+                    configuredThresholdMs);
+            boolean controlledReady = reachedAdaptiveThreshold(
+                    parameters.bufferedDurationUs,
+                    parameters.playbackSpeed,
+                    parameters.targetLiveOffsetUs,
+                    controlledThresholdMs);
+            boolean adaptiveReady = parameters.rebuffering
+                    && reachedAdaptiveThreshold(
+                    parameters.bufferedDurationUs,
+                    parameters.playbackSpeed,
+                    parameters.targetLiveOffsetUs,
+                    ExoPerformanceSetting.getEffectiveRebufferMs());
+            if (controlledReady
+                    || delegate.canContinueControlledRescue(parameters.playerId)) {
+                return controlledReady;
+            }
+            if (!parameters.rebuffering || delegateReady) return delegateReady;
+            return adaptiveReady;
+        }
+        if (!parameters.rebuffering || delegateReady) return delegateReady;
+        return reachedAdaptiveThreshold(
+                parameters.bufferedDurationUs,
+                parameters.playbackSpeed,
+                parameters.targetLiveOffsetUs,
+                ExoPerformanceSetting.getEffectiveRebufferMs());
+    }
+
+    private static long mediaDurationMs(long durationUs) {
+        return durationUs == C.TIME_UNSET
+                ? -1 : Math.max(0, durationUs / 1_000L);
+    }
+
+    private static void publishThresholdTelemetry(
+            ExoPlaybackThresholdCoordinator.Selection selection,
+            ExoPlaybackThresholdPolicy.Inputs inputs,
+            long now) {
+        ExoPlaybackThresholdPolicy.Decision policy = selection.policy();
+        PlaybackTelemetryCoordinator.process().publishDecision(
+                selection.session(),
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.LOAD_CONTROL,
+                        PlaybackTelemetry.DecisionOutcome.APPLIED,
+                        selection.episode() == ExoPlaybackThresholdCoordinator.Episode.REBUFFER
+                                ? Integer.toString(inputs.configuredRebufferMs())
+                                : Integer.toString(inputs.configuredStartBufferMs()),
+                        Integer.toString(selection.thresholdMs()),
+                        Integer.toString(selection.thresholdMs()),
+                        policy.reason().label(),
+                        "none",
+                        List.of(
+                                PlaybackTelemetry.DecisionInput.text(
+                                        "episode",
+                                        selection.episode().label(),
+                                        PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                                        PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.text(
+                                        "protocol",
+                                        policy.protocol().label(),
+                                        PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                                        PlaybackAutoContext.Confidence.MEDIUM),
+                                PlaybackTelemetry.DecisionInput.text(
+                                        "stream_kind",
+                                        policy.streamKind().label(),
+                                        PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                                        PlaybackAutoContext.Confidence.MEDIUM),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "start_ms",
+                                        selection.startBufferMs(),
+                                        PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                                        PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "rebuffer_ms",
+                                        selection.rebufferMs(),
+                                        PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                                        PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "boundary_ms",
+                                        policy.boundaryMs(),
+                                        PlaybackAutoContext.ValueSource.MANIFEST,
+                                        policy.boundaryMs() > 0
+                                                ? PlaybackAutoContext.Confidence.MEDIUM
+                                                : PlaybackAutoContext.Confidence.UNKNOWN),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "throughput_ratio_permille",
+                                        policy.throughputRatioPermille(),
+                                        PlaybackAutoContext.ValueSource.ESTIMATOR,
+                                        policy.throughputUsable()
+                                                ? PlaybackAutoContext.Confidence.MEDIUM
+                                                : PlaybackAutoContext.Confidence.UNKNOWN),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "prediction_error_permille",
+                                        policy.predictionErrorPermille(),
+                                        PlaybackAutoContext.ValueSource.ESTIMATOR,
+                                        policy.throughputUsable()
+                                                ? PlaybackAutoContext.Confidence.MEDIUM
+                                                : PlaybackAutoContext.Confidence.UNKNOWN),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "buffer_slope_msps",
+                                        policy.bufferSlopeMsPerSecond(),
+                                        PlaybackAutoContext.ValueSource.ESTIMATOR,
+                                        policy.trendUsable()
+                                                ? PlaybackAutoContext.Confidence.MEDIUM
+                                                : PlaybackAutoContext.Confidence.UNKNOWN),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "time_to_empty_ms",
+                                        policy.timeToEmptyMs(),
+                                        PlaybackAutoContext.ValueSource.ESTIMATOR,
+                                        policy.timeToEmptyMs() >= 0
+                                                ? PlaybackAutoContext.Confidence.MEDIUM
+                                                : PlaybackAutoContext.Confidence.UNKNOWN),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "rebuffer_count",
+                                        inputs.rebufferCount(),
+                                        PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                                        PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "rebuffer_total_ms",
+                                        inputs.rebufferTotalMs(),
+                                        PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                                        PlaybackAutoContext.Confidence.HIGH))),
+                now);
+    }
+>>>>>>> upstream/dev
 }

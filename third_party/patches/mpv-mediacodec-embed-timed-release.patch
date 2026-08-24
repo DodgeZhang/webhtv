@@ -1,0 +1,173 @@
+diff --git a/video/out/vo_mediacodec_embed.c b/video/out/vo_mediacodec_embed.c
+index 3f527ffe..a88d4808 100644
+--- a/video/out/vo_mediacodec_embed.c
++++ b/video/out/vo_mediacodec_embed.c
+@@ -15,6 +15,8 @@
+  * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+  */
+ 
++#include <time.h>
++
+ #include <libavcodec/mediacodec.h>
+ #include <libavutil/hwcontext.h>
+ #include <libavutil/hwcontext_mediacodec.h>
+@@ -22,6 +24,7 @@
+ #include "common/common.h"
+ #include "android_osd_overlay.h"
+ #include "vo.h"
++#include "osdep/timer.h"
+ #include "video/mp_image.h"
+ #include "video/hwdec.h"
+ 
+@@ -33,10 +36,29 @@ struct priv {
+     double last_pts;
+     int osd_failures;
+     bool osd_render_ok;
++    int64_t next_pts;
++    int64_t timed_lead_total;
++    int64_t timed_lead_min;
++    int64_t timed_lead_max;
++    int64_t timed_release_total;
++    int64_t timed_release_max;
++    int64_t immediate_release_total;
++    int64_t immediate_release_max;
++    uint64_t submitted_frames;
++    uint64_t timed_frames;
++    uint64_t immediate_frames;
++    uint64_t late_frames;
++    uint64_t timed_release_calls;
++    uint64_t immediate_release_calls;
+     bool backend_failed;
+ };
+ 
+ #define MAX_OSD_FAILURES 3
++#define MEDIACODEC_QUEUE_OFFSET_NS MP_TIME_MS_TO_NS(50)
++#define MAX_TIMED_RELEASE_LEAD_NS MP_TIME_MS_TO_NS(50)
++#define TIMING_LOG_INTERVAL 600
++
++static int64_t android_monotonic_time_ns(void);
+ 
+ static void report_backend_error(struct vo *vo, const char *component)
+ {
+@@ -85,6 +107,11 @@ static int preinit(struct vo *vo)
+ 
+     p->video_wid = vo->opts->WinID;
+     p->last_pts = MP_NOPTS_VALUE;
++    p->next_pts = MP_NOPTS_VALUE;
++    p->timed_lead_min = INT64_MAX;
++    vo_set_queue_params(vo, MEDIACODEC_QUEUE_OFFSET_NS, 1, 2);
++    MP_INFO(vo, "WebHTV timestamped MediaCodec output enabled: "
++                "up to 50ms scheduling lead.\n");
+     p->osd_overlay = android_osd_overlay_create(vo);
+     if (!p->osd_overlay ||
+         !android_osd_overlay_set_surface(
+@@ -126,9 +153,81 @@ static void flip_page(struct vo *vo)
+     if (p->next_image) {
+         AVMediaCodecBuffer *buffer =
+             (AVMediaCodecBuffer *)p->next_image->planes[3];
+-        if (av_mediacodec_release_buffer(buffer, 1) < 0)
++        int64_t now = mp_time_ns();
++        int64_t lead = p->next_pts > 0 ? p->next_pts - now : 0;
++        int64_t release_time = 0;
++        if (lead > 0 && lead <= MAX_TIMED_RELEASE_LEAD_NS) {
++            int64_t monotonic_now = android_monotonic_time_ns();
++            if (monotonic_now > 0 && lead <= INT64_MAX - monotonic_now)
++                release_time = monotonic_now + lead;
++        }
++
++        int64_t release_start = mp_time_ns();
++        int result;
++        if (release_time > 0) {
++            result = av_mediacodec_render_buffer_at_time(buffer, release_time);
++        } else {
++            result = av_mediacodec_release_buffer(buffer, 1);
++        }
++        int64_t release_elapsed = MPMAX(mp_time_ns() - release_start, 0);
++        p->submitted_frames++;
++
++        if (release_time > 0) {
++            p->timed_frames++;
++            p->timed_release_calls++;
++            p->timed_release_total += release_elapsed;
++            p->timed_release_max = MPMAX(p->timed_release_max, release_elapsed);
++            p->timed_lead_total += lead;
++            p->timed_lead_min = MPMIN(p->timed_lead_min, lead);
++            p->timed_lead_max = MPMAX(p->timed_lead_max, lead);
++        } else {
++            p->immediate_frames++;
++            p->immediate_release_calls++;
++            p->immediate_release_total += release_elapsed;
++            p->immediate_release_max =
++                MPMAX(p->immediate_release_max, release_elapsed);
++            if (p->next_pts > 0 && lead <= 0)
++                p->late_frames++;
++        }
++
++        if (result < 0)
+             report_backend_error(vo, "video surface");
++        if (p->submitted_frames % TIMING_LOG_INTERVAL == 0) {
++            int64_t average_lead = p->timed_release_calls > 0
++                ? p->timed_lead_total / p->timed_release_calls : 0;
++            int64_t minimum_lead = p->timed_release_calls > 0
++                ? p->timed_lead_min : 0;
++            MP_INFO(vo, "MediaCodec output scheduling: mode=timestamped "
++                        "submitted=%llu timed=%llu immediate=%llu late=%llu "
++                        "lead=%lld/%lld/%lld us timed-release=%lld/%lld us "
++                        "immediate-release=%lld/%lld us.\n",
++                    (unsigned long long)p->submitted_frames,
++                    (unsigned long long)p->timed_frames,
++                    (unsigned long long)p->immediate_frames,
++                    (unsigned long long)p->late_frames,
++                    (long long)(minimum_lead / 1000),
++                    (long long)(average_lead / 1000),
++                    (long long)(p->timed_lead_max / 1000),
++                    (long long)(p->timed_release_calls > 0
++                        ? p->timed_release_total / p->timed_release_calls : 0) /
++                        1000,
++                    (long long)(p->timed_release_max / 1000),
++                    (long long)(p->immediate_release_calls > 0
++                        ? p->immediate_release_total /
++                            p->immediate_release_calls : 0) / 1000,
++                    (long long)(p->immediate_release_max / 1000));
++            p->timed_lead_total = 0;
++            p->timed_lead_min = INT64_MAX;
++            p->timed_lead_max = 0;
++            p->timed_release_total = 0;
++            p->timed_release_max = 0;
++            p->immediate_release_total = 0;
++            p->immediate_release_max = 0;
++            p->timed_release_calls = 0;
++            p->immediate_release_calls = 0;
++        }
+         mp_image_unrefp(&p->next_image);
++        p->next_pts = MP_NOPTS_VALUE;
+     }
+ 
+     bool osd_ok =
+@@ -152,13 +251,26 @@ static bool draw_frame(struct vo *vo, struct vo_frame *frame)
+         mpi = mp_image_new_ref(frame->current);
+ 
+     mp_image_unrefp(&p->next_image);
++    p->next_pts = MP_NOPTS_VALUE;
+     p->next_image = mpi;
++    if (mpi)
++        p->next_pts = frame->pts;
+     p->osd_render_ok =
+         p->last_pts == MP_NOPTS_VALUE ||
+         android_osd_overlay_render(p->osd_overlay, p->last_pts);
+     return VO_TRUE;
+ }
+ 
++static int64_t android_monotonic_time_ns(void)
++{
++    struct timespec ts;
++    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
++        return 0;
++    if (ts.tv_sec < 0 || ts.tv_sec > INT64_MAX / MP_TIME_S_TO_NS(1))
++        return 0;
++    return (int64_t)ts.tv_sec * MP_TIME_S_TO_NS(1) + ts.tv_nsec;
++}
++
+ static int query_format(struct vo *vo, int format)
+ {
+     return format == IMGFMT_MEDIACODEC;

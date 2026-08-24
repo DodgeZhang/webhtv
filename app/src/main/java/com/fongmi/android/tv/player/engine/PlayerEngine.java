@@ -1,5 +1,7 @@
 package com.fongmi.android.tv.player.engine;
 
+import androidx.media3.common.C;
+import androidx.media3.common.ColorInfo;
 import androidx.media3.common.Effect;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaEdition;
@@ -53,6 +55,9 @@ public interface PlayerEngine {
         getPlayer().stop();
     }
 
+    default void cancelPendingPrepare() {
+    }
+
     void setMetadata(MediaMetadata data);
 
     boolean isLive();
@@ -62,6 +67,10 @@ public interface PlayerEngine {
     void setTrack(List<Track> tracks);
 
     void resetTrack();
+
+default void resetTrack(int type) {
+        resetTrack();
+    }
 
     default void restoreVideoTrack() {
     }
@@ -77,6 +86,9 @@ public interface PlayerEngine {
     default void setVideoEffects(List<Effect> effects) {
     }
 
+    default void setVideoAspect(float aspectRatio, boolean stretch) {
+    }
+
     default boolean supportsNativeLut() {
         return false;
     }
@@ -86,6 +98,9 @@ public interface PlayerEngine {
     }
 
     default void setNativeLutShader(MpvLutShader shader) {
+    }
+
+    default void setNativeLutPreviewProgress(float progress) {
     }
 
     default Format getVideoFormat() {
@@ -102,6 +117,20 @@ public interface PlayerEngine {
 
     default String getRuntimeDiagnostics() {
         return "";
+    }
+
+    /** Renderer-specific GPU timing/load. Implementations must label non-system estimates. */
+    default String getGpuLoadDiagnostics() {
+        return "";
+    }
+
+    /** Enables renderer-specific sampling only while the diagnostics panel is visible. */
+    default void setGpuLoadDiagnosticsEnabled(boolean enabled) {
+    }
+
+    /** Source-track identity and runtime decode/output facts for the selected video track. */
+    default VideoPlaybackDetails getVideoPlaybackDetails() {
+        return VideoPlaybackDetails.empty();
     }
 
     default long getDroppedFrames() {
@@ -167,4 +196,112 @@ public interface PlayerEngine {
         DECODE,
         FATAL
     }
+<<<<<<< HEAD
+=======
+
+    enum DecoderKind {
+        HARDWARE,
+        SOFTWARE,
+        UNKNOWN
+    }
+
+    record PlaybackFactsSnapshot(
+            Format selectedVideoFormat,
+            Format selectedAudioFormat,
+            Format videoDecoderFormat,
+            Format audioDecoderFormat,
+            String videoDecoderName,
+            String audioDecoderName,
+            DecoderKind videoDecoderKind,
+            Boolean secureVideoDecoder,
+            String hwdecCurrent,
+            String currentVideoOutput,
+            Boolean tunneling) {
+
+        public PlaybackFactsSnapshot {
+            videoDecoderName = videoDecoderName == null ? "" : videoDecoderName;
+            audioDecoderName = audioDecoderName == null ? "" : audioDecoderName;
+            videoDecoderKind = videoDecoderKind == null ? DecoderKind.UNKNOWN : videoDecoderKind;
+            hwdecCurrent = hwdecCurrent == null ? "" : hwdecCurrent;
+            currentVideoOutput = currentVideoOutput == null ? "" : currentVideoOutput;
+        }
+
+        public static PlaybackFactsSnapshot empty() {
+            return new PlaybackFactsSnapshot(null, null, null, null, "", "",
+                    DecoderKind.UNKNOWN, null, "", "", null);
+        }
+    }
+
+    record VideoPlaybackDetails(
+            String sourceCodecs,
+            int dolbyVisionProfile,
+            int dolbyVisionLevel,
+            String decodedCodec,
+            String decoderName,
+            String hwdecCurrent,
+            ColorInfo outputColorInfo,
+            boolean dolbyVisionHdr10Fallback,
+            boolean dolbyVisionP81Conversion) {
+
+        public VideoPlaybackDetails(
+                String sourceCodecs,
+                int dolbyVisionProfile,
+                int dolbyVisionLevel,
+                String decodedCodec,
+                String decoderName,
+                String hwdecCurrent,
+                ColorInfo outputColorInfo,
+                boolean dolbyVisionHdr10Fallback) {
+            this(sourceCodecs, dolbyVisionProfile, dolbyVisionLevel,
+                    decodedCodec, decoderName, hwdecCurrent, outputColorInfo,
+                    dolbyVisionHdr10Fallback, false);
+        }
+
+        public VideoPlaybackDetails {
+            sourceCodecs = sourceCodecs == null ? "" : sourceCodecs;
+            decodedCodec = decodedCodec == null ? "" : decodedCodec;
+            decoderName = decoderName == null ? "" : decoderName;
+            hwdecCurrent = hwdecCurrent == null ? "" : hwdecCurrent;
+        }
+
+        public boolean hasDolbyVisionSource() {
+            return dolbyVisionProfile > 0;
+        }
+
+        public boolean hasEvidence() {
+            return hasDolbyVisionSource() || !sourceCodecs.isEmpty()
+                    || !decodedCodec.isEmpty() || !decoderName.isEmpty()
+                    || !hwdecCurrent.isEmpty() || outputColorInfo != null
+                    || dolbyVisionHdr10Fallback || dolbyVisionP81Conversion;
+        }
+
+        public static VideoPlaybackDetails empty() {
+            return new VideoPlaybackDetails("", C.INDEX_UNSET, C.INDEX_UNSET,
+                    "", "", "", null, false);
+        }
+    }
+
+    record RuntimeMetrics(
+            Long bandwidthBitsPerSecond,
+            Long mediaBitrateBitsPerSecond,
+            Float renderedFrameRate,
+            Long droppedFrames) {
+
+        public RuntimeMetrics {
+            bandwidthBitsPerSecond = nonNegative(bandwidthBitsPerSecond);
+            mediaBitrateBitsPerSecond = nonNegative(mediaBitrateBitsPerSecond);
+            renderedFrameRate = renderedFrameRate == null || !Float.isFinite(renderedFrameRate) || renderedFrameRate <= 0
+                    ? null : renderedFrameRate;
+            droppedFrames = nonNegative(droppedFrames);
+        }
+
+        public static RuntimeMetrics unknown() {
+            return new RuntimeMetrics(null, null, null, null);
+        }
+
+        private static Long nonNegative(Long value) {
+            return value == null || value < 0 ? null : value;
+        }
+    }
+>>>>>>> upstream/dev
 }

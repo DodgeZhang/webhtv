@@ -13,8 +13,16 @@ public abstract class HistoryDao extends BaseDao<History> {
     @Query("SELECT * FROM History")
     public abstract List<History> findAll();
 
+<<<<<<< HEAD
     @Query("SELECT * FROM History WHERE cid = :cid AND createTime >= :createTime ORDER BY createTime DESC LIMIT 60")
     public abstract List<History> find(int cid, long createTime);
+=======
+    @Query("SELECT * FROM History WHERE cid = :cid ORDER BY createTime DESC")
+    public abstract List<History> find(int cid);
+
+    @Query("SELECT * FROM History WHERE cid = :cid")
+    public abstract List<History> findAll(int cid);
+>>>>>>> upstream/dev
 
     @Query("SELECT * FROM History WHERE cid = :cid AND `key` = :key")
     public abstract History find(int cid, String key);
@@ -24,6 +32,15 @@ public abstract class HistoryDao extends BaseDao<History> {
 
     @Query("SELECT * FROM History WHERE cid = :cid AND `key` LIKE :keyPrefix || '%' ORDER BY createTime DESC")
     public abstract List<History> findByKeyPrefix(int cid, String keyPrefix);
+
+    @Query("SELECT * FROM History WHERE cid = :cid AND tmdbId = :tmdbId AND tmdbId > 0 ORDER BY createTime DESC")
+    public abstract List<History> findByTmdbId(int cid, int tmdbId);
+
+    @Query("SELECT * FROM History WHERE cid = :cid AND tmdbId = :tmdbId AND LOWER(TRIM(mediaType)) = :mediaType AND tmdbId > 0 ORDER BY createTime DESC")
+    public abstract List<History> findByTmdbIdentity(int cid, String mediaType, int tmdbId);
+
+    @Query("SELECT * FROM History WHERE tmdbId = :tmdbId AND LOWER(TRIM(mediaType)) = :mediaType AND tmdbId > 0 ORDER BY createTime DESC")
+    public abstract List<History> findByTmdbIdentity(String mediaType, int tmdbId);
 
     @Query("DELETE FROM History WHERE cid = :cid AND `key` = :key")
     public abstract int delete(int cid, String key);

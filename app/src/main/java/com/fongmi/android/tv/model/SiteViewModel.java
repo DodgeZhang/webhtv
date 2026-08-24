@@ -12,6 +12,8 @@ import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.exception.ExtractException;
 import com.fongmi.android.tv.player.karaoke.KaraokeResult;
+import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.setting.SiteBlockSetting;
 import com.fongmi.android.tv.setting.SiteHealthStore;
 import com.fongmi.android.tv.utils.Task;
 import com.google.common.util.concurrent.FluentFuture;
@@ -44,6 +46,8 @@ public class SiteViewModel extends ViewModel {
     private final Map<TaskType, AtomicInteger> taskIds;
     private final List<Future<?>> searchFuture;
     private final AtomicInteger searchEpoch;
+    private final Object searchLock;
+    private ListeningExecutorService searchExecutor;
     private KaraokeResult karaokeResult;
     private int karaokeResultAction;
 
@@ -55,6 +59,13 @@ public class SiteViewModel extends ViewModel {
         action = new MutableLiveData<>();
         searchEpoch = new AtomicInteger(0);
         searchFuture = new CopyOnWriteArrayList<>();
+<<<<<<< HEAD
+=======
+        searchLock = new Object();
+        // Player spiders can share a loopback proxy and may ignore interruption.
+        // Keep resolutions serial so a canceled source fully exits before the next starts.
+        playerExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+>>>>>>> upstream/dev
         futures = new EnumMap<>(TaskType.class);
         taskIds = new EnumMap<>(TaskType.class);
         for (TaskType type : TaskType.values()) taskIds.put(type, new AtomicInteger(0));
@@ -120,7 +131,11 @@ public class SiteViewModel extends ViewModel {
     }
 
     public void detailContent(String key, String id) {
-        execute(TaskType.RESULT, result, () -> SiteApi.detailContent(key, id));
+        detailContent(key, id, false);
+    }
+
+    public void detailContent(String key, String id, boolean refresh) {
+        execute(TaskType.RESULT, result, () -> SiteApi.detailContent(key, id, refresh));
     }
 
     public void playerContent(String key, String flag, String id) {
@@ -135,34 +150,40 @@ public class SiteViewModel extends ViewModel {
     }
 
     public void searchContent(List<Site> sites, String keyword, boolean quick) {
-        int epoch = stopSearch();
-        List<Site> tasks = new ArrayList<>();
-        for (Site site : sites) {
-            if (quick && !site.isQuickSearch()) continue;
-            tasks.add(site);
-        }
-        int total = tasks.size();
-        AtomicInteger completed = new AtomicInteger();
-        searchProgress.postValue(SearchProgress.start(total));
-        for (Site site : tasks) {
-            long start = System.currentTimeMillis();
-            FluentFuture<Result> future = FluentFuture.from(Task.largeExecutor().submit(SearchTask.create(site, keyword, quick))).withTimeout(Constant.TIMEOUT_SEARCH, TimeUnit.MILLISECONDS, Task.scheduler());
-            searchFuture.add(future);
-            future.addCallback(Task.callback(
-                    result -> {
-                        if (searchEpoch.get() != epoch) return;
-                        SiteHealthStore.recordSearch(site, true, result.getList().size(), System.currentTimeMillis() - start, "");
-                        postSearchResult(epoch, result);
-                        postSearchProgress(epoch, completed, total);
-                    },
-                    error -> {
-                        if (searchEpoch.get() != epoch) return;
-                        if (error instanceof CancellationException) return;
-                        SiteHealthStore.recordSearch(site, false, 0, System.currentTimeMillis() - start, error.getMessage());
-                        postSearchProgress(epoch, completed, total);
-                        error.printStackTrace();
-                    }
-            ), MoreExecutors.directExecutor());
+        synchronized (searchLock) {
+            int epoch = stopSearchLocked();
+            List<Site> tasks = new ArrayList<>();
+            for (Site site : sites) {
+                if (quick && !site.isQuickSearch()) continue;
+                tasks.add(site);
+            }
+            int total = tasks.size();
+            AtomicInteger completed = new AtomicInteger();
+            searchProgress.postValue(SearchProgress.start(total));
+            // A site spider may ignore interruption after its timeout. Isolate every
+            // generation so an uncooperative old worker cannot starve the next search;
+            // shutdownNow() remains best-effort because the JVM cannot forcibly stop it.
+            ListeningExecutorService executor = searchExecutor = Task.newSearchExecutor(Setting.getSearchThread());
+            for (Site site : tasks) {
+                long start = System.currentTimeMillis();
+                FluentFuture<Result> future = FluentFuture.from(executor.submit(SearchTask.create(site, keyword, quick))).withTimeout(Constant.TIMEOUT_SEARCH, TimeUnit.MILLISECONDS, Task.scheduler());
+                searchFuture.add(future);
+                future.addCallback(Task.callback(
+                        result -> {
+                            if (searchEpoch.get() != epoch) return;
+                            SiteHealthStore.recordSearch(site, true, result.getList().size(), System.currentTimeMillis() - start, "");
+                            postSearchResult(epoch, result);
+                            postSearchProgress(epoch, completed, total);
+                        },
+                        error -> {
+                            if (searchEpoch.get() != epoch) return;
+                            if (error instanceof CancellationException) return;
+                            SiteHealthStore.recordSearch(site, false, 0, System.currentTimeMillis() - start, error.getMessage());
+                            postSearchProgress(epoch, completed, total);
+                            error.printStackTrace();
+                        }
+                ), MoreExecutors.directExecutor());
+            }
         }
     }
 
@@ -206,9 +227,19 @@ public class SiteViewModel extends ViewModel {
     }
 
     public int stopSearch() {
+        synchronized (searchLock) {
+            return stopSearchLocked();
+        }
+    }
+
+    private int stopSearchLocked() {
         int epoch = searchEpoch.incrementAndGet();
         searchFuture.forEach(future -> future.cancel(true));
         searchFuture.clear();
+        if (searchExecutor != null) {
+            searchExecutor.shutdownNow();
+            searchExecutor = null;
+        }
         return epoch;
     }
 

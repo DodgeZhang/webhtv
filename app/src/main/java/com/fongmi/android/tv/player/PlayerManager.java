@@ -19,8 +19,14 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+<<<<<<< HEAD
+=======
+import androidx.media3.common.TrackSelectionParameters;
+import androidx.media3.common.Timeline;
+>>>>>>> upstream/dev
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
+import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.effect.ColorLut;
 import androidx.media3.ui.danmaku.DanmakuConfig;
 import androidx.media3.ui.danmaku.DanmakuController;
@@ -30,6 +36,11 @@ import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Constant;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.SiteApi;
+import com.fongmi.android.tv.ad.audio.AdAudioRuleStore;
+import com.fongmi.android.tv.ad.audio.AdAudioDiagnostics;
+import com.fongmi.android.tv.ad.audio.AdAudioRuntimeController;
+import com.fongmi.android.tv.ad.audio.AdAudioSetting;
+import com.fongmi.android.tv.ad.audio.AdSkipCoordinator;
 import com.fongmi.android.tv.bean.Danmaku;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Sub;
@@ -41,6 +52,31 @@ import com.fongmi.android.tv.player.engine.MpvPlayerEngine;
 import com.fongmi.android.tv.player.engine.PlaySpec;
 import com.fongmi.android.tv.player.engine.PlayerCacheState;
 import com.fongmi.android.tv.player.engine.PlayerEngine;
+<<<<<<< HEAD
+=======
+import com.fongmi.android.tv.player.engine.SystemPlayerEngine;
+import com.fongmi.android.tv.player.audio.PlaybackMediaClock;
+import com.fongmi.android.tv.player.audio.PlaybackMediaSessionController;
+import com.fongmi.android.tv.player.audio.PlaybackMediaSignalHub;
+import com.fongmi.android.tv.player.exo.TrackUtil;
+import com.fongmi.android.tv.player.exo.ExoDecoderResourceRecoveryLimiter;
+import com.fongmi.android.tv.player.exo.ExoNetworkGuardBufferPolicy;
+import com.fongmi.android.tv.player.exo.ExoNetworkGuardController;
+import com.fongmi.android.tv.player.exo.ExoNetworkGuardEligibility;
+import com.fongmi.android.tv.player.exo.ExoRtspLiveLagController;
+import com.fongmi.android.tv.player.exo.ExoRtspLiveLagPolicy;
+import com.fongmi.android.tv.player.exo.ForwardBufferTrend;
+import com.fongmi.android.tv.player.exo.PlaybackAnalyticsListener;
+import com.fongmi.android.tv.player.ijk.IjkBufferController;
+import com.fongmi.android.tv.player.ijk.IjkBufferPolicy;
+import com.fongmi.android.tv.player.ijk.IjkDecodePressureController;
+import com.fongmi.android.tv.player.ijk.IjkDecodePressurePolicy;
+import com.fongmi.android.tv.player.ijk.IjkRealtimeRecoveryController;
+import com.fongmi.android.tv.player.ijk.IjkRealtimeRecoveryPolicy;
+import com.fongmi.android.tv.player.ijk.IjkRuntimeProfileController;
+import com.fongmi.android.tv.player.ijk.IjkRuntimeProfilePolicy;
+import com.fongmi.android.tv.player.ijk.IjkRuntimeProfiles;
+>>>>>>> upstream/dev
 import com.fongmi.android.tv.player.danmaku.DanmakuUrlPolicy;
 import com.fongmi.android.tv.player.danmaku.LiveDanmakuBatcher;
 import com.fongmi.android.tv.player.danmaku.LiveDanmakuBuffer;
@@ -58,9 +94,37 @@ import com.fongmi.android.tv.player.lut.MpvLutShader;
 import com.fongmi.android.tv.player.lut.MpvLutShaderFactory;
 import com.fongmi.android.tv.player.mpv.MpvAutoOutputPolicy;
 import com.fongmi.android.tv.player.mpv.MpvConfigStore;
+<<<<<<< HEAD
 import com.fongmi.android.tv.setting.DanmakuSetting;
 import com.fongmi.android.tv.setting.MpvPerformanceSetting;
+=======
+import com.fongmi.android.tv.player.mpv.MpvForwardCacheController;
+import com.fongmi.android.tv.player.mpv.MpvForwardCachePolicy;
+import com.fongmi.android.tv.player.mpv.MpvHlsVariantController;
+import com.fongmi.android.tv.player.mpv.MpvHlsVariantPolicy;
+import com.fongmi.android.tv.player.mpv.MpvPreloadController;
+import com.fongmi.android.tv.player.mpv.MpvPreloadPolicy;
+import com.fongmi.android.tv.player.mpv.MpvResourcePressureController;
+import com.fongmi.android.tv.player.mpv.MpvResourcePressurePolicy;
+import com.fongmi.android.tv.player.mpv.MpvVulkanBackendPolicy;
+import com.fongmi.android.tv.server.proxy.MultiThreadProxy;
+import com.fongmi.android.tv.server.proxy.ProxyPlaybackPolicy;
+import com.fongmi.android.tv.server.proxy.ProxyRuntimeConfig;
+import com.fongmi.android.tv.server.proxy.ProxyStreamRegistration;
+import com.fongmi.android.tv.setting.DanmakuSetting;
+import com.fongmi.android.tv.setting.SiteHealthStore;
+import com.fongmi.android.tv.setting.ExoPerformanceSetting;
+import com.fongmi.android.tv.setting.IjkPerformanceSetting;
+import com.fongmi.android.tv.setting.MpvPerformanceSetting;
+import com.fongmi.android.tv.setting.MultiThreadProxySetting;
+import com.fongmi.android.tv.setting.PlaybackExperimentSetting;
+import com.fongmi.android.tv.setting.PlaybackLightweightAssessmentSetting;
+import com.fongmi.android.tv.setting.PlaybackPerformanceCatalog;
+import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
+import com.fongmi.android.tv.setting.PlaybackProfileAbSetting;
+>>>>>>> upstream/dev
 import com.fongmi.android.tv.setting.PlayerSetting;
+import com.fongmi.android.tv.subtitle.RealtimeSubtitleController;
 import com.fongmi.android.tv.utils.LocalProxyDebug;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
@@ -76,27 +140,54 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class PlayerManager implements ParseCallback {
 
     public static final String RELOAD_LUT_WARMUP = "__webhtv_lut_warmup_reload__";
+<<<<<<< HEAD
+=======
+    static final int FALLBACK_NONE = 0;
+    static final int FALLBACK_DECODE = 1;
+    static final int FALLBACK_PLAYER = 2;
+    private static final String NETWORK_GUARD_DEBUG = "EXO_NETWORK_GUARD";
+
+    private static void logNetworkGuard(String message) {
+        if (SpiderDebug.isEnabled()) Log.d(NETWORK_GUARD_DEBUG, message);
+    }
+>>>>>>> upstream/dev
 
     private static final long LOCAL_PROXY_READY_TIMEOUT_MS = 5000;
     private static final long LOCAL_PROXY_RETRY_DELAY_MS = 1000;
     private static final long HARD_DECODE_SWITCH_RETRY_DELAY_MS = 1200;
     private static final long MPV_AUTO_OUTPUT_PROBE_INTERVAL_MS = 250;
     private static final int LOCAL_PROXY_MAX_RETRY = 2;
+    private static final int PLAYER_COUNT = PlayerSetting.MPV + 1;
     private static final int MPV_AUTO_OUTPUT_PROBE_MAX_ATTEMPTS = 20;
     private static final int LUT_WARMUP_RECOVERED_ERROR_REFRESH_THRESHOLD = 3;
     private static final long DANMAKU_FORCE_RELOAD_DEBOUNCE_MS = 10000;
     private static final long LIVE_DANMAKU_METRICS_INTERVAL_MS = 15000L;
+<<<<<<< HEAD
+=======
+    private static final long PLAYBACK_TELEMETRY_INTERVAL_MS = 5000L;
+    private static final long MPV_FRAME_TIMING_LOG_INTERVAL_MS = 5000L;
+    private static final long LUT_PREVIEW_FRAME_INTERVAL_MS = 16L;
+>>>>>>> upstream/dev
     private static final float[] SPEED_PRESETS = new float[]{0.5f, 0.75f, 1f, 1.2f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 5f};
     private static final DecimalFormat SPEED_FORMAT = new DecimalFormat("0.##x");
+    private static final Pattern HTTP_STATUS = Pattern.compile("(?i)(?:response code|http status|http error)\\D+(\\d{3})");
 
     private final Runnable runnable;
     private final Runnable liveDanmakuMetricsRunnable;
     private final Callback callback;
+    private final PlaybackMediaSignalHub mediaSignals = new PlaybackMediaSignalHub(8);
+    private final PlaybackMediaClock mediaClock = new PlaybackMediaClock(500L);
+    private final PlaybackMediaSessionController mediaSession =
+            new PlaybackMediaSessionController(mediaSignals, mediaClock);
+    private final AdAudioRuntimeController adAudioRuntime;
     private final DynamicLutEffect dynamicLutEffect;
     private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
     private final BroadcastReceiver noisyReceiver;
@@ -105,13 +196,17 @@ public class PlayerManager implements ParseCallback {
     private final LiveDanmakuBatcher liveDanmakuBatcher;
     private final LiveDanmakuBuffer liveDanmakuBuffer;
     private final LiveDanmakuMetrics liveDanmakuMetrics;
+    private final SpeedToggleState speedToggleState;
+    private final ExoSpeedRestoreState exoSpeedRestoreState;
     private DanmakuController danmakuController;
     private LiveDanmakuWebSocketSession liveDanmakuSession;
     private PlayerEngine engine;
     private VideoSize videoSize;
     private ParseJob parseJob;
     private PlaySpec spec;
+    private ProxyStreamRegistration multiThreadProxyRegistration;
     private Player player;
+    private TrackSelectionParameters realtimeSubtitleTrackSelection;
     private String currentDanmakuUrl;
     private String currentDanmakuKey;
     private String loadingDanmakuKey;
@@ -120,6 +215,7 @@ public class PlayerManager implements ParseCallback {
     private volatile long liveDanmakuGeneration;
     private volatile boolean liveDanmakuPlaybackActive;
     private long pendingSwitchPositionMs = C.TIME_UNSET;
+    private long pendingInitialStartPositionMs = C.TIME_UNSET;
     private float pendingSwitchSpeed = 1f;
     private boolean danmakuLoadInProgress;
     private boolean danmakuForeground = true;
@@ -133,6 +229,7 @@ public class PlayerManager implements ParseCallback {
     private boolean initTrack;
     private boolean videoEffectsActive;
     private boolean videoEffectsDirty;
+    private boolean parseHealthRecorded;
     private boolean lutAppliedForItem;
     private boolean lutApplyInProgress;
     private boolean lutPipelineReadyForItem;
@@ -145,18 +242,48 @@ public class PlayerManager implements ParseCallback {
     private boolean lutWarmupReloadPreviewPending;
     private boolean hardDecodeSwitchRetryArmed;
     private boolean lutAllowed = true;
+    private boolean manualPlayerSwitchPending;
     private boolean mpvAutoOutputEvaluated;
     private boolean mpvAutoOutputEvaluationScheduled;
     private boolean mpvExplicitSubtitlePreference;
     private boolean mpvSurfaceFallbackTried;
+<<<<<<< HEAD
+=======
+    private boolean mpvVulkanFallbackTried;
+    private boolean mpvCopyFallbackTried;
+    private boolean mpvHlsManagedReload;
+    private boolean ijkBufferManagedReload;
+    private boolean ijkRuntimeTemporaryFallback;
+    private boolean ijkRuntimeManualOverride;
+    private boolean pendingIjkRuntimeFallbackReparse;
+    private boolean playbackForeground;
+    private boolean exoDecoderResourceRecoveryInProgress;
+>>>>>>> upstream/dev
     private int playerType;
     private int retry;
     private int localProxyRetry;
     private int prepareSeq;
     private int lutApplySeq;
+    private long parseHealthStartedAt;
+    private boolean[] playerFallbackTried;
+    private boolean[] ffmpegModeFallbackTried;
+    private boolean ffmpegModeEngineRefreshPending;
+    private int ffmpegModeEngine = PlayerSetting.NONE;
     private int lutWarmupRecoveredErrors;
     private int mpvOutputEvaluationSeq;
     private int mpvAutoOutputProbeAttempts;
+<<<<<<< HEAD
+=======
+    private float userPlaybackSpeed = 1f;
+    private float networkProtectionSpeed = 1f;
+    private float networkProtectionSupportedSpeed = 1f;
+    private long networkProtectionMediaBitrate;
+    private long lastMpvFrameTimingLogMs;
+    private ExoNetworkGuardController.State networkProtectionState = ExoNetworkGuardController.State.NORMAL;
+    private ExoNetworkGuardController.ProtectionTier networkProtectionTier = ExoNetworkGuardController.ProtectionTier.NONE;
+    private String networkProtectionReason = "waiting";
+    private PlaybackExperimentCoordinator.Token networkProtectionExperimentToken;
+>>>>>>> upstream/dev
 
     public PlayerManager(Callback callback) {
         this.runnable = this::onPlaybackTimeout;
@@ -166,6 +293,8 @@ public class PlayerManager implements ParseCallback {
         this.liveDanmakuBuffer = new LiveDanmakuBuffer();
         this.liveDanmakuMetrics = new LiveDanmakuMetrics();
         this.liveDanmakuBatcher = new LiveDanmakuBatcher(liveDanmakuBuffer, this::onLiveDanmakuBatch);
+        this.speedToggleState = new SpeedToggleState();
+        this.exoSpeedRestoreState = new ExoSpeedRestoreState();
         this.dynamicLutEffect = new DynamicLutEffect();
         this.audioFocusChangeListener = this::onNativeAudioFocusChanged;
         this.noisyReceiver = new BroadcastReceiver() {
@@ -176,14 +305,31 @@ public class PlayerManager implements ParseCallback {
             }
         };
         this.playerType = PlayerSetting.getPlayer();
+        this.playerFallbackTried = new boolean[PLAYER_COUNT];
+        clearFfmpegModeFallbackState();
+        this.adAudioRuntime = new AdAudioRuntimeController(
+                mediaSignals, mediaClock, AdAudioRuleStore.get()::load,
+                new AdAudioPlaybackPort());
+        this.adAudioRuntime.start(AdAudioSetting.isEnabled());
+        mediaSession.begin(0L);
         this.engine = buildEngine(playerType, PlayerEngine.HARD);
         this.player = engine.getPlayer();
         this.callback = callback;
     }
 
     public void release() {
+        mediaSession.beforeRelease();
+        adAudioRuntime.close();
         prepareSeq++;
+        exoSpeedRestoreState.clear();
         lutApplySeq++;
+<<<<<<< HEAD
+=======
+        clearFfmpegModeFallbackState();
+        ffmpegModeEngine = PlayerSetting.NONE;
+        resetNetworkProtectionSession("release");
+        clearExoDecoderResourceRecovery(true);
+>>>>>>> upstream/dev
         player.removeListener(listener);
         App.removeCallbacks(runnable);
         stopNativeAudioSession();
@@ -193,16 +339,31 @@ public class PlayerManager implements ParseCallback {
         App.removeCallbacks(liveDanmakuMetricsRunnable);
         if (danmakuController != null) danmakuController.setListener(null);
         danmakuController = null;
+<<<<<<< HEAD
         if (engine == null) return;
+=======
+        endPlaybackTelemetrySession("release");
+        clearPlaybackAutoContext();
+        ijkRuntimeTemporaryFallback = false;
+        ijkRuntimeManualOverride = false;
+        pendingIjkRuntimeFallbackReparse = false;
+        closeMultiThreadProxyRegistration();
+        if (engine == null) {
+            mediaSession.close();
+            return;
+        }
+>>>>>>> upstream/dev
         engine.release();
         engine = null;
         player = null;
+        realtimeSubtitleTrackSelection = null;
         videoEffectsActive = false;
         videoEffectsDirty = false;
         lutAppliedForItem = false;
         lutApplyInProgress = false;
         lutPipelineReadyForItem = false;
         lutPipelinePrepareInProgress = false;
+        mediaSession.close();
         pendingLutPreview = false;
         waitingLutBeforePlay = false;
         lutWarmupReloadPreviewPending = false;
@@ -212,11 +373,38 @@ public class PlayerManager implements ParseCallback {
         lastLoggedRouteTraceId = PlaybackTrace.NONE;
     }
 
+<<<<<<< HEAD
     private void onPlaybackTimeout() {
         if (retryLutWarmupByRefresh("timeout")) return;
         callback.onError(ResUtil.getString(R.string.error_play_timeout));
     }
 
+=======
+    private boolean experimentAllowed(PlaybackExperimentPolicy.Action action) {
+        return PlaybackExperimentSetting.isAllowed(action);
+    }
+
+    private void onPlaybackExperimentPolicyChanged(
+            PlaybackExperimentCoordinator.Update update) {
+        if (update == null) return;
+        invalidatePlaybackProfileAssessments(
+                PlaybackProfileAbCoordinator.InvalidationReason
+                        .GENERATION_CHANGED);
+        PlaybackExperimentPolicy.State policy =
+                PlaybackExperimentSetting.getState();
+        PlaybackTrace.log(
+                "playback-experiment",
+                playbackTrace.current(),
+                "generation=%d change=%s strategy=%s frameAb=%s profileAb=%s action=invalidate-internal-experiments",
+                update.generation(),
+                update.change(),
+                policy.strategyId(),
+                policy.allows(PlaybackExperimentPolicy.Action
+                        .EXO_FRAME_SCHEDULING_AB),
+                policy.allows(PlaybackExperimentPolicy.Action
+                        .SHARED_PROFILE_AB_VALIDATION));
+    }
+>>>>>>> upstream/dev
     private void resetLutRuntimeState(String reason, boolean clearEngineEffects) {
         lutApplySeq++;
         if (clearEngineEffects && engine != null && engine.supportsNativeLut()) {
@@ -286,8 +474,31 @@ public class PlayerManager implements ParseCallback {
         return spec != null ? spec.getDanmakus() : null;
     }
 
+    public Sub getSelectedSubtitleSub() {
+        return spec == null ? null : findSelectedSubtitleSub(spec.getSubs(), getCurrentTracks());
+    }
+
+    public List<Sub> getSubtitleSubs() {
+        return spec == null || spec.getSubs() == null ? Collections.emptyList() : spec.getSubs();
+    }
+
     public MediaMetadata getMetadata() {
         return spec != null ? spec.getMetadata() : null;
+    }
+
+    public Result getCurrentResult() {
+        return snapshotCurrentResult(spec);
+    }
+
+    static Result snapshotCurrentResult(PlaySpec spec) {
+        if (spec == null) return Result.empty();
+        return Result.playbackSnapshot(
+                spec.getParseResult(),
+                spec.getUrl(),
+                spec.getHeaders(),
+                spec.getFormat(),
+                spec.getDrm(),
+                spec.getSubs());
     }
 
     public Map<String, String> getHeaders() {
@@ -295,7 +506,51 @@ public class PlayerManager implements ParseCallback {
     }
 
     public float getSpeed() {
+<<<<<<< HEAD
         return player.getPlaybackParameters().speed;
+=======
+        return userPlaybackSpeed;
+    }
+
+    public float getEffectiveSpeed() {
+        return player == null ? userPlaybackSpeed : player.getPlaybackParameters().speed;
+    }
+
+    public String getNetworkProtectionText() {
+        if (!isExo() || !ExoPerformanceSetting.isNetworkProtectionEnabled()) return "";
+        if (Math.abs(userPlaybackSpeed - 1f) > 0.001f) return "手动倍速时停用";
+        if (!isVod()) return "仅支持点播";
+        ExoNetworkGuardEligibility.Decision eligibility = getNetworkProtectionEligibility();
+        if (!eligibility.eligible()) return "未启用";
+        return switch (networkProtectionState) {
+            case NORMAL -> "正常";
+            case WARNING -> "评估中";
+            case PROTECT -> "降速中";
+            case RECOVERY -> "恢复中";
+            case UNSUSTAINABLE -> "网络不足";
+        };
+    }
+
+    public long getNetworkProtectionMediaBitrate() {
+        return networkProtectionMediaBitrate;
+    }
+
+    /** Runtime metrics reported by the active native engine, or unknown when absent. */
+    public PlayerEngine.RuntimeMetrics getRuntimeMetrics() {
+        return engine == null ? PlayerEngine.RuntimeMetrics.unknown() : engine.getRuntimeMetrics();
+    }
+
+    public long getNetworkProtectionStableThroughput() {
+        return networkProtectionMediaBitrate <= 0 ? 0 : Math.max(0, Math.round(networkProtectionMediaBitrate * networkProtectionSupportedSpeed));
+    }
+
+    public long getNetworkProtectionConsumption() {
+        return networkProtectionMediaBitrate <= 0 ? 0 : Math.max(0, Math.round(networkProtectionMediaBitrate * getEffectiveSpeed()));
+    }
+
+    public float getNetworkProtectionSupportedSpeed() {
+        return networkProtectionSupportedSpeed;
+>>>>>>> upstream/dev
     }
 
     public boolean isEmpty() {
@@ -311,11 +566,11 @@ public class PlayerManager implements ParseCallback {
     }
 
     public boolean isLive() {
-        return engine.isLive();
+        return engine != null && engine.isLive();
     }
 
     public boolean isVod() {
-        return engine.isVod();
+        return engine != null && engine.isVod();
     }
 
     public boolean haveTrack(int type) {
@@ -350,6 +605,35 @@ public class PlayerManager implements ParseCallback {
         return player.getCurrentPosition();
     }
 
+    public PlaybackMediaSignalHub mediaSignals() {
+        return mediaSignals;
+    }
+
+    public PlaybackMediaClock mediaClock() {
+        return mediaClock;
+    }
+
+    public void bindAdAudioUi(AdSkipCoordinator.UiPort ui) {
+        if (isReleased()) return;
+        adAudioRuntime.start(AdAudioSetting.isEnabled());
+        adAudioRuntime.bindUi(ui);
+        refreshAdAudioRuntime();
+    }
+
+    public void unbindAdAudioUi() {
+        adAudioRuntime.unbindUi();
+    }
+
+    public void reloadAdAudioRules() {
+        if (isReleased()) return;
+        adAudioRuntime.start(AdAudioSetting.isEnabled());
+        refreshAdAudioRuntime();
+    }
+
+    public AdAudioDiagnostics.Snapshot adAudioDiagnostics() {
+        return adAudioRuntime.diagnostics();
+    }
+
     public long getBufferedDuration() {
         return Math.max(0, player.getBufferedPosition() - getPosition());
     }
@@ -375,6 +659,28 @@ public class PlayerManager implements ParseCallback {
         return width <= 0 || height <= 0 ? "" : width + " x " + height;
     }
 
+    public String getVideoParamsText() {
+        StringBuilder builder = new StringBuilder();
+        append(builder, "分辨率", getSizeText());
+        Format video = getSelectedFormat(C.TRACK_TYPE_VIDEO);
+        Format audio = getSelectedFormat(C.TRACK_TYPE_AUDIO);
+        if (video != null) {
+            if (video.frameRate > 0) append(builder, "帧率", String.format(Locale.getDefault(), "%.2f fps", video.frameRate));
+            append(builder, "视频编码", firstText(video.codecs, video.sampleMimeType, video.containerMimeType));
+            append(builder, "视频码率", formatBitrate(video.averageBitrate > 0 ? video.averageBitrate : video.peakBitrate));
+        }
+        if (audio != null) {
+            append(builder, "音频编码", firstText(audio.codecs, audio.sampleMimeType, audio.containerMimeType));
+            append(builder, "采样率", audio.sampleRate > 0 ? audio.sampleRate + " Hz" : "");
+            append(builder, "声道", audio.channelCount > 0 ? String.valueOf(audio.channelCount) : "");
+            append(builder, "音频码率", formatBitrate(audio.averageBitrate > 0 ? audio.averageBitrate : audio.peakBitrate));
+        }
+        append(builder, "解码", getDecodeText());
+        append(builder, "倍速", getSpeedText());
+        append(builder, "时长", getDurationTime());
+        return builder.toString();
+    }
+
     public Format getVideoFormat() {
         return engine.getVideoFormat();
     }
@@ -389,6 +695,20 @@ public class PlayerManager implements ParseCallback {
 
     public String getRuntimeDiagnostics() {
         return engine == null ? "" : engine.getRuntimeDiagnostics();
+    }
+
+    public String getGpuLoadDiagnostics() {
+        return engine == null ? "" : engine.getGpuLoadDiagnostics();
+    }
+
+    public void setGpuLoadDiagnosticsEnabled(boolean enabled) {
+        if (engine != null) engine.setGpuLoadDiagnosticsEnabled(enabled);
+    }
+
+    public PlayerEngine.VideoPlaybackDetails getVideoPlaybackDetails() {
+        return engine == null
+                ? PlayerEngine.VideoPlaybackDetails.empty()
+                : engine.getVideoPlaybackDetails();
     }
 
     public long getDroppedFrames() {
@@ -426,6 +746,10 @@ public class PlayerManager implements ParseCallback {
         if (engine != null) engine.setSubtitleStyle(textSize, position);
     }
 
+    public void setVideoAspect(float aspectRatio, boolean stretch) {
+        if (engine != null) engine.setVideoAspect(aspectRatio, stretch);
+    }
+
     public String getSpeedText() {
         return SPEED_FORMAT.format(getSpeed());
     }
@@ -439,7 +763,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public String getPlayerText() {
-        return ResUtil.getStringArray(R.array.select_player_kernel)[playerType];
+        return getPlayerText(playerType);
     }
 
     public int getPlayerType() {
@@ -460,8 +784,103 @@ public class PlayerManager implements ParseCallback {
         return LutEligibility.getUnavailableReason(engine, spec);
     }
 
+    public boolean selectLut(@Nullable LutPreset preset, boolean preview) {
+        if (preset != null) {
+            String reason = getLutUnavailableReason();
+            if (!TextUtils.isEmpty(reason)) {
+                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-ui", "reject preset=%s reason=%s", preset.getId(), reason);
+                Notify.show(reason);
+                return false;
+            }
+        }
+        LutSetting.select(preset);
+        callback.onPlayerRenderRequired();
+        if (preset != null && preview) applyLutPreview(true);
+        else applyLut(true);
+        return true;
+    }
+
     public boolean isIjk() {
         return playerType == PlayerSetting.IJK;
+    }
+
+    public boolean useNativeVideoOutput() {
+        return PlayerSetting.useNativeVideoOutput(playerType);
+    }
+
+    private String getPlayerText(int type) {
+        String[] items = ResUtil.getStringArray(R.array.select_player_kernel);
+        return type >= 0 && type < items.length ? items[type] : items[PlayerSetting.EXO];
+    }
+
+    private Format getSelectedFormat(int type) {
+        return getSelectedFormat(getCurrentTracks(), type);
+    }
+
+    static Format getSelectedFormat(Tracks tracks, int type) {
+        if (tracks == null || tracks.isEmpty()) return null;
+        for (Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != type) continue;
+            for (int i = 0; i < group.length; i++) {
+                if (group.isTrackSelected(i)) return group.getTrackFormat(i);
+            }
+        }
+        return null;
+    }
+
+    static Sub findSelectedSubtitleSub(List<Sub> subs, Tracks tracks) {
+        Sub selected = findSubtitleSub(subs, getSelectedFormat(tracks, C.TRACK_TYPE_TEXT));
+        if (selected != null || hasTrack(tracks, C.TRACK_TYPE_TEXT)) return selected;
+        return firstSubtitleSub(subs);
+    }
+
+    static Sub findSubtitleSub(List<Sub> subs, Format format) {
+        if (subs == null || format == null) return null;
+        Sub mimeLanguageMatch = null;
+        for (Sub sub : subs) {
+            if (sub == null) continue;
+            if (!TextUtils.isEmpty(format.label) && TextUtils.equals(format.label, sub.getName()) && mimeMatches(sub, format)) return sub;
+            if (TextUtils.isEmpty(format.label) && mimeMatches(sub, format) && languageMatches(sub, format)) {
+                if (mimeLanguageMatch != null) return null;
+                mimeLanguageMatch = sub;
+            }
+        }
+        return mimeLanguageMatch;
+    }
+
+    private static boolean hasTrack(Tracks tracks, int type) {
+        if (tracks == null || tracks.isEmpty()) return false;
+        for (Tracks.Group group : tracks.getGroups()) if (group.getType() == type && group.length > 0) return true;
+        return false;
+    }
+
+    private static Sub firstSubtitleSub(List<Sub> subs) {
+        if (subs == null) return null;
+        for (Sub sub : subs) if (sub != null && !TextUtils.isEmpty(sub.getUrl())) return sub;
+        return null;
+    }
+
+    private static boolean mimeMatches(Sub sub, Format format) {
+        return TextUtils.isEmpty(format.sampleMimeType) || TextUtils.isEmpty(sub.getFormat()) || TextUtils.equals(format.sampleMimeType, sub.getFormat());
+    }
+
+    private static boolean languageMatches(Sub sub, Format format) {
+        return TextUtils.isEmpty(format.language) || TextUtils.isEmpty(sub.getLang()) || TextUtils.equals(format.language, sub.getLang());
+    }
+
+    private static void append(StringBuilder builder, String name, String value) {
+        if (TextUtils.isEmpty(value)) return;
+        builder.append(name).append(" : ").append(value).append("\n");
+    }
+
+    private static String firstText(String... values) {
+        for (String value : values) if (!TextUtils.isEmpty(value)) return value;
+        return "";
+    }
+
+    private static String formatBitrate(int bitrate) {
+        if (bitrate <= 0) return "";
+        return bitrate >= 1_000_000 ? String.format(Locale.getDefault(), "%.2f Mbps", bitrate / 1_000_000f) : bitrate / 1000 + " Kbps";
     }
 
     public boolean isMpv() {
@@ -474,6 +893,13 @@ public class PlayerManager implements ParseCallback {
 
     public boolean isExo() {
         return playerType == PlayerSetting.EXO;
+    }
+
+    public boolean requiresTextureRenderForLut() {
+        return isExo()
+                && LutSetting.isEnabled()
+                && canWarmLutPipeline()
+                && TextUtils.isEmpty(getLutUnavailableReason());
     }
 
     public boolean isNativePlayer() {
@@ -494,8 +920,17 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void setSub(Sub sub) {
-        if (spec != null) spec.setSub(sub);
-        setMediaItem();
+        if (sub == null || spec == null) return;
+        Track.delete(getKey(), C.TRACK_TYPE_TEXT);
+        engine.resetTrack(C.TRACK_TYPE_TEXT);
+        spec.setSub(sub);
+        boolean automaticOutput = MpvPerformanceSetting.getOutputMode() == MpvPerformanceSetting.OUTPUT_AUTO;
+        if (MpvAutoOutputPolicy.shouldLeaveSurfaceDirectForSubtitle(automaticOutput, isMpvSurfaceDirect(), true, false)) {
+            resetMpvOutputEvaluationState();
+            rebuildAndRestartMpv(false, "external-subtitle-selected");
+        } else {
+            restartCurrentItemWithState();
+        }
     }
 
     public void setFormat(String format) {
@@ -596,9 +1031,226 @@ public class PlayerManager implements ParseCallback {
     }
 
     public String setSpeed(float speed) {
+        speedToggleState.clear();
+        return applySpeed(speed);
+    }
+
+    private String applySpeed(float speed) {
         if (!player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) return getSpeedText();
+<<<<<<< HEAD
         player.setPlaybackParameters(player.getPlaybackParameters().withSpeed(speed));
         return getSpeedText();
+=======
+        RealtimeSubtitleController realtime = RealtimeSubtitleController.get();
+        if (Math.abs(speed - 1f) > 0.001f && (realtime.isEnabled() || realtime.isPreparing())) {
+            realtime.disable();
+            Notify.show(R.string.subtitle_realtime_speed_disabled);
+        }
+        if (Math.abs(speed - userPlaybackSpeed) >= 0.001f) {
+            invalidatePlaybackProfileAssessments(
+                    PlaybackProfileAbCoordinator.InvalidationReason.USER_SPEED);
+        }
+        userPlaybackSpeed = speed;
+        resetNetworkProtectionSession("user-speed");
+        if (Math.abs(speed - 1f) < 0.001f) scheduleNetworkProtection(0);
+        return getSpeedText();
+    }
+
+    private void applyEffectiveSpeed(float speed, String reason) {
+        if (player == null || !player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) {
+            logNetworkGuard("apply skipped reason=" + reason + " player=" + (player != null)
+                    + " command=" + (player != null && player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)));
+            return;
+        }
+        float current = player.getPlaybackParameters().speed;
+        if (Math.abs(speed - userPlaybackSpeed) >= 0.001f) {
+            invalidatePlaybackProfileAssessments(
+                    PlaybackProfileAbCoordinator.InvalidationReason
+                            .SPEED_RESCUE_CONFOUND);
+        }
+        logNetworkGuard(String.format(java.util.Locale.US,
+                "apply request reason=%s requested=%.3f current=%.3f user=%.3f state=%d playing=%s loading=%s",
+                reason, speed, current, userPlaybackSpeed, player.getPlaybackState(), player.isPlaying(), player.isLoading()));
+        if (Math.abs(current - speed) < 0.001f) return;
+        player.setPlaybackParameters(player.getPlaybackParameters().withSpeed(speed));
+        logNetworkGuard(String.format(java.util.Locale.US,
+                "apply result reason=%s requested=%.3f actual=%.3f", reason, speed, player.getPlaybackParameters().speed));
+        PlaybackTrace.log("exo-network-protection", playbackTrace.current(), "speed %.3f->%.3f reason=%s user=%.2f", current, speed, reason, userPlaybackSpeed);
+    }
+
+    private void resetNetworkProtectionSession(String reason) {
+        App.removeCallbacks(networkProtectionRunnable);
+        networkProtectionController.reset();
+        networkProtectionTrend.reset();
+        networkProtectionState = ExoNetworkGuardController.State.NORMAL;
+        networkProtectionTier = ExoNetworkGuardController.ProtectionTier.NONE;
+        networkProtectionReason = reason;
+        networkProtectionSpeed = 1f;
+        networkProtectionSupportedSpeed = 1f;
+        networkProtectionMediaBitrate = 0;
+        networkProtectionExperimentToken = null;
+        if (isExo() && exoSpeedRestoreState.deferSpeed(userPlaybackSpeed)) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "exo speed deferred target=%.2f reason=%s", userPlaybackSpeed, reason);
+        } else {
+            applyEffectiveSpeed(userPlaybackSpeed, reason);
+        }
+    }
+
+    private ExoNetworkGuardEligibility.Decision getNetworkProtectionEligibility() {
+        return ExoNetworkGuardEligibility.resolve(new ExoNetworkGuardEligibility.Request(
+                ExoPerformanceSetting.isNetworkProtectionEnabled()
+                        && experimentAllowed(
+                        PlaybackExperimentPolicy.Action.EXO_NETWORK_SPEED),
+                player != null && isExo(),
+                isVod(),
+                Math.abs(userPlaybackSpeed - 1f) < 0.001f,
+                player != null && player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH),
+                PlayerSetting.isTunnel(),
+                PlayerSetting.isAudioPassThrough(PlayerSetting.EXO)));
+    }
+
+    private void scheduleNetworkProtection(long delayMs) {
+        App.removeCallbacks(networkProtectionRunnable);
+        ExoNetworkGuardEligibility.Decision eligibility = getNetworkProtectionEligibility();
+        logNetworkGuard("schedule delay=" + delayMs + " eligible=" + eligibility.eligible()
+                + " reason=" + eligibility.reason() + " exo=" + isExo() + " vod=" + isVod()
+                + " userSpeed=" + userPlaybackSpeed + " tunnel=" + PlayerSetting.isTunnel()
+                + " passthrough=" + PlayerSetting.isAudioPassThrough(PlayerSetting.EXO)
+                + " state=" + (player == null ? -1 : player.getPlaybackState())
+                + " playing=" + (player != null && player.isPlaying()));
+        if (!eligibility.eligible()) {
+            if (networkProtectionSpeed < 0.999f) resetNetworkProtectionSession(eligibility.reason());
+            else {
+                networkProtectionState = ExoNetworkGuardController.State.NORMAL;
+                networkProtectionTier = ExoNetworkGuardController.ProtectionTier.NONE;
+                networkProtectionReason = eligibility.reason();
+            }
+            return;
+        }
+        if (player.getPlaybackState() != Player.STATE_READY || !player.isPlaying()) return;
+        networkProtectionExperimentToken = playbackExperimentCoordinator.capture(
+                PlaybackExperimentPolicy.Action.EXO_NETWORK_SPEED);
+        App.post(networkProtectionRunnable, delayMs);
+    }
+
+    private void evaluateNetworkProtection() {
+        if (player == null) return;
+        if (!playbackExperimentCoordinator.isCurrent(
+                networkProtectionExperimentToken)
+                || !experimentAllowed(
+                PlaybackExperimentPolicy.Action.EXO_NETWORK_SPEED)) {
+            resetNetworkProtectionSession("experiment-disabled");
+            return;
+        }
+        ExoNetworkGuardEligibility.Decision eligibility = getNetworkProtectionEligibility();
+        boolean eligible = eligibility.eligible();
+        long nowMs = SystemClock.elapsedRealtime();
+        boolean ready = player.getPlaybackState() == Player.STATE_READY;
+        boolean playing = player.isPlaying();
+        boolean loading = player.isLoading();
+        long bufferedMs = Math.max(0, player.getTotalBufferedDuration());
+        networkProtectionTrend.observe(
+                nowMs,
+                bufferedMs,
+                eligible && ready && playing,
+                loading);
+        ForwardBufferTrend.Snapshot trend = networkProtectionTrend.snapshot();
+        PlaybackAnalyticsListener.Snapshot analytics = PlaybackAnalyticsListener.getSnapshot();
+        PlaybackAnalyticsListener.DisplayMediaBitrateEstimate media = PlaybackAnalyticsListener.getDisplayMediaBitrateEstimate(getVideoFormat());
+        boolean networkEstimateKnown = isTrustedNetworkEstimate(analytics, media);
+        float networkSupportedSpeed = networkEstimateKnown ? Math.min(2f, analytics.bandwidthEstimate() * 0.90f / media.bitrateBitsPerSecond()) : 1f;
+        long safeBufferMs = getNetworkProtectionSafeBufferMs();
+        float previousEffectiveSpeed = getEffectiveSpeed();
+        ExoNetworkGuardController.State previousState = networkProtectionState;
+        ExoNetworkGuardController.ProtectionTier previousTier = networkProtectionTier;
+        ExoNetworkGuardController.Decision decision = networkProtectionController.evaluate(new ExoNetworkGuardController.Input(
+                nowMs,
+                eligible,
+                ready,
+                playing,
+                loading,
+                bufferedMs,
+                trend.known(),
+                trend.slopeMsPerSecond(),
+                trend.fastSlopeMsPerSecond(),
+                trend.slowSlopeMsPerSecond(),
+                trend.windowMs(),
+                analytics.rebufferCount(),
+                previousEffectiveSpeed,
+                ExoPerformanceSetting.getNetworkProtectionMinimumSpeed(),
+                safeBufferMs,
+                networkEstimateKnown,
+                networkSupportedSpeed));
+        logNetworkGuard(String.format(java.util.Locale.US,
+                "evaluate eligible=%s ready=%s playing=%s loading=%s buffered=%d safe=%d trendKnown=%s slope=%d fast=%d slow=%d window=%d rebuffer=%d current=%.3f networkKnown=%s networkSupported=%.3f decision=%s tier=%s reason=%s changed=%s target=%.3f supported=%.3f raw=%.3f calculated=%.3f tte=%d ttr=%d requiredSlew=%.4f appliedSlew=%.4f feasible=%s",
+                eligible, ready, playing, loading, bufferedMs, safeBufferMs, trend.known(), trend.slopeMsPerSecond(),
+                trend.fastSlopeMsPerSecond(), trend.slowSlopeMsPerSecond(), trend.windowMs(), analytics.rebufferCount(),
+                getEffectiveSpeed(), networkEstimateKnown, networkSupportedSpeed, decision.state(), decision.tier(), decision.reason(),
+                decision.changed(), decision.targetSpeed(), decision.supportedSpeed(), decision.rawTargetSpeed(),
+                decision.calculatedTargetSpeed(), decision.timeToEmptyMs(), decision.timeToReserveMs(),
+                decision.requiredSlewPerSecond(), decision.appliedSlewPerSecond(), decision.rampFeasible()));
+        networkProtectionState = decision.state();
+        networkProtectionTier = decision.tier();
+        networkProtectionReason = decision.reason();
+        networkProtectionSpeed = decision.targetSpeed();
+        networkProtectionSupportedSpeed = decision.supportedSpeed();
+        networkProtectionMediaBitrate = media.bitrateBitsPerSecond();
+        if (decision.changed()) applyEffectiveSpeed(networkProtectionSpeed, "guard-" + decision.reason());
+        PlaybackTelemetry.DecisionOutcome telemetryOutcome = decision.changed()
+                ? PlaybackTelemetry.DecisionOutcome.APPLIED
+                : !eligible || !ready || !playing
+                ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                : PlaybackTelemetry.DecisionOutcome.HELD;
+        playbackTelemetryCoordinator.publishDecision(playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.NETWORK_PROTECTION,
+                        telemetryOutcome,
+                        previousState.name().toLowerCase(java.util.Locale.US),
+                        decision.state().name().toLowerCase(java.util.Locale.US),
+                        networkProtectionState.name().toLowerCase(java.util.Locale.US),
+                        decision.reason(),
+                        telemetryOutcome == PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                                ? eligibility.reason() : telemetryOutcome == PlaybackTelemetry.DecisionOutcome.HELD ? "no-change" : "none",
+                        List.of(
+                                PlaybackTelemetry.DecisionInput.bool("eligible", eligible, PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("ready", ready, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("playing", playing, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("loading", loading, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("buffered_ms", bufferedMs, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("safe_buffer_ms", safeBufferMs, PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                networkEstimateKnown ? PlaybackTelemetry.DecisionInput.number("bandwidth_bps", analytics.bandwidthEstimate(), PlaybackAutoContext.ValueSource.ESTIMATOR, PlaybackAutoContext.Confidence.MEDIUM) : PlaybackTelemetry.DecisionInput.unknown("bandwidth_bps"),
+                                media.bitrateBitsPerSecond() > 0 ? PlaybackTelemetry.DecisionInput.number("media_bitrate_bps", media.bitrateBitsPerSecond(), PlaybackAutoContext.ValueSource.ESTIMATOR, telemetryConfidence(media.confidence())) : PlaybackTelemetry.DecisionInput.unknown("media_bitrate_bps"),
+                                PlaybackTelemetry.DecisionInput.number("rebuffer_count", analytics.rebufferCount(), PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                trend.known() ? PlaybackTelemetry.DecisionInput.number("buffer_slope_msps", trend.slopeMsPerSecond(), PlaybackAutoContext.ValueSource.ESTIMATOR, PlaybackAutoContext.Confidence.MEDIUM) : PlaybackTelemetry.DecisionInput.unknown("buffer_slope_msps"),
+                                PlaybackTelemetry.DecisionInput.decimal("current_speed", previousEffectiveSpeed, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.decimal("target_speed", decision.targetSpeed(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH))),
+                nowMs);
+        if (decision.changed() || previousState != networkProtectionState || previousTier != networkProtectionTier) {
+            PlaybackTrace.log("exo-network-protection", playbackTrace.current(), "state=%s tier=%s reason=%s speed=%.3f supported=%.3f rawTarget=%.3f target=%.3f floor=%.2f buffered=%d safe=%d tte=%d ttr=%d requiredSlew=%.4f appliedSlew=%.4f feasible=%s loading=%s slope=%d fast=%d slow=%d window=%d rebuffer=%d networkKnown=%s networkSupported=%.3f route=%s",
+                    networkProtectionState, networkProtectionTier, networkProtectionReason, networkProtectionSpeed, decision.supportedSpeed(), decision.rawTargetSpeed(), decision.calculatedTargetSpeed(), ExoPerformanceSetting.getNetworkProtectionMinimumSpeed(),
+                    player.getTotalBufferedDuration(), decision.safeBufferMs(), decision.timeToEmptyMs(), decision.timeToReserveMs(), decision.requiredSlewPerSecond(), decision.appliedSlewPerSecond(), decision.rampFeasible(),
+                    player.isLoading(), trend.slopeMsPerSecond(), trend.fastSlopeMsPerSecond(), trend.slowSlopeMsPerSecond(), trend.windowMs(), analytics.rebufferCount(), networkEstimateKnown, networkSupportedSpeed, getEffectivePlaybackRoute().route());
+        }
+        if (eligible && player.getPlaybackState() == Player.STATE_READY && player.isPlaying()) scheduleNetworkProtection(getNetworkProtectionEvaluationDelayMs());
+    }
+
+    private long getNetworkProtectionEvaluationDelayMs() {
+        return switch (networkProtectionState) {
+            case WARNING, PROTECT, RECOVERY -> ExoNetworkGuardController.CONTROL_INTERVAL_MS;
+            case NORMAL, UNSUSTAINABLE -> ExoNetworkGuardController.OBSERVE_INTERVAL_MS;
+        };
+    }
+
+    private long getNetworkProtectionSafeBufferMs() {
+        PlaybackRoute.Resolution route = getEffectivePlaybackRoute();
+        return ExoNetworkGuardBufferPolicy.resolve(route.loopback(), ExoPerformanceSetting.getRebufferMs());
+    }
+
+    private boolean isTrustedNetworkEstimate(PlaybackAnalyticsListener.Snapshot analytics, PlaybackAnalyticsListener.DisplayMediaBitrateEstimate media) {
+        if (analytics.bandwidthEstimate() <= 0 || media.bitrateBitsPerSecond() <= 0) return false;
+        if ("unknown".equals(media.source()) || "low".equals(media.confidence()) || "unknown".equals(media.confidence())) return false;
+        return getEffectivePlaybackRoute().route() == PlaybackRoute.DIRECT_REMOTE_HTTP;
+>>>>>>> upstream/dev
     }
 
     public String addSpeed() {
@@ -614,7 +1266,96 @@ public class PlayerManager implements ParseCallback {
     }
 
     public String toggleSpeed() {
-        return setSpeed(getSpeed() == 1 ? PlayerSetting.getSpeed() : 1);
+        return toggleSpeed(1.0f, 1.0f);
+    }
+
+    public String toggleSpeed(float normalSpeed) {
+        return toggleSpeed(normalSpeed, PlayerSetting.getDefaultSpeed());
+    }
+
+    private String toggleSpeed(float normalSpeed, float fallbackSpeed) {
+        if (!player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) return getSpeedText();
+        return applySpeed(speedToggleState.next(getSpeed(), normalSpeed, PlayerSetting.getSpeed(), fallbackSpeed));
+    }
+
+    static final class SpeedToggleState {
+
+        private static final float EPSILON = 0.001f;
+        private float restoreSpeed = Float.NaN;
+
+        float next(float currentSpeed, float normalSpeed, float fastSpeed, float fallbackSpeed) {
+            if (isClose(currentSpeed, fastSpeed)) {
+                float target = isValid(restoreSpeed) ? restoreSpeed : restoreSpeed(normalSpeed, fastSpeed, fallbackSpeed);
+                clear();
+                return target;
+            }
+            restoreSpeed = restoreSpeed(normalSpeed, fastSpeed, fallbackSpeed);
+            return fastSpeed;
+        }
+
+        void clear() {
+            restoreSpeed = Float.NaN;
+        }
+
+        private static float restoreSpeed(float normalSpeed, float fastSpeed, float fallbackSpeed) {
+            if (isValid(normalSpeed) && !isClose(normalSpeed, fastSpeed)) return normalSpeed;
+            if (isValid(fallbackSpeed) && !isClose(fallbackSpeed, fastSpeed)) return fallbackSpeed;
+            return 1.0f;
+        }
+
+        private static boolean isClose(float first, float second) {
+            return Math.abs(first - second) < EPSILON;
+        }
+
+        private static boolean isValid(float speed) {
+            return speed > 0 && !Float.isNaN(speed) && !Float.isInfinite(speed);
+        }
+    }
+
+    static final class ExoSpeedRestoreState {
+
+        private int generation = -1;
+        private float targetSpeed = Float.NaN;
+
+        float beginPrepare(int generation, float desiredSpeed) {
+            this.generation = generation;
+            this.targetSpeed = desiredSpeed;
+            return 1.0f;
+        }
+
+        void cancelPrepare(int generation) {
+            if (this.generation == generation) this.generation = -1;
+        }
+
+        boolean deferSpeed(float speed) {
+            if (!hasDeferredSpeed()) return false;
+            targetSpeed = speed;
+            return true;
+        }
+
+        float effectiveSpeed(float actualSpeed) {
+            return hasDeferredSpeed() ? targetSpeed : actualSpeed;
+        }
+
+        float takeReadySpeed(int generation) {
+            if (!isPending() || this.generation != generation) return Float.NaN;
+            float speed = targetSpeed;
+            clear();
+            return speed;
+        }
+
+        void clear() {
+            generation = -1;
+            targetSpeed = Float.NaN;
+        }
+
+        private boolean hasDeferredSpeed() {
+            return !Float.isNaN(targetSpeed);
+        }
+
+        private boolean isPending() {
+            return generation >= 0 && hasDeferredSpeed();
+        }
     }
 
     private float nextPresetSpeed() {
@@ -625,10 +1366,6 @@ public class PlayerManager implements ParseCallback {
 
     public void setTrack(List<Track> tracks) {
         mpvExplicitSubtitlePreference = hasRequestedSubtitle(tracks);
-        if (shouldLeaveAutoSurfaceDirectForSubtitle(tracks)) {
-            rebuildAndRestartMpv(false, "subtitle-selected");
-            return;
-        }
         if (!tracks.isEmpty()) engine.setTrack(tracks);
     }
 
@@ -654,6 +1391,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void clearMediaItems() {
+        engine.cancelPendingPrepare();
         stopNativeAudioSession();
         clearDanmaku("clear_media_items");
         player.clearMediaItems();
@@ -668,6 +1406,17 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void seekTo(long time) {
+<<<<<<< HEAD
+=======
+        mediaSession.beforeSeek(Math.max(0L, time));
+        long now = SystemClock.elapsedRealtime();
+        invalidatePlaybackProfileAssessments(
+                PlaybackProfileAbCoordinator.InvalidationReason.USER_SEEK);
+        rtspLiveLagController.onUserSeek(playbackAutoSession, now);
+        ijkRealtimeRecoveryController.onUserSeek(playbackAutoSession, now);
+        ijkDecodePressureController.onUserSeek(playbackAutoSession, now);
+        resetNetworkProtectionSession("user-seek");
+>>>>>>> upstream/dev
         player.seekTo(time);
     }
 
@@ -693,14 +1442,17 @@ public class PlayerManager implements ParseCallback {
         App.removeCallbacks(runnable);
         retry = 0;
         localProxyRetry = 0;
+        resetPlayerFallback();
         hardDecodeSwitchRetryArmed = false;
         clearPendingSwitchRestore();
     }
 
     public void clear() {
         prepareSeq++;
+        if (engine != null) engine.cancelPendingPrepare();
         lutApplySeq++;
         resetMpvOutputRuntime();
+        closeMultiThreadProxyRegistration();
         spec = null;
         clearPendingSwitchRestore();
         clearDanmaku("clear");
@@ -708,6 +1460,8 @@ public class PlayerManager implements ParseCallback {
         lutApplyInProgress = false;
         lutPipelineReadyForItem = false;
         lutPipelinePrepareInProgress = false;
+        parseHealthRecorded = false;
+        parseHealthStartedAt = 0;
         pendingLutPreview = false;
         waitingLutBeforePlay = false;
         clearLutWarmupRecovery();
@@ -718,6 +1472,57 @@ public class PlayerManager implements ParseCallback {
 
     public void resetTrack() {
         engine.resetTrack();
+    }
+
+public void resetTrack(int type) {
+        engine.resetTrack(type);
+    }
+
+    public void disableSubtitleTrackForRealtime() {
+        if (player == null || engine == null) return;
+        if (isExo() && realtimeSubtitleTrackSelection == null) realtimeSubtitleTrackSelection = player.getTrackSelectionParameters();
+        setTrack(Collections.singletonList(Track.disabled(C.TRACK_TYPE_TEXT, "")));
+    }
+
+    public void restoreSubtitleTrackAfterRealtime() {
+        if (player == null || engine == null) {
+            realtimeSubtitleTrackSelection = null;
+            return;
+        }
+        if (isExo() && realtimeSubtitleTrackSelection != null) player.setTrackSelectionParameters(realtimeSubtitleTrackSelection);
+        realtimeSubtitleTrackSelection = null;
+    }
+
+    public void rebuildAudioPipeline() {
+        if (!isExo() || spec == null || spec.getUrl() == null || engine == null || player == null) return;
+        PlaySpec target = spec;
+        long position = isLive() ? C.TIME_UNSET : Math.max(0, getPosition());
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        mediaSignals.detachPipeline();
+        mediaSession.reset(position == C.TIME_UNSET ? 0L : position,
+                PlaybackMediaSignalHub.ResetReason.ENGINE_REBUILD);
+        ++prepareSeq;
+        App.removeCallbacks(runnable);
+        rebuildPlayer();
+        playWhenReady = wasPlayWhenReady;
+        setDanmakus(target.getDanmakus());
+        prepareLutPipeline();
+        initTrack = false;
+        waitingLutBeforePlay = false;
+        applySubtitleStyle();
+        startWithProxy(target, position, wasPlayWhenReady);
+        if (speed != 1f) setSpeed(speed);
+        setRepeatOne(repeat);
+        App.post(runnable, Constant.TIMEOUT_PLAY);
+        callback.onPrepare();
+    }
+
+    private void refreshAdAudioRuntime() {
+        if (isReleased()) return;
+        adAudioRuntime.refresh();
+        if (adAudioRuntime.needsPipelineRebuild()) rebuildAudioPipeline();
     }
 
     public void restoreVideoTrack() {
@@ -795,11 +1600,15 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void togglePlayer() {
-        switchPlayer(PlayerSetting.nextPlayer(playerType));
+        switchPlayerManually(PlayerSetting.nextPlayer(playerType));
     }
 
     public void switchPlayer(int type) {
-        switchPlayer(type, true);
+        switchPlayer(type, true, false);
+    }
+
+    public void switchPlayerManually(int type) {
+        switchPlayer(type, true, true);
     }
 
     public void switchPlayer(int type, PlaySpec freshSpec, long position, float speed, boolean repeat) {
@@ -831,6 +1640,7 @@ public class PlayerManager implements ParseCallback {
         if (engine == null || player == null || result == null || result.hasMsg() || result.getRealUrl().isEmpty()) return;
         beginPlaybackTrace("switch-player-result");
         type = PlayerSetting.sanitizePlayer(type);
+        manualPlayerSwitchPending = true;
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         int decode = engine.getDecode();
         prepareSeq++;
@@ -865,15 +1675,38 @@ public class PlayerManager implements ParseCallback {
     }
 
     private void switchPlayer(int type, boolean persist) {
+        switchPlayer(type, persist, false);
+    }
+
+    private void switchPlayer(int type, boolean persist, boolean manual) {
         if (engine == null || player == null) return;
         type = PlayerSetting.sanitizePlayer(type);
+        type = manual ? resolveManualPlayer(type) : resolveAvailablePlayer(type);
         if (type == playerType) return;
+<<<<<<< HEAD
+=======
+        resetPlayerFallback();
+        manualPlayerSwitchPending = manual;
+        if (manual) beginIjkRuntimeManualOverride();
+>>>>>>> upstream/dev
         beginPlaybackTrace("switch-player");
-        long position = getPosition();
-        float speed = getSpeed();
-        boolean repeat = isRepeatOne();
-        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        switchEngine(type, persist, true, true);
+    }
+
+    private void switchEngine(int type, boolean persist, boolean preserveState, boolean notifyPrepare) {
         int decode = engine.getDecode();
+        switchEngine(type, persist, preserveState, notifyPrepare, decode);
+    }
+
+    private void switchEngine(int type, boolean persist, boolean preserveState, boolean notifyPrepare, int decode) {
+        long position = preserveState ? getPosition() : 0;
+        float speed = preserveState ? getSpeed() : 1f;
+        boolean repeat = preserveState && isRepeatOne();
+        boolean wasPlayWhenReady = preserveState && player != null ? player.getPlayWhenReady() : playWhenReady;
+        switchEngine(type, persist, notifyPrepare, decode, position, speed, repeat, wasPlayWhenReady);
+    }
+
+    private void switchEngine(int type, boolean persist, boolean notifyPrepare, int decode, long position, float speed, boolean repeat, boolean wasPlayWhenReady) {
         prepareSeq++;
         resetLutRuntimeState("switch_player", true);
         stopNativeAudioSession();
@@ -883,13 +1716,14 @@ public class PlayerManager implements ParseCallback {
             PlayerSetting.putPlayer(type);
         }
         if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "switch player type=%d persist=%s position=%d spec=%s", type, persist, position, debugSpec());
-        engine = buildEngine(playerType, decode);
+        engine = buildEngine(playerType, sanitizeDecode(decode));
         player = engine.getPlayer();
         callback.onPlayerRebuild(player, false);
         if (spec == null || spec.getUrl() == null) return;
         this.playWhenReady = wasPlayWhenReady;
         if (reparseForPlayerSwitch(position, speed, repeat)) return;
-        setMediaItem(Constant.TIMEOUT_PLAY);
+        if (notifyPrepare) setMediaItem(Constant.TIMEOUT_PLAY);
+        else setMediaItemNow(Constant.TIMEOUT_PLAY, false);
         if (position > 0) seekTo(position);
         if (speed != 1f) setSpeed(speed);
         setRepeatOne(repeat);
@@ -902,6 +1736,12 @@ public class PlayerManager implements ParseCallback {
     private void rebuildPlayer(boolean resetVideoSurface) {
         stopNativeAudioSession();
         player = engine.rebuild(listener);
+<<<<<<< HEAD
+=======
+        ffmpegModeEngine = playerType == PlayerSetting.EXO ? PlayerSetting.getEffectiveFFmpegMode() : PlayerSetting.NONE;
+        ffmpegModeEngineRefreshPending = false;
+        restoreIjkStagedBufferConfig();
+>>>>>>> upstream/dev
         videoEffectsActive = false;
         videoEffectsDirty = false;
         lutAppliedForItem = false;
@@ -913,11 +1753,3104 @@ public class PlayerManager implements ParseCallback {
         callback.onPlayerRebuild(player, resetVideoSurface);
     }
 
+<<<<<<< HEAD
     public void applyPerformanceSettings() {
+=======
+    private void applyMpvHlsInitialControl(
+            MpvPlayerEngine mpv,
+            PlaybackAutoContext context,
+            boolean automatic,
+            long now) {
+        String networkIdentity = PlaybackSystemConditionMonitor.process()
+                .currentNetworkIdentityDigest();
+        PlaybackThroughputHistory.Match history = PlaybackThroughputHistory
+                .process().lookup(context, networkIdentity, now);
+        MpvHlsVariantPolicy.InitialAssessment assessment =
+                MpvHlsVariantPolicy.resolveInitial(
+                        automatic,
+                        isMpv(),
+                        MpvPerformanceSetting.isPerformancePriority(),
+                        history);
+        MpvHlsVariantController.Snapshot before =
+                mpvHlsVariantController.snapshot();
+        MpvHlsVariantController.Decision decision =
+                mpvHlsVariantController.evaluateInitial(
+                        playbackAutoSession,
+                        context == null ? PlaybackAutoContext.SessionToken.none()
+                                : context.session(),
+                        assessment);
+        boolean pendingContextRestore = !decision.requestsApply()
+                && decision.reason()
+                == MpvHlsVariantController.Reason.ACTION_PENDING
+                && before.state() != MpvHlsVariantController.State.APPLYING
+                && assessment.active()
+                && !TextUtils.isEmpty(before.targetOption());
+        String requestedOption = pendingContextRestore
+                ? before.targetOption() : decision.targetOption();
+        boolean started = false;
+        MpvPlayer.AutoHlsBitrateResult result =
+                MpvPlayer.AutoHlsBitrateResult.REJECTED;
+        if (pendingContextRestore) {
+            result = mpv.applyAutoHlsBitrate(
+                    playbackTrace.current(), requestedOption);
+        } else if (decision.requestsApply()) {
+            started = mpvHlsVariantController.beginApply(
+                    playbackAutoSession, decision, now);
+            if (started) {
+                result = mpv.applyAutoHlsBitrate(
+                        playbackTrace.current(), decision.targetOption());
+                mpvHlsVariantController.completeApply(
+                        playbackAutoSession,
+                        decision,
+                        result.accepted(),
+                        result.staged(),
+                        now);
+            }
+        } else if (decision.reason()
+                != MpvHlsVariantController.Reason.ACTION_PENDING) {
+            mpv.clearAutoHlsBitrate();
+            if (!automatic
+                    || assessment.reason()
+                    == MpvHlsVariantPolicy.Reason.CONFIG_PRIORITY) {
+                mpvHlsVariantController.suppress(playbackAutoSession);
+            }
+        }
+        PlaybackTelemetry.DecisionOutcome outcome =
+                !automatic
+                        || assessment.reason()
+                        == MpvHlsVariantPolicy.Reason.CONFIG_PRIORITY
+                        ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                        : pendingContextRestore && !result.accepted()
+                        ? PlaybackTelemetry.DecisionOutcome.FAILED
+                        : pendingContextRestore && result.staged()
+                        ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                        : pendingContextRestore
+                        ? PlaybackTelemetry.DecisionOutcome.APPLIED
+                        : !decision.requestsApply()
+                        ? PlaybackTelemetry.DecisionOutcome.HELD
+                        : !started || !result.accepted()
+                        ? PlaybackTelemetry.DecisionOutcome.FAILED
+                        : result.staged()
+                        ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                        : PlaybackTelemetry.DecisionOutcome.APPLIED;
+        String suppression = !automatic
+                ? "not-automatic"
+                : assessment.reason() == MpvHlsVariantPolicy.Reason.CONFIG_PRIORITY
+                ? "mpv-conf-priority"
+                : pendingContextRestore && !result.accepted()
+                ? "native-restore-failed"
+                : pendingContextRestore
+                ? "none"
+                : decision.requestsApply() && !started
+                ? "action-rejected"
+                : decision.requestsApply() && !result.accepted()
+                ? "native-apply-failed"
+                : "none";
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "ceiling_bps", assessment.ceilingBitsPerSecond(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(assessment.trustedThroughputBitsPerSecond() > 0
+                ? PlaybackTelemetry.DecisionInput.number(
+                "trusted_throughput_bps",
+                assessment.trustedThroughputBitsPerSecond(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                assessment.confidence())
+                : PlaybackTelemetry.DecisionInput.unknown(
+                "trusted_throughput_bps"));
+        inputs.add(history.usable()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "evidence_age_ms", history.ageMs(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                history.confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("evidence_age_ms"));
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "history_reason", history.reason().label(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(assessment.pathKind() == PlaybackAutoContext.PathKind.UNKNOWN
+                ? PlaybackTelemetry.DecisionInput.unknown("path")
+                : PlaybackTelemetry.DecisionInput.text(
+                "path", assessment.pathKind().label(),
+                PlaybackAutoContext.ValueSource.ROUTE_CLASSIFIER,
+                assessment.confidence()));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "native_readbacks",
+                mpv.getAutoHlsRuntimeSnapshot().observedCount(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.MPV_HLS_VARIANT,
+                        outcome,
+                        hlsOptionLabel(before.targetOption()),
+                        hlsOptionLabel(requestedOption),
+                        result.accepted()
+                                ? hlsOptionLabel(requestedOption)
+                                : hlsOptionLabel(before.targetOption()),
+                        decision.reason().label(),
+                        suppression,
+                        inputs),
+                now);
+    }
+
+    private void applyMpvAutoInitialControl() {
+        if (!(engine instanceof MpvPlayerEngine mpv) || !playbackAutoSession.active()) return;
+        long now = SystemClock.elapsedRealtime();
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        boolean automaticForward = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.MPV,
+                PlaybackPerformanceCatalog.BUFFER_BYTES);
+        boolean automaticBack = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.MPV,
+                PlaybackPerformanceCatalog.BACK_BUFFER);
+        boolean automatic = automaticForward || automaticBack;
+        applyMpvHlsInitialControl(
+                mpv,
+                context,
+                PlaybackPerformanceSetting.isAuto(
+                        PlayerSetting.MPV,
+                        PlaybackPerformanceCatalog.MPV_HLS_BITRATE),
+                now);
+        MpvAutoControlPolicy.Request request = MpvAutoControlPolicy.requestFrom(
+                context,
+                automatic,
+                isMpv(),
+                MpvPerformanceSetting.isPerformancePriority(),
+                now);
+        MpvAutoControlPolicy.Decision decision = mpvAutoController.evaluate(
+                playbackAutoSession,
+                context.session(),
+                request);
+        MpvAutoController.Snapshot before = mpvAutoController.snapshot();
+        if (!automatic) {
+            mpv.clearAutoCacheBaseline();
+            mpvForwardCacheController.suppress(playbackAutoSession);
+            mpvBackCacheController.suppress(playbackAutoSession);
+            mpvCacheTargetCoordinator.suppress(playbackAutoSession);
+            evaluateMpvCaches(
+                    null,
+                    null,
+                    MpvBackCachePolicy.SeekObservation.none(),
+                    now);
+            return;
+        }
+
+        boolean started = false;
+        boolean applied = false;
+        boolean staged = false;
+        String applyResult = "not-requested";
+        MpvForwardCacheController.Trigger forwardTrigger = null;
+        MpvBackCacheController.Trigger backTrigger = null;
+        long targetForwardBytes = automaticForward
+                ? decision.forwardBytes() : mpv.getConfiguredForwardCacheBytes();
+        long targetBackBytes = automaticBack
+                ? decision.backBytes() : mpv.getConfiguredBackCacheBytes();
+        if (targetBackBytes > targetForwardBytes) {
+            if (automaticForward && !automaticBack) {
+                targetForwardBytes = targetBackBytes;
+            } else if (!automaticForward && automaticBack) {
+                targetBackBytes = targetForwardBytes;
+            }
+        }
+        if (decision.requestsApply()) {
+            started = mpvAutoController.beginApply(playbackAutoSession, decision);
+            MpvPlayer.AutoCacheBaselineResult result = started
+                    ? mpv.applyAutoCacheBaseline(
+                    playbackTrace.current(), targetForwardBytes, targetBackBytes)
+                    : MpvPlayer.AutoCacheBaselineResult.REJECTED;
+            applied = result.accepted();
+            staged = result.staged();
+            applyResult = result.label();
+            if (started) {
+                mpvAutoController.completeApply(
+                        playbackAutoSession, decision, applied, staged);
+            }
+        } else {
+            mpv.clearAutoCacheBaseline();
+            mpvForwardCacheController.suppress(playbackAutoSession);
+            mpvBackCacheController.suppress(playbackAutoSession);
+            mpvCacheTargetCoordinator.suppress(playbackAutoSession);
+        }
+        if (applied) {
+            MpvForwardCacheController.Snapshot forwardBefore = mpvForwardCacheController.snapshot();
+            MpvBackCacheController.Snapshot backBefore = mpvBackCacheController.snapshot();
+            boolean preserveForwardTarget = forwardBefore.baselineInitialized();
+            boolean preserveBackTarget = backBefore.baselineInitialized();
+            mpvForwardCacheController.recordBaseline(
+                    playbackAutoSession, targetForwardBytes, preserveForwardTarget);
+            mpvBackCacheController.recordBaseline(
+                    playbackAutoSession, targetBackBytes, preserveBackTarget);
+            mpvCacheTargetCoordinator.recordBaseline(
+                    playbackAutoSession, targetForwardBytes, targetBackBytes);
+            forwardTrigger = !automaticForward ? null : preserveForwardTarget
+                    ? MpvForwardCacheController.Trigger.REBUILD
+                    : MpvForwardCacheController.Trigger.BASELINE;
+            backTrigger = !automaticBack ? null : preserveBackTarget
+                    ? MpvBackCacheController.Trigger.REBUILD
+                    : MpvBackCacheController.Trigger.BASELINE;
+        }
+        MpvAutoController.Snapshot after = mpvAutoController.snapshot();
+        PlaybackTelemetry.DecisionOutcome outcome =
+                decision.reason() == MpvAutoControlPolicy.Reason.CONFIG_PRIORITY
+                        ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                        : !decision.requestsApply()
+                        ? PlaybackTelemetry.DecisionOutcome.HELD
+                        : staged
+                        ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                        : applied
+                        ? PlaybackTelemetry.DecisionOutcome.APPLIED
+                        : PlaybackTelemetry.DecisionOutcome.FAILED;
+        String oldValue = before.appliedForwardBytes() >= 0
+                ? "forward-" + before.appliedForwardBytes()
+                + "-back-" + before.appliedBackBytes()
+                : "startup-baseline";
+        String resultValue = applied ? decision.targetLabel() : oldValue;
+        String suppression = decision.reason() == MpvAutoControlPolicy.Reason.CONFIG_PRIORITY
+                ? "mpv-conf-priority"
+                : decision.requestsApply() && !started
+                ? "action-rejected"
+                : decision.requestsApply() && !applied
+                ? "native-apply-failed"
+                : "none";
+
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(decision.requestsApply()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "forward_bytes", decision.forwardBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH)
+                : PlaybackTelemetry.DecisionInput.unknown("forward_bytes"));
+        inputs.add(decision.requestsApply()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "back_bytes", decision.backBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH)
+                : PlaybackTelemetry.DecisionInput.unknown("back_bytes"));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "performance_priority", request.performancePriority(),
+                PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(request.pressureUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "memory_pressure", request.memoryPressure().label(),
+                context.device().memoryPressure().source(),
+                context.device().memoryPressure().confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("memory_pressure"));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "memory_snapshot_usable", request.snapshotUsable(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(request.snapshotUsable()
+                && request.memorySnapshot().lowRamDevice() != null
+                ? PlaybackTelemetry.DecisionInput.bool(
+                "low_ram", request.memorySnapshot().lowRamDevice(),
+                context.device().memorySnapshot().source(),
+                context.device().memorySnapshot().confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("low_ram"));
+        inputs.add(request.protocolUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "protocol", request.protocol().label(),
+                context.resource().protocol().source(),
+                context.resource().protocol().confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("protocol"));
+        inputs.add(request.streamKindUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "stream", request.streamKind().label(),
+                context.resource().streamKind().source(),
+                context.resource().streamKind().confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("stream"));
+        inputs.add(request.playerPathUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "player_path", request.playerPath().label(),
+                context.path().playerPath().source(),
+                context.path().playerPath().confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("player_path"));
+        inputs.add(request.upstreamPathUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "upstream_path", request.upstreamPath().label(),
+                context.path().upstreamPath().source(),
+                context.path().upstreamPath().confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("upstream_path"));
+        inputs.add(request.upstreamStateUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "upstream_state", request.upstreamState().label(),
+                context.path().upstreamState().source(),
+                context.path().upstreamState().confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("upstream_state"));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "apply_attempts", after.applyAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.MPV_CACHE,
+                        outcome,
+                        oldValue,
+                        decision.targetLabel(),
+                        resultValue,
+                        decision.reason().label(),
+                        suppression,
+                        inputs),
+                now);
+        PlaybackTrace.log("mpv-auto", playbackTrace.current(),
+                "state=%s action=%s reason=%s forwardBytes=%d backBytes=%d capped=%s attempts=%d result=%s",
+                after.state().label(),
+                decision.action().label(),
+                decision.reason().label(),
+                decision.forwardBytes(),
+                decision.backBytes(),
+                decision.capped(),
+                after.applyAttempts(),
+                decision.requestsApply() ? applyResult : outcome.label());
+        if (forwardTrigger != null || backTrigger != null) {
+            evaluateMpvCaches(forwardTrigger, backTrigger,
+                    MpvBackCachePolicy.SeekObservation.none(), now);
+        } else {
+            evaluateMpvCaches(
+                    null,
+                    null,
+                    MpvBackCachePolicy.SeekObservation.none(),
+                    now);
+        }
+    }
+
+    private void applyIjkAutoInitialControl() {
+        if (!(engine instanceof IjkPlayerEngine ijk)
+                || !playbackAutoSession.active()) return;
+        long now = SystemClock.elapsedRealtime();
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        IjkBufferPolicy.Request request = buildIjkBufferRequest(
+                context, now, false);
+        IjkBufferPolicy.Decision policy = mergeIjkBufferDecision(
+                IjkBufferPolicy.resolve(request));
+        IjkBufferController.Decision decision =
+                ijkBufferController.stageInitial(
+                        playbackAutoSession, context.session(), policy);
+        if (policy.managed()) {
+            ijk.stageAutomaticInputBufferConfig(decision.targetConfig());
+        }
+        IjkDecodePressureController.Decision decodeDecision =
+                ijkDecodePressureController.stageInitial(
+                        playbackAutoSession,
+                        context.session(),
+                        hasAutomaticIjkDecodeOptions());
+        if (hasAutomaticIjkDecodeOptions()) {
+            ijk.stageAutomaticDecodeControlConfig(
+                    mergeIjkDecodeConfig(decodeDecision.targetConfig()));
+        }
+        publishIjkBufferDecision(
+                decision, request, IjkBufferController.Trigger.INITIAL,
+                false, true, now);
+        publishIjkDecodePressureDecision(
+                decodeDecision,
+                null,
+                false,
+                false,
+                now);
+    }
+
+    private void restoreIjkStagedBufferConfig() {
+        if (!(engine instanceof IjkPlayerEngine ijk)
+                || !PlaybackPerformanceSetting.hasAutomaticOptions(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_BUFFER,
+                PlaybackPerformanceCatalog.IJK_WATER,
+                PlaybackPerformanceCatalog.IJK_PICTURE_QUEUE,
+                PlaybackPerformanceCatalog.IJK_SOFT_TUNE)
+                || !playbackAutoSession.active()) return;
+        IjkBufferController.Snapshot snapshot = ijkBufferController.snapshot();
+        if (!playbackAutoSession.equals(snapshot.session())) return;
+        ijk.stageAutomaticInputBufferConfig(
+                mergeIjkBufferConfig(snapshot.stagedConfig()));
+        IjkDecodePressureController.Snapshot decode =
+                ijkDecodePressureController.snapshot();
+        if (playbackAutoSession.equals(decode.session())) {
+            ijk.stageAutomaticDecodeControlConfig(
+                    mergeIjkDecodeConfig(decode.stagedConfig()));
+        }
+    }
+
+    private void onIjkBufferMemoryUpdate(
+            PlaybackMemoryCoordinator.Update update) {
+        if (update == null || !playbackAutoSession.active()
+                || !playbackAutoSession.equals(update.session())) return;
+        evaluateIjkBuffer(IjkBufferController.Trigger.MEMORY,
+                SystemClock.elapsedRealtime());
+    }
+
+    private void evaluateIjkBuffer(
+            IjkBufferController.Trigger trigger,
+            long nowElapsedMs) {
+        if (!(engine instanceof IjkPlayerEngine ijk)
+                || !playbackAutoSession.active()) return;
+        long now = Math.max(0, nowElapsedMs);
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        IjkBufferPolicy.Request request = buildIjkBufferRequest(
+                context, now, true);
+        IjkBufferPolicy.Decision policy = mergeIjkBufferDecision(
+                IjkBufferPolicy.resolve(request));
+        IjkBufferController.Decision decision = ijkBufferController.evaluate(
+                playbackAutoSession,
+                context.session(),
+                policy,
+                ijk.getAppliedInputBufferConfig(),
+                trigger,
+                player != null && player.getPlaybackState()
+                        == Player.STATE_BUFFERING,
+                playbackTrace.hasStage(PlaybackTrace.Stage.FIRST_FRAME)
+                        || playbackTrace.hasStage(
+                        PlaybackTrace.Stage.AUDIO_PLAYABLE),
+                request.rebufferUsable() ? request.rebufferCount() : 0,
+                now);
+
+        boolean applyStarted = false;
+        boolean applySucceeded = decision.action()
+                != IjkBufferController.Action.RELOAD;
+        if (decision.requestsReload()) {
+            boolean safetyReload = decision.reason()
+                    == IjkBufferController.Reason.SAFETY_RELOAD;
+            PlaybackExperimentPolicy.Action reloadAction = safetyReload
+                    ? PlaybackExperimentPolicy.Action.IJK_BUFFER_SAFETY_RELOAD
+                    : PlaybackExperimentPolicy.Action.IJK_BUFFER_RELOAD;
+            if (!experimentAllowed(reloadAction)) {
+                decision = ijkBufferController.deferExperimentalReload(
+                        playbackAutoSession, decision);
+                applySucceeded = false;
+            } else {
+                applyStarted = ijkBufferController.beginApply(
+                        playbackAutoSession, decision);
+                if (applyStarted) {
+                    ijk.stageAutomaticInputBufferConfig(
+                            mergeIjkBufferConfig(
+                                    ijkBufferController.snapshot().stagedConfig()));
+                    pendingIjkBufferDecision = decision;
+                    boolean restartStarted = restartIjkBuffer(ijk, decision);
+                    applySucceeded = restartStarted
+                            && decision.targetConfig().equals(
+                            ijk.getAppliedInputBufferConfig());
+                    if (!applySucceeded) {
+                        completeIjkBufferManagedReload(
+                                false, "start-failed", now, false);
+                        if (!restartStarted) ijkBufferManagedReload = false;
+                    }
+                }
+            }
+        }
+        if (policy.managed()) {
+            ijk.stageAutomaticInputBufferConfig(
+                    mergeIjkBufferConfig(
+                            ijkBufferController.snapshot().stagedConfig()));
+        }
+        publishIjkBufferDecision(
+                decision, request, trigger, applyStarted,
+                applySucceeded, now);
+    }
+
+    private IjkBufferPolicy.Request buildIjkBufferRequest(
+            PlaybackAutoContext context,
+            long nowElapsedMs,
+            boolean allowEngineScene) {
+        PlaybackAutoContext current = context == null
+                ? PlaybackAutoContext.empty() : context;
+        long now = Math.max(0, nowElapsedMs);
+        PlaybackAutoContext.Fact<PlaybackAutoContext.Protocol> protocolFact =
+                current.resource().protocol();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.StreamKind> streamFact =
+                current.resource().streamKind();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.ManifestFacts> manifestFact =
+                current.resource().manifest();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.MemoryPressure> pressureFact =
+                current.device().memoryPressure();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.MemorySnapshot> snapshotFact =
+                current.device().memorySnapshot();
+        PlaybackAutoContext.Fact<Long> bitrateFact =
+                current.runtime().mediaBitrateBitsPerSecond();
+        PlaybackAutoContext.Fact<Integer> rebufferFact =
+                current.runtime().rebufferCount();
+        PlaybackAutoContext.Fact<Long> liveLagFact =
+                current.runtime().liveLagMs();
+        boolean protocolUsable = protocolFact.isUsable(now);
+        PlaybackAutoContext.Protocol protocol = protocolUsable
+                ? protocolFact.value() : PlaybackAutoContext.Protocol.UNKNOWN;
+        boolean streamUsable = streamFact.isUsable(now);
+        PlaybackAutoContext.StreamKind stream = streamUsable
+                ? streamFact.value() : PlaybackAutoContext.StreamKind.UNKNOWN;
+        int configuredScene = PlaybackPerformanceSetting.isOverridden(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_SCENE)
+                ? IjkPerformanceSetting.getScene()
+                : IjkPerformanceSetting.SCENE_AUTO;
+        if (configuredScene != IjkPerformanceSetting.SCENE_AUTO) {
+            stream = switch (configuredScene) {
+                case IjkPerformanceSetting.SCENE_VOD ->
+                        PlaybackAutoContext.StreamKind.VOD;
+                case IjkPerformanceSetting.SCENE_LIVE_LOW_LATENCY ->
+                        PlaybackAutoContext.StreamKind.LOW_LATENCY_LIVE;
+                default -> PlaybackAutoContext.StreamKind.LIVE;
+            };
+            streamUsable = true;
+        }
+        boolean segmented = protocol == PlaybackAutoContext.Protocol.HLS
+                || protocol == PlaybackAutoContext.Protocol.DASH;
+        if (!streamUsable && allowEngineScene && !segmented
+                && engine instanceof IjkPlayerEngine ijk) {
+            if (ijk.isVod()) {
+                stream = PlaybackAutoContext.StreamKind.VOD;
+                streamUsable = true;
+            } else if (ijk.isLive()) {
+                stream = PlaybackAutoContext.StreamKind.LIVE;
+                streamUsable = true;
+            }
+        }
+        boolean snapshotUsable = snapshotFact.isUsable(now)
+                && snapshotFact.value().hasEvidence();
+        return new IjkBufferPolicy.Request(
+                PlaybackPerformanceSetting.hasAutomaticOptions(
+                        PlayerSetting.IJK,
+                        PlaybackPerformanceCatalog.IJK_BUFFER,
+                        PlaybackPerformanceCatalog.IJK_WATER),
+                isIjk(),
+                protocolUsable,
+                protocol,
+                streamUsable,
+                stream,
+                manifestFact.isUsable(now),
+                manifestFact.value(),
+                pressureFact.isUsable(now),
+                pressureFact.value(),
+                snapshotUsable,
+                snapshotFact.value(),
+                bitrateFact.isUsable(now) && bitrateFact.value() > 0,
+                bitrateFact.isUsable(now) ? bitrateFact.value() : 0,
+                rebufferFact.isUsable(now),
+                rebufferFact.isUsable(now) ? rebufferFact.value() : 0,
+                liveLagFact.isUsable(now) && liveLagFact.value() >= 0,
+                liveLagFact.isUsable(now) ? liveLagFact.value() : -1);
+    }
+
+    private IjkBufferPolicy.Config mergeIjkBufferConfig(
+            IjkBufferPolicy.Config automatic) {
+        IjkBufferPolicy.Config safe = automatic == null
+                ? IjkBufferPolicy.safeInitialConfig() : automatic;
+        int bufferMb = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_BUFFER)
+                ? safe.bufferMb() : IjkPerformanceSetting.getBufferMb();
+        if (PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_WATER)) {
+            return new IjkBufferPolicy.Config(
+                    bufferMb,
+                    safe.firstWaterMs(),
+                    safe.nextWaterMs(),
+                    safe.lastWaterMs());
+        }
+        return new IjkBufferPolicy.Config(
+                bufferMb,
+                IjkPerformanceSetting.getFirstWaterMs(),
+                IjkPerformanceSetting.getNextWaterMs(),
+                IjkPerformanceSetting.getLastWaterMs());
+    }
+
+    private IjkBufferPolicy.Decision mergeIjkBufferDecision(
+            IjkBufferPolicy.Decision decision) {
+        IjkBufferPolicy.Decision safe = decision == null
+                ? IjkBufferPolicy.resolve(null) : decision;
+        return new IjkBufferPolicy.Decision(
+                safe.managed(),
+                mergeIjkBufferConfig(safe.target()),
+                safe.reason(),
+                safe.memoryCeilingMb(),
+                safe.liveLagHigh(),
+                safe.targetOffsetMs(),
+                safe.mediaDemandBytes());
+    }
+
+    private void evaluateIjkRealtimeRecovery(long nowElapsedMs) {
+        if (!(engine instanceof IjkPlayerEngine ijk)
+                || !playbackAutoSession.active()) return;
+        long now = Math.max(0, nowElapsedMs);
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.Protocol> protocolFact =
+                context.resource().protocol();
+        boolean protocolUsable = protocolFact.isUsable(now);
+        PlaybackAutoContext.Protocol protocol = protocolUsable
+                ? protocolFact.value() : PlaybackAutoContext.Protocol.UNKNOWN;
+        boolean automatic = PlaybackPerformanceSetting.hasAutomaticOptions(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_BUFFER,
+                PlaybackPerformanceCatalog.IJK_WATER) && experimentAllowed(
+                PlaybackExperimentPolicy.Action.IJK_REALTIME_REBUILD);
+        boolean realtime = protocol == PlaybackAutoContext.Protocol.RTSP
+                || protocol == PlaybackAutoContext.Protocol.RTMP;
+        if (!automatic || !protocolUsable || !realtime) {
+            ijkRealtimeRecoveryController.onPositionDiscontinuity(
+                    playbackAutoSession);
+            return;
+        }
+        IjkBufferController.Snapshot reloadState =
+                ijkBufferController.snapshot();
+        IjkRealtimeRecoveryController.Input input =
+                new IjkRealtimeRecoveryController.Input(
+                        playbackAutoSession,
+                        automatic,
+                        isIjk(),
+                        protocolUsable,
+                        protocol,
+                        isIjkPlaybackActive(),
+                        playbackTrace.hasStage(PlaybackTrace.Stage.FIRST_FRAME)
+                                || playbackTrace.hasStage(
+                                PlaybackTrace.Stage.AUDIO_PLAYABLE),
+                        Math.abs(getSpeed() - 1f) < 0.01f,
+                        false,
+                        reloadState.applyInProgress(),
+                        ijk.getRealtimeQueueSnapshot(),
+                        ijk.getAppliedInputBufferConfig(),
+                        now);
+        IjkRealtimeRecoveryPolicy.Decision decision =
+                ijkRealtimeRecoveryController.evaluate(input);
+        IjkRealtimeRecoveryController.Snapshot stateAtDecision =
+                ijkRealtimeRecoveryController.snapshot();
+        IjkBufferController.Decision reloadGate = null;
+        boolean actionStarted = false;
+        boolean restartStarted = false;
+        if (decision.requestsRecovery()) {
+            reloadGate = ijkBufferController.requestRealtimeRecovery(
+                    playbackAutoSession,
+                    context.session(),
+                    ijk.getAppliedInputBufferConfig(),
+                    now);
+            if (reloadGate.requestsReload()) {
+                boolean reloadReserved = ijkBufferController.beginApply(
+                        playbackAutoSession, reloadGate);
+                boolean recoveryReserved = reloadReserved
+                        && ijkRealtimeRecoveryController.beginAction(
+                        playbackAutoSession, decision, now);
+                actionStarted = reloadReserved && recoveryReserved;
+                if (actionStarted) {
+                    pendingIjkBufferDecision = reloadGate;
+                    pendingIjkRealtimeRecoveryDecision = decision;
+                    ijk.stageAutomaticInputBufferConfig(
+                            mergeIjkBufferConfig(
+                                    ijkBufferController.snapshot().stagedConfig()));
+                    restartStarted = restartIjkRealtimeRecovery(
+                            ijk, reloadGate, decision);
+                    if (!restartStarted) {
+                        completeIjkBufferManagedReload(
+                                false, "start-failed", now, false);
+                    }
+                } else if (reloadReserved) {
+                    ijkBufferController.completeApply(
+                            playbackAutoSession, reloadGate, false, now);
+                }
+            }
+        }
+        publishIjkRealtimeRecoveryDecision(
+                decision,
+                protocol,
+                reloadGate,
+                stateAtDecision,
+                actionStarted,
+                restartStarted,
+                now);
+    }
+
+    private void evaluateIjkDecodePressure(long nowElapsedMs) {
+        if (!(engine instanceof IjkPlayerEngine ijk)
+                || !playbackAutoSession.active()) return;
+        long now = Math.max(0, nowElapsedMs);
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        PlaybackAutoContext.DecoderFacts decoder = context.media().decoder();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.DecodeMode> decodeFact =
+                decoder.videoDecodeMode();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.ThermalState> thermalFact =
+                context.device().thermalState();
+        PlaybackAutoContext.Fact<Float> frameRateFact =
+                context.media().videoTrack().frameRate();
+        boolean decoderUsable = decoder.trackSequence()
+                == context.media().trackSequence()
+                && decodeFact.isUsable(now);
+        IjkDecodePressurePolicy.Input policyInput =
+                new IjkDecodePressurePolicy.Input(
+                        isIjkDecodePressureAutomatic()
+                                && experimentAllowed(
+                                PlaybackExperimentPolicy.Action.IJK_DECODE_REBUILD),
+                        isIjk(),
+                        isIjkPlaybackActive(),
+                        playbackTrace.hasStage(PlaybackTrace.Stage.FIRST_FRAME)
+                                || playbackTrace.hasStage(
+                                PlaybackTrace.Stage.AUDIO_PLAYABLE),
+                        Math.abs(getSpeed() - 1f) < 0.01f,
+                        false,
+                        false,
+                        decoderUsable,
+                        decoderUsable ? decodeFact.value()
+                                : PlaybackAutoContext.DecodeMode.UNKNOWN,
+                        thermalFact.isUsable(now),
+                        thermalFact.isUsable(now) ? thermalFact.value()
+                                : PlaybackAutoContext.ThermalState.UNKNOWN,
+                        frameRateFact.isUsable(now)
+                                && frameRateFact.value() > 0,
+                        frameRateFact.isUsable(now)
+                                ? frameRateFact.value() : -1f,
+                        ijk.getDecodePressureSnapshot());
+        IjkBufferController.Snapshot reloadState =
+                ijkBufferController.snapshot();
+        IjkDecodePressureController.Decision decision =
+                ijkDecodePressureController.evaluate(
+                        new IjkDecodePressureController.Input(
+                                playbackAutoSession,
+                                context.session(),
+                                policyInput,
+                                automaticIjkDecodeView(
+                                        ijk.getAppliedDecodeControlConfig()),
+                                reloadState.applyInProgress(),
+                                now));
+
+        IjkBufferController.Decision reloadGate = null;
+        boolean actionStarted = false;
+        boolean restartStarted = false;
+        if (decision.requestsReload()) {
+            reloadGate = ijkBufferController.requestDecodePressureReload(
+                    playbackAutoSession,
+                    context.session(),
+                    ijk.getAppliedInputBufferConfig(),
+                    now);
+            if (reloadGate.requestsReload()) {
+                boolean reloadReserved = ijkBufferController.beginApply(
+                        playbackAutoSession, reloadGate);
+                boolean decodeReserved = reloadReserved
+                        && ijkDecodePressureController.beginAction(
+                        playbackAutoSession, decision);
+                actionStarted = reloadReserved && decodeReserved;
+                if (actionStarted) {
+                    pendingIjkBufferDecision = reloadGate;
+                    pendingIjkDecodePressureDecision = decision;
+                    ijk.stageAutomaticInputBufferConfig(
+                            mergeIjkBufferConfig(
+                                    ijkBufferController.snapshot().stagedConfig()));
+                    ijk.stageAutomaticDecodeControlConfig(
+                            mergeIjkDecodeConfig(
+                                    ijkDecodePressureController.snapshot()
+                                            .stagedConfig()));
+                    restartStarted = restartIjkDecodePressure(
+                            ijk, reloadGate, decision);
+                    boolean applied = restartStarted
+                            && mergeIjkDecodeConfig(
+                            decision.targetConfig()).equals(
+                            ijk.getAppliedDecodeControlConfig());
+                    if (!applied) {
+                        completeIjkBufferManagedReload(
+                                false, "start-failed", now, false);
+                        if (!restartStarted) ijkBufferManagedReload = false;
+                    }
+                } else if (reloadReserved) {
+                    ijkBufferController.completeApply(
+                            playbackAutoSession, reloadGate, false, now);
+                }
+            }
+        }
+        if (hasAutomaticIjkDecodeOptions()) {
+            ijk.stageAutomaticDecodeControlConfig(
+                    mergeIjkDecodeConfig(
+                            ijkDecodePressureController.snapshot().stagedConfig()));
+        }
+        publishIjkDecodePressureDecision(
+                decision,
+                reloadGate,
+                actionStarted,
+                restartStarted,
+                now);
+    }
+
+    private boolean hasAutomaticIjkDecodeOptions() {
+        return PlaybackPerformanceSetting.hasAutomaticOptions(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_PICTURE_QUEUE,
+                PlaybackPerformanceCatalog.IJK_SOFT_TUNE);
+    }
+
+    private boolean isIjkDecodePressureAutomatic() {
+        return PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_SOFT_TUNE);
+    }
+
+    private IjkDecodePressurePolicy.Config automaticIjkDecodeView(
+            IjkDecodePressurePolicy.Config applied) {
+        IjkDecodePressurePolicy.Config safe = applied == null
+                ? IjkDecodePressurePolicy.automaticInitialConfig()
+                : applied;
+        return new IjkDecodePressurePolicy.Config(
+                IjkDecodePressurePolicy.AUTOMATIC_PICTURE_QUEUE,
+                safe.tuneMode());
+    }
+
+    private IjkDecodePressurePolicy.Config mergeIjkDecodeConfig(
+            IjkDecodePressurePolicy.Config automatic) {
+        IjkDecodePressurePolicy.Config safe = automatic == null
+                ? IjkDecodePressurePolicy.automaticInitialConfig()
+                : automatic;
+        int pictureQueue = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_PICTURE_QUEUE)
+                ? safe.pictureQueue() : IjkPerformanceSetting.getPictureQueue();
+        IjkDecodePressurePolicy.TuneMode tune = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.IJK,
+                PlaybackPerformanceCatalog.IJK_SOFT_TUNE)
+                ? safe.tuneMode() : switch (IjkPerformanceSetting.getSoftTuneMode()) {
+            case IjkPerformanceSetting.SOFT_TUNE_AGGRESSIVE ->
+                    IjkDecodePressurePolicy.TuneMode.AGGRESSIVE;
+            case IjkPerformanceSetting.SOFT_TUNE_MILD ->
+                    IjkDecodePressurePolicy.TuneMode.MILD;
+            default -> IjkDecodePressurePolicy.TuneMode.OFF;
+        };
+        return new IjkDecodePressurePolicy.Config(pictureQueue, tune);
+    }
+
+    private boolean isIjkPlaybackActive() {
+        if (player == null || !player.getPlayWhenReady()
+                || player.getPlaybackState() != Player.STATE_READY) {
+            return false;
+        }
+        try {
+            return player.isPlaying();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private boolean restartIjkBuffer(
+            IjkPlayerEngine ijk,
+            IjkBufferController.Decision decision) {
+        if (spec == null || TextUtils.isEmpty(spec.getUrl())
+                || player == null) return false;
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        long position = ijk.isVod()
+                ? Math.max(0, player.getCurrentPosition()) : C.TIME_UNSET;
+        try {
+            prepareSeq++;
+            App.removeCallbacks(runnable);
+            initTrack = false;
+            playWhenReady = wasPlayWhenReady;
+            ijkBufferManagedReload = true;
+            PlaybackTrace.log("ijk-buffer", playbackTrace.current(),
+                    "action=reload old=%s target=%s resume=%d play=%s reason=%s",
+                    decision.appliedConfig().label(),
+                    decision.targetConfig().label(),
+                    position == C.TIME_UNSET ? 0 : position,
+                    wasPlayWhenReady,
+                    decision.reason().label());
+            restartWithProxy(spec, position, wasPlayWhenReady);
+        } catch (Throwable error) {
+            PlaybackTrace.log("ijk-buffer", playbackTrace.current(),
+                    "action=reload result=failed errorType=%s",
+                    error.getClass().getSimpleName());
+            return false;
+        }
+        try {
+            if (speed != 1f) setSpeed(speed);
+            setRepeatOne(repeat);
+        } catch (Throwable error) {
+            PlaybackTrace.log("ijk-buffer", playbackTrace.current(),
+                    "action=restore-state result=partial errorType=%s",
+                    error.getClass().getSimpleName());
+        }
+        App.post(runnable, Constant.TIMEOUT_PLAY);
+        return true;
+    }
+
+    private boolean restartIjkRealtimeRecovery(
+            IjkPlayerEngine ijk,
+            IjkBufferController.Decision reloadGate,
+            IjkRealtimeRecoveryPolicy.Decision recovery) {
+        if (spec == null || TextUtils.isEmpty(spec.getUrl())
+                || player == null) return false;
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        try {
+            prepareSeq++;
+            App.removeCallbacks(runnable);
+            initTrack = false;
+            playWhenReady = wasPlayWhenReady;
+            ijkBufferManagedReload = true;
+            PlaybackTrace.log("ijk-realtime", playbackTrace.current(),
+                    "action=rebuild-session trigger=%s bufferedMs=%d bytes=%d packets=%d play=%s reloadReason=%s",
+                    recovery.trigger().label(),
+                    recovery.queue().playableDurationMs(),
+                    recovery.queue().totalBytes(),
+                    recovery.queue().totalPackets(),
+                    wasPlayWhenReady,
+                    reloadGate.reason().label());
+            restartWithProxy(spec, C.TIME_UNSET, wasPlayWhenReady);
+        } catch (Throwable error) {
+            PlaybackTrace.log("ijk-realtime", playbackTrace.current(),
+                    "action=rebuild-session result=failed errorType=%s",
+                    error.getClass().getSimpleName());
+            return false;
+        }
+        try {
+            if (speed != 1f) setSpeed(speed);
+            setRepeatOne(repeat);
+        } catch (Throwable error) {
+            PlaybackTrace.log("ijk-realtime", playbackTrace.current(),
+                    "action=restore-state result=partial errorType=%s",
+                    error.getClass().getSimpleName());
+        }
+        App.post(runnable, Constant.TIMEOUT_PLAY);
+        return true;
+    }
+
+    private boolean restartIjkDecodePressure(
+            IjkPlayerEngine ijk,
+            IjkBufferController.Decision reloadGate,
+            IjkDecodePressureController.Decision decision) {
+        if (spec == null || TextUtils.isEmpty(spec.getUrl())
+                || player == null) return false;
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        long position = ijk.isVod()
+                ? Math.max(0, player.getCurrentPosition()) : C.TIME_UNSET;
+        IjkDecodePressurePolicy.Metrics metrics =
+                decision.assessment().metrics();
+        try {
+            prepareSeq++;
+            App.removeCallbacks(runnable);
+            initTrack = false;
+            playWhenReady = wasPlayWhenReady;
+            ijkBufferManagedReload = true;
+            PlaybackTrace.log("ijk-decode", playbackTrace.current(),
+                    "action=reload old=%s target=%s pressure=%s thermalReason=%s targetFps=%d decodeFps=%d outputFps=%d play=%s reloadReason=%s",
+                    decision.appliedConfig().label(),
+                    decision.targetConfig().label(),
+                    decision.assessment().pressure().label(),
+                    decision.assessment().reason().label(),
+                    Math.round(metrics.targetFps() * 1_000f),
+                    Math.round(metrics.decodeFps() * 1_000f),
+                    Math.round(metrics.outputFps() * 1_000f),
+                    wasPlayWhenReady,
+                    reloadGate.reason().label());
+            restartWithProxy(spec, position, wasPlayWhenReady);
+        } catch (Throwable error) {
+            PlaybackTrace.log("ijk-decode", playbackTrace.current(),
+                    "action=reload result=failed errorType=%s",
+                    error.getClass().getSimpleName());
+            return false;
+        }
+        try {
+            if (speed != 1f) setSpeed(speed);
+            setRepeatOne(repeat);
+        } catch (Throwable error) {
+            PlaybackTrace.log("ijk-decode", playbackTrace.current(),
+                    "action=restore-state result=partial errorType=%s",
+                    error.getClass().getSimpleName());
+        }
+        App.post(runnable, Constant.TIMEOUT_PLAY);
+        return true;
+    }
+
+    private void completeIjkBufferManagedReload(
+            boolean succeeded,
+            String completionReason,
+            long nowElapsedMs,
+            boolean publishCompletion) {
+        IjkBufferController.Decision pending = pendingIjkBufferDecision;
+        IjkDecodePressureController.Decision decode =
+                pendingIjkDecodePressureDecision;
+        IjkRealtimeRecoveryPolicy.Decision recovery =
+                pendingIjkRealtimeRecoveryDecision;
+        pendingIjkBufferDecision = null;
+        pendingIjkDecodePressureDecision = null;
+        pendingIjkRealtimeRecoveryDecision = null;
+        if (pending != null || decode != null || recovery != null) {
+            long now = Math.max(0, nowElapsedMs);
+            if (pending != null) {
+                ijkBufferController.completeApply(
+                        playbackAutoSession, pending, succeeded, now);
+            }
+            if (recovery != null) {
+                ijkRealtimeRecoveryController.completeAction(
+                        playbackAutoSession, succeeded);
+            }
+            if (decode != null) {
+                ijkDecodePressureController.completeAction(
+                        playbackAutoSession, succeeded);
+            }
+            if (engine instanceof IjkPlayerEngine ijk
+                    && PlaybackPerformanceSetting.hasAutomaticOptions(
+                    PlayerSetting.IJK,
+                    PlaybackPerformanceCatalog.IJK_BUFFER,
+                    PlaybackPerformanceCatalog.IJK_WATER,
+                    PlaybackPerformanceCatalog.IJK_PICTURE_QUEUE,
+                    PlaybackPerformanceCatalog.IJK_SOFT_TUNE)
+                    && playbackAutoSession.active()) {
+                ijk.stageAutomaticInputBufferConfig(
+                        mergeIjkBufferConfig(
+                                ijkBufferController.snapshot().stagedConfig()));
+                ijk.stageAutomaticDecodeControlConfig(
+                        mergeIjkDecodeConfig(
+                                ijkDecodePressureController.snapshot().stagedConfig()));
+            }
+            String domain = recovery != null ? "ijk-realtime"
+                    : decode != null ? "ijk-decode" : "ijk-buffer";
+            String target = decode != null
+                    ? decode.targetConfig().label()
+                    : pending == null ? "unknown"
+                    : pending.targetConfig().label();
+            PlaybackTrace.log(domain, playbackTrace.current(),
+                    "action=reload-complete result=%s reason=%s target=%s",
+                    succeeded ? "ready" : "failed",
+                    PlaybackTelemetry.safeLabel(completionReason),
+                    target);
+            if (publishCompletion) {
+                if (recovery != null) {
+                    publishIjkRealtimeRecoveryCompletion(
+                            recovery, succeeded, completionReason, now);
+                } else if (decode != null) {
+                    publishIjkDecodePressureCompletion(
+                            decode, succeeded, completionReason, now);
+                } else if (pending != null) {
+                    publishIjkBufferCompletion(
+                            pending, succeeded, completionReason, now);
+                }
+            }
+        }
+        ijkBufferManagedReload = false;
+    }
+
+    private void publishIjkDecodePressureCompletion(
+            IjkDecodePressureController.Decision decision,
+            boolean succeeded,
+            String completionReason,
+            long nowElapsedMs) {
+        IjkDecodePressureController.Snapshot decode =
+                ijkDecodePressureController.snapshot();
+        IjkBufferController.Snapshot reload =
+                ijkBufferController.snapshot();
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "action_attempts", decode.actionAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "successful_actions", decode.successfulActions(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "failed_actions", decode.failedActions(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "shared_reload_attempts", reload.reloadAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_DECODE_PRESSURE,
+                        succeeded ? PlaybackTelemetry.DecisionOutcome.APPLIED
+                                : PlaybackTelemetry.DecisionOutcome.FAILED,
+                        decision.appliedConfig().label(),
+                        decision.targetConfig().label(),
+                        succeeded ? decision.targetConfig().label()
+                                : decision.appliedConfig().label(),
+                        succeeded ? "reload-ready" : "reload-failed",
+                        succeeded ? "none"
+                                : PlaybackTelemetry.safeLabel(
+                                completionReason),
+                        inputs),
+                nowElapsedMs);
+    }
+
+    private void publishIjkBufferCompletion(
+            IjkBufferController.Decision decision,
+            boolean succeeded,
+            String completionReason,
+            long nowElapsedMs) {
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        IjkBufferController.Snapshot snapshot = ijkBufferController.snapshot();
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "reload_attempts", snapshot.reloadAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "successful_reloads", snapshot.successfulReloads(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_BUFFER,
+                        succeeded ? PlaybackTelemetry.DecisionOutcome.APPLIED
+                                : PlaybackTelemetry.DecisionOutcome.FAILED,
+                        decision.appliedConfig().label(),
+                        decision.targetConfig().label(),
+                        succeeded ? decision.targetConfig().label()
+                                : decision.appliedConfig().label(),
+                        succeeded ? "reload-ready" : "reload-failed",
+                        succeeded ? "none"
+                                : PlaybackTelemetry.safeLabel(completionReason),
+                        inputs),
+                nowElapsedMs);
+    }
+
+    private void publishIjkBufferDecision(
+            IjkBufferController.Decision decision,
+            IjkBufferPolicy.Request request,
+            IjkBufferController.Trigger trigger,
+            boolean applyStarted,
+            boolean applySucceeded,
+            long nowElapsedMs) {
+        if (decision == null || request == null) return;
+        PlaybackTelemetry.DecisionOutcome outcome = !decision.policy().managed()
+                ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                : decision.action() == IjkBufferController.Action.RELOAD
+                ? applyStarted && applySucceeded
+                ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                : PlaybackTelemetry.DecisionOutcome.FAILED
+                : decision.action() == IjkBufferController.Action.STAGE
+                ? PlaybackTelemetry.DecisionOutcome.SELECTED
+                : PlaybackTelemetry.DecisionOutcome.HELD;
+        String result = applyStarted && applySucceeded
+                || decision.action() == IjkBufferController.Action.STAGE
+                ? decision.targetConfig().label()
+                : decision.appliedConfig().label();
+        PlaybackAutoContext.Fact<Long> liveLagFact =
+                playbackAutoContextStore.snapshot().runtime().liveLagMs();
+        boolean liveLagFactUsable = liveLagFact.isUsable(nowElapsedMs);
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "trigger", trigger.name().toLowerCase(java.util.Locale.US),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "memory_ceiling_mb", decision.policy().memoryCeilingMb(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "target_first_ms", decision.targetConfig().firstWaterMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "target_next_ms", decision.targetConfig().nextWaterMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "target_last_ms", decision.targetConfig().lastWaterMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(request.mediaBitrateUsable()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "media_bps", request.mediaBitrateBitsPerSecond(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM)
+                : PlaybackTelemetry.DecisionInput.unknown("media_bps"));
+        inputs.add(request.liveLagUsable()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "live_lag_ms", request.liveLagMs(),
+                liveLagFactUsable ? liveLagFact.source()
+                        : PlaybackAutoContext.ValueSource.UNKNOWN,
+                liveLagFactUsable ? liveLagFact.confidence()
+                        : PlaybackAutoContext.Confidence.UNKNOWN)
+                : PlaybackTelemetry.DecisionInput.unknown("live_lag_ms"));
+        inputs.add(request.rebufferUsable()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "rebuffer_count", request.rebufferCount(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH)
+                : PlaybackTelemetry.DecisionInput.unknown("rebuffer_count"));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "reload_attempts",
+                ijkBufferController.snapshot().reloadAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "cooldown_ms", decision.cooldownRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_BUFFER,
+                        outcome,
+                        decision.appliedConfig().label(),
+                        decision.targetConfig().label(),
+                        result,
+                        decision.reason().label(),
+                        decision.policy().reason().label(),
+                        inputs),
+                nowElapsedMs);
+    }
+
+    private void publishIjkDecodePressureDecision(
+            IjkDecodePressureController.Decision decision,
+            IjkBufferController.Decision reloadGate,
+            boolean actionStarted,
+            boolean restartStarted,
+            long nowElapsedMs) {
+        if (decision == null) return;
+        boolean suppressed = switch (decision.reason()) {
+            case STALE_SESSION,
+                 STALE_SAMPLE,
+                 NOT_MANAGED,
+                 INELIGIBLE,
+                 ACTION_PENDING -> true;
+            default -> false;
+        };
+        PlaybackTelemetry.DecisionOutcome outcome;
+        if (decision.action() == IjkDecodePressureController.Action.STAGE) {
+            outcome = PlaybackTelemetry.DecisionOutcome.SELECTED;
+        } else if (!decision.requestsReload()) {
+            outcome = suppressed
+                    ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                    : PlaybackTelemetry.DecisionOutcome.HELD;
+        } else if (reloadGate != null && !reloadGate.requestsReload()) {
+            outcome = PlaybackTelemetry.DecisionOutcome.HELD;
+        } else {
+            outcome = actionStarted && restartStarted
+                    ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                    : PlaybackTelemetry.DecisionOutcome.FAILED;
+        }
+        String suppression = reloadGate != null
+                && !reloadGate.requestsReload()
+                ? reloadGate.reason().label()
+                : suppressed ? decision.assessment().reason().label()
+                : "none";
+        String result = decision.action()
+                == IjkDecodePressureController.Action.STAGE
+                || actionStarted && restartStarted
+                ? decision.targetConfig().label()
+                : decision.appliedConfig().label();
+        IjkDecodePressureController.Snapshot state =
+                ijkDecodePressureController.snapshot();
+        IjkBufferController.Snapshot reload =
+                ijkBufferController.snapshot();
+        IjkDecodePressurePolicy.Metrics metrics =
+                decision.assessment().metrics();
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        long now = Math.max(0, nowElapsedMs);
+        PlaybackAutoContext.Fact<PlaybackAutoContext.DecodeMode> decoder =
+                context.media().decoder().videoDecodeMode();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.ThermalState> thermal =
+                context.device().thermalState();
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "pressure", decision.assessment().pressure().label(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(decoder.isUsable(now)
+                ? PlaybackTelemetry.DecisionInput.text(
+                "actual_decode", decoder.value().label(),
+                decoder.source(), decoder.confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("actual_decode"));
+        inputs.add(thermal.isUsable(now)
+                ? PlaybackTelemetry.DecisionInput.text(
+                "thermal", thermal.value().label(),
+                thermal.source(), thermal.confidence())
+                : PlaybackTelemetry.DecisionInput.unknown("thermal"));
+        inputs.add(metrics.targetFps() > 0
+                ? PlaybackTelemetry.DecisionInput.number(
+                "target_fps_milli",
+                Math.round(metrics.targetFps() * 1_000f),
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.MEDIUM)
+                : PlaybackTelemetry.DecisionInput.unknown(
+                "target_fps_milli"));
+        inputs.add(metrics.fpsUsable()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "decode_fps_milli",
+                Math.round(metrics.decodeFps() * 1_000f),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM)
+                : PlaybackTelemetry.DecisionInput.unknown(
+                "decode_fps_milli"));
+        inputs.add(metrics.fpsUsable()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "output_fps_milli",
+                Math.round(metrics.outputFps() * 1_000f),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM)
+                : PlaybackTelemetry.DecisionInput.unknown(
+                "output_fps_milli"));
+        inputs.add(metrics.outputRatioPermille() >= 0
+                ? PlaybackTelemetry.DecisionInput.number(
+                "output_ratio_permille",
+                metrics.outputRatioPermille(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM)
+                : PlaybackTelemetry.DecisionInput.unknown(
+                "output_ratio_permille"));
+        inputs.add(metrics.outputToDecodePermille() >= 0
+                ? PlaybackTelemetry.DecisionInput.number(
+                "output_decode_permille",
+                metrics.outputToDecodePermille(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM)
+                : PlaybackTelemetry.DecisionInput.unknown(
+                "output_decode_permille"));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "risk_samples", state.consecutiveRiskSamples(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "recovery_samples", state.consecutiveRecoverySamples(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "reload_attempts", reload.reloadAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "cooldown_ms", reloadGate == null
+                        ? 0 : reloadGate.cooldownRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_DECODE_PRESSURE,
+                        outcome,
+                        decision.appliedConfig().label(),
+                        decision.targetConfig().label(),
+                        result,
+                        decision.reason().label(),
+                        suppression,
+                        inputs),
+                now);
+        if (decision.action() != IjkDecodePressureController.Action.HOLD
+                || state.consecutiveRiskSamples() > 0
+                || state.consecutiveRecoverySamples() > 0
+                || reloadGate != null) {
+            PlaybackTrace.log("ijk-decode", playbackTrace.current(),
+                    "action=%s reason=%s pressure=%s targetFps=%d decodeFps=%d outputFps=%d outputRatio=%d outputDecodeRatio=%d riskSamples=%d recoverySamples=%d reloadGate=%s result=%s",
+                    decision.action().label(),
+                    decision.reason().label(),
+                    decision.assessment().pressure().label(),
+                    Math.round(metrics.targetFps() * 1_000f),
+                    Math.round(metrics.decodeFps() * 1_000f),
+                    Math.round(metrics.outputFps() * 1_000f),
+                    metrics.outputRatioPermille(),
+                    metrics.outputToDecodePermille(),
+                    state.consecutiveRiskSamples(),
+                    state.consecutiveRecoverySamples(),
+                    reloadGate == null ? "none"
+                            : reloadGate.reason().label(),
+                    outcome.label());
+        }
+    }
+
+    private void publishIjkRealtimeRecoveryDecision(
+            IjkRealtimeRecoveryPolicy.Decision decision,
+            PlaybackAutoContext.Protocol protocol,
+            IjkBufferController.Decision reloadGate,
+            IjkRealtimeRecoveryController.Snapshot stateAtDecision,
+            boolean actionStarted,
+            boolean restartStarted,
+            long nowElapsedMs) {
+        if (decision == null) return;
+        boolean suppressed = switch (decision.reason()) {
+            case NOT_AUTOMATIC_IJK,
+                 NOT_REALTIME_PROTOCOL,
+                 INACTIVE,
+                 STARTUP,
+                 NON_UNIT_SPEED,
+                 USER_SEEK,
+                 ACTION_PENDING,
+                 EVIDENCE_UNKNOWN,
+                 STALE_SESSION,
+                 STALE_SAMPLE -> true;
+            default -> false;
+        };
+        PlaybackTelemetry.DecisionOutcome outcome;
+        if (!decision.requestsRecovery()) {
+            outcome = suppressed
+                    ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                    : PlaybackTelemetry.DecisionOutcome.HELD;
+        } else if (reloadGate != null && !reloadGate.requestsReload()) {
+            outcome = PlaybackTelemetry.DecisionOutcome.HELD;
+        } else {
+            outcome = actionStarted && restartStarted
+                    ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                    : PlaybackTelemetry.DecisionOutcome.FAILED;
+        }
+        String suppression = reloadGate != null
+                && !reloadGate.requestsReload()
+                ? reloadGate.reason().label()
+                : suppressed ? decision.reason().label() : "none";
+        IjkRealtimeRecoveryPolicy.QueueSnapshot queue = decision.queue();
+        IjkBufferController.Snapshot reloadState =
+                ijkBufferController.snapshot();
+        IjkRealtimeRecoveryController.Snapshot recoveryState =
+                stateAtDecision == null
+                        ? ijkRealtimeRecoveryController.snapshot()
+                        : stateAtDecision;
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "protocol", protocol == null
+                        ? PlaybackAutoContext.Protocol.UNKNOWN.label()
+                        : protocol.label(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "trigger", decision.trigger().label(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(queue.durationUsable()
+                ? PlaybackTelemetry.DecisionInput.number(
+                "buffered_ms", queue.playableDurationMs(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM)
+                : PlaybackTelemetry.DecisionInput.unknown("buffered_ms"));
+        inputs.add(decision.durationGrowthMsPerSecond() == Long.MIN_VALUE
+                ? PlaybackTelemetry.DecisionInput.unknown(
+                "duration_growth_msps")
+                : PlaybackTelemetry.DecisionInput.number(
+                "duration_growth_msps",
+                decision.durationGrowthMsPerSecond(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "cached_bytes", queue.totalBytes(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(decision.bytesGrowthPerSecond() == Long.MIN_VALUE
+                ? PlaybackTelemetry.DecisionInput.unknown("bytes_growth_ps")
+                : PlaybackTelemetry.DecisionInput.number(
+                "bytes_growth_ps", decision.bytesGrowthPerSecond(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "cached_packets", queue.totalPackets(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(decision.packetsGrowthPerSecond() == Long.MIN_VALUE
+                ? PlaybackTelemetry.DecisionInput.unknown(
+                "packets_growth_ps")
+                : PlaybackTelemetry.DecisionInput.number(
+                "packets_growth_ps", decision.packetsGrowthPerSecond(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "occupancy_permille",
+                queue.occupancyPermille(
+                        decision.thresholds().maxBufferBytes()),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "risk_samples", recoveryState.consecutiveRiskSamples(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "reload_attempts", reloadState.reloadAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "cooldown_ms", reloadGate == null
+                        ? 0 : reloadGate.cooldownRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_REALTIME_RECOVERY,
+                        outcome,
+                        "monitoring",
+                        decision.action().label(),
+                        actionStarted && restartStarted
+                                ? "rebuild-pending" : "hold",
+                        decision.reason().label(),
+                        suppression,
+                        inputs),
+                nowElapsedMs);
+        if (decision.trigger() != IjkRealtimeRecoveryPolicy.Trigger.NONE
+                || reloadGate != null) {
+            PlaybackTrace.log("ijk-realtime", playbackTrace.current(),
+                    "action=%s reason=%s trigger=%s bufferedMs=%d bytes=%d packets=%d durationGrowth=%d byteGrowth=%d packetGrowth=%d samples=%d reloadGate=%s result=%s",
+                    decision.action().label(),
+                    decision.reason().label(),
+                    decision.trigger().label(),
+                    queue.playableDurationMs(),
+                    queue.totalBytes(),
+                    queue.totalPackets(),
+                    decision.durationGrowthMsPerSecond(),
+                    decision.bytesGrowthPerSecond(),
+                    decision.packetsGrowthPerSecond(),
+                    recoveryState.consecutiveRiskSamples(),
+                    reloadGate == null ? "none"
+                            : reloadGate.reason().label(),
+                    outcome.label());
+        }
+    }
+
+    private void publishIjkRealtimeRecoveryCompletion(
+            IjkRealtimeRecoveryPolicy.Decision decision,
+            boolean succeeded,
+            String completionReason,
+            long nowElapsedMs) {
+        IjkRealtimeRecoveryController.Snapshot recovery =
+                ijkRealtimeRecoveryController.snapshot();
+        IjkBufferController.Snapshot reload =
+                ijkBufferController.snapshot();
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "recovery_attempts", recovery.recoveryAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "successful_recoveries", recovery.successfulRecoveries(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "failed_recoveries", recovery.failedRecoveries(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "shared_reload_attempts", reload.reloadAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_REALTIME_RECOVERY,
+                        succeeded ? PlaybackTelemetry.DecisionOutcome.APPLIED
+                                : PlaybackTelemetry.DecisionOutcome.FAILED,
+                        "rebuild-pending",
+                        "ready",
+                        succeeded ? "ready" : "failed",
+                        succeeded ? "rebuild-ready" : "rebuild-failed",
+                        succeeded ? "none"
+                                : PlaybackTelemetry.safeLabel(
+                                completionReason),
+                        inputs),
+                nowElapsedMs);
+        PlaybackTrace.log("ijk-realtime", playbackTrace.current(),
+                "action=rebuild-complete result=%s trigger=%s attempts=%d successes=%d failures=%d reason=%s",
+                succeeded ? "ready" : "failed",
+                decision.trigger().label(),
+                recovery.recoveryAttempts(),
+                recovery.successfulRecoveries(),
+                recovery.failedRecoveries(),
+                PlaybackTelemetry.safeLabel(completionReason));
+    }
+
+    private void activateIjkRuntimeProfileIfEligible(long nowElapsedMs) {
+        if (ijkRuntimeManualOverride
+                || !playbackAutoSession.active()
+                || playerType != PlayerSetting.IJK
+                || !PlaybackPerformanceSetting.isAuto(PlayerSetting.IJK)
+                || PlayerSetting.getPlayer() != PlayerSetting.IJK) return;
+        long now = Math.max(0, nowElapsedMs);
+        IjkRuntimeProfileController.Facts facts = currentIjkRuntimeFacts(now);
+        IjkRuntimeProfileController.RuntimeSample sample =
+                currentIjkRuntimeSample(null, now);
+        IjkRuntimeProfilePolicy.Path path = engine != null && engine.isHard()
+                ? IjkRuntimeProfilePolicy.Path.IJK_HARD
+                : IjkRuntimeProfilePolicy.Path.IJK_SOFT;
+        if (!ijkRuntimeProfileController.activate(
+                playbackAutoSession, path, facts, sample, now)) return;
+        PlaybackTrace.log(
+                "ijk-runtime-profile",
+                playbackTrace.current(),
+                "action=activate path=%s profile=%s",
+                path.label(),
+                ijkRuntimeProfileController.snapshot().profileId());
+    }
+
+    private IjkRuntimeProfileController.Facts currentIjkRuntimeFacts(
+            long nowElapsedMs) {
+        boolean automatic = PlayerSetting.getPlayer() == PlayerSetting.IJK
+                && PlaybackPerformanceSetting.isAuto(PlayerSetting.IJK)
+                && !ijkRuntimeManualOverride;
+        return IjkRuntimeProfileController.Facts.fromContext(
+                playbackAutoContextStore.snapshot(),
+                automatic,
+                Math.max(0, nowElapsedMs));
+    }
+
+    private IjkRuntimeProfileController.RuntimeSample currentIjkRuntimeSample(
+            PlaybackTelemetry.RuntimeObservation observation,
+            long nowElapsedMs) {
+        boolean active = false;
+        if (player != null) {
+            try {
+                active = player.getPlaybackState() == Player.STATE_READY
+                        && player.getPlayWhenReady()
+                        && player.isPlaying();
+            } catch (Throwable ignored) {
+            }
+        }
+        boolean decodeFpsUsable = false;
+        float decodeFps = 0f;
+        boolean outputFpsUsable = false;
+        float outputFps = 0f;
+        boolean dropRateUsable = false;
+        int dropRatePermille = 0;
+        if (engine instanceof IjkPlayerEngine ijk) {
+            IjkDecodePressurePolicy.DecodeSnapshot decode =
+                    ijk.getDecodePressureSnapshot();
+            decodeFpsUsable = decode.available()
+                    && decode.decodeFps() > 0;
+            decodeFps = decodeFpsUsable ? decode.decodeFps() : 0f;
+            outputFpsUsable = decode.available()
+                    && decode.outputFps() > 0;
+            outputFps = outputFpsUsable ? decode.outputFps() : 0f;
+            IjkPlayerEngine.DropRateSnapshot drop =
+                    ijk.getDropRateSnapshot();
+            dropRateUsable = drop.available();
+            dropRatePermille = drop.permille();
+        } else if (observation != null
+                && observation.renderedFrameRate().known()
+                && observation.renderedFrameRate().value() > 0) {
+            outputFpsUsable = true;
+            outputFps = observation.renderedFrameRate().value();
+        }
+        int rebufferCount = observation != null
+                && observation.rebufferCount().known()
+                ? Math.max(0, observation.rebufferCount().value())
+                : playbackBufferingTracker.getRebufferCount();
+        boolean droppedFramesUsable = observation != null
+                && observation.droppedFrames().known();
+        long droppedFrames = droppedFramesUsable
+                ? Math.max(0, observation.droppedFrames().value()) : 0;
+        long nativeHeapBytes = -1;
+        long pssBytes = -1;
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        long now = Math.max(0, nowElapsedMs);
+        if (playbackAutoSession.equals(context.session())) {
+            PlaybackAutoContext.Fact<PlaybackAutoContext.MemorySnapshot>
+                    memory = context.device().memorySnapshot();
+            if (memory.isUsable(now)
+                    && memory.value().nativeHeapAllocatedBytes() != null) {
+                nativeHeapBytes = memory.value().nativeHeapAllocatedBytes();
+            }
+            PlaybackAutoContext.Fact<Long> pss =
+                    context.device().diagnosticPssBytes();
+            if (pss.isUsable(now) && pss.value() >= 0) {
+                pssBytes = pss.value();
+            }
+        }
+        return new IjkRuntimeProfileController.RuntimeSample(
+                active,
+                rebufferCount,
+                decodeFpsUsable,
+                decodeFps,
+                outputFpsUsable,
+                outputFps,
+                dropRateUsable,
+                dropRatePermille,
+                droppedFramesUsable,
+                droppedFrames,
+                nativeHeapBytes,
+                pssBytes);
+    }
+
+    private void onIjkRuntimeFirstFrame(long nowElapsedMs) {
+        if (!playbackAutoSession.active()) return;
+        long now = Math.max(0, nowElapsedMs);
+        IjkRuntimeProfileController.Observation observation =
+                ijkRuntimeProfileController.onFirstFrame(
+                        playbackAutoSession,
+                        currentIjkRuntimeFacts(now),
+                        currentIjkRuntimeSample(null, now),
+                        now,
+                        System.currentTimeMillis());
+        publishIjkRuntimeObservation(observation, now);
+    }
+
+    private void evaluateIjkRuntimeProfile(
+            PlaybackTelemetry.RuntimeObservation runtime,
+            long nowElapsedMs) {
+        if (!playbackAutoSession.active()) return;
+        long now = Math.max(0, nowElapsedMs);
+        IjkRuntimeProfileController.Observation observation =
+                ijkRuntimeProfileController.observe(
+                        playbackAutoSession,
+                        currentIjkRuntimeFacts(now),
+                        currentIjkRuntimeSample(runtime, now),
+                        now,
+                        System.currentTimeMillis());
+        publishIjkRuntimeObservation(observation, now);
+    }
+
+    private void finishIjkRuntimeProfileSession(
+            PlaybackTelemetry.RuntimeObservation runtime,
+            long nowElapsedMs) {
+        if (!playbackAutoSession.active()) return;
+        long now = Math.max(0, nowElapsedMs);
+        ijkRuntimeProfileController.finishSession(
+                playbackAutoSession,
+                currentIjkRuntimeFacts(now),
+                currentIjkRuntimeSample(runtime, now),
+                System.currentTimeMillis());
+    }
+
+    private boolean retryIjkRuntimeProfileFallback(
+            PlaybackException error,
+            PlaybackErrorClassifier.Failure failure,
+            PlayerEngine.ErrorAction engineAction) {
+        if (engineAction == PlayerEngine.ErrorAction.RECOVERED
+                || error == null
+                || failure == null
+                || !experimentAllowed(
+                PlaybackExperimentPolicy.Action.IJK_RUNTIME_KERNEL_FALLBACK)
+                || !playbackAutoSession.active()) return false;
+        long now = SystemClock.elapsedRealtime();
+        IjkPlayerEngine.ErrorSnapshot ijkError =
+                engine instanceof IjkPlayerEngine ijk
+                        ? ijk.getLastErrorSnapshot()
+                        : IjkPlayerEngine.ErrorSnapshot.none();
+        IjkRuntimeProfileController.Decision decision =
+                ijkRuntimeProfileController.handleFailure(
+                        playbackAutoSession,
+                        currentIjkRuntimeFacts(now),
+                        currentIjkRuntimeSample(
+                                collectPlaybackTelemetry(
+                                        PlaybackAutoContext.PlaybackPhase.ERROR,
+                                        now),
+                                now),
+                        new IjkRuntimeProfileController.FailureEvent(
+                                failure.stage(),
+                                error.errorCode,
+                                ijkError.what(),
+                                ijkError.extra(),
+                                ijkError.prepared()),
+                        now,
+                        System.currentTimeMillis());
+        publishIjkRuntimeFailureDecision(decision, now);
+        if (!decision.requestsSwitch()) return false;
+        boolean switched = switchIjkRuntimeFallback(decision);
+        if (!switched) {
+            ijkRuntimeProfileController.onSwitchStartFailed(
+                    playbackAutoSession, System.currentTimeMillis());
+            publishIjkRuntimeSwitchStartFailure("switch-start-failed");
+        }
+        return switched;
+    }
+
+    private boolean switchIjkRuntimeFallback(
+            IjkRuntimeProfileController.Decision decision) {
+        if (decision == null
+                || !decision.requestsSwitch()
+                || engine == null
+                || player == null
+                || spec == null
+                || TextUtils.isEmpty(spec.getUrl())) return false;
+        IjkRuntimeProfilePolicy.Path targetPath = decision.targetPath();
+        int targetPlayer = playerTypeForIjkRuntimePath(targetPath);
+        int targetDecode = targetPath == IjkRuntimeProfilePolicy.Path.IJK_SOFT
+                ? PlayerEngine.SOFT : PlayerEngine.HARD;
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        long now = SystemClock.elapsedRealtime();
+        long position = ijkRuntimeVodResumePosition(now);
+        PlayerEngine replacement;
+        try {
+            replacement = buildEngine(targetPlayer, targetDecode);
+        } catch (Throwable error) {
+            PlaybackTrace.log(
+                    "ijk-runtime-profile",
+                    playbackTrace.current(),
+                    "action=build-fallback target=%s result=failed errorType=%s",
+                    targetPath.label(),
+                    error.getClass().getSimpleName());
+            return false;
+        }
+        Player replacementPlayer = replacement.getPlayer();
+        try {
+            prepareSeq++;
+            App.removeCallbacks(runnable);
+            App.removeCallbacks(networkProtectionRunnable);
+            resetNetworkProtectionSession("ijk-runtime-fallback");
+            resetLutRuntimeState("ijk_runtime_fallback", true);
+            stopNativeAudioSession();
+            stopParse();
+            engine.release();
+            engine = replacement;
+            player = replacementPlayer;
+            playerType = targetPlayer;
+            playWhenReady = wasPlayWhenReady;
+            hardDecodeSwitchRetryArmed = false;
+            initTrack = false;
+            ijkRuntimeTemporaryFallback = true;
+            pendingIjkRuntimeFallbackReparse = false;
+            callback.onPlayerRebuild(player, false);
+            PlaybackTrace.log(
+                    "ijk-runtime-profile",
+                    playbackTrace.current(),
+                    "action=switch from=%s target=%s count=%d resume=%d play=%s",
+                    decision.fromPath().label(),
+                    targetPath.label(),
+                    decision.fallbackCount(),
+                    position == C.TIME_UNSET ? 0 : position,
+                    wasPlayWhenReady);
+            pendingIjkRuntimeFallbackReparse = true;
+            if (reparseForPlayerSwitch(position, speed, repeat)) {
+                return true;
+            }
+            pendingIjkRuntimeFallbackReparse = false;
+            setMediaItem(Constant.TIMEOUT_PLAY);
+            if (position > 0) seekTo(position);
+            if (speed != 1f) setSpeed(speed);
+            setRepeatOne(repeat);
+            return true;
+        } catch (Throwable error) {
+            PlaybackTrace.log(
+                    "ijk-runtime-profile",
+                    playbackTrace.current(),
+                    "action=switch target=%s result=failed errorType=%s",
+                    targetPath.label(),
+                    error.getClass().getSimpleName());
+            try {
+                if (engine != replacement) replacement.release();
+            } catch (Throwable ignored) {
+            }
+            return false;
+        }
+    }
+
+    private long ijkRuntimeVodResumePosition(long nowElapsedMs) {
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.StreamKind> stream =
+                context.resource().streamKind();
+        if (!playbackAutoSession.equals(context.session())
+                || !stream.isUsable(Math.max(0, nowElapsedMs))
+                || stream.value() != PlaybackAutoContext.StreamKind.VOD) {
+            return C.TIME_UNSET;
+        }
+        return Math.max(0, getPosition());
+    }
+
+    private static int playerTypeForIjkRuntimePath(
+            IjkRuntimeProfilePolicy.Path path) {
+        if (path == IjkRuntimeProfilePolicy.Path.MPV) {
+            return PlayerSetting.MPV;
+        }
+        if (path == IjkRuntimeProfilePolicy.Path.EXO) {
+            return PlayerSetting.EXO;
+        }
+        return PlayerSetting.IJK;
+    }
+
+    private void prepareIjkRuntimeForUserPlayback() {
+        ijkRuntimeManualOverride = false;
+        pendingIjkRuntimeFallbackReparse = false;
+        if (!ijkRuntimeTemporaryFallback) return;
+        if (PlayerSetting.getPlayer() != PlayerSetting.IJK
+                || !PlaybackPerformanceSetting.isAuto(PlayerSetting.IJK)) {
+            ijkRuntimeTemporaryFallback = false;
+            return;
+        }
+        if (engine instanceof IjkPlayerEngine && engine.isHard()) {
+            playerType = PlayerSetting.IJK;
+            ijkRuntimeTemporaryFallback = false;
+            return;
+        }
+        PlayerEngine replacement;
+        try {
+            replacement = buildEngine(PlayerSetting.IJK, PlayerEngine.HARD);
+        } catch (Throwable error) {
+            PlaybackTrace.log(
+                    "ijk-runtime-profile",
+                    playbackTrace.current(),
+                    "action=restore-default result=failed errorType=%s",
+                    error.getClass().getSimpleName());
+            return;
+        }
+        try {
+            prepareSeq++;
+            stopNativeAudioSession();
+            if (engine != null) engine.release();
+            engine = replacement;
+            player = replacement.getPlayer();
+            playerType = PlayerSetting.IJK;
+            callback.onPlayerRebuild(player, false);
+            ijkRuntimeTemporaryFallback = false;
+            PlaybackTrace.log(
+                    "ijk-runtime-profile",
+                    playbackTrace.current(),
+                    "action=restore-default target=ijk-hard result=applied");
+        } catch (Throwable error) {
+            PlaybackTrace.log(
+                    "ijk-runtime-profile",
+                    playbackTrace.current(),
+                    "action=restore-default result=failed errorType=%s",
+                    error.getClass().getSimpleName());
+        }
+    }
+
+    private void beginIjkRuntimeManualOverride() {
+        ijkRuntimeManualOverride = true;
+        ijkRuntimeTemporaryFallback = false;
+        pendingIjkRuntimeFallbackReparse = false;
+        ijkRuntimeProfileController.cancel(playbackAutoSession);
+    }
+
+    private void publishIjkRuntimeObservation(
+            IjkRuntimeProfileController.Observation observation,
+            long nowElapsedMs) {
+        if (observation == null || !observation.material()) return;
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "profile", observation.profileId(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "rebuffer_count", observation.rebufferCount(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        addNumberInput(inputs, "drop_rate_permille",
+                observation.dropRatePermille(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM);
+        addNumberInput(inputs, "rendered_ratio_permille",
+                observation.renderedRatioPermille(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM);
+        addNumberInput(inputs, "native_growth_bytes",
+                observation.nativeHeapGrowthBytes(),
+                PlaybackAutoContext.ValueSource.SYSTEM_API,
+                PlaybackAutoContext.Confidence.MEDIUM);
+        addNumberInput(inputs, "pss_growth_bytes",
+                observation.pssGrowthBytes(),
+                PlaybackAutoContext.ValueSource.SYSTEM_API,
+                PlaybackAutoContext.Confidence.LOW);
+        PlaybackTelemetry.DecisionOutcome outcome =
+                observation.fallbackSucceeded()
+                        ? PlaybackTelemetry.DecisionOutcome.APPLIED
+                        : observation.action()
+                        == IjkRuntimeProfileController.ObservationAction.STABLE
+                        ? PlaybackTelemetry.DecisionOutcome.SELECTED
+                        : PlaybackTelemetry.DecisionOutcome.OBSERVED;
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_RUNTIME_PROFILE,
+                        outcome,
+                        observation.path().label(),
+                        observation.action().label(),
+                        observation.path().label(),
+                        observation.reason().label(),
+                        "none",
+                        inputs),
+                nowElapsedMs);
+        PlaybackTrace.log(
+                "ijk-runtime-profile",
+                playbackTrace.current(),
+                "action=%s reason=%s key=%s path=%s stable=%s fallbackSuccess=%s rebuffers=%d dropPermille=%d renderedPermille=%d nativeGrowth=%d pssGrowth=%d",
+                observation.action().label(),
+                observation.reason().label(),
+                observation.profileId(),
+                observation.path().label(),
+                observation.health().stable(),
+                observation.fallbackSucceeded(),
+                observation.rebufferCount(),
+                observation.dropRatePermille(),
+                observation.renderedRatioPermille(),
+                observation.nativeHeapGrowthBytes(),
+                observation.pssGrowthBytes());
+    }
+
+    private void publishIjkRuntimeFailureDecision(
+            IjkRuntimeProfileController.Decision decision,
+            long nowElapsedMs) {
+        if (decision == null
+                || decision.reason()
+                == IjkRuntimeProfileController.Reason.NOT_MANAGED) return;
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "profile", decision.profileId(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "failure_kind", decision.assessment().kind().label(),
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "fallback_count", decision.fallbackCount(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "failure_persisted", decision.failurePersisted(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "fallback_failure_recorded",
+                decision.fallbackFailureRecorded(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_RUNTIME_PROFILE,
+                        decision.requestsSwitch()
+                                ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                                : PlaybackTelemetry.DecisionOutcome.HELD,
+                        decision.fromPath().label(),
+                        decision.targetPath() == null
+                                ? "hold" : decision.targetPath().label(),
+                        decision.requestsSwitch()
+                                ? "switch-pending" : decision.fromPath().label(),
+                        decision.reason().label(),
+                        decision.requestsSwitch()
+                                ? "none" : decision.reason().label(),
+                        inputs),
+                nowElapsedMs);
+        PlaybackTrace.log(
+                "ijk-runtime-profile",
+                playbackTrace.current(),
+                "action=%s reason=%s key=%s from=%s target=%s kind=%s persist=%s fallbackCount=%d",
+                decision.action().label(),
+                decision.reason().label(),
+                decision.profileId(),
+                decision.fromPath().label(),
+                decision.targetPath() == null
+                        ? "none" : decision.targetPath().label(),
+                decision.assessment().kind().label(),
+                decision.failurePersisted(),
+                decision.fallbackCount());
+    }
+
+    private void publishIjkRuntimeSwitchStartFailure(String reason) {
+        long now = SystemClock.elapsedRealtime();
+        IjkRuntimeProfileController.Snapshot snapshot =
+                ijkRuntimeProfileController.snapshot();
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.IJK_RUNTIME_PROFILE,
+                        PlaybackTelemetry.DecisionOutcome.FAILED,
+                        snapshot.currentPath().label(),
+                        snapshot.currentPath().label(),
+                        "failed",
+                        IjkRuntimeProfileController.Reason
+                                .SWITCH_START_FAILED.label(),
+                        PlaybackTelemetry.safeLabel(reason),
+                        List.of(
+                                PlaybackTelemetry.DecisionInput.number(
+                                        "fallback_count",
+                                        snapshot.fallbackCount(),
+                                        PlaybackAutoContext.ValueSource
+                                                .PLAYER_MANAGER,
+                                        PlaybackAutoContext.Confidence.HIGH))),
+                now);
+    }
+
+    private void onMpvResourceMemoryUpdate(PlaybackMemoryCoordinator.Update update) {
+        if (update == null || !playbackAutoSession.active()
+                || !playbackAutoSession.equals(update.session())) return;
+        evaluateMpvCaches(
+                MpvForwardCacheController.Trigger.MEMORY,
+                MpvBackCacheController.Trigger.MEMORY,
+                MpvBackCachePolicy.SeekObservation.none(),
+                SystemClock.elapsedRealtime());
+    }
+
+    private void onMpvResourceSystemUpdate(
+            PlaybackSystemConditionCoordinator.Update update) {
+        if (update == null || !playbackAutoSession.active()
+                || !playbackAutoSession.equals(update.session())) return;
+        evaluateMpvCaches(
+                MpvForwardCacheController.Trigger.RESOURCE,
+                MpvBackCacheController.Trigger.RESOURCE,
+                MpvBackCachePolicy.SeekObservation.none(),
+                SystemClock.elapsedRealtime());
+    }
+
+    private void evaluateMpvCaches(
+            MpvForwardCacheController.Trigger forwardTrigger,
+            MpvBackCacheController.Trigger backTrigger,
+            MpvBackCachePolicy.SeekObservation seekObservation,
+            long nowElapsedMs) {
+        if (!(engine instanceof MpvPlayerEngine mpv) || !playbackAutoSession.active()) return;
+        long now = Math.max(0, nowElapsedMs);
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        boolean automaticForward = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.MPV,
+                PlaybackPerformanceCatalog.BUFFER_BYTES);
+        boolean automaticBack = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.MPV,
+                PlaybackPerformanceCatalog.BACK_BUFFER);
+        boolean automaticPreload = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.MPV,
+                PlaybackPerformanceCatalog.PRELOAD);
+        boolean automatic = automaticForward || automaticBack || automaticPreload;
+        boolean performancePriority = MpvPerformanceSetting.isPerformancePriority();
+        MpvForwardCacheController.Snapshot forwardBefore = mpvForwardCacheController.snapshot();
+        MpvBackCacheController.Snapshot backBefore = mpvBackCacheController.snapshot();
+        long baseline = forwardBefore.initialBaselineBytes() > 0
+                ? forwardBefore.initialBaselineBytes() : MpvForwardCachePolicy.MIN_FORWARD_BYTES;
+        long resourceForward = forwardBefore.controlledTargetBytes() > 0
+                ? forwardBefore.controlledTargetBytes() : baseline;
+        long resourceBack = backBefore.controlledTargetBytes() >= 0
+                ? backBefore.controlledTargetBytes() : 0;
+        MpvResourcePressurePolicy.Assessment resourceAssessment =
+                MpvResourcePressurePolicy.assess(
+                        context,
+                        automatic,
+                        isMpv(),
+                        performancePriority,
+                        now);
+        MpvResourcePressureController.Snapshot resourceBefore =
+                mpvResourcePressureController.snapshot();
+        MpvResourcePressureController.Trigger resourceTrigger =
+                mpvResourceTrigger(forwardTrigger, backTrigger);
+        MpvResourcePressureController.Decision resourceDecision =
+                mpvResourcePressureController.evaluate(
+                        playbackAutoSession,
+                        context.session(),
+                        resourceAssessment,
+                        resourceTrigger,
+                        resourceForward,
+                        resourceBack,
+                        now);
+        boolean resourcePreloadChanged = resourceBefore.preloadAllowed()
+                != resourceDecision.preloadAllowed();
+        publishMpvResourcePressureDecision(
+                resourceBefore,
+                resourceAssessment,
+                resourceDecision,
+                resourcePreloadChanged,
+                now);
+        evaluateMpvPreload(mpv, context, resourceDecision, automaticPreload,
+                performancePriority, now);
+        MpvForwardCachePolicy.Assessment forwardAssessment = MpvForwardCachePolicy.assess(
+                context,
+                automaticForward,
+                isMpv(),
+                performancePriority,
+                baseline,
+                now);
+        MpvForwardCacheController.Decision forwardDecision = !automaticForward
+                || forwardTrigger == null
+                ? null : mpvForwardCacheController.evaluate(
+                playbackAutoSession, context.session(), forwardAssessment, resourceDecision,
+                forwardTrigger, now);
+        MpvForwardCacheController.Snapshot forwardEvaluated =
+                mpvForwardCacheController.snapshot();
+        long currentForward = !automaticForward
+                ? mpv.getConfiguredForwardCacheBytes()
+                : forwardEvaluated.controlledTargetBytes() > 0
+                ? forwardEvaluated.controlledTargetBytes() : baseline;
+        long targetForward = forwardDecision != null && forwardDecision.requestsApply()
+                ? forwardDecision.targetBytes() : currentForward;
+
+        boolean seekableForBack = isCurrentMpvMediaSeekable()
+                || backTrigger == MpvBackCacheController.Trigger.REBUILD
+                && backBefore.controlledTargetBytes() > 0;
+        MpvBackCachePolicy.Request backRequest = MpvBackCachePolicy.requestFrom(
+                context,
+                automaticBack,
+                isMpv(),
+                performancePriority,
+                seekableForBack,
+                isCurrentMpvMediaLive(),
+                targetForward,
+                forwardAssessment,
+                now);
+        MpvBackCachePolicy.Assessment backAssessment =
+                MpvBackCachePolicy.resolve(backRequest);
+        MpvBackCacheController.Decision backDecision = !automaticBack
+                || backTrigger == null
+                ? null : mpvBackCacheController.evaluate(
+                playbackAutoSession, context.session(), backAssessment, resourceDecision,
+                backTrigger, seekObservation, now);
+        MpvBackCacheController.Snapshot backEvaluated = mpvBackCacheController.snapshot();
+        long currentBack = !automaticBack
+                ? mpv.getConfiguredBackCacheBytes()
+                : backEvaluated.controlledTargetBytes() >= 0
+                ? backEvaluated.controlledTargetBytes() : 0;
+        long targetBack = backDecision != null && backDecision.requestsApply()
+                ? backDecision.targetBytes() : currentBack;
+        if (automaticForward && !automaticBack && targetBack > targetForward) {
+            targetForward = targetBack;
+        } else if (!automaticForward && automaticBack
+                && targetBack > targetForward) {
+            targetBack = targetForward;
+        }
+
+        boolean cacheExpansionAllowed = experimentAllowed(
+                PlaybackExperimentPolicy.Action.MPV_CACHE_EXPANSION);
+        boolean forwardPolicyRequested = forwardDecision != null
+                && forwardDecision.requestsApply();
+        boolean backPolicyRequested = backDecision != null
+                && backDecision.requestsApply();
+        boolean forwardRequested = forwardPolicyRequested
+                && (targetForward <= currentForward || cacheExpansionAllowed);
+        boolean backRequested = backPolicyRequested
+                && (targetBack <= currentBack || cacheExpansionAllowed);
+        boolean expansionSuppressed = forwardPolicyRequested && !forwardRequested
+                || backPolicyRequested && !backRequested;
+        if (forwardPolicyRequested && !forwardRequested) {
+            targetForward = currentForward;
+        }
+        if (backPolicyRequested && !backRequested) {
+            targetBack = currentBack;
+        }
+        boolean applyRequested = forwardRequested || backRequested;
+        boolean forwardStarted = !forwardRequested;
+        boolean backStarted = !backRequested;
+        boolean coordinatorStarted = false;
+        boolean adopted = false;
+        boolean accepted = false;
+        boolean staged = false;
+        String applyResult = expansionSuppressed
+                ? "experiment-disabled" : "not-requested";
+        MpvCacheTargetCoordinator.Decision combinedDecision = null;
+        if (applyRequested) {
+            combinedDecision = mpvCacheTargetCoordinator.evaluate(
+                    playbackAutoSession, targetForward, targetBack);
+            if (forwardRequested) {
+                forwardStarted = mpvForwardCacheController.beginApply(
+                        playbackAutoSession, forwardDecision);
+            }
+            if (backRequested) {
+                backStarted = mpvBackCacheController.beginApply(
+                        playbackAutoSession, backDecision);
+            }
+            boolean controllersStarted = forwardStarted && backStarted;
+            if (controllersStarted && combinedDecision.requestsApply()) {
+                coordinatorStarted = mpvCacheTargetCoordinator.beginApply(
+                        playbackAutoSession, combinedDecision);
+                MpvPlayer.AutoCacheBaselineResult result = coordinatorStarted
+                        ? mpv.applyAutoCacheBaseline(
+                        playbackTrace.current(), targetForward, targetBack)
+                        : MpvPlayer.AutoCacheBaselineResult.REJECTED;
+                accepted = result.accepted();
+                staged = result.staged();
+                applyResult = result.label();
+                if (coordinatorStarted) {
+                    mpvCacheTargetCoordinator.completeApply(
+                            playbackAutoSession, combinedDecision, accepted, staged);
+                }
+            } else if (controllersStarted
+                    && combinedDecision.reason()
+                    == MpvCacheTargetCoordinator.Reason.TARGET_STABLE) {
+                adopted = true;
+                accepted = true;
+                applyResult = "already-applied";
+            } else if (!controllersStarted) {
+                applyResult = "controller-rejected";
+            } else {
+                applyResult = combinedDecision.reason().label();
+            }
+            boolean controllerAccepted = accepted && (coordinatorStarted || adopted);
+            if (forwardRequested && forwardStarted) {
+                mpvForwardCacheController.completeApply(
+                        playbackAutoSession, forwardDecision,
+                        controllerAccepted, staged, now);
+            }
+            if (backRequested && backStarted) {
+                mpvBackCacheController.completeApply(
+                        playbackAutoSession, backDecision,
+                        controllerAccepted, staged, now);
+            }
+            if (controllerAccepted) {
+                mpvForwardCacheController.syncNativeTarget(
+                        playbackAutoSession, targetForward);
+                mpvBackCacheController.syncNativeTarget(
+                        playbackAutoSession, targetBack);
+            }
+        }
+
+        MpvForwardCacheController.Snapshot forwardAfter = mpvForwardCacheController.snapshot();
+        MpvBackCacheController.Snapshot backAfter = mpvBackCacheController.snapshot();
+        PlayerCacheState cache = mpv.getAutoCacheSnapshot();
+        boolean commitStarted = coordinatorStarted || adopted;
+        String forwardApplyResult = forwardPolicyRequested && !forwardRequested
+                ? "experiment-disabled" : applyResult;
+        String backApplyResult = backPolicyRequested && !backRequested
+                ? "experiment-disabled" : applyResult;
+        if (forwardDecision != null) {
+            publishMpvForwardCacheDecision(
+                    forwardTrigger,
+                    forwardAssessment,
+                    forwardDecision,
+                    forwardAfter,
+                    cache,
+                    context,
+                    now,
+                    forwardRequested && forwardStarted && commitStarted,
+                    accepted,
+                    staged,
+                    forwardApplyResult);
+        }
+        if (backDecision != null) {
+            publishMpvBackCacheDecision(
+                    backTrigger,
+                    backAssessment,
+                    backDecision,
+                    backAfter,
+                    cache,
+                    context,
+                    now,
+                    backRequested && backStarted && commitStarted,
+                    accepted,
+                    staged,
+                    backApplyResult);
+        }
+        if (applyRequested || expansionSuppressed) {
+            PlaybackTrace.log("mpv-cache-target", playbackTrace.current(),
+                    "forward=%d back=%d totalBudget=%d forwardChanged=%s backChanged=%s coordinator=%s result=%s",
+                    targetForward, targetBack, backAssessment.totalBudgetBytes(),
+                    forwardRequested, backRequested,
+                    combinedDecision == null ? "none" : combinedDecision.reason().label(),
+                    applyResult);
+        }
+    }
+
+    private void evaluateMpvPreload(
+            MpvPlayerEngine mpv,
+            PlaybackAutoContext context,
+            MpvResourcePressureController.Decision resourceDecision,
+            boolean automatic,
+            boolean performancePriority,
+            long now) {
+        boolean experimentalAutomatic = automatic && experimentAllowed(
+                PlaybackExperimentPolicy.Action.MPV_AUTO_PRELOAD);
+        MpvPlayer.AutoHlsRuntimeSnapshot hls = mpv.getAutoHlsRuntimeSnapshot();
+        MpvPlayer.AutoHlsPreloadRuntimeSnapshot proxy =
+                mpv.getAutoHlsPreloadRuntimeSnapshot();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.Protocol> protocolFact =
+                context.resource().protocol();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.StreamKind> streamFact =
+                context.resource().streamKind();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.PathKind> playerPathFact =
+                context.path().playerPath();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.PathKind> upstreamPathFact =
+                context.path().upstreamPath();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.UpstreamState> upstreamStateFact =
+                context.path().upstreamState();
+        PlaybackAutoContext.Fact<Long> bufferFact =
+                context.runtime().bufferedDurationMs();
+        PlaybackAutoContext.Fact<Integer> rebufferFact =
+                context.runtime().rebufferCount();
+        PlaybackAutoContext.Fact<Long> positionFact =
+                context.runtime().positionMs();
+        boolean protocolUsable = protocolFact.isUsable(now);
+        boolean streamUsable = streamFact.isUsable(now);
+        PlaybackAutoContext.StreamKind streamKind = streamUsable
+                ? streamFact.value() : PlaybackAutoContext.StreamKind.UNKNOWN;
+        if (streamKind == PlaybackAutoContext.StreamKind.VOD && !proxy.vod()) {
+            streamUsable = false;
+            streamKind = PlaybackAutoContext.StreamKind.UNKNOWN;
+        }
+        boolean bufferUsable = bufferFact.isUsable(now);
+        long selectedBits = hls.selectedVariant() == null
+                ? 0 : hls.selectedVariant().selectionBitsPerSecond();
+        boolean buffering = player != null
+                && player.getPlaybackState() == Player.STATE_BUFFERING;
+        MpvPreloadPolicy.Request request = new MpvPreloadPolicy.Request(
+                experimentalAutomatic,
+                isMpv(),
+                performancePriority,
+                proxy.preloadConfigured(),
+                protocolUsable ? protocolFact.value()
+                        : PlaybackAutoContext.Protocol.UNKNOWN,
+                protocolUsable,
+                streamKind,
+                streamUsable,
+                playerPathFact.isUsable(now) ? playerPathFact.value()
+                        : PlaybackAutoContext.PathKind.UNKNOWN,
+                playerPathFact.isUsable(now),
+                upstreamPathFact.isUsable(now) ? upstreamPathFact.value()
+                        : PlaybackAutoContext.PathKind.UNKNOWN,
+                upstreamPathFact.isUsable(now),
+                upstreamStateFact.isUsable(now) ? upstreamStateFact.value()
+                        : PlaybackAutoContext.UpstreamState.UNKNOWN,
+                upstreamStateFact.isUsable(now),
+                resourceDecision.preloadAllowed(),
+                proxy.cacheEnabled(),
+                proxy.cacheStorageKnown(),
+                proxy.cacheBudgetAvailable(),
+                proxy.cacheCircuitOpen(),
+                proxy.upstreamBitsPerSecond(),
+                proxy.throughputKnown(),
+                proxy.throughputFresh(),
+                proxy.throughputSampleAtElapsedMs(),
+                selectedBits,
+                bufferUsable,
+                bufferUsable ? bufferFact.value() : 0,
+                bufferUsable ? bufferFact.sampledAtElapsedMs() : -1,
+                rebufferFact.hasValue() ? rebufferFact.value() : 0,
+                buffering,
+                false,
+                false,
+                proxy.foregroundRequests(),
+                context.revision());
+        MpvPreloadController.Snapshot before = mpvPreloadController.snapshot();
+        MpvPreloadController.Decision decision = mpvPreloadController.evaluate(
+                playbackAutoSession, context.session(), request, now);
+        boolean automaticPreloadManaged = MpvPreloadPolicy.ownsProxyControl(
+                automatic, performancePriority);
+        boolean gateChanged = mpv.updateAutomaticPreloadControl(
+                automaticPreloadManaged,
+                experimentalAutomatic && resourceDecision.preloadAllowed(),
+                experimentalAutomatic && decision.preloadAllowed());
+        boolean scheduled = false;
+        if (experimentalAutomatic && automaticPreloadManaged
+                && decision.preloadAllowed()
+                && positionFact.isUsable(now)) {
+            mpv.requestAutomaticHlsPreload(Math.max(0, positionFact.value()));
+            scheduled = true;
+        }
+        publishMpvPreloadDecision(
+                before, decision, request, proxy, gateChanged, scheduled, now);
+    }
+
+    private void publishMpvPreloadDecision(
+            MpvPreloadController.Snapshot before,
+            MpvPreloadController.Decision decision,
+            MpvPreloadPolicy.Request request,
+            MpvPlayer.AutoHlsPreloadRuntimeSnapshot proxy,
+            boolean gateChanged,
+            boolean scheduled,
+            long now) {
+        PlaybackTelemetry.DecisionOutcome outcome;
+        if (decision.policyReason() == MpvPreloadPolicy.Reason.CONFIG_PRIORITY
+                || decision.policyReason() == MpvPreloadPolicy.Reason.NOT_AUTOMATIC) {
+            outcome = PlaybackTelemetry.DecisionOutcome.SUPPRESSED;
+        } else if (gateChanged || decision.cancellationRequested()
+                || decision.action() == MpvPreloadController.Action.ALLOW) {
+            outcome = PlaybackTelemetry.DecisionOutcome.REQUESTED;
+        } else if (decision.changed()) {
+            outcome = PlaybackTelemetry.DecisionOutcome.OBSERVED;
+        } else {
+            outcome = PlaybackTelemetry.DecisionOutcome.HELD;
+        }
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        addNumberInput(inputs, "upstream_bps",
+                request.throughputKnown() ? request.upstreamBitsPerSecond() : -1,
+                PlaybackAutoContext.ValueSource.PROXY,
+                request.throughputKnown()
+                        ? PlaybackAutoContext.Confidence.MEDIUM
+                        : PlaybackAutoContext.Confidence.UNKNOWN);
+        addNumberInput(inputs, "throughput_age_ms",
+                request.throughputKnown() ? proxy.throughputAgeMs() : -1,
+                PlaybackAutoContext.ValueSource.PROXY,
+                request.throughputKnown()
+                        ? PlaybackAutoContext.Confidence.MEDIUM
+                        : PlaybackAutoContext.Confidence.UNKNOWN);
+        addNumberInput(inputs, "selected_bps",
+                request.selectedBitsPerSecond() > 0
+                        ? request.selectedBitsPerSecond() : -1,
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                request.selectedBitsPerSecond() > 0
+                        ? PlaybackAutoContext.Confidence.HIGH
+                        : PlaybackAutoContext.Confidence.UNKNOWN);
+        addNumberInput(inputs, "ratio_permille", decision.ratioPermille(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "buffer_ms",
+                request.bufferUsable() ? request.bufferedDurationMs() : -1,
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                request.bufferUsable()
+                        ? PlaybackAutoContext.Confidence.HIGH
+                        : PlaybackAutoContext.Confidence.UNKNOWN);
+        addNumberInput(inputs, "foreground", request.foregroundRequests(),
+                PlaybackAutoContext.ValueSource.PROXY,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "cache_physical", proxy.cachePhysicalBytes(),
+                PlaybackAutoContext.ValueSource.PROXY,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "cache_reserved", proxy.cacheReservedBytes(),
+                PlaybackAutoContext.ValueSource.PROXY,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "cache_write_budget",
+                proxy.cacheNewWriteBudgetBytes(),
+                PlaybackAutoContext.ValueSource.PROXY,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "cache_effective",
+                proxy.cacheEffectiveCapacityBytes(),
+                PlaybackAutoContext.ValueSource.PROXY,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "recovery_samples", decision.recoverySamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "recovery_ms", decision.recoveryRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "throughput_filter",
+                proxy.lastThroughputRejectReason(),
+                PlaybackAutoContext.ValueSource.PROXY,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "resource_allowed", request.resourcePreloadAllowed(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "cache_budget", request.cacheBudgetAvailable(),
+                PlaybackAutoContext.ValueSource.PROXY,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "cache_circuit", request.cacheCircuitOpen(),
+                PlaybackAutoContext.ValueSource.PROXY,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.MPV_PRELOAD,
+                        outcome,
+                        before.lastDecision().targetLabel(),
+                        decision.targetLabel(),
+                        scheduled ? "scheduled" : gateChanged
+                                ? "gate-updated" : "held",
+                        decision.policyReason().label(),
+                        decision.reason().label(),
+                        inputs),
+                now);
+        PlaybackTrace.log("mpv-preload", playbackTrace.current(),
+                "state=%s action=%s reason=%s policy=%s threads=%d ratio=%d upstream=%d selected=%d buffer=%d foreground=%d cachePhysical=%d cacheReserved=%d cacheBudget=%d cacheEffective=%d circuit=%s recoverySamples=%d recoveryMs=%d gateChanged=%s scheduled=%s",
+                decision.state().label(), decision.action().label(),
+                decision.reason().label(), decision.policyReason().label(),
+                decision.concurrency(), decision.ratioPermille(),
+                request.upstreamBitsPerSecond(), request.selectedBitsPerSecond(),
+                request.bufferedDurationMs(), request.foregroundRequests(),
+                proxy.cachePhysicalBytes(), proxy.cacheReservedBytes(),
+                proxy.cacheNewWriteBudgetBytes(),
+                proxy.cacheEffectiveCapacityBytes(), proxy.cacheCircuitOpen(),
+                decision.recoverySamples(), decision.recoveryRemainingMs(),
+                gateChanged, scheduled);
+    }
+
+    private static MpvResourcePressureController.Trigger mpvResourceTrigger(
+            MpvForwardCacheController.Trigger forwardTrigger,
+            MpvBackCacheController.Trigger backTrigger) {
+        if (forwardTrigger == MpvForwardCacheController.Trigger.RESOURCE
+                || backTrigger == MpvBackCacheController.Trigger.RESOURCE) {
+            return MpvResourcePressureController.Trigger.SYSTEM;
+        }
+        if (forwardTrigger == MpvForwardCacheController.Trigger.MEMORY
+                || backTrigger == MpvBackCacheController.Trigger.MEMORY) {
+            return MpvResourcePressureController.Trigger.MEMORY;
+        }
+        if (forwardTrigger == MpvForwardCacheController.Trigger.REBUILD
+                || backTrigger == MpvBackCacheController.Trigger.REBUILD) {
+            return MpvResourcePressureController.Trigger.REBUILD;
+        }
+        if (forwardTrigger == MpvForwardCacheController.Trigger.BASELINE
+                || backTrigger == MpvBackCacheController.Trigger.BASELINE) {
+            return MpvResourcePressureController.Trigger.BASELINE;
+        }
+        return MpvResourcePressureController.Trigger.RUNTIME;
+    }
+
+    private void publishMpvResourcePressureDecision(
+            MpvResourcePressureController.Snapshot before,
+            MpvResourcePressurePolicy.Assessment assessment,
+            MpvResourcePressureController.Decision decision,
+            boolean preloadGateChanged,
+            long now) {
+        MpvResourcePressureController.Snapshot previous = before == null
+                ? mpvResourcePressureController.snapshot() : before;
+        PlaybackTelemetry.DecisionOutcome outcome = !assessment.active()
+                && assessment.reason() == MpvResourcePressurePolicy.Reason.CONFIG_PRIORITY
+                ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                : decision.changed() || preloadGateChanged
+                ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                : decision.action() == MpvResourcePressureController.Action.STABLE
+                ? PlaybackTelemetry.DecisionOutcome.OBSERVED
+                : PlaybackTelemetry.DecisionOutcome.HELD;
+        String oldValue = mpvResourceTargetLabel(
+                previous.forwardCeilingBytes(),
+                previous.backCeilingBytes(),
+                previous.preloadAllowed());
+        String targetValue = decision.targetLabel();
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "level",
+                assessment.level().label(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(assessment.memoryUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "memory_pressure",
+                assessment.memoryPressure().label(),
+                PlaybackAutoContext.ValueSource.SYSTEM_API,
+                PlaybackAutoContext.Confidence.HIGH)
+                : PlaybackTelemetry.DecisionInput.unknown("memory_pressure"));
+        inputs.add(assessment.thermalUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "thermal",
+                assessment.thermal().label(),
+                PlaybackAutoContext.ValueSource.SYSTEM_API,
+                PlaybackAutoContext.Confidence.HIGH)
+                : PlaybackTelemetry.DecisionInput.unknown("thermal"));
+        inputs.add(assessment.powerUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "power",
+                assessment.power().label(),
+                PlaybackAutoContext.ValueSource.SYSTEM_API,
+                PlaybackAutoContext.Confidence.HIGH)
+                : PlaybackTelemetry.DecisionInput.unknown("power"));
+        inputs.add(assessment.networkCostUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "network_cost",
+                assessment.networkCost().label(),
+                PlaybackAutoContext.ValueSource.SYSTEM_API,
+                PlaybackAutoContext.Confidence.HIGH)
+                : PlaybackTelemetry.DecisionInput.unknown("network_cost"));
+        inputs.add(assessment.networkSnapshotUsable()
+                ? PlaybackTelemetry.DecisionInput.text(
+                "data_saver",
+                assessment.networkSnapshot().dataSaverState().label(),
+                PlaybackAutoContext.ValueSource.SYSTEM_API,
+                PlaybackAutoContext.Confidence.HIGH)
+                : PlaybackTelemetry.DecisionInput.unknown("data_saver"));
+        addNumberInput(inputs, "forward_ceiling", decision.forwardCeilingBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "back_ceiling", decision.backCeilingBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "expansion_allowed",
+                decision.expansionAllowed(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "preload_allowed",
+                decision.preloadAllowed(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "preload_gate_changed",
+                preloadGateChanged,
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        addNumberInput(inputs, "normal_samples", decision.normalSamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "cooldown_ms", decision.cooldownRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.MPV_RESOURCE_PRESSURE,
+                        outcome,
+                        oldValue,
+                        targetValue,
+                        targetValue,
+                        decision.policyReason().label(),
+                        decision.reason().label(),
+                        inputs),
+                now);
+        PlaybackTrace.log("mpv-resource-pressure", playbackTrace.current(),
+                "state=%s trigger=%s input=%s action=%s reason=%s policy=%s forwardCeiling=%d backCeiling=%d expansion=%s preload=%s gateChanged=%s normalSamples=%d cooldown=%d",
+                mpvResourcePressureController.snapshot().state().label(),
+                decision.trigger().label(),
+                decision.inputLevel().label(),
+                decision.action().label(),
+                decision.reason().label(),
+                decision.policyReason().label(),
+                decision.forwardCeilingBytes(),
+                decision.backCeilingBytes(),
+                decision.expansionAllowed(),
+                decision.preloadAllowed(),
+                preloadGateChanged,
+                decision.normalSamples(),
+                decision.cooldownRemainingMs());
+    }
+
+    private static String mpvResourceTargetLabel(
+            long forwardBytes,
+            long backBytes,
+            boolean preloadAllowed) {
+        return "forward-" + Math.max(0, forwardBytes)
+                + "-back-" + Math.max(0, backBytes)
+                + "-preload-" + preloadAllowed;
+    }
+
+    private void publishMpvForwardCacheDecision(
+            MpvForwardCacheController.Trigger trigger,
+            MpvForwardCachePolicy.Assessment assessment,
+            MpvForwardCacheController.Decision decision,
+            MpvForwardCacheController.Snapshot after,
+            PlayerCacheState cache,
+            PlaybackAutoContext context,
+            long now,
+            boolean started,
+            boolean accepted,
+            boolean staged,
+            String applyResult) {
+        PlaybackTelemetry.DecisionOutcome outcome;
+        if (!assessment.active()
+                && assessment.inactiveReason() == MpvForwardCachePolicy.Reason.CONFIG_PRIORITY) {
+            outcome = PlaybackTelemetry.DecisionOutcome.SUPPRESSED;
+        } else if ("experiment-disabled".equals(applyResult)) {
+            outcome = PlaybackTelemetry.DecisionOutcome.SUPPRESSED;
+        } else if (!decision.requestsApply()) {
+            outcome = PlaybackTelemetry.DecisionOutcome.OBSERVED;
+        } else if (!started || !accepted) {
+            outcome = PlaybackTelemetry.DecisionOutcome.FAILED;
+        } else if (staged) {
+            outcome = PlaybackTelemetry.DecisionOutcome.REQUESTED;
+        } else {
+            outcome = PlaybackTelemetry.DecisionOutcome.APPLIED;
+        }
+        String oldValue = forwardTargetLabel(decision.oldNativeTargetBytes());
+        String targetValue = forwardTargetLabel(decision.targetBytes());
+        String resultValue = forwardTargetLabel(after.nativeTargetBytes());
+        String suppression = "experiment-disabled".equals(applyResult)
+                ? "experiment-disabled"
+                : !decision.requestsApply()
+                ? decision.reason().label()
+                : !started
+                ? "action-rejected"
+                : !accepted
+                ? "native-apply-failed"
+                : "none";
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        addBitrateInput(inputs, "average_bps", assessment.averageBitrate());
+        addBitrateInput(inputs, "peak_bps", assessment.peakBitrate());
+        addNumberInput(inputs, "media_target", assessment.mediaReliable()
+                ? assessment.mediaTargetBytes() : -1,
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "safe_capacity", assessment.safeTargetBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "initial_baseline", after.initialBaselineBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "actual_fw", cache.forwardBytes(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM);
+        addNumberInput(inputs, "actual_total", cache.totalBytes(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM);
+        PlaybackAutoContext.Fact<PlaybackAutoContext.MemorySnapshot> memoryFact =
+                context.device().memorySnapshot();
+        addNumberInput(inputs, "native_heap",
+                memoryFact.isUsable(now) && memoryFact.value().nativeHeapAllocatedBytes() != null
+                        ? memoryFact.value().nativeHeapAllocatedBytes() : -1,
+                memoryFact.isUsable(now) ? memoryFact.source() : PlaybackAutoContext.ValueSource.UNKNOWN,
+                memoryFact.isUsable(now) ? memoryFact.confidence() : PlaybackAutoContext.Confidence.UNKNOWN);
+        PlaybackAutoContext.Fact<Long> pssFact = context.device().diagnosticPssBytes();
+        addNumberInput(inputs, "diagnostic_pss",
+                pssFact.isUsable(now) ? pssFact.value() : -1,
+                pssFact.isUsable(now) ? pssFact.source() : PlaybackAutoContext.ValueSource.UNKNOWN,
+                pssFact.isUsable(now) ? pssFact.confidence() : PlaybackAutoContext.Confidence.UNKNOWN);
+        PlaybackAutoContext.Fact<PlaybackAutoContext.MemoryPressure> pressureFact =
+                context.device().memoryPressure();
+        if (pressureFact.isUsable(now)) {
+            inputs.add(PlaybackTelemetry.DecisionInput.text(
+                    "memory_pressure", pressureFact.value().label(),
+                    pressureFact.source(), pressureFact.confidence()));
+        } else {
+            inputs.add(PlaybackTelemetry.DecisionInput.unknown("memory_pressure"));
+        }
+        addNumberInput(inputs, "stable_samples", after.demandSamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "cooldown_ms", decision.cooldownRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.MPV_FORWARD_CACHE,
+                        outcome,
+                        oldValue,
+                        targetValue,
+                        resultValue,
+                        decision.reason().label(),
+                        suppression,
+                        inputs),
+                now);
+        PlaybackTrace.log("mpv-forward-cache", playbackTrace.current(),
+                "state=%s trigger=%s action=%s reason=%s old=%s target=%s result=%s fw=%d total=%d stable=%d cooldown=%d apply=%s",
+                after.state().label(), trigger == null ? "runtime" : trigger.label(),
+                decision.action().label(), decision.reason().label(), oldValue,
+                targetValue, resultValue, cache.forwardBytes(), cache.totalBytes(),
+                after.demandSamples(), decision.cooldownRemainingMs(), applyResult);
+    }
+
+    private void publishMpvBackCacheDecision(
+            MpvBackCacheController.Trigger trigger,
+            MpvBackCachePolicy.Assessment assessment,
+            MpvBackCacheController.Decision decision,
+            MpvBackCacheController.Snapshot after,
+            PlayerCacheState cache,
+            PlaybackAutoContext context,
+            long now,
+            boolean started,
+            boolean accepted,
+            boolean staged,
+            String applyResult) {
+        PlaybackTelemetry.DecisionOutcome outcome;
+        if (!assessment.active()
+                && assessment.reason() == MpvBackCachePolicy.Reason.CONFIG_PRIORITY) {
+            outcome = PlaybackTelemetry.DecisionOutcome.SUPPRESSED;
+        } else if ("experiment-disabled".equals(applyResult)) {
+            outcome = PlaybackTelemetry.DecisionOutcome.SUPPRESSED;
+        } else if (!decision.requestsApply()) {
+            outcome = PlaybackTelemetry.DecisionOutcome.OBSERVED;
+        } else if (!started || !accepted) {
+            outcome = PlaybackTelemetry.DecisionOutcome.FAILED;
+        } else if (staged) {
+            outcome = PlaybackTelemetry.DecisionOutcome.REQUESTED;
+        } else {
+            outcome = PlaybackTelemetry.DecisionOutcome.APPLIED;
+        }
+        String oldValue = backTargetLabel(decision.oldNativeTargetBytes());
+        String targetValue = backTargetLabel(decision.targetBytes());
+        String resultValue = backTargetLabel(after.nativeTargetBytes());
+        String suppression = "experiment-disabled".equals(applyResult)
+                ? "experiment-disabled"
+                : !decision.requestsApply()
+                ? decision.reason().label()
+                : !started
+                ? "action-rejected"
+                : !accepted
+                ? "native-apply-failed"
+                : "none";
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        addNumberInput(inputs, "seek_distance_ms",
+                decision.lastBackwardSeekDistanceMs() > 0
+                        ? decision.lastBackwardSeekDistanceMs() : -1,
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                decision.lastBackwardSeekDistanceMs() > 0
+                        ? PlaybackAutoContext.Confidence.HIGH
+                        : PlaybackAutoContext.Confidence.UNKNOWN);
+        addNumberInput(inputs, "seek_evidence", decision.backwardSeekEvidence(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "learned_target", decision.learnedTargetBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "safe_back", assessment.safeBackBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "total_budget", assessment.totalBudgetBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "forward_target", assessment.forwardBytes(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "actual_fw", cache.forwardBytes(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM);
+        addNumberInput(inputs, "actual_total", cache.totalBytes(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM);
+        PlaybackAutoContext.Fact<PlaybackAutoContext.MemoryPressure> pressureFact =
+                context.device().memoryPressure();
+        if (pressureFact.isUsable(now)) {
+            inputs.add(PlaybackTelemetry.DecisionInput.text(
+                    "memory_pressure", pressureFact.value().label(),
+                    pressureFact.source(), pressureFact.confidence()));
+        } else {
+            inputs.add(PlaybackTelemetry.DecisionInput.unknown("memory_pressure"));
+        }
+        addNumberInput(inputs, "normal_samples", after.normalSamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "cooldown_ms", decision.cooldownRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "apply_attempts", after.applyAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.MPV_BACK_CACHE,
+                        outcome,
+                        oldValue,
+                        targetValue,
+                        resultValue,
+                        decision.reason().label(),
+                        suppression,
+                        inputs),
+                now);
+        PlaybackTrace.log("mpv-back-cache", playbackTrace.current(),
+                "state=%s trigger=%s action=%s reason=%s old=%s target=%s result=%s seekDistance=%d seekEvidence=%d learned=%d safe=%d forward=%d totalBudget=%d fw=%d total=%d cooldown=%d apply=%s",
+                after.state().label(), trigger == null ? "runtime" : trigger.label(),
+                decision.action().label(), decision.reason().label(), oldValue,
+                targetValue, resultValue, decision.lastBackwardSeekDistanceMs(),
+                decision.backwardSeekEvidence(), decision.learnedTargetBytes(),
+                assessment.safeBackBytes(), assessment.forwardBytes(),
+                assessment.totalBudgetBytes(), cache.forwardBytes(), cache.totalBytes(),
+                decision.cooldownRemainingMs(), applyResult);
+    }
+
+    private boolean isCurrentMpvMediaSeekable() {
+        if (player == null
+                || !player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)) {
+            return false;
+        }
+        try {
+            Timeline timeline = player.getCurrentTimeline();
+            int index = player.getCurrentMediaItemIndex();
+            if (timeline.isEmpty() || index < 0 || index >= timeline.getWindowCount()) return false;
+            Timeline.Window window = new Timeline.Window();
+            timeline.getWindow(index, window);
+            return window.isSeekable;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private boolean isCurrentMpvMediaLive() {
+        if (player == null) return false;
+        try {
+            return player.isCurrentMediaItemLive();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static String forwardTargetLabel(long bytes) {
+        return bytes < 0 ? "unknown" : "forward-" + bytes;
+    }
+
+    private static String backTargetLabel(long bytes) {
+        return bytes < 0 ? "unknown" : "back-" + bytes;
+    }
+
+    private static void addBitrateInput(
+            List<PlaybackTelemetry.DecisionInput> inputs,
+            String name,
+            MpvForwardCachePolicy.BitrateEvidence evidence) {
+        if (evidence != null && evidence.reliable()) {
+            inputs.add(PlaybackTelemetry.DecisionInput.number(
+                    name, evidence.bitsPerSecond(), evidence.valueSource(), evidence.confidence()));
+        } else {
+            inputs.add(PlaybackTelemetry.DecisionInput.unknown(name));
+        }
+    }
+
+    private static void addNumberInput(
+            List<PlaybackTelemetry.DecisionInput> inputs,
+            String name,
+            long value,
+            PlaybackAutoContext.ValueSource source,
+            PlaybackAutoContext.Confidence confidence) {
+        if (value < 0 || source == PlaybackAutoContext.ValueSource.UNKNOWN
+                || confidence == PlaybackAutoContext.Confidence.UNKNOWN) {
+            inputs.add(PlaybackTelemetry.DecisionInput.unknown(name));
+        } else {
+            inputs.add(PlaybackTelemetry.DecisionInput.number(name, value, source, confidence));
+        }
+    }
+
+    private static List<MpvHlsVariantPolicy.Variant> toPolicyVariants(
+            List<MpvPlayer.HlsVariant> variants) {
+        if (variants == null || variants.isEmpty()) return List.of();
+        List<MpvHlsVariantPolicy.Variant> result =
+                new ArrayList<>(variants.size());
+        for (MpvPlayer.HlsVariant variant : variants) {
+            MpvHlsVariantPolicy.Variant mapped = toPolicyVariant(variant);
+            if (mapped != null) result.add(mapped);
+        }
+        return List.copyOf(result);
+    }
+
+    @Nullable
+    private static MpvHlsVariantPolicy.Variant toPolicyVariant(
+            @Nullable MpvPlayer.HlsVariant variant) {
+        if (variant == null) return null;
+        return new MpvHlsVariantPolicy.Variant(
+                variant.bandwidthBitsPerSecond(),
+                variant.averageBandwidthBitsPerSecond(),
+                variant.width(),
+                variant.height());
+    }
+
+    private static String hlsOptionLabel(String option) {
+        if (TextUtils.isEmpty(option)) return "unset";
+        String value = option.trim();
+        if ("min".equals(value) || "max".equals(value)
+                || "no".equals(value)) return value;
+        long bits = optionBits(value);
+        return bits > 0 ? "bps-" + bits : "invalid";
+    }
+
+    private static long optionBits(String option) {
+        if (TextUtils.isEmpty(option)) return 0;
+        try {
+            return Math.max(0, Long.parseLong(option.trim()));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    private record MpvHlsApplyResult(
+            boolean started,
+            boolean optionAccepted,
+            boolean reloadStarted,
+            boolean succeeded,
+            String optionResult) {
+
+        private MpvHlsApplyResult {
+            optionResult = optionResult == null ? "unknown" : optionResult;
+        }
+
+        private static MpvHlsApplyResult notRequested() {
+            return new MpvHlsApplyResult(
+                    false, false, false, false, "not-requested");
+        }
+
+        private static MpvHlsApplyResult rejected() {
+            return new MpvHlsApplyResult(
+                    false, false, false, false, "rejected");
+        }
+    }
+
+    public void applyPerformanceSettings() {
+        if (isExo()) {
+            resetNetworkProtectionSession("performance-settings-changed");
+            scheduleNetworkProtection(0);
+            if (engine instanceof ExoPlayerEngine exo
+                    && exo.requiresDv7Hdr10FallbackRebuild()) {
+                rebuildAndRestartExo("dv7-fallback-setting-changed");
+            }
+            return;
+        }
+>>>>>>> upstream/dev
         if (!isMpv() || spec == null || TextUtils.isEmpty(spec.getUrl()) || !(engine instanceof MpvPlayerEngine mpv)) return;
         resetMpvOutputEvaluationState();
         mpv.setSurfaceDirectOverride(null);
+        mpv.clearHwdecOverride();
         rebuildAndRestartMpv(null, "performance-settings-changed");
+    }
+
+    private boolean rebuildAndRestartExo(String reason) {
+        if (!isExo() || spec == null || TextUtils.isEmpty(spec.getUrl())) {
+            return false;
+        }
+        long position = Math.max(0, player.getCurrentPosition());
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        prepareSeq++;
+        App.removeCallbacks(runnable);
+        videoSize = null;
+        initTrack = false;
+        rebuildPlayer();
+        playWhenReady = wasPlayWhenReady;
+        applySubtitleStyle();
+        playbackTrace.mark(PlaybackTrace.Stage.PREPARE,
+                "player=" + playerType + " decode=" + engine.getDecode()
+                        + " exo=" + reason);
+        startWithProxy(spec, position, wasPlayWhenReady);
+        startNativeAudioSession(wasPlayWhenReady);
+        if (speed != 1f) setSpeed(speed);
+        setRepeatOne(repeat);
+        App.post(runnable, Constant.TIMEOUT_PLAY);
+        return true;
     }
 
     private boolean rebuildAndRestartMpv(Boolean surfaceDirectOverride, String reason) {
@@ -936,7 +4869,7 @@ public class PlayerManager implements ParseCallback {
         applySubtitleStyle();
         playbackTrace.mark(PlaybackTrace.Stage.PREPARE, "player=" + playerType + " decode=" + engine.getDecode() + " mpv-output=" + reason);
         if (SpiderDebug.isEnabled()) SpiderDebug.log("mpv-output", "rebuild reason=%s directOverride=%s position=%d play=%s speed=%s repeat=%s spec=%s", reason, surfaceDirectOverride, position, wasPlayWhenReady, speed, repeat, debugSpec());
-        engine.start(spec.checkUa(), position, wasPlayWhenReady);
+        startWithProxy(spec, position, wasPlayWhenReady);
         scheduleMpvAutoOutputEvaluation();
         startNativeAudioSession(wasPlayWhenReady);
         if (speed != 1f) setSpeed(speed);
@@ -949,20 +4882,43 @@ public class PlayerManager implements ParseCallback {
         resetMpvOutputEvaluationState();
         mpvExplicitSubtitlePreference = hasRequestedSubtitle(Track.find(getKey()));
         if (!(engine instanceof MpvPlayerEngine mpv)) return;
+<<<<<<< HEAD
         if (MpvPerformanceSetting.getOutputMode() == MpvPerformanceSetting.OUTPUT_AUTO && mpv.isSurfaceDirect()) {
+=======
+        boolean hwdecOverrideCleared = mpv.clearHwdecOverride();
+        boolean automaticOutput = MpvPerformanceSetting.getOutputMode() == MpvPerformanceSetting.OUTPUT_AUTO;
+        mpv.setSurfaceDirectOverride(null);
+        boolean autoDirectEligible = MpvAutoOutputPolicy.canStartSurfaceDirect(
+                engine.isHard(),
+                Util.isLeanback(),
+                videoEffectsActive || videoEffectsDirty || MpvPerformanceSetting.isInterpolation()
+                        || lutAllowed && LutSetting.isEnabled(),
+                MpvConfigStore.hasGpuVideoProcessing());
+        boolean shouldStartDirect = MpvPerformanceSetting.shouldUseSurfaceDirect(
+                autoDirectEligible, Util.isLeanback(), engine.isHard());
+        boolean externalSubtitleActive = spec != null && spec.getSubs() != null && !spec.getSubs().isEmpty();
+        boolean leaveForSubtitle = MpvAutoOutputPolicy.shouldLeaveSurfaceDirectForSubtitle(
+                automaticOutput, mpv.isSurfaceDirect(), externalSubtitleActive, mpvExplicitSubtitlePreference);
+        if (leaveForSubtitle) shouldStartDirect = false;
+        if (automaticOutput && MpvPerformanceSetting.isAutoSurfaceDirectEnabled()
+                && mpv.isSurfaceDirect() && shouldStartDirect) {
+>>>>>>> upstream/dev
             if (SpiderDebug.isEnabled()) SpiderDebug.log("mpv-output", "preserve direct output for new item reason=auto-sticky");
             return;
         }
-        mpv.setSurfaceDirectOverride(null);
-        boolean shouldStartDirect = MpvPerformanceSetting.shouldUseSurfaceDirect(false, Util.isLeanback(), engine.isHard());
-        if (mpv.isSurfaceDirect() == shouldStartDirect) return;
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("mpv-output", "prepare new item rebuild currentDirect=%s desiredDirect=%s mode=%s", mpv.isSurfaceDirect(), shouldStartDirect, MpvPerformanceSetting.getOutputModeText());
+        if (mpv.isSurfaceDirect() == shouldStartDirect && !hwdecOverrideCleared) return;
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("mpv-output", "prepare new item rebuild currentDirect=%s desiredDirect=%s mode=%s hwdecOverrideCleared=%s", mpv.isSurfaceDirect(), shouldStartDirect, MpvPerformanceSetting.getOutputModeText(), hwdecOverrideCleared);
+        mpv.setSurfaceDirectOverride(shouldStartDirect);
         rebuildPlayer();
     }
 
     private void resetMpvOutputRuntime() {
         resetMpvOutputEvaluationState();
-        if (engine instanceof MpvPlayerEngine mpv) mpv.setSurfaceDirectOverride(null);
+        lastMpvFrameTimingLogMs = 0;
+        if (engine instanceof MpvPlayerEngine mpv) {
+            mpv.setSurfaceDirectOverride(null);
+            mpv.clearHwdecOverride();
+        }
     }
 
     private void resetMpvOutputEvaluationState() {
@@ -970,6 +4926,8 @@ public class PlayerManager implements ParseCallback {
         mpvAutoOutputEvaluationScheduled = false;
         mpvAutoOutputProbeAttempts = 0;
         mpvSurfaceFallbackTried = false;
+        mpvVulkanFallbackTried = false;
+        mpvCopyFallbackTried = false;
         mpvOutputEvaluationSeq++;
     }
 
@@ -1002,30 +4960,69 @@ public class PlayerManager implements ParseCallback {
         if (width <= 0 || height <= 0) return false;
         boolean externalSubtitleActive = spec != null && spec.getSubs() != null && !spec.getSubs().isEmpty();
         boolean earlyEvaluation = !tracksReady;
-        if (earlyEvaluation && !MpvAutoOutputPolicy.canEvaluateWithoutTracks(width, height, externalSubtitleActive)) return false;
-        boolean subtitleActive = MpvAutoOutputPolicy.requiresGpuSubtitle(externalSubtitleActive, mpvExplicitSubtitlePreference);
+        if (earlyEvaluation
+                && !PlaybackPerformanceSetting
+                .isDv7Hdr10FallbackEnabled()) return false;
+        if (earlyEvaluation && !MpvAutoOutputPolicy.canEvaluateWithoutTracks(width, height)) return false;
+        boolean subtitleActive = externalSubtitleActive || mpvExplicitSubtitlePreference;
         boolean lutOrFilterActive = videoEffectsActive || videoEffectsDirty || lutAllowed && LutSetting.isEnabled() || MpvPerformanceSetting.isInterpolation();
         boolean customGpuProcessing = MpvConfigStore.hasGpuVideoProcessing();
-        MpvAutoOutputPolicy.Decision decision = MpvAutoOutputPolicy.evaluate(width, height, engine.isHard(), Util.isLeanback(), subtitleActive, lutOrFilterActive, customGpuProcessing);
+        boolean forceNativeDv7 = isDv7NativeAttemptRequested();
+        MpvAutoOutputPolicy.Decision decision = forceNativeDv7
+                ? new MpvAutoOutputPolicy.Decision(true,
+                "dv7-native-attempt")
+                : MpvAutoOutputPolicy.evaluate(width, height, engine.isHard(),
+                Util.isLeanback(), lutOrFilterActive, customGpuProcessing);
         mpvAutoOutputEvaluated = true;
         boolean currentlyDirect = isMpvSurfaceDirect();
+<<<<<<< HEAD
         MpvAutoOutputPolicy.Transition transition = MpvAutoOutputPolicy.transition(decision.eligible(), currentlyDirect);
         if (SpiderDebug.isEnabled()) SpiderDebug.log("mpv-output", "auto decision eligible=%s transition=%s reason=%s size=%dx%d tracksReady=%s early=%s subtitle=%s lutOrFilter=%s customGpu=%s direct=%s attempts=%d", decision.eligible(), transition, decision.reason(), width, height, tracksReady, earlyEvaluation, subtitleActive, lutOrFilterActive, customGpuProcessing, currentlyDirect, mpvAutoOutputProbeAttempts);
         if (transition == MpvAutoOutputPolicy.Transition.ENTER_SURFACE_DIRECT) rebuildAndRestartMpv(true, "auto-" + decision.reason());
         else if (transition == MpvAutoOutputPolicy.Transition.LEAVE_SURFACE_DIRECT) rebuildAndRestartMpv(false, "auto-" + decision.reason());
-        return true;
-    }
-
-    private boolean shouldLeaveAutoSurfaceDirectForSubtitle(List<Track> tracks) {
-        if (!isMpvSurfaceDirect() || MpvPerformanceSetting.getOutputMode() != MpvPerformanceSetting.OUTPUT_AUTO || tracks == null) return false;
-        for (Track track : tracks) {
-            if (track.getType() == C.TRACK_TYPE_TEXT && track.isSelected() && !track.isDisabled()) {
-                mpvAutoOutputEvaluated = true;
-                mpvOutputEvaluationSeq++;
-                return true;
-            }
+=======
+        boolean effectiveEligible = MpvPerformanceSetting.isAutoSurfaceDirectEnabled() && decision.eligible();
+        MpvAutoOutputPolicy.Transition transition = MpvAutoOutputPolicy.transition(effectiveEligible, currentlyDirect);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("mpv-output", "auto decision eligible=%s effectiveEligible=%s transition=%s reason=%s size=%dx%d tracksReady=%s early=%s subtitle=%s lutOrFilter=%s customGpu=%s direct=%s attempts=%d", decision.eligible(), effectiveEligible, transition, decision.reason(), width, height, tracksReady, earlyEvaluation, subtitleActive, lutOrFilterActive, customGpuProcessing, currentlyDirect, mpvAutoOutputProbeAttempts);
+        boolean transitionRequested = transition == MpvAutoOutputPolicy.Transition.ENTER_SURFACE_DIRECT
+                || transition == MpvAutoOutputPolicy.Transition.LEAVE_SURFACE_DIRECT;
+        boolean requestAccepted = true;
+        if (transition == MpvAutoOutputPolicy.Transition.ENTER_SURFACE_DIRECT) {
+            requestAccepted = rebuildAndRestartMpv(true, "auto-" + decision.reason());
+        } else if (transition == MpvAutoOutputPolicy.Transition.LEAVE_SURFACE_DIRECT) {
+            requestAccepted = rebuildAndRestartMpv(false, "auto-" + decision.reason());
         }
-        return false;
+        String oldOutput = currentlyDirect ? "surface-direct" : "gpu";
+        String targetOutput = effectiveEligible ? "surface-direct" : "gpu";
+        PlaybackTelemetry.DecisionOutcome telemetryOutcome = transitionRequested
+                ? requestAccepted ? PlaybackTelemetry.DecisionOutcome.REQUESTED : PlaybackTelemetry.DecisionOutcome.FAILED
+                : PlaybackTelemetry.DecisionOutcome.HELD;
+        playbackTelemetryCoordinator.publishDecision(playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.MPV_OUTPUT,
+                        telemetryOutcome,
+                        oldOutput,
+                        targetOutput,
+                        transitionRequested && requestAccepted ? targetOutput : oldOutput,
+                        decision.reason(),
+                        transitionRequested ? requestAccepted ? "none" : "rebuild-rejected" : "no-transition",
+                        List.of(
+                                PlaybackTelemetry.DecisionInput.number("width", width, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("height", height, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("hard_decode", engine.isHard(), PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("leanback", Util.isLeanback(), PlaybackAutoContext.ValueSource.SYSTEM_API, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("tracks_ready", tracksReady, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("early_evaluation", earlyEvaluation, PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("subtitle_active", subtitleActive, PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("lut_or_filter", lutOrFilterActive, PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("custom_gpu", customGpuProcessing, PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("currently_direct", currentlyDirect, PlaybackAutoContext.ValueSource.NATIVE_RUNTIME, PlaybackAutoContext.Confidence.MEDIUM),
+                                PlaybackTelemetry.DecisionInput.bool("eligible", decision.eligible(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("effective_eligible", effectiveEligible, PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("probe_attempts", mpvAutoOutputProbeAttempts, PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH))),
+                SystemClock.elapsedRealtime());
+>>>>>>> upstream/dev
+        return true;
     }
 
     private boolean hasRequestedSubtitle(List<Track> tracks) {
@@ -1051,6 +5048,7 @@ public class PlayerManager implements ParseCallback {
 
     private boolean retryMpvSurfaceDirectFailure(PlaybackException error) {
         if (!isMpvSurfaceDirect() || mpvSurfaceFallbackTried || error == null) return false;
+        if (isDv7NativeAttemptRequested()) return false;
         String message = error.getMessage();
         boolean outputFailure = error.errorCode == PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED
                 || error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED
@@ -1064,12 +5062,182 @@ public class PlayerManager implements ParseCallback {
         return rebuildAndRestartMpv(false, "surface-direct-failure");
     }
 
-    private PlayerEngine buildEngine(int type, int decode) {
-        return switch (type) {
-            case PlayerSetting.IJK -> new IjkPlayerEngine(decode, listener);
-            case PlayerSetting.MPV -> new MpvPlayerEngine(decode, listener, this::onMpvVideoSizeProbed);
-            default -> new ExoPlayerEngine(decode, listener);
+    private boolean retryMpvGpuCopyFailure(PlaybackException error) {
+        if (!(engine instanceof MpvPlayerEngine mpv)
+                || spec == null
+                || TextUtils.isEmpty(spec.getUrl())
+                || error == null) return false;
+        boolean automaticHwdec = MpvPerformanceSetting.getHwdecMode()
+                == MpvPerformanceSetting.HWDEC_AUTO;
+        if (!shouldRetryMpvCopy(
+                automaticHwdec,
+                mpv.isHard(),
+                mpv.isSurfaceDirect(),
+                mpv.isMediaCodecCopyOnly(),
+                mpvCopyFallbackTried,
+                error.errorCode,
+                error.getMessage())) return false;
+        mpvCopyFallbackTried = true;
+        mpvAutoOutputEvaluated = true;
+        mpvOutputEvaluationSeq++;
+        mpv.forceMediaCodecCopy();
+        PlaybackTrace.log(
+                "mpv-hwdec",
+                playbackTrace.current(),
+                "gpu direct failed; fallback mediacodec-copy once code=%d message=%s",
+                error.errorCode,
+                error.getMessage());
+        return rebuildAndRestartMpv(false, "gpu-hwdec-copy-failure");
+    }
+
+    static boolean shouldRetryMpvCopy(
+            boolean automaticHwdec,
+            boolean hardDecode,
+            boolean surfaceDirect,
+            boolean copyOnly,
+            boolean alreadyTried,
+            int errorCode,
+            String message) {
+        if (!automaticHwdec || !hardDecode || surfaceDirect || copyOnly || alreadyTried) return false;
+        if (message != null
+                && (message.startsWith(MpvPlayer.ERROR_VIDEO_OUTPUT_FAILED)
+                || message.startsWith(MpvPlayer.ERROR_DECODE_FAILED))) return true;
+        return switch (errorCode) {
+            case PlaybackException.ERROR_CODE_TIMEOUT,
+                    PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+                    PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+                    PlaybackException.ERROR_CODE_DECODING_FAILED,
+                    PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+                    PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+                    PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSOR_INIT_FAILED,
+                    PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED -> true;
+            default -> false;
         };
+    }
+
+    private boolean retryMpvVulkanBackendFailure(PlaybackException error) {
+        if (mpvVulkanFallbackTried || error == null
+                || !(engine instanceof MpvPlayerEngine mpv)
+                || !mpv.shouldFallbackVulkanToStable()) return false;
+        String message = error.getMessage();
+        boolean outputFailure = error.errorCode
+                == PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED
+                || message != null
+                && message.startsWith(MpvPlayer.ERROR_VIDEO_OUTPUT_FAILED);
+        if (!outputFailure) return false;
+        return retryMpvVulkanBackendToStable(mpv, "direct-output-failure");
+    }
+
+    private boolean retryMpvVulkanBackendTimeout() {
+        if (mpvVulkanFallbackTried || !(engine instanceof MpvPlayerEngine mpv)
+                || !mpv.shouldFallbackVulkanToStable()) return false;
+        VideoSize size = mpv.getVideoSizeSnapshot();
+        if ((size == null || size.width <= 0 || size.height <= 0)
+                && getVideoWidth() <= 0 && getVideoHeight() <= 0) return false;
+        return retryMpvVulkanBackendToStable(mpv, "direct-first-frame-timeout");
+    }
+
+    private boolean retryMpvVulkanBackendToStable(MpvPlayerEngine mpv,
+                                                   String reason) {
+        mpvVulkanFallbackTried = true;
+        MpvVulkanBackendPolicy.rememberDirectFailure();
+        mpv.setVulkanBackendOverride(MpvVulkanBackendPolicy.STABLE);
+        PlaybackTrace.log("mpv-vulkan", playbackTrace.current(),
+                "backend direct failed; fallback stable once reason=%s", reason);
+        return rebuildAndRestartMpv(false, reason);
+    }
+
+    private boolean isDv7NativeAttemptRequested() {
+        if (!isMpv() || engine == null || !engine.isHard()
+                || PlaybackPerformanceSetting
+                .isDv7Hdr10FallbackEnabled()) return false;
+        PlayerEngine.VideoPlaybackDetails details =
+                engine.getVideoPlaybackDetails();
+        return details != null && details.dolbyVisionProfile() == 7;
+    }
+
+    private PlayerEngine buildEngine(int type, int decode) {
+        if (type != PlayerSetting.EXO) {
+            exoSpeedRestoreState.clear();
+            mediaSignals.detachPipeline();
+            adAudioRuntime.suspend();
+        }
+        PlayerEngine next = switch (type) {
+            case PlayerSetting.IJK -> new IjkPlayerEngine(decode, listener);
+            case PlayerSetting.SYSTEM -> new SystemPlayerEngine(decode, listener);
+            case PlayerSetting.MPV -> new MpvPlayerEngine(decode, listener, this::onMpvVideoSizeProbed);
+            default -> new ExoPlayerEngine(decode, listener, new ExoPlayerEngine.PrepareListener() {
+                @Override
+                public void onPrepareStarted(int generation) {
+                    prepareExoSpeedForMediaItem(generation);
+                }
+
+                @Override
+                public void onPrepareReady(int generation) {
+                    restoreExoSpeedAfterPrepare(generation);
+                }
+
+                @Override
+                public void onPrepareCanceled(int generation) {
+                    cancelExoSpeedPrepare(generation);
+                }
+            }, mediaSignals, mediaClock);
+        };
+        ffmpegModeEngine = type == PlayerSetting.EXO ? PlayerSetting.getEffectiveFFmpegMode() : PlayerSetting.NONE;
+        ffmpegModeEngineRefreshPending = false;
+        return next;
+    }
+
+    private final class AdAudioPlaybackPort implements AdAudioRuntimeController.PlaybackPort {
+
+        @Override
+        public boolean isEligible(long sessionId, long generation) {
+            PlaybackMediaSignalHub.Session session = mediaSignals.session();
+            return session.id() == sessionId
+                    && session.generation() == generation
+                    && player != null
+                    && engine != null
+                    && spec != null
+                    && isExo()
+                    && player.getPlaybackState() == Player.STATE_READY
+                    && player.getCurrentMediaItem() != null
+                    && !player.isCurrentMediaItemLive()
+                    && player.getDuration() > 0L
+                    && player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM);
+        }
+
+        @Override
+        public AdSkipCoordinator.PlaybackSnapshot snapshot(long sessionId, long generation) {
+            PlaybackMediaSignalHub.Session session = mediaSignals.session();
+            long position = player == null ? 0L : Math.max(0L, player.getCurrentPosition());
+            long duration = player == null ? C.TIME_UNSET : player.getDuration();
+            boolean live = player == null || player.isCurrentMediaItemLive();
+            boolean seekable = isEligible(session.id(), session.generation());
+            return new AdSkipCoordinator.PlaybackSnapshot(
+                    session.id(), session.generation(), position, duration,
+                    seekable, live, mediaClock.snapshot(SystemClock.elapsedRealtime()));
+        }
+
+        @Override
+        public AdSkipCoordinator.SeekResult seekTo(long sessionId, long generation, long positionMs) {
+            PlaybackMediaSignalHub.Session before = mediaSignals.session();
+            if (!isEligible(sessionId, generation)
+                    || before.id() != sessionId
+                    || before.generation() != generation) {
+                return AdSkipCoordinator.SeekResult.rejected(before.id(), before.generation());
+            }
+            long duration = player.getDuration();
+            long target = Math.max(0L, Math.min(positionMs, duration));
+            try {
+                PlayerManager.this.seekTo(target);
+            } catch (RuntimeException e) {
+                PlaybackMediaSignalHub.Session current = mediaSignals.session();
+                return AdSkipCoordinator.SeekResult.rejected(current.id(), current.generation());
+            }
+            PlaybackMediaSignalHub.Session after = mediaSignals.session();
+            return new AdSkipCoordinator.SeekResult(
+                    after.id() == sessionId, after.id(), after.generation());
+        }
     }
 
     public void browse(PlaySpec spec) {
@@ -1084,14 +5252,28 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void start(PlaySpec spec, long timeout, boolean playWhenReady) {
+<<<<<<< HEAD
+=======
+        start(spec, timeout, playWhenReady, C.TIME_UNSET);
+    }
+
+    public void start(PlaySpec spec, long timeout, boolean playWhenReady, long positionMs) {
+        adAudioRuntime.suspend();
+        mediaSession.begin(0L);
+        endPlaybackTelemetrySession("replace-start");
+        prepareIjkRuntimeForUserPlayback();
+>>>>>>> upstream/dev
         clearPendingSwitchRestore();
         clearDanmaku("start");
         this.spec = spec;
+        pendingInitialStartPositionMs = positionMs > 0 ? positionMs : C.TIME_UNSET;
         prepareMpvOutputForNewItem();
         beginPlaybackTrace("start");
         this.playWhenReady = playWhenReady;
-        retry = 0;
+        manualPlayerSwitchPending = false;
         localProxyRetry = 0;
+        resetPlayerFallback();
+        refreshFfmpegModeEngineIfNeeded();
         hardDecodeSwitchRetryArmed = false;
         setMediaItem(timeout);
     }
@@ -1101,15 +5283,32 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void parse(String key, Result result, boolean useParse, MediaMetadata metadata, boolean playWhenReady) {
+<<<<<<< HEAD
+=======
+        parse(key, result, useParse, metadata, playWhenReady, C.TIME_UNSET);
+    }
+
+    public void parse(String key, Result result, boolean useParse, MediaMetadata metadata,
+                      boolean playWhenReady, long positionMs) {
+        adAudioRuntime.suspend();
+        mediaSession.begin(0L);
+        endPlaybackTelemetrySession("replace-parse");
+        prepareIjkRuntimeForUserPlayback();
+>>>>>>> upstream/dev
         stopParse();
         clearPendingSwitchRestore();
         clearDanmaku("parse");
         spec = PlaySpec.fromParse(result, key, metadata, useParse);
+        pendingInitialStartPositionMs = positionMs > 0 ? positionMs : C.TIME_UNSET;
         prepareMpvOutputForNewItem();
         beginPlaybackTrace("parse");
         this.playWhenReady = playWhenReady;
-        retry = 0;
+        manualPlayerSwitchPending = false;
         localProxyRetry = 0;
+        parseHealthStartedAt = System.currentTimeMillis();
+        parseHealthRecorded = false;
+        resetPlayerFallback();
+        refreshFfmpegModeEngineIfNeeded();
         hardDecodeSwitchRetryArmed = false;
         parseJob = ParseJob.create(this).start(result, useParse);
     }
@@ -1142,13 +5341,24 @@ public class PlayerManager implements ParseCallback {
     }
 
     private void refreshDirectForPlayerSwitch(Result result, String key, MediaMetadata metadata) {
+<<<<<<< HEAD
         if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "switch player refresh direct type=%d key=%s flag=%s url=%s", playerType, key, result.getFlag(), summarizeUrl(result.getUrl().v()));
+=======
+        int requestSeq = prepareSeq;
+        int requestPlayerType = playerType;
+        PlaySpec requestSpec = spec;
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "switch player refresh direct type=%d keyLen=%d flag=%s url=%s", requestPlayerType, safeLength(key), result.getFlag(), summarizeUrl(result.getUrl().v()));
+>>>>>>> upstream/dev
         Task.execute(() -> {
             try {
-                Result refreshed = SiteApi.playerContent(key, result.getFlag(), result.getUrl().v(), playerType);
-                App.post(() -> startRefreshedSwitchResult(refreshed, key, metadata));
+                Result refreshed = SiteApi.playerContent(key, result.getFlag(), result.getUrl().v(), requestPlayerType);
+                App.post(() -> {
+                    if (!isCurrentDirectSwitchRefresh(pendingSwitchRestore, requestSeq, prepareSeq, requestPlayerType, playerType, requestSpec, spec)) return;
+                    startRefreshedSwitchResult(refreshed, key, metadata);
+                });
             } catch (Throwable e) {
                 App.post(() -> {
+                    if (!isCurrentDirectSwitchRefresh(pendingSwitchRestore, requestSeq, prepareSeq, requestPlayerType, playerType, requestSpec, spec)) return;
                     clearPendingSwitchRestore();
                     callback.onError(e.getMessage());
                 });
@@ -1200,6 +5410,7 @@ public class PlayerManager implements ParseCallback {
 
     private void setMediaItem(long timeout) {
         if (spec == null || spec.getUrl() == null) return;
+        if (!ensurePlayerAvailableForPlayback()) return;
         int seq = ++prepareSeq;
         if (rejectMpvDrmMedia()) return;
         if (LocalProxyDebug.shouldAwaitReady(spec.getUrl())) {
@@ -1207,6 +5418,29 @@ public class PlayerManager implements ParseCallback {
             return;
         }
         setMediaItemNow(timeout, true);
+    }
+
+    public void reloadCurrentMediaItem() {
+        restartCurrentItemWithState();
+    }
+
+    private void restartCurrentItemWithState() {
+        if (spec == null || spec.getUrl() == null || engine == null || player == null) return;
+        if (player.getCurrentMediaItem() == null || player.getPlaybackState() == Player.STATE_IDLE) {
+            setMediaItem();
+            return;
+        }
+        if (!ensurePlayerAvailableForPlayback()) return;
+        long position = Math.max(0, player.getCurrentPosition());
+        boolean playWhenReady = player.getPlayWhenReady();
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "restart media item position=%d play=%s spec=%s", position, playWhenReady, debugSpec());
+        App.removeCallbacks(runnable);
+        currentDanmakuUrl = null;
+        setDanmakus(spec.getDanmakus());
+        initTrack = false;
+        waitingLutBeforePlay = false;
+        restartWithProxy(spec, position, playWhenReady);
+        App.post(runnable, Constant.TIMEOUT_PLAY);
     }
 
     private void awaitLocalProxyAndSetMediaItem(int seq, long timeout) {
@@ -1226,6 +5460,35 @@ public class PlayerManager implements ParseCallback {
         });
     }
 
+    private void prepareExoSpeedForMediaItem(int generation) {
+        if (!isExo() || player == null || !player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) {
+            exoSpeedRestoreState.clear();
+            return;
+        }
+        float actualSpeed = player.getPlaybackParameters().speed;
+        float targetSpeed = getSpeed();
+        // Avoid configuring MediaCodec with an accelerated operating rate on affected Android TV decoders.
+        setActualPlaybackSpeed(exoSpeedRestoreState.beginPrepare(generation, targetSpeed));
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "exo speed prepare generation=%d target=%.2f previous=%.2f", generation, targetSpeed, actualSpeed);
+    }
+
+    private void restoreExoSpeedAfterPrepare(int generation) {
+        if (!isExo() || player == null || !player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) return;
+        float speed = exoSpeedRestoreState.takeReadySpeed(generation);
+        if (Float.isNaN(speed)) return;
+        setActualPlaybackSpeed(speed);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "exo speed restored generation=%d target=%.2f", generation, speed);
+    }
+
+    private void cancelExoSpeedPrepare(int generation) {
+        exoSpeedRestoreState.cancelPrepare(generation);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "exo speed prepare canceled generation=%d", generation);
+    }
+
+    private void setActualPlaybackSpeed(float speed) {
+        player.setPlaybackParameters(player.getPlaybackParameters().withSpeed(speed));
+    }
+
     private void setMediaItemNow(long timeout, boolean notifyPrepare) {
         if (spec == null || spec.getUrl() == null || engine == null) return;
         spec.setPlaybackTraceId(playbackTrace.ensure());
@@ -1239,13 +5502,93 @@ public class PlayerManager implements ParseCallback {
         waitingLutBeforePlay = false;
         applySubtitleStyle();
         playbackTrace.mark(PlaybackTrace.Stage.PREPARE, "player=" + playerType + " decode=" + engine.getDecode());
+<<<<<<< HEAD
         engine.start(spec.checkUa(), playWhenReady);
+=======
+        long initialPositionMs = pendingInitialStartPositionMs;
+        pendingInitialStartPositionMs = C.TIME_UNSET;
+        startWithProxy(spec, initialPositionMs, playWhenReady);
+        publishPlaybackTelemetry();
+        schedulePlaybackTelemetry();
+>>>>>>> upstream/dev
         scheduleMpvAutoOutputEvaluation();
         startNativeAudioSession(playWhenReady);
         App.post(runnable, timeout);
         if (notifyPrepare) callback.onPrepare();
     }
 
+<<<<<<< HEAD
+=======
+    private void startWithProxy(PlaySpec source, boolean playWhenReady) {
+        runWithProxy(source, playbackSpec -> engine.start(playbackSpec, playWhenReady));
+    }
+
+    private void startWithProxy(PlaySpec source, long position, boolean playWhenReady) {
+        runWithProxy(source, playbackSpec -> engine.start(playbackSpec, position, playWhenReady));
+    }
+
+    private void restartWithProxy(PlaySpec source, long position, boolean playWhenReady) {
+        runWithProxy(source, playbackSpec -> engine.restart(playbackSpec, position, playWhenReady));
+    }
+
+    private void runWithProxy(PlaySpec source, ProxyPlaybackAction action) {
+        ProxyStreamRegistration previousProxyRegistration = multiThreadProxyRegistration;
+        PreparedProxyPlayback prepared = prepareProxyPlayback(source);
+        try {
+            action.run(prepared.spec());
+            commitProxyPlayback(previousProxyRegistration, prepared.registration());
+        } catch (RuntimeException | Error failure) {
+            if (prepared.registration() != null) prepared.registration().close();
+            throw failure;
+        }
+    }
+
+    private PreparedProxyPlayback prepareProxyPlayback(PlaySpec source) {
+        PlaySpec playbackSpec = source.checkUa();
+        ProxyStreamRegistration nextProxyRegistration = null;
+        ProxyRuntimeConfig proxyConfig = MultiThreadProxySetting.get();
+        try {
+            MultiThreadProxy.apply(proxyConfig, MultiThreadProxySetting.getDomainRules());
+            if (ProxyPlaybackPolicy.shouldProxy(proxyConfig.enabled(), source.getUrl(), source.getFormat())) {
+                nextProxyRegistration = MultiThreadProxy.register(source.getUrl(), source.getHeaders());
+                playbackSpec = source.copyForPlayback(nextProxyRegistration.url(), Map.of());
+            }
+        } catch (IOException | RuntimeException e) {
+            if (nextProxyRegistration != null) nextProxyRegistration.close();
+            nextProxyRegistration = null;
+            if (SpiderDebug.isEnabled()) {
+                SpiderDebug.log("player", "multi-thread proxy bypass cause=%s", e.getClass().getSimpleName());
+            }
+        }
+        return new PreparedProxyPlayback(playbackSpec, nextProxyRegistration);
+    }
+
+    private void commitProxyPlayback(ProxyStreamRegistration previous, ProxyStreamRegistration next) {
+        multiThreadProxyRegistration = next;
+        if (previous != null) previous.close();
+    }
+
+    @FunctionalInterface
+    private interface ProxyPlaybackAction {
+        void run(PlaySpec playbackSpec);
+    }
+
+    private record PreparedProxyPlayback(PlaySpec spec, ProxyStreamRegistration registration) {
+    }
+
+    private void closeMultiThreadProxyRegistration() {
+        ProxyStreamRegistration registration = multiThreadProxyRegistration;
+        multiThreadProxyRegistration = null;
+        if (registration != null) registration.close();
+    }
+
+    private void prepareExoFrameSchedulingForNewPlayback() {
+        if (!(engine instanceof ExoPlayerEngine exo)) return;
+        if (!exo.prepareFrameSchedulingForNextPlayback()) return;
+        rebuildPlayer(false);
+    }
+
+>>>>>>> upstream/dev
     private void applySubtitleStyle() {
         if (engine != null) engine.setSubtitleStyle(PlayerSetting.getSubtitleTextSize(), PlayerSetting.getSubtitlePosition());
     }
@@ -1385,7 +5728,21 @@ public class PlayerManager implements ParseCallback {
             if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "rebuild clean player before media item reason=prepare spec=%s", debugSpec());
             rebuildPlayer();
         }
+        if (shouldPreinstallDynamicLutPipeline()
+                && safeSetVideoEffects(dynamicLutEffect.effects(), "prepare_dynamic_passthrough")) {
+            lutPipelineReadyForItem = true;
+            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "preinstalled dynamic pipeline before playback spec=%s", debugSpec());
+            return;
+        }
         clearVideoEffects("prepare");
+    }
+
+    private boolean shouldPreinstallDynamicLutPipeline() {
+        return LutSetting.isEnabled()
+                && engine != null
+                && !engine.supportsNativeLut()
+                && canWarmLutPipeline()
+                && TextUtils.isEmpty(getLutUnavailableReason());
     }
 
     private boolean shouldPrepareLutBeforePlay() {
@@ -1402,12 +5759,6 @@ public class PlayerManager implements ParseCallback {
 
     private void applyLut(boolean notify, boolean preview) {
         if (engine == null) return;
-        if (isMpvSurfaceDirect() && MpvPerformanceSetting.getOutputMode() == MpvPerformanceSetting.OUTPUT_AUTO && LutSetting.isEnabled()) {
-            mpvAutoOutputEvaluated = true;
-            mpvOutputEvaluationSeq++;
-            if (rebuildAndRestartMpv(false, "lut-enabled")) App.post(() -> applyLut(notify, preview), 200);
-            return;
-        }
         int seq = ++lutApplySeq;
         if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "request seq=%d notify=%s preview=%s enabled=%s preset=%s state=%s videoFormat=%s tracksEmpty=%s active=%s dirty=%s applied=%s applying=%s pendingPreview=%s", seq, notify, preview, LutSetting.isEnabled(), LutSetting.getPresetId(), stateName(player.getPlaybackState()), engine.getVideoFormat(), engine.getCurrentTracks() == null || engine.getCurrentTracks().isEmpty(), videoEffectsActive, videoEffectsDirty, lutAppliedForItem, lutApplyInProgress, pendingLutPreview);
         if (!lutAllowed) {
@@ -1503,12 +5854,11 @@ public class PlayerManager implements ParseCallback {
         pendingLutPreview = false;
         int strength = LutSetting.getStrength();
         int previewSeconds = LutSetting.getPreviewSeconds();
-        long previewStartMs = preview && player != null ? Math.max(0, player.getCurrentPosition()) : 0;
         Task.execute(() -> {
             long start = System.currentTimeMillis();
             try {
-                MpvLutShader shader = MpvLutShaderFactory.create(preset, strength, preview, previewStartMs, previewSeconds);
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "create shader preset=%s format=%s strength=%d preview=%s start=%d seconds=%d cost=%dms", preset.getId(), preset.getFormat(), strength, preview, previewStartMs, previewSeconds, System.currentTimeMillis() - start);
+                MpvLutShader shader = MpvLutShaderFactory.create(preset, strength, preview);
+                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "create shader preset=%s format=%s strength=%d preview=%s seconds=%d clock=monotonic cost=%dms", preset.getId(), preset.getFormat(), strength, preview, previewSeconds, System.currentTimeMillis() - start);
                 App.post(() -> applyNativeLutShader(seq, shader, notify, preview));
             } catch (Throwable e) {
                 if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "create shader failed preset=%s strength=%d error=%s", preset.getId(), strength, causeChain(e));
@@ -1545,13 +5895,23 @@ public class PlayerManager implements ParseCallback {
     }
 
     private void scheduleNativeLutPreviewCommit(int seq) {
-        int delayMs = Math.max(1, LutSetting.getPreviewSeconds()) * 1000 + MpvLutShaderFactory.PREVIEW_SLIDE_MS;
-        App.post(() -> {
-            if (seq != lutApplySeq || engine == null || !engine.supportsNativeLut()) return;
-            if (!lutAllowed || !LutSetting.isEnabled()) return;
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "commit preview shader seq=%d delay=%d", seq, delayMs);
-            applyLut(false, false);
-        }, delayMs);
+        int holdMs = Math.max(1, LutSetting.getPreviewSeconds()) * 1000;
+        long slideStartMs = SystemClock.elapsedRealtime() + holdMs;
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "preview scheduled seq=%d hold=%d slide=%d", seq, holdMs, MpvLutShaderFactory.PREVIEW_SLIDE_MS);
+        App.post(() -> updateNativeLutPreview(seq, slideStartMs), holdMs);
+    }
+
+    private void updateNativeLutPreview(int seq, long slideStartMs) {
+        if (seq != lutApplySeq || engine == null || !engine.supportsNativeLut()) return;
+        if (!lutAllowed || !LutSetting.isEnabled()) return;
+        long elapsedMs = Math.max(0, SystemClock.elapsedRealtime() - slideStartMs);
+        float progress = Math.min(1f, elapsedMs / (float) MpvLutShaderFactory.PREVIEW_SLIDE_MS);
+        engine.setNativeLutPreviewProgress(progress);
+        if (progress < 1f) {
+            App.post(() -> updateNativeLutPreview(seq, slideStartMs), LUT_PREVIEW_FRAME_INTERVAL_MS);
+            return;
+        }
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "preview completed seq=%d elapsed=%d", seq, elapsedMs);
     }
 
     private void applyLutColor(int seq, ColorLut colorLut, boolean notify, boolean preview, int previewSeconds) {
@@ -1573,7 +5933,13 @@ public class PlayerManager implements ParseCallback {
             return;
         }
         dynamicLutEffect.set(colorLut, preview, previewSeconds);
-        if (safeSetVideoEffects(dynamicLutEffect.effects(), preview ? "preview_dynamic" : "apply_dynamic")) {
+        boolean applied = videoEffectsActive;
+        if (applied) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "updated dynamic pipeline in place reason=%s preview=%s", preview ? "preview_dynamic" : "apply_dynamic", preview);
+        } else {
+            applied = safeSetVideoEffects(dynamicLutEffect.effects(), preview ? "preview_dynamic" : "apply_dynamic");
+        }
+        if (applied) {
             lutAppliedForItem = true;
             pendingLutPreview = false;
         } else {
@@ -1653,20 +6019,14 @@ public class PlayerManager implements ParseCallback {
         lutAppliedForItem = false;
         lutApplyInProgress = false;
         dynamicLutEffect.clear();
-        long position = Math.max(0, getPosition());
-        boolean playWhenReady = player.getPlayWhenReady();
-        float speed = getSpeed();
         if (!safeSetVideoEffects(dynamicLutEffect.effects(), reason + "_prepare_dynamic_passthrough")) {
             lutPipelinePrepareInProgress = false;
             return true;
         }
         lutPipelineReadyForItem = true;
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "prepare current item with effects reason=%s position=%d play=%s spec=%s", reason, position, playWhenReady, debugSpec());
-        startLutWarmupRecovery();
-        engine.restart(spec.checkUa(), position, playWhenReady);
-        if (speed != 1f) setSpeed(speed);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "prepare current item with effects in place reason=%s state=%s spec=%s", reason, stateName(player.getPlaybackState()), debugSpec());
         lutPipelinePrepareInProgress = false;
-        return false;
+        return true;
     }
 
     private void startLutWarmupRecovery() {
@@ -1773,6 +6133,10 @@ public class PlayerManager implements ParseCallback {
         if (empty && !videoEffectsActive) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "skip clear effects reason=%s", reason);
             return false;
+        }
+        if (!empty && videoEffectsActive) {
+            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "reuse active effects reason=%s", reason);
+            return true;
         }
         try {
             engine.setVideoEffects(empty ? Collections.emptyList() : effects);
@@ -2025,6 +6389,7 @@ public class PlayerManager implements ParseCallback {
     public void addDanmaku(Danmaku item) {
         if (danmakuController == null || item.isEmpty()) return;
         if (spec != null) spec.addDanmaku(item);
+        if (currentDanmakuUrl == null) setDanmaku(item);
     }
 
     @Override
@@ -2032,6 +6397,7 @@ public class PlayerManager implements ParseCallback {
         if (!TextUtils.isEmpty(from)) Notify.show(ResUtil.getString(R.string.parse_from, from));
         playbackTrace.mark(PlaybackTrace.Stage.PARSE_COMPLETE, "headers=" + (headers == null ? 0 : headers.size()));
         PlaybackTrace.log("player", playbackTrace.current(), "parseSuccess from=%s url=%s headers=%s", from, summarizeUrl(url), headers == null ? 0 : headers.size());
+        recordParseHealth(true, "");
         if (headers != null) headers.remove(HttpHeaders.RANGE);
         if (spec != null) spec.setHeaders(headers);
         if (spec != null) spec.setUrl(url);
@@ -2041,8 +6407,24 @@ public class PlayerManager implements ParseCallback {
 
     @Override
     public void onParseError() {
+<<<<<<< HEAD
+=======
+        recordParseHealth(false, ResUtil.getString(R.string.error_play_parse));
+        if (pendingIjkRuntimeFallbackReparse) {
+            ijkRuntimeProfileController.onSwitchStartFailed(
+                    playbackAutoSession, System.currentTimeMillis());
+            publishIjkRuntimeSwitchStartFailure("reparse-failed");
+        }
+>>>>>>> upstream/dev
         clearPendingSwitchRestore();
         callback.onError(ResUtil.getString(R.string.error_play_parse));
+    }
+
+    private void recordParseHealth(boolean success, String error) {
+        if (parseHealthRecorded || spec == null) return;
+        parseHealthRecorded = true;
+        long cost = parseHealthStartedAt <= 0 ? 0 : System.currentTimeMillis() - parseHealthStartedAt;
+        SiteHealthStore.recordParse(spec.getKey(), success, cost, error);
     }
 
     private String debugSpec() {
@@ -2068,6 +6450,947 @@ public class PlayerManager implements ParseCallback {
         if (spec != null) spec.setPlaybackTraceId(playbackTrace.current());
     }
 
+<<<<<<< HEAD
+=======
+    private void beginPlaybackProfileAbSession(long nowElapsedMs) {
+        PlaybackProfileAbPolicy.EnrollmentResolution enrollment =
+                PlaybackProfileAbSetting.getEnrollmentResolution();
+        PlaybackProfileAbPolicy.Arm arm = currentPlaybackProfileAbArm();
+        playbackProfileAbCoordinator.beginSession(
+                playbackAutoSession,
+                new PlaybackProfileAbCoordinator.StartConfig(
+                        enrollment.active()
+                                && playbackProfileAbGateOpen()
+                                && arm != null,
+                        arm,
+                        enrollment.enrollment().deviceDigest(),
+                        playbackExperimentCoordinator.generation(),
+                        Math.abs(userPlaybackSpeed - 1f) < 0.001f),
+                nowElapsedMs);
+        PlaybackProfileAbPolicy.EnrollmentResolution lightweightEnrollment =
+                PlaybackLightweightAssessmentSetting
+                        .getEnrollmentResolution();
+        PlaybackProfileAbPolicy.Arm lightweightArm =
+                currentPlaybackLightweightAssessmentArm();
+        playbackLightweightAssessmentCoordinator.beginSession(
+                playbackAutoSession,
+                new PlaybackProfileAbCoordinator.StartConfig(
+                        lightweightEnrollment.active()
+                                && playbackProfileAbGateOpen()
+                                && lightweightArm != null,
+                        lightweightArm,
+                        lightweightEnrollment.enrollment().deviceDigest(),
+                        playbackExperimentCoordinator.generation(),
+                        Math.abs(userPlaybackSpeed - 1f) < 0.001f),
+                nowElapsedMs);
+    }
+
+    private void observePlaybackProfileAb(
+            PlaybackTelemetry.RuntimeObservation observation,
+            long nowElapsedMs) {
+        if (!playbackAutoSession.active()) return;
+        boolean playbackIntended = false;
+        if (player != null) {
+            try {
+                playbackIntended = player.getPlayWhenReady()
+                        && (player.isPlaying()
+                        || player.getPlaybackState()
+                        == Player.STATE_BUFFERING);
+            } catch (Throwable ignored) {
+            }
+        }
+        boolean frameSchedulingExperimentActive = false;
+        if (isExo()) {
+            try {
+                var frameScheduling = PlaybackAnalyticsListener
+                        .getFrameSchedulingExperimentSnapshot();
+                frameSchedulingExperimentActive = frameScheduling.active()
+                        && playbackTrace.current().equals(
+                        frameScheduling.traceId());
+            } catch (Throwable ignored) {
+            }
+        }
+        playbackProfileAbCoordinator.observe(
+                playbackAutoSession,
+                new PlaybackProfileAbCoordinator.RuntimeInput(
+                        PlaybackProfileAbSetting.isEnrolled()
+                                && playbackProfileAbGateOpen(),
+                        currentPlaybackProfileAbArm(),
+                        playbackExperimentCoordinator.generation(),
+                        playbackAutoContextStore.snapshot(),
+                        observation,
+                        playbackIntended,
+                        frameSchedulingExperimentActive,
+                        false),
+                nowElapsedMs);
+        playbackLightweightAssessmentCoordinator.observe(
+                playbackAutoSession,
+                new PlaybackProfileAbCoordinator.RuntimeInput(
+                        PlaybackLightweightAssessmentSetting.isEnrolled()
+                                && playbackProfileAbGateOpen(),
+                        currentPlaybackLightweightAssessmentArm(),
+                        playbackExperimentCoordinator.generation(),
+                        playbackAutoContextStore.snapshot(),
+                        observation,
+                        playbackIntended,
+                        frameSchedulingExperimentActive,
+                        false),
+                nowElapsedMs);
+    }
+
+    private void finishPlaybackProfileAbSession(
+            String reason,
+            long nowElapsedMs) {
+        playbackProfileAbCoordinator.endSession(
+                playbackAutoSession,
+                new PlaybackProfileAbCoordinator.EndConfig(
+                        PlaybackProfileAbSetting.isEnrolled()
+                                && playbackProfileAbGateOpen(),
+                        currentPlaybackProfileAbArm(),
+                        playbackExperimentCoordinator.generation(),
+                        reason),
+                nowElapsedMs,
+                System.currentTimeMillis());
+        playbackLightweightAssessmentCoordinator.endSession(
+                playbackAutoSession,
+                new PlaybackProfileAbCoordinator.EndConfig(
+                        PlaybackLightweightAssessmentSetting.isEnrolled()
+                                && playbackProfileAbGateOpen(),
+                        currentPlaybackLightweightAssessmentArm(),
+                        playbackExperimentCoordinator.generation(),
+                        reason),
+                nowElapsedMs,
+                System.currentTimeMillis());
+    }
+
+    private PlaybackProfileAbPolicy.Arm currentPlaybackProfileAbArm() {
+        return PlaybackProfileAbPolicy.armForProfile(
+                PlaybackPerformanceSetting.getProfile(playerType));
+    }
+
+    private PlaybackProfileAbPolicy.Arm
+    currentPlaybackLightweightAssessmentArm() {
+        return PlaybackLightweightAssessmentPolicy.armForProfile(
+                PlaybackPerformanceSetting.getProfile(playerType));
+    }
+
+    private void invalidatePlaybackProfileAssessments(
+            PlaybackProfileAbCoordinator.InvalidationReason reason) {
+        playbackProfileAbCoordinator.invalidate(
+                playbackAutoSession, reason);
+        playbackLightweightAssessmentCoordinator.invalidate(
+                playbackAutoSession, reason);
+    }
+
+    private boolean playbackProfileAbGateOpen() {
+        return PlaybackProfileAbPolicy.gateAllows(
+                PlaybackExperimentSetting.getState(),
+                playbackAutoKernel(playerType));
+    }
+
+    private PlaybackResourceClassifier.Classification currentResourceClassification() {
+        PlaybackResourceClassifier.Classification request = PlaybackResourceClassifier.classifyRequest(
+                spec == null ? null : spec.getUrl(),
+                spec == null ? null : spec.getFormat(),
+                spec == null ? null : spec.getFormat());
+        PlaybackResourceClassifier.Classification observed =
+                engine == null ? null : engine.getResourceClassification();
+        return PlaybackResourceClassifier.merge(request, observed);
+    }
+
+    private void publishPlaybackAutoContext(boolean acceptDecoder) {
+        if (spec == null || engine == null || !playbackAutoSession.active()) return;
+        PlaybackResourceClassifier.Classification classification = currentResourceClassification();
+        PlaybackRoute.Resolution observedRoute = engine.getEffectivePlaybackRoute();
+        if (observedRoute == null || observedRoute.route() == PlaybackRoute.OTHER) observedRoute = spec.getPlaybackRoute();
+        long now = SystemClock.elapsedRealtime();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.Kernel> kernel = PlaybackAutoContext.Fact.forSession(
+                playbackAutoKernel(playerType), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH, now);
+        PlaybackAutoContext.Fact<PlaybackAutoContext.DecodeMode> decode = PlaybackAutoContext.Fact.forSession(
+                engine.isHard() ? PlaybackAutoContext.DecodeMode.HARDWARE : PlaybackAutoContext.DecodeMode.SOFTWARE,
+                PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH, now);
+        PlaybackAutoContext.PathFacts path = classification.toPathFacts(observedRoute, now);
+        PlaybackAutoContext.ResourceFacts resource = classification.toResourceFacts(now);
+        if (!playbackAutoContextStore.publishPlaybackFacts(playbackAutoSession, kernel, decode, resource, path, now)) return;
+        try {
+            playbackMediaFactsCoordinator.publishEngineFacts(
+                    playbackAutoSession,
+                    playbackTrackSequence,
+                    engine.getPlaybackFactsSnapshot(),
+                    acceptDecoder,
+                    now);
+        } catch (Throwable error) {
+            PlaybackTrace.log("playback-auto-context", playbackTrace.current(),
+                    "media facts unavailable type=%s action=keep-partial", error.getClass().getSimpleName());
+        }
+        PlaybackAutoContext snapshot = playbackAutoContextStore.snapshot();
+        if (playbackAutoSession.equals(snapshot.session())) {
+            PlaybackTrace.log("playback-auto-context", playbackTrace.current(), "%s", snapshot.logSummary());
+            PlaybackTrace.log("playback-auto-resource", playbackTrace.current(), "%s", classification.logSummary());
+        }
+    }
+
+    private void publishPlaybackTelemetryTick() {
+        if (!playbackAutoSession.active()) return;
+        publishPlaybackTelemetry();
+        schedulePlaybackTelemetry();
+    }
+
+    private void publishPlaybackTelemetry() {
+        publishPlaybackTelemetry(null);
+    }
+
+    private void publishPlaybackTelemetry(PlaybackAutoContext.PlaybackPhase phaseOverride) {
+        publishPlaybackTelemetry(phaseOverride, true);
+    }
+
+    private void publishPlaybackTelemetry(
+            PlaybackAutoContext.PlaybackPhase phaseOverride,
+            boolean evaluateMpvHlsVariant) {
+        if (!playbackAutoSession.active()) return;
+        long now = SystemClock.elapsedRealtime();
+        PlaybackTelemetry.RuntimeObservation observation =
+                collectPlaybackTelemetry(phaseOverride, now);
+        playbackTelemetryCoordinator.publishRuntime(
+                playbackAutoSession, observation, now);
+        observePlaybackProfileAb(observation, now);
+        evaluateIjkRuntimeProfile(observation, now);
+        evaluateExoRtspLiveLag(observation, now);
+        if (phaseOverride != PlaybackAutoContext.PlaybackPhase.ERROR) {
+            evaluateIjkBuffer(IjkBufferController.Trigger.RUNTIME, now);
+            evaluateIjkRealtimeRecovery(now);
+            evaluateIjkDecodePressure(now);
+        }
+        if (isMpv()) {
+            if (evaluateMpvHlsVariant) {
+                evaluateMpvHlsVariant(observation, now);
+            }
+            evaluateMpvCaches(
+                    MpvForwardCacheController.Trigger.RUNTIME,
+                    MpvBackCacheController.Trigger.RUNTIME,
+                    MpvBackCachePolicy.SeekObservation.none(),
+                    now);
+        }
+    }
+
+    private void evaluateMpvHlsVariant(
+            PlaybackTelemetry.RuntimeObservation telemetry,
+            long now) {
+        if (!(engine instanceof MpvPlayerEngine mpv)
+                || !playbackAutoSession.active()) return;
+        PlaybackAutoContext context = playbackAutoContextStore.snapshot();
+        MpvPlayer.AutoHlsRuntimeSnapshot runtime =
+                mpv.getAutoHlsRuntimeSnapshot();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.Protocol> protocolFact =
+                context.resource().protocol();
+        PlaybackAutoContext.Fact<PlaybackAutoContext.StreamKind> streamFact =
+                context.resource().streamKind();
+        boolean protocolUsable = protocolFact.isUsable(now);
+        boolean streamUsable = streamFact.isUsable(now);
+        PlaybackTelemetry.Metric<Long> bufferedMetric = telemetry == null
+                ? PlaybackTelemetry.Metric.unknown()
+                : telemetry.bufferedDurationMs();
+        PlaybackTelemetry.Metric<Long> positionMetric = telemetry == null
+                ? PlaybackTelemetry.Metric.unknown() : telemetry.positionMs();
+        PlaybackTelemetry.Metric<Integer> rebufferMetric = telemetry == null
+                ? PlaybackTelemetry.Metric.unknown() : telemetry.rebufferCount();
+        boolean buffering = player != null
+                && player.getPlaybackState() == Player.STATE_BUFFERING;
+        MpvHlsVariantController.RuntimeObservation observation =
+                new MpvHlsVariantController.RuntimeObservation(
+                        PlaybackPerformanceSetting.isAuto(
+                                PlayerSetting.MPV,
+                                PlaybackPerformanceCatalog.MPV_HLS_BITRATE)
+                                && experimentAllowed(
+                                PlaybackExperimentPolicy.Action.MPV_HLS_RUNTIME_RELOAD),
+                        isMpv(),
+                        MpvPerformanceSetting.isPerformancePriority(),
+                        protocolUsable ? protocolFact.value()
+                                : PlaybackAutoContext.Protocol.UNKNOWN,
+                        protocolUsable,
+                        streamUsable ? streamFact.value()
+                                : PlaybackAutoContext.StreamKind.UNKNOWN,
+                        streamUsable,
+                        toPolicyVariants(runtime.variants()),
+                        toPolicyVariant(runtime.selectedVariant()),
+                        runtime.underrun(),
+                        runtime.underrunCount(),
+                        rebufferMetric.known()
+                                ? Math.max(0, rebufferMetric.value())
+                                : playbackBufferingTracker.getRebufferCount(),
+                        buffering,
+                        bufferedMetric.known(),
+                        bufferedMetric.known()
+                                ? Math.max(0, bufferedMetric.value()) : 0,
+                        runtime.rawInputBitsPerSecond(),
+                        runtime.rawInputRateUsable(),
+                        positionMetric.known()
+                                ? Math.max(0, positionMetric.value()) : 0);
+        MpvHlsVariantController.Decision decision =
+                mpvHlsVariantController.evaluateRuntime(
+                        playbackAutoSession, context.session(), observation, now);
+        MpvHlsApplyResult apply = decision.requestsApply()
+                ? executeMpvHlsVariantDecision(mpv, decision, now)
+                : MpvHlsApplyResult.notRequested();
+        MpvHlsVariantController.Snapshot snapshot =
+                mpvHlsVariantController.snapshot();
+        if (decision.reason() == MpvHlsVariantController.Reason.ROLLBACK_TIMEOUT
+                || decision.requestsApply() && !apply.succeeded()) {
+            mpvHlsManagedReload = false;
+        }
+        PlaybackTelemetry.DecisionOutcome outcome =
+                decision.policyReason() == MpvHlsVariantPolicy.Reason.NOT_AUTOMATIC
+                        || decision.policyReason()
+                        == MpvHlsVariantPolicy.Reason.CONFIG_PRIORITY
+                        ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                        : !decision.requestsApply()
+                        ? PlaybackTelemetry.DecisionOutcome.HELD
+                        : apply.succeeded()
+                        ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                        : PlaybackTelemetry.DecisionOutcome.FAILED;
+        String suppression = decision.policyReason()
+                == MpvHlsVariantPolicy.Reason.NOT_AUTOMATIC
+                ? "not-automatic"
+                : decision.policyReason()
+                == MpvHlsVariantPolicy.Reason.CONFIG_PRIORITY
+                ? "mpv-conf-priority"
+                : decision.requestsApply() && !apply.started()
+                ? "action-rejected"
+                : decision.requestsApply() && !apply.optionAccepted()
+                ? "native-apply-failed"
+                : decision.requestsApply() && !apply.reloadStarted()
+                ? "reload-start-failed"
+                : decision.reason().label();
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        addNumberInput(inputs, "selected_bps",
+                decision.targetBitsPerSecond() > 0
+                        ? optionBits(decision.oldOption())
+                        : runtime.selectedVariant() == null
+                        ? -1 : runtime.selectedVariant().selectionBitsPerSecond(),
+                PlaybackAutoContext.ValueSource.MANIFEST,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "target_bps", decision.targetBitsPerSecond(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH);
+        addNumberInput(inputs, "raw_input_bps",
+                runtime.rawInputRateUsable()
+                        ? runtime.rawInputBitsPerSecond() : -1,
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.MEDIUM);
+        addNumberInput(inputs, "buffered_ms",
+                bufferedMetric.known() ? bufferedMetric.value() : -1,
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH);
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "underrun_count", runtime.underrunCount(),
+                PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "rebuffer_count", observation.rebufferCount(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "risk_samples", decision.riskSamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "hard_risk_samples", decision.hardRiskSamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "throughput_risk_samples", decision.throughputRiskSamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "buffer_risk_samples", decision.bufferRiskSamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "reload_attempts", snapshot.reloadAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "cooldown_ms", decision.cooldownRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.MPV_HLS_VARIANT,
+                        outcome,
+                        hlsOptionLabel(decision.oldOption()),
+                        hlsOptionLabel(decision.targetOption()),
+                        apply.succeeded()
+                                ? hlsOptionLabel(decision.targetOption())
+                                : hlsOptionLabel(decision.oldOption()),
+                        decision.reason().label(),
+                        suppression,
+                        inputs),
+                now);
+    }
+
+    private MpvHlsApplyResult executeMpvHlsVariantDecision(
+            MpvPlayerEngine mpv,
+            MpvHlsVariantController.Decision decision,
+            long now) {
+        boolean started = mpvHlsVariantController.beginApply(
+                playbackAutoSession, decision, now);
+        if (!started) return MpvHlsApplyResult.rejected();
+        MpvPlayer.AutoHlsBitrateResult option = mpv.applyAutoHlsBitrate(
+                playbackTrace.current(), decision.targetOption());
+        boolean reloadStarted = option.accepted()
+                && restartMpvHlsVariant(decision);
+        boolean succeeded = option.accepted() && reloadStarted;
+        if (!succeeded && !TextUtils.isEmpty(decision.oldOption())) {
+            mpv.applyAutoHlsBitrate(
+                    playbackTrace.current(), decision.oldOption());
+        }
+        mpvHlsVariantController.completeApply(
+                playbackAutoSession,
+                decision,
+                succeeded,
+                option.staged(),
+                SystemClock.elapsedRealtime());
+        return new MpvHlsApplyResult(
+                true, option.accepted(), reloadStarted, succeeded,
+                option.label());
+    }
+
+    private boolean restartMpvHlsVariant(
+            MpvHlsVariantController.Decision decision) {
+        if (!decision.reloadsMedia()
+                || spec == null
+                || TextUtils.isEmpty(spec.getUrl())
+                || engine == null
+                || player == null) return false;
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        long position = decision.preservesVodPosition()
+                ? decision.resumePositionMs() : C.TIME_UNSET;
+        try {
+            prepareSeq++;
+            App.removeCallbacks(runnable);
+            mpvHlsManagedReload = true;
+            initTrack = false;
+            playWhenReady = wasPlayWhenReady;
+            PlaybackTrace.log("mpv-hls-variant", playbackTrace.current(),
+                    "action=%s stream=%s target=%d resume=%d play=%s",
+                    decision.action().label(), decision.streamKind().label(),
+                    decision.targetBitsPerSecond(),
+                    position == C.TIME_UNSET ? 0 : position,
+                    wasPlayWhenReady);
+            restartWithProxy(spec, position, wasPlayWhenReady);
+            if (speed != 1f) setSpeed(speed);
+            setRepeatOne(repeat);
+            App.post(runnable, Constant.TIMEOUT_PLAY);
+            return true;
+        } catch (Throwable error) {
+            mpvHlsManagedReload = false;
+            PlaybackTrace.log("mpv-hls-variant", playbackTrace.current(),
+                    "action=%s result=failed errorType=%s",
+                    decision.action().label(),
+                    error.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private void schedulePlaybackTelemetry() {
+        App.removeCallbacks(playbackTelemetryRunnable);
+        if (!playbackAutoSession.active() || player == null || player.getPlaybackState() == Player.STATE_ENDED) return;
+        App.post(playbackTelemetryRunnable, PLAYBACK_TELEMETRY_INTERVAL_MS);
+    }
+
+    private void endPlaybackTelemetrySession(String reason) {
+        App.removeCallbacks(playbackTelemetryRunnable);
+        if (!playbackAutoSession.active()) return;
+        long now = SystemClock.elapsedRealtime();
+        PlaybackTelemetry.RuntimeObservation observation =
+                collectPlaybackTelemetry(null, now);
+        observePlaybackProfileAb(observation, now);
+        finishPlaybackProfileAbSession(reason, now);
+        finishIjkRuntimeProfileSession(observation, now);
+        playbackTelemetryCoordinator.endSession(
+                playbackAutoSession, reason, observation, now);
+        rtspLiveLagController.endSession(playbackAutoSession);
+    }
+
+    private PlaybackTelemetry.RuntimeObservation collectPlaybackTelemetry(
+            PlaybackAutoContext.PlaybackPhase phaseOverride,
+            long now) {
+        PlaybackAutoContext.PlaybackPhase phaseValue = phaseOverride == null ? playbackPhaseSnapshot() : phaseOverride;
+        PlaybackTelemetry.Metric<PlaybackAutoContext.PlaybackPhase> phase = phaseValue == PlaybackAutoContext.PlaybackPhase.UNKNOWN
+                ? PlaybackTelemetry.Metric.unknown()
+                : PlaybackTelemetry.Metric.of(phaseValue, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH);
+        PlaybackTelemetry.Metric<Boolean> loading = PlaybackTelemetry.Metric.unknown();
+        PlaybackTelemetry.Metric<Long> position = PlaybackTelemetry.Metric.unknown();
+        PlaybackTelemetry.Metric<Long> duration = PlaybackTelemetry.Metric.unknown();
+        PlaybackTelemetry.Metric<Long> buffered = PlaybackTelemetry.Metric.unknown();
+        PlaybackTelemetry.Metric<Long> bandwidth = PlaybackTelemetry.Metric.unknown();
+        PlaybackTelemetry.Metric<Long> mediaBitrate = PlaybackTelemetry.Metric.unknown();
+        PlaybackTelemetry.Metric<Float> renderedFrameRate = PlaybackTelemetry.Metric.unknown();
+        PlaybackTelemetry.Metric<Long> droppedFrames = PlaybackTelemetry.Metric.unknown();
+        PlaybackTelemetry.Metric<Long> liveLag = PlaybackTelemetry.Metric.unknown();
+        if (player != null) {
+            try {
+                loading = PlaybackTelemetry.Metric.of(player.isLoading(), PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                        PlaybackAutoContext.Confidence.HIGH);
+            } catch (Throwable ignored) {
+            }
+            try {
+                long value = player.getCurrentPosition();
+                if (value >= 0) position = PlaybackTelemetry.Metric.of(value, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                        PlaybackAutoContext.Confidence.HIGH);
+            } catch (Throwable ignored) {
+            }
+            try {
+                long value = player.getDuration();
+                if (value >= 0 && value != C.TIME_UNSET) duration = PlaybackTelemetry.Metric.of(value,
+                        PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH);
+            } catch (Throwable ignored) {
+            }
+            try {
+                long value = player.getTotalBufferedDuration();
+                if (value >= 0) buffered = PlaybackTelemetry.Metric.of(value, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                        PlaybackAutoContext.Confidence.HIGH);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (isExo() && playbackTrace.current().equals(PlaybackAnalyticsListener.getPlaybackTraceId())) {
+            PlaybackAnalyticsListener.Snapshot analytics = PlaybackAnalyticsListener.getSnapshot();
+            if (analytics.bandwidthEstimate() > 0) {
+                bandwidth = PlaybackTelemetry.Metric.of(analytics.bandwidthEstimate(), PlaybackAutoContext.ValueSource.ESTIMATOR,
+                        PlaybackAutoContext.Confidence.MEDIUM);
+            }
+            PlaybackAnalyticsListener.DisplayMediaBitrateEstimate media =
+                    PlaybackAnalyticsListener.getDisplayMediaBitrateEstimate(getVideoFormat());
+            if (media.bitrateBitsPerSecond() > 0) {
+                PlaybackAutoContext.ValueSource source = "format".equals(media.source())
+                        ? PlaybackAutoContext.ValueSource.PLAYER_CALLBACK : PlaybackAutoContext.ValueSource.ESTIMATOR;
+                mediaBitrate = PlaybackTelemetry.Metric.of(media.bitrateBitsPerSecond(), source,
+                        telemetryConfidence(media.confidence()));
+            }
+            PlaybackAnalyticsListener.DisplayFrameRateEstimate frameRate = PlaybackAnalyticsListener.getDisplayFrameRateEstimate();
+            if (frameRate.frameRate() > 0 && frameRate.sampleCount() > 0) {
+                renderedFrameRate = PlaybackTelemetry.Metric.of(frameRate.frameRate(), PlaybackAutoContext.ValueSource.ESTIMATOR,
+                        frameRate.sampleCount() >= 12 ? PlaybackAutoContext.Confidence.HIGH : PlaybackAutoContext.Confidence.MEDIUM);
+            }
+            if (analytics.everReady() || analytics.videoFormat() != null) {
+                droppedFrames = PlaybackTelemetry.Metric.of(Math.max(0, analytics.droppedFrames()),
+                        PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH);
+            }
+            try {
+                long value = player.getCurrentLiveOffset();
+                if (player.isCurrentMediaItemLive() && value >= 0 && value != C.TIME_UNSET) {
+                    liveLag = PlaybackTelemetry.Metric.of(value, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                            PlaybackAutoContext.Confidence.HIGH);
+                }
+            } catch (Throwable ignored) {
+            }
+        } else if (engine != null) {
+            try {
+                PlayerEngine.RuntimeMetrics metrics = engine.getRuntimeMetrics();
+                if (metrics.bandwidthBitsPerSecond() != null) bandwidth = PlaybackTelemetry.Metric.of(
+                        metrics.bandwidthBitsPerSecond(), PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                        PlaybackAutoContext.Confidence.MEDIUM);
+                if (metrics.mediaBitrateBitsPerSecond() != null) mediaBitrate = PlaybackTelemetry.Metric.of(
+                        metrics.mediaBitrateBitsPerSecond(), PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                        PlaybackAutoContext.Confidence.MEDIUM);
+                if (metrics.renderedFrameRate() != null) renderedFrameRate = PlaybackTelemetry.Metric.of(
+                        metrics.renderedFrameRate(), PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                        PlaybackAutoContext.Confidence.MEDIUM);
+                if (metrics.droppedFrames() != null) droppedFrames = PlaybackTelemetry.Metric.of(
+                        metrics.droppedFrames(), PlaybackAutoContext.ValueSource.NATIVE_RUNTIME,
+                        PlaybackAutoContext.Confidence.HIGH);
+            } catch (Throwable error) {
+                PlaybackTrace.log("playback-telemetry", playbackTrace.current(),
+                        "native metrics unavailable type=%s action=keep-unknown", error.getClass().getSimpleName());
+            }
+        }
+        if (player != null && isIjk()) {
+            try {
+                long value = player.getCurrentLiveOffset();
+                if (player.isCurrentMediaItemLive()
+                        && value >= 0 && value != C.TIME_UNSET) {
+                    liveLag = PlaybackTelemetry.Metric.of(
+                            value,
+                            PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                            PlaybackAutoContext.Confidence.HIGH);
+                }
+            } catch (Throwable ignored) {
+            }
+            if (!liveLag.known() && engine instanceof IjkPlayerEngine ijk) {
+                try {
+                    Long value = ijk.getLiveLagLowerBoundMs();
+                    if (value != null && value >= 0) {
+                        liveLag = PlaybackTelemetry.Metric.of(
+                                value,
+                                PlaybackAutoContext.ValueSource.PROXY,
+                                PlaybackAutoContext.Confidence.MEDIUM);
+                    }
+                } catch (Throwable error) {
+                    PlaybackTrace.log("ijk-buffer", playbackTrace.current(),
+                            "live-lag unavailable errorType=%s action=keep-unknown",
+                            error.getClass().getSimpleName());
+                }
+            }
+        }
+        long firstFrameMs = playbackTrace.stageElapsedMs(PlaybackTrace.Stage.FIRST_FRAME);
+        PlaybackTelemetry.Metric<Long> firstFrame = firstFrameMs < 0 ? PlaybackTelemetry.Metric.unknown()
+                : PlaybackTelemetry.Metric.of(firstFrameMs, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH);
+        logMpvFrameTiming(now);
+        return new PlaybackTelemetry.RuntimeObservation(
+                phase,
+                loading,
+                position,
+                duration,
+                buffered,
+                bandwidth,
+                mediaBitrate,
+                renderedFrameRate,
+                droppedFrames,
+                PlaybackTelemetry.Metric.of(playbackBufferingTracker.getRebufferCount(),
+                        PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                PlaybackTelemetry.Metric.of(playbackBufferingTracker.getRebufferTotalMs(now),
+                        PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                firstFrame,
+                liveLag);
+    }
+
+    private void logMpvFrameTiming(long now) {
+        if (!SpiderDebug.isEnabled() || !(engine instanceof MpvPlayerEngine mpv)) return;
+        if (now - lastMpvFrameTimingLogMs < MPV_FRAME_TIMING_LOG_INTERVAL_MS) return;
+        lastMpvFrameTimingLogMs = now;
+        MpvPlayer.FrameTimingSnapshot timing = mpv.getFrameTimingSnapshot();
+        PlaybackTrace.log("mpv-frame-timing", playbackTrace.current(),
+                "dec=%d out=%d mistimed=%d delayed=%d avSyncMs=%d contentFps=%.3f displayFps=%.3f direct=%s observed=%s",
+                timing.decoderDroppedFrames(),
+                timing.outputDroppedFrames(),
+                timing.mistimedFrames(),
+                timing.delayedFrames(),
+                Math.round(timing.avSyncSeconds() * 1000.0),
+                timing.contentFrameRate(),
+                timing.displayFrameRate(),
+                mpv.isSurfaceDirect(),
+                timing.observed());
+    }
+
+    private void evaluateExoRtspLiveLag(
+            PlaybackTelemetry.RuntimeObservation observation,
+            long nowMs) {
+        if (!playbackAutoSession.active()) return;
+        boolean automatic = PlaybackPerformanceSetting.isAuto(PlayerSetting.EXO)
+                && experimentAllowed(
+                PlaybackExperimentPolicy.Action.EXO_RTSP_RECOVERY);
+        boolean exo = isExo() && engine instanceof ExoPlayerEngine;
+        PlaybackResourceClassifier.Classification classification =
+                currentResourceClassification();
+        boolean rtsp = classification.protocol() == PlaybackAutoContext.Protocol.RTSP;
+        boolean classifiedLive = classification.streamKind() == PlaybackAutoContext.StreamKind.LIVE
+                || classification.streamKind() == PlaybackAutoContext.StreamKind.LOW_LATENCY_LIVE;
+        boolean mediaItemLive = false;
+        boolean active = false;
+        boolean loading = false;
+        boolean seekAvailable = false;
+        if (player != null) {
+            try {
+                mediaItemLive = player.isCurrentMediaItemLive();
+            } catch (Throwable ignored) {
+            }
+            try {
+                int state = player.getPlaybackState();
+                active = player.getPlayWhenReady()
+                        && (player.isPlaying()
+                        || state == Player.STATE_READY
+                        || state == Player.STATE_BUFFERING);
+            } catch (Throwable ignored) {
+            }
+            try {
+                loading = player.isLoading();
+            } catch (Throwable ignored) {
+            }
+            try {
+                seekAvailable = player.isCommandAvailable(
+                        Player.COMMAND_SEEK_TO_DEFAULT_POSITION);
+            } catch (Throwable ignored) {
+            }
+        }
+        boolean live = classifiedLive && mediaItemLive;
+        boolean startupComplete = playbackTrace.hasStage(PlaybackTrace.Stage.FIRST_FRAME)
+                || playbackTrace.hasStage(PlaybackTrace.Stage.AUDIO_PLAYABLE);
+        long liveLagMs = metricLong(observation == null ? null : observation.liveLagMs());
+        long bufferedMs = metricLong(observation == null ? null : observation.bufferedDurationMs());
+        boolean liveEdgeReliable = isReliableDynamicLiveEdge(
+                live, seekAvailable, liveLagMs);
+        ExoRtspLiveLagPolicy.Decision decision = rtspLiveLagController.evaluate(
+                new ExoRtspLiveLagController.Input(
+                        playbackAutoSession,
+                        automatic,
+                        exo,
+                        rtsp,
+                        live,
+                        active,
+                        startupComplete,
+                        false,
+                        loading,
+                        liveEdgeReliable,
+                        seekAvailable,
+                        liveLagMs,
+                        bufferedMs,
+                        nowMs));
+        ExoRtspLiveLagController.Snapshot stateAtDecision =
+                rtspLiveLagController.snapshot();
+
+        // Do not fill the shared decision log with inapplicable HLS/DASH/native observations.
+        if (!automatic || !exo || !rtsp) return;
+        if (!decision.requestsRecovery()) {
+            publishExoRtspLiveLagDecision(
+                    decision,
+                    PlaybackTelemetry.DecisionOutcome.HELD,
+                    false,
+                    active,
+                    loading,
+                    seekAvailable,
+                    liveEdgeReliable,
+                    stateAtDecision,
+                    nowMs);
+            return;
+        }
+
+        boolean started = rtspLiveLagController.beginAction(
+                playbackAutoSession, decision.action(), nowMs);
+        boolean succeeded = started && executeExoRtspLiveLagRecovery(decision.action());
+        if (started) {
+            rtspLiveLagController.completeAction(
+                    playbackAutoSession, decision.action(), succeeded);
+        }
+        publishExoRtspLiveLagDecision(
+                decision,
+                succeeded ? PlaybackTelemetry.DecisionOutcome.APPLIED
+                        : PlaybackTelemetry.DecisionOutcome.FAILED,
+                succeeded,
+                active,
+                loading,
+                seekAvailable,
+                liveEdgeReliable,
+                stateAtDecision,
+                nowMs);
+    }
+
+    private boolean executeExoRtspLiveLagRecovery(
+            ExoRtspLiveLagPolicy.Action action) {
+        try {
+            return switch (action) {
+                case SEEK_LIVE_EDGE -> engine instanceof ExoPlayerEngine exo
+                        && exo.recoverRtspLiveEdge();
+                case REBUILD_SESSION -> restartExoRtspLiveSession();
+                case HOLD -> false;
+            };
+        } catch (Throwable error) {
+            PlaybackTrace.log("exo-rtsp-live", playbackTrace.current(),
+                    "action=%s result=failed errorType=%s",
+                    action.label(), error.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private boolean restartExoRtspLiveSession() {
+        if (!(engine instanceof ExoPlayerEngine)
+                || player == null
+                || spec == null
+                || TextUtils.isEmpty(spec.getUrl())) {
+            return false;
+        }
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        prepareSeq++;
+        App.removeCallbacks(runnable);
+        App.removeCallbacks(networkProtectionRunnable);
+        resetNetworkProtectionSession("rtsp-live-rebuild");
+        setDanmakus(spec.getDanmakus());
+        initTrack = false;
+        waitingLutBeforePlay = false;
+        playWhenReady = wasPlayWhenReady;
+        applySubtitleStyle();
+        PlaybackTrace.log("exo-rtsp-live", playbackTrace.current(),
+                "action=rebuild-session play=%s speed=%.3f repeat=%s",
+                wasPlayWhenReady, speed, repeat);
+        restartWithProxy(spec, C.TIME_UNSET, wasPlayWhenReady);
+        if (speed != 1f) setSpeed(speed);
+        setRepeatOne(repeat);
+        App.post(runnable, Constant.TIMEOUT_PLAY);
+        callback.onPrepare();
+        return true;
+    }
+
+    private boolean isReliableDynamicLiveEdge(
+            boolean live,
+            boolean seekAvailable,
+            long liveLagMs) {
+        if (!live || !seekAvailable || liveLagMs < 0 || player == null) return false;
+        try {
+            Timeline timeline = player.getCurrentTimeline();
+            int index = player.getCurrentMediaItemIndex();
+            if (timeline == null || timeline.isEmpty()
+                    || index < 0 || index >= timeline.getWindowCount()) {
+                return false;
+            }
+            Timeline.Window window = timeline.getWindow(index, new Timeline.Window());
+            return window.isLive() && window.isDynamic;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private void publishExoRtspLiveLagDecision(
+            ExoRtspLiveLagPolicy.Decision decision,
+            PlaybackTelemetry.DecisionOutcome outcome,
+            boolean succeeded,
+            boolean active,
+            boolean loading,
+            boolean seekAvailable,
+            boolean liveEdgeReliable,
+            ExoRtspLiveLagController.Snapshot stateAtDecision,
+            long nowMs) {
+        ExoRtspLiveLagController.Snapshot snapshot =
+                rtspLiveLagController.snapshot();
+        ExoRtspLiveLagController.Snapshot decisionState = stateAtDecision == null
+                ? snapshot : stateAtDecision;
+        List<PlaybackTelemetry.DecisionInput> inputs = new ArrayList<>();
+        inputs.add(PlaybackTelemetry.DecisionInput.text(
+                "trigger", decision.trigger().label(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(decision.liveLagMs() < 0
+                ? PlaybackTelemetry.DecisionInput.unknown("live_lag_ms")
+                : PlaybackTelemetry.DecisionInput.number(
+                "live_lag_ms", decision.liveLagMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(decision.lagGrowthMsPerSecond() == Long.MIN_VALUE
+                ? PlaybackTelemetry.DecisionInput.unknown("lag_growth_msps")
+                : PlaybackTelemetry.DecisionInput.number(
+                "lag_growth_msps", decision.lagGrowthMsPerSecond(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(decision.bufferedMs() < 0
+                ? PlaybackTelemetry.DecisionInput.unknown("buffered_ms")
+                : PlaybackTelemetry.DecisionInput.number(
+                "buffered_ms", decision.bufferedMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(decision.bufferGrowthMsPerSecond() == Long.MIN_VALUE
+                ? PlaybackTelemetry.DecisionInput.unknown("buffer_growth_msps")
+                : PlaybackTelemetry.DecisionInput.number(
+                "buffer_growth_msps", decision.bufferGrowthMsPerSecond(),
+                PlaybackAutoContext.ValueSource.ESTIMATOR,
+                PlaybackAutoContext.Confidence.MEDIUM));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "active", active,
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "loading", loading,
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "edge_reliable", liveEdgeReliable,
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.bool(
+                "seek_available", seekAvailable,
+                PlaybackAutoContext.ValueSource.PLAYER_CALLBACK,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "risk_samples", decisionState.consecutiveRiskSamples(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "recoveries", snapshot.recoveryAttempts(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        inputs.add(PlaybackTelemetry.DecisionInput.number(
+                "cooldown_ms", decision.cooldownRemainingMs(),
+                PlaybackAutoContext.ValueSource.PLAYER_MANAGER,
+                PlaybackAutoContext.Confidence.HIGH));
+        playbackTelemetryCoordinator.publishDecision(
+                playbackAutoSession,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.RTSP_LIVE_RECOVERY,
+                        outcome,
+                        decisionState.lastAction().label(),
+                        decision.action().label(),
+                        succeeded ? decision.action().label() : "hold",
+                        decision.reason().label(),
+                        decision.requestsRecovery() ? succeeded ? "none" : "action-failed"
+                                : decision.reason().label(),
+                        inputs),
+                nowMs);
+    }
+
+    private static long metricLong(PlaybackTelemetry.Metric<Long> metric) {
+        return metric == null || !metric.known() || metric.value() < 0
+                ? -1 : metric.value();
+    }
+
+    private PlaybackAutoContext.PlaybackPhase playbackPhaseSnapshot() {
+        if (player == null) return PlaybackAutoContext.PlaybackPhase.IDLE;
+        return switch (player.getPlaybackState()) {
+            case Player.STATE_BUFFERING -> PlaybackAutoContext.PlaybackPhase.BUFFERING;
+            case Player.STATE_READY -> PlaybackAutoContext.PlaybackPhase.READY;
+            case Player.STATE_ENDED -> PlaybackAutoContext.PlaybackPhase.ENDED;
+            case Player.STATE_IDLE -> spec == null ? PlaybackAutoContext.PlaybackPhase.IDLE : PlaybackAutoContext.PlaybackPhase.PREPARING;
+            default -> PlaybackAutoContext.PlaybackPhase.UNKNOWN;
+        };
+    }
+
+    private static PlaybackAutoContext.Confidence telemetryConfidence(String value) {
+        if (value == null) return PlaybackAutoContext.Confidence.UNKNOWN;
+        return switch (value) {
+            case "high" -> PlaybackAutoContext.Confidence.HIGH;
+            case "medium" -> PlaybackAutoContext.Confidence.MEDIUM;
+            case "low" -> PlaybackAutoContext.Confidence.LOW;
+            default -> PlaybackAutoContext.Confidence.UNKNOWN;
+        };
+    }
+
+    private void clearPlaybackAutoContext() {
+        mpvForwardCacheController.endSession(playbackAutoSession);
+        mpvBackCacheController.endSession(playbackAutoSession);
+        mpvCacheTargetCoordinator.endSession(playbackAutoSession);
+        mpvHlsVariantController.endSession(playbackAutoSession);
+        mpvResourcePressureController.endSession(playbackAutoSession);
+        mpvPreloadController.endSession(playbackAutoSession);
+        ijkBufferController.endSession(playbackAutoSession);
+        ijkDecodePressureController.endSession(playbackAutoSession);
+        ijkRealtimeRecoveryController.endSession(playbackAutoSession);
+        ijkRuntimeProfileController.endSession(playbackAutoSession);
+        ijkBufferManagedReload = false;
+        pendingIjkBufferDecision = null;
+        pendingIjkDecodePressureDecision = null;
+        pendingIjkRealtimeRecoveryDecision = null;
+        mpvHlsManagedReload = false;
+        mpvAutoController.endSession(playbackAutoSession);
+        PlaybackSystemConditionMonitor.process().endSession(playbackAutoSession);
+        PlaybackMemoryMonitor.process().endSession(playbackAutoSession);
+        playbackMediaFactsCoordinator.endSession(playbackAutoSession);
+        playbackAutoContextStore.clear(playbackAutoSession);
+        playbackAutoSession = PlaybackAutoContext.SessionToken.none();
+        playbackTrackSequence = 0;
+    }
+
+    private static PlaybackAutoContext.Kernel playbackAutoKernel(int playerType) {
+        return switch (PlayerSetting.sanitizePlayer(playerType)) {
+            case PlayerSetting.IJK -> PlaybackAutoContext.Kernel.IJK;
+            case PlayerSetting.MPV -> PlaybackAutoContext.Kernel.MPV;
+            default -> PlaybackAutoContext.Kernel.EXO;
+        };
+    }
+
+>>>>>>> upstream/dev
     private void logPlaybackRoute() {
         if (spec == null) return;
         String traceId = playbackTrace.current();
@@ -2195,9 +7518,16 @@ public class PlayerManager implements ParseCallback {
 
         void onTitlesChanged();
 
+        default boolean onSourceHttpError(int statusCode, String msg) {
+            return false;
+        }
+
         void onError(String msg);
 
         void onReload(String msg);
+
+        default void onPlayerRenderRequired() {
+        }
 
         void onPlayerRebuild(Player newPlayer, boolean resetVideoSurface);
     }
@@ -2215,6 +7545,17 @@ public class PlayerManager implements ParseCallback {
             if (state != Player.STATE_IDLE) App.removeCallbacks(runnable);
             if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "state=%s spec=%s", stateName(state), debugSpec());
             if (state == Player.STATE_READY) {
+<<<<<<< HEAD
+=======
+                manualPlayerSwitchPending = false;
+                App.post(PlayerManager.this::refreshAdAudioRuntime);
+                ijkRuntimeProfileController.onPrepared(playbackAutoSession);
+                onMpvHlsPlaybackReady(SystemClock.elapsedRealtime());
+                if (isIjk()) {
+                    completeIjkBufferManagedReload(
+                            true, "ready", SystemClock.elapsedRealtime(), true);
+                }
+>>>>>>> upstream/dev
                 playbackTrace.mark(PlaybackTrace.Stage.READY, "player=" + playerType);
                 markStartupCompletion(true, getCurrentTracks());
                 hardDecodeSwitchRetryArmed = false;
@@ -2222,6 +7563,67 @@ public class PlayerManager implements ParseCallback {
                 applyLutForCurrentItem();
             }
             recordBufferingState(state);
+<<<<<<< HEAD
+=======
+            publishPlaybackTelemetry();
+            if (state == Player.STATE_ENDED) {
+                App.removeCallbacks(playbackTelemetryRunnable);
+                finishPlaybackProfileAbSession(
+                        "ended", SystemClock.elapsedRealtime());
+            } else {
+                schedulePlaybackTelemetry();
+            }
+        }
+
+        @Override
+        public void onTimelineChanged(@NonNull Timeline timeline, int reason) {
+            if (isExo()) scheduleNetworkProtection(0);
+            if (!(engine instanceof IjkPlayerEngine)) return;
+            int index = player == null ? C.INDEX_UNSET : player.getCurrentMediaItemIndex();
+            if (timeline.isEmpty() || index < 0 || index >= timeline.getWindowCount()) return;
+            Timeline.Window window = timeline.getWindow(index, new Timeline.Window());
+            if (window.manifest == null) return;
+            IjkTimelinePublicationKey key = new IjkTimelinePublicationKey(
+                    window.manifest,
+                    window.liveConfiguration,
+                    window.isDynamic);
+            if (key.equals(lastIjkTimelinePublicationKey)) return;
+            lastIjkTimelinePublicationKey = key;
+            publishPlaybackAutoContext(false);
+            evaluateIjkBuffer(IjkBufferController.Trigger.MANIFEST,
+                    SystemClock.elapsedRealtime());
+        }
+
+        @Override
+        public void onPositionDiscontinuity(@NonNull Player.PositionInfo oldPosition, @NonNull Player.PositionInfo newPosition, int reason) {
+            if (reason != Player.DISCONTINUITY_REASON_SEEK) {
+                mediaSession.reset(Math.max(0L, newPosition.positionMs),
+                        PlaybackMediaSignalHub.ResetReason.SOURCE_CHANGED);
+                App.post(PlayerManager.this::refreshAdAudioRuntime);
+            }
+            rtspLiveLagController.onPositionDiscontinuity(playbackAutoSession);
+            ijkRealtimeRecoveryController.onPositionDiscontinuity(
+                    playbackAutoSession);
+            ijkDecodePressureController.onPositionDiscontinuity(
+                    playbackAutoSession);
+            resetNetworkProtectionSession("discontinuity-" + reason);
+            scheduleNetworkProtection(ExoNetworkGuardController.OBSERVE_INTERVAL_MS);
+            if (isMpv()) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                    mpvPreloadController.disrupt(playbackAutoSession);
+                }
+                MpvBackCachePolicy.SeekObservation seek = MpvBackCachePolicy.observeSeek(
+                        reason == Player.DISCONTINUITY_REASON_SEEK,
+                        oldPosition.mediaItemIndex == newPosition.mediaItemIndex,
+                        oldPosition.positionMs,
+                        newPosition.positionMs);
+                evaluateMpvCaches(
+                        null,
+                        MpvBackCacheController.Trigger.SEEK,
+                        seek,
+                        SystemClock.elapsedRealtime());
+            }
+>>>>>>> upstream/dev
         }
 
         @Override
@@ -2235,7 +7637,10 @@ public class PlayerManager implements ParseCallback {
         public void onTracksChanged(@NonNull Tracks tracks) {
             if (!tracks.isEmpty() && !initTrack) {
                 playbackTrace.mark(PlaybackTrace.Stage.TRACKS, trackSummary(tracks));
-                restoreTrackSelection(Track.find(getKey()));
+                List<Track> savedTracks = Track.find(getKey());
+                setTrack(savedTracks);
+                if (RealtimeSubtitleController.get().isEnabled()) disableSubtitleTrackForRealtime();
+                if (PlayerSetting.isPreferAAC() && !TrackUtil.hasTrack(player, savedTracks, C.TRACK_TYPE_AUDIO)) TrackUtil.preferAAC(player);
                 callback.onTracksChanged();
                 initTrack = true;
             }
@@ -2258,15 +7663,41 @@ public class PlayerManager implements ParseCallback {
         public void onPlayerError(@NonNull PlaybackException e) {
             App.removeCallbacks(runnable);
             if (retryMpvSurfaceDirectFailure(e)) return;
+            if (retryMpvVulkanBackendFailure(e)) return;
             PlaybackErrorClassifier.Failure failure = PlaybackErrorClassifier.classify(e, getEffectivePlaybackRoute());
             PlayerEngine.ErrorAction action = engine.handleError(e);
+            int statusCode = httpStatus(e);
+            String errorMessage = engine.getErrorMessage(e);
             PlaybackTrace.log("playback-error", playbackTrace.current(), "%s action=%s player=%d decode=%d", failure.logSummary(), action, playerType, engine.getDecode());
+<<<<<<< HEAD
             if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "error code=%d message=%s action=%s retry=%d spec=%s cause=%s", e.errorCode, e.getMessage(), action, retry, debugSpec(), causeChain(e));
+=======
+            if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "error code=%d http=%d errorType=%s message=%s action=%s retry=%d spec=%s causeTypes=%s", e.errorCode, statusCode, e.getClass().getSimpleName(), e.getMessage(), action, retry, debugSpec(), causeChain(e));
+>>>>>>> upstream/dev
             LocalProxyDebug.dumpIfLocalFailure(spec == null ? null : spec.getUrl(), e);
+            if (statusCode > 0 && callback.onSourceHttpError(statusCode, errorMessage)) return;
             if (retryLutFailure(e)) return;
             if (retryLutWarmupByRefresh(action, e)) return;
+<<<<<<< HEAD
             if (action == PlayerEngine.ErrorAction.DECODE && retryHardDecodeSwitch(e)) return;
             if (action == PlayerEngine.ErrorAction.FATAL && retryLocalProxy(e)) return;
+=======
+            if (retryMpvGpuCopyFailure(e)) return;
+            boolean decoderRuntimeObserved = action == PlayerEngine.ErrorAction.DECODE
+                    && engine instanceof ExoPlayerEngine exo
+                    && exo.observeDecoderRuntimeFailure(e);
+            if (action == PlayerEngine.ErrorAction.DECODE && retryExoTunnelingFailure(e)) return;
+            if (decoderRuntimeObserved && retryExoDecoderRuntimeFailure(e)) return;
+            if (action == PlayerEngine.ErrorAction.DECODE && retryHardDecodeSwitch(e)) return;
+            if (action == PlayerEngine.ErrorAction.FATAL && retryLocalProxy(e)) return;
+            if (shouldStopOnManualSwitchFailure(manualPlayerSwitchPending, action)) {
+                finishPlaybackProfileAbSession(
+                        "manual-switch-error", SystemClock.elapsedRealtime());
+                callback.onError(errorMessage);
+                return;
+            }
+            if (retryIjkRuntimeProfileFallback(e, failure, action)) return;
+>>>>>>> upstream/dev
             if (action == PlayerEngine.ErrorAction.RELOAD) {
                 callback.onReload(getPlaybackErrorMessage(failure));
                 return;
@@ -2275,10 +7706,53 @@ public class PlayerManager implements ParseCallback {
                 if (spec != null) setDanmakus(spec.getDanmakus());
                 return;
             }
+<<<<<<< HEAD
+=======
+            if (fallbackPlayback(e)) return;
+            finishPlaybackProfileAbSession(
+                    "player-error", SystemClock.elapsedRealtime());
+>>>>>>> upstream/dev
             callback.onError(getPlaybackErrorMessage(failure));
         }
     };
 
+<<<<<<< HEAD
+=======
+    private void onPlaybackTimeout() {
+        completeIjkBufferManagedReload(
+                false, "timeout", SystemClock.elapsedRealtime(), true);
+        PlaybackException e = new PlaybackException(ResUtil.getString(R.string.error_play_timeout), null, PlaybackException.ERROR_CODE_TIMEOUT);
+        if (retryLutWarmupByRefresh("timeout")) return;
+        if (retryMpvVulkanBackendTimeout()) return;
+        if (manualPlayerSwitchPending) {
+            finishPlaybackProfileAbSession(
+                    "manual-switch-timeout", SystemClock.elapsedRealtime());
+            callback.onError(ResUtil.getString(R.string.error_play_timeout));
+            return;
+        }
+        if (fallbackPlayback(e)) return;
+        finishPlaybackProfileAbSession(
+                "timeout", SystemClock.elapsedRealtime());
+        callback.onError(ResUtil.getString(R.string.error_play_timeout));
+    }
+
+    private record IjkTimelinePublicationKey(
+            Object manifest,
+            MediaItem.LiveConfiguration liveConfiguration,
+            boolean dynamic) {
+    }
+
+    private record ExoDecoderResourceRecovery(
+            PlaySpec target,
+            long positionMs,
+            float speed,
+            boolean repeat,
+            boolean playWhenReady,
+            long textOffsetMs,
+            long audioOffsetMs) {
+    }
+
+>>>>>>> upstream/dev
     private PlaybackRoute.Resolution getEffectivePlaybackRoute() {
         PlaybackRoute.Resolution route = engine == null ? null : engine.getEffectivePlaybackRoute();
         if (route != null && route.route() != PlaybackRoute.OTHER) return route;
@@ -2302,6 +7776,164 @@ public class PlayerManager implements ParseCallback {
         };
     }
 
+<<<<<<< HEAD
+=======
+    private boolean handleExoDecoderResourcesReclaimed(
+            PlaybackException error) {
+        if (error.errorCode
+                != PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED) {
+            return false;
+        }
+        if (pendingExoDecoderResourceRecovery != null
+                || exoDecoderResourceRecoveryInProgress) {
+            PlaybackTrace.log(
+                    "exo-decoder-resource",
+                    playbackTrace.current(),
+                    "action=suppress-duplicate pending=%s inProgress=%s",
+                    pendingExoDecoderResourceRecovery != null,
+                    exoDecoderResourceRecoveryInProgress);
+            return true;
+        }
+        ExoDecoderResourceRecovery recovery =
+                captureExoDecoderResourceRecovery();
+        ExoDecoderResourceRecoveryLimiter.Action action =
+                exoDecoderResourceRecoveryLimiter.request(
+                        error.errorCode,
+                        engine instanceof ExoPlayerEngine,
+                        engine != null && player != null,
+                        recovery != null,
+                        playbackForeground);
+        if (action
+                == ExoDecoderResourceRecoveryLimiter.Action.DEFER_UNTIL_FOREGROUND) {
+            hardDecodeSwitchRetryArmed = false;
+            pendingExoDecoderResourceRecovery = recovery;
+            App.removeCallbacks(playbackTelemetryRunnable);
+            resetNetworkProtectionSession("exo-resource-reclaimed-deferred");
+            PlaybackTrace.log(
+                    "exo-decoder-resource",
+                    playbackTrace.current(),
+                    "action=defer position=%d play=%s",
+                    recovery.positionMs(),
+                    recovery.playWhenReady());
+            return true;
+        }
+        if (action
+                != ExoDecoderResourceRecoveryLimiter.Action.RECOVER_NOW) {
+            PlaybackTrace.log(
+                    "exo-decoder-resource",
+                    playbackTrace.current(),
+                    "action=pass-through reason=%s",
+                    action);
+            return false;
+        }
+        hardDecodeSwitchRetryArmed = false;
+        scheduleExoDecoderResourceRecovery(recovery, "foreground-error");
+        return true;
+    }
+
+    @Nullable
+    private ExoDecoderResourceRecovery captureExoDecoderResourceRecovery() {
+        if (!(engine instanceof ExoPlayerEngine)
+                || player == null
+                || spec == null
+                || spec.getUrl() == null) {
+            return null;
+        }
+        return new ExoDecoderResourceRecovery(
+                spec,
+                Math.max(0, getPosition()),
+                getSpeed(),
+                isRepeatOne(),
+                player.getPlayWhenReady(),
+                getTextOffsetMs(),
+                getAudioOffsetMs());
+    }
+
+    private void scheduleExoDecoderResourceRecovery(
+            ExoDecoderResourceRecovery recovery,
+            String reason) {
+        if (recovery == null) return;
+        if (!playbackForeground) {
+            pendingExoDecoderResourceRecovery = recovery;
+            PlaybackTrace.log(
+                    "exo-decoder-resource",
+                    playbackTrace.current(),
+                    "action=defer-before-rebuild reason=%s",
+                    reason);
+            return;
+        }
+        if (!(engine instanceof ExoPlayerEngine exo)
+                || player == null
+                || spec != recovery.target()) {
+            return;
+        }
+        exoDecoderResourceRecoveryInProgress = true;
+        int seq = ++prepareSeq;
+        App.removeCallbacks(runnable);
+        App.removeCallbacks(networkProtectionRunnable);
+        App.removeCallbacks(playbackTelemetryRunnable);
+        resetNetworkProtectionSession("exo-resource-reclaimed");
+        rebuildPlayer(true);
+        this.playWhenReady = recovery.playWhenReady();
+        initTrack = false;
+        PlaybackTrace.log(
+                "exo-decoder-resource",
+                playbackTrace.current(),
+                "action=rebuild delay=%d position=%d play=%s reason=%s",
+                EXO_DECODER_RESOURCE_RECOVERY_DELAY_MS,
+                recovery.positionMs(),
+                recovery.playWhenReady(),
+                reason);
+        App.post(() -> {
+            if (seq != prepareSeq
+                    || spec != recovery.target()
+                    || engine != exo
+                    || player == null) {
+                exoDecoderResourceRecoveryInProgress = false;
+                return;
+            }
+            if (!playbackForeground) {
+                pendingExoDecoderResourceRecovery = recovery;
+                exoDecoderResourceRecoveryInProgress = false;
+                PlaybackTrace.log(
+                        "exo-decoder-resource",
+                        playbackTrace.current(),
+                        "action=defer-before-prepare");
+                return;
+            }
+            try {
+                setDanmakus(recovery.target().getDanmakus());
+                waitingLutBeforePlay = false;
+                applySubtitleStyle();
+                startWithProxy(
+                        recovery.target(),
+                        recovery.positionMs(),
+                        recovery.playWhenReady());
+                setSpeed(recovery.speed());
+                setRepeatOne(recovery.repeat());
+                setTextOffsetMs(recovery.textOffsetMs());
+                setAudioOffsetMs(recovery.audioOffsetMs());
+                App.post(runnable, Constant.TIMEOUT_PLAY);
+                callback.onPrepare();
+                PlaybackTrace.log(
+                        "exo-decoder-resource",
+                        playbackTrace.current(),
+                        "action=prepare position=%d play=%s",
+                        recovery.positionMs(),
+                        recovery.playWhenReady());
+            } finally {
+                exoDecoderResourceRecoveryInProgress = false;
+            }
+        }, EXO_DECODER_RESOURCE_RECOVERY_DELAY_MS);
+    }
+
+    private void clearExoDecoderResourceRecovery(boolean resetBudget) {
+        pendingExoDecoderResourceRecovery = null;
+        exoDecoderResourceRecoveryInProgress = false;
+        if (resetBudget) exoDecoderResourceRecoveryLimiter.reset();
+    }
+
+>>>>>>> upstream/dev
     private boolean retryHardDecodeSwitch(PlaybackException e) {
         if (!hardDecodeSwitchRetryArmed || engine == null || player == null || spec == null || !engine.isHard()) return false;
         if (e.errorCode != PlaybackException.ERROR_CODE_DECODER_INIT_FAILED && e.errorCode != PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED && e.errorCode != PlaybackException.ERROR_CODE_DECODING_FAILED) return false;
@@ -2328,7 +7960,7 @@ public class PlayerManager implements ParseCallback {
             initTrack = false;
             waitingLutBeforePlay = false;
             applySubtitleStyle();
-            engine.start(target.checkUa(), position, wasPlayWhenReady);
+            startWithProxy(target, position, wasPlayWhenReady);
             scheduleMpvAutoOutputEvaluation();
             if (speed != 1f) setSpeed(speed);
             setRepeatOne(repeat);
@@ -2338,6 +7970,87 @@ public class PlayerManager implements ParseCallback {
         return true;
     }
 
+<<<<<<< HEAD
+=======
+    private boolean retryExoTunnelingFailure(PlaybackException e) {
+        if (!(engine instanceof ExoPlayerEngine exo) || player == null || spec == null) return false;
+        if (e.errorCode != PlaybackException.ERROR_CODE_DECODER_INIT_FAILED && e.errorCode != PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED && e.errorCode != PlaybackException.ERROR_CODE_DECODING_FAILED) return false;
+        if (!exo.disableTunnelingForSession()) return false;
+        int seq = ++prepareSeq;
+        PlaySpec target = spec;
+        long position = Math.max(0, getPosition());
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        App.removeCallbacks(runnable);
+        rebuildPlayer(true);
+        this.playWhenReady = wasPlayWhenReady;
+        initTrack = false;
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("exo-tunnel", "fallback scheduled delay=%d position=%d errorType=%s", EXO_TUNNELING_RETRY_DELAY_MS, position, e.getClass().getSimpleName());
+        App.post(() -> {
+            if (seq != prepareSeq || spec != target || engine != exo || player == null) return;
+            if (SpiderDebug.isEnabled()) SpiderDebug.log("exo-tunnel", "fallback start position=%d", position);
+            setDanmakus(target.getDanmakus());
+            waitingLutBeforePlay = false;
+            applySubtitleStyle();
+            startWithProxy(target, position, wasPlayWhenReady);
+            if (speed != 1f) setSpeed(speed);
+            setRepeatOne(repeat);
+            App.post(runnable, Constant.TIMEOUT_PLAY);
+            callback.onPrepare();
+        }, EXO_TUNNELING_RETRY_DELAY_MS);
+        return true;
+    }
+
+    private boolean retryExoDecoderRuntimeFailure(PlaybackException e) {
+        if (!(engine instanceof ExoPlayerEngine exo)
+                || player == null
+                || spec == null
+                || !experimentAllowed(
+                PlaybackExperimentPolicy.Action.EXO_DECODER_RUNTIME_REBUILD)
+                || !exo.prepareDecoderRuntimeFallback()) {
+            return false;
+        }
+        hardDecodeSwitchRetryArmed = false;
+        int seq = ++prepareSeq;
+        PlaySpec target = spec;
+        long position = Math.max(0, getPosition());
+        float speed = getSpeed();
+        boolean repeat = isRepeatOne();
+        boolean wasPlayWhenReady = player.getPlayWhenReady();
+        App.removeCallbacks(runnable);
+        rebuildPlayer(true);
+        this.playWhenReady = wasPlayWhenReady;
+        initTrack = false;
+        if (SpiderDebug.isEnabled()) {
+            SpiderDebug.log(
+                    "exo-decoder-profile",
+                    "action=retry-scheduled delay=%d position=%d errorType=%s",
+                    EXO_DECODER_RUNTIME_RETRY_DELAY_MS,
+                    position,
+                    e.getClass().getSimpleName());
+        }
+        App.post(() -> {
+            if (seq != prepareSeq || spec != target || engine != exo || player == null) return;
+            if (SpiderDebug.isEnabled()) {
+                SpiderDebug.log(
+                        "exo-decoder-profile",
+                        "action=retry-start position=%d",
+                        position);
+            }
+            setDanmakus(target.getDanmakus());
+            waitingLutBeforePlay = false;
+            applySubtitleStyle();
+            startWithProxy(target, position, wasPlayWhenReady);
+            if (speed != 1f) setSpeed(speed);
+            setRepeatOne(repeat);
+            App.post(runnable, Constant.TIMEOUT_PLAY);
+            callback.onPrepare();
+        }, EXO_DECODER_RUNTIME_RETRY_DELAY_MS);
+        return true;
+    }
+
+>>>>>>> upstream/dev
     private boolean retryLutFailure(PlaybackException e) {
         if (!LutSetting.isEnabled()) return false;
         if (e.errorCode != PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED && e.errorCode != PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSOR_INIT_FAILED) return false;
@@ -2369,4 +8082,201 @@ public class PlayerManager implements ParseCallback {
         return true;
     }
 
+    private boolean fallbackPlayback(PlaybackException e) {
+        if (engine == null) return false;
+        if (retryMpvGpuCopyFailure(e)) return true;
+        if (fallbackFfmpegMode(e)) return true;
+        return switch (nextFallbackAction(PlayerSetting.getFailureFallback(), engine.getDecode())) {
+            case FALLBACK_DECODE -> fallbackDecode(e);
+            case FALLBACK_PLAYER -> fallbackPlayer(e);
+            default -> false;
+        };
+    }
+
+    // AUTO 模式：失败时在当前解码下遍历下一个未试过的 FFmpeg 模式，用尽后交回解码/内核降级链。
+    private boolean fallbackFfmpegMode(PlaybackException e) {
+        if (spec == null || spec.getUrl() == null || engine == null) return false;
+        if (playerType != PlayerSetting.EXO || !PlayerSetting.isAutoFFmpegMode()) return false;
+        int current = ffmpegModeEngine;
+        markFfmpegModeTried(current);
+        int next = nextUntriedFfmpegMode();
+        if (next == PlayerSetting.NONE) return false;
+        markFfmpegModeTried(next);
+        PlayerSetting.setFFmpegModeOverride(next);
+        SpiderDebug.log("player", "fallback ffmpeg-mode from=%d to=%d decode=%d spec=%s cause=%s", current, next, engine.getDecode(), debugSpec(), causeChain(e));
+        App.removeCallbacks(runnable);
+        localProxyRetry = 0;
+        hardDecodeSwitchRetryArmed = false;
+        switchEngine(playerType, false, true, true, engine.getDecode());
+        return true;
+    }
+
+    private void markFfmpegModeTried(int mode) {
+        for (int i = 0; i < PlayerSetting.FFMPEG_AUTO_ORDER.length; i++) {
+            if (PlayerSetting.FFMPEG_AUTO_ORDER[i] == mode) {
+                ffmpegModeFallbackTried[i] = true;
+                return;
+            }
+        }
+    }
+
+    private int nextUntriedFfmpegMode() {
+        return nextUntriedFfmpegMode(PlayerSetting.FFMPEG_AUTO_ORDER, ffmpegModeFallbackTried);
+    }
+
+    static int nextUntriedFfmpegMode(int[] order, boolean[] tried) {
+        for (int i = 0; i < order.length; i++) {
+            if (!tried[i]) return order[i];
+        }
+        return PlayerSetting.NONE;
+    }
+
+    private boolean fallbackDecode(PlaybackException e) {
+        if (spec == null || spec.getUrl() == null || engine == null || !engine.isHard()) return false;
+        SpiderDebug.log("player", "fallback decode player=%s from=hard to=soft spec=%s cause=%s", getPlayerText(playerType), debugSpec(), causeChain(e));
+        App.removeCallbacks(runnable);
+        localProxyRetry = 0;
+        hardDecodeSwitchRetryArmed = false;
+        resetFfmpegModeFallback();
+        switchEngine(playerType, false, true, true, PlayerEngine.SOFT);
+        return true;
+    }
+
+    private boolean fallbackPlayer(PlaybackException e) {
+        if (spec == null || spec.getUrl() == null || engine == null) return false;
+        int next = nextFallbackPlayer();
+        if (next == PlayerSetting.NONE) return false;
+        String from = getPlayerText(playerType);
+        String to = getPlayerText(next);
+        SpiderDebug.log("player", "fallback player from=%s to=%s spec=%s cause=%s", from, to, debugSpec(), causeChain(e));
+        App.removeCallbacks(runnable);
+        localProxyRetry = 0;
+        switchEngine(next, false, true, true, fallbackDecode(PlayerSetting.getFailureFallback(), playerType, next, engine.getDecode()));
+        return true;
+    }
+
+    private boolean ensurePlayerAvailableForPlayback() {
+        if (PlayerSetting.isPlayerAvailable(playerType)) return true;
+        int from = playerType;
+        int next = nextFallbackPlayer();
+        if (next == PlayerSetting.NONE) {
+            callback.onError(ResUtil.getString(R.string.error_play_ijk_unavailable));
+            return false;
+        }
+        logUnavailablePlayer(from, next);
+        switchEngine(next, false, false, true);
+        return false;
+    }
+
+    private int nextFallbackPlayer() {
+        markPlayerFallbackTried(playerType);
+        int next = PlayerSetting.nextPlayer(playerType);
+        while (next != playerType) {
+            if (!isPlayerFallbackTried(next)) {
+                markPlayerFallbackTried(next);
+                if (PlayerSetting.isPlayerAvailable(next)) return next;
+            }
+            next = PlayerSetting.nextPlayer(next);
+        }
+        return PlayerSetting.NONE;
+    }
+
+    static int nextFallbackAction(int mode, int decode) {
+        int currentDecode = sanitizeDecode(decode);
+        return switch (mode) {
+            case PlayerSetting.FALLBACK_DECODE_ONLY -> currentDecode == PlayerEngine.HARD ? FALLBACK_DECODE : FALLBACK_NONE;
+            case PlayerSetting.FALLBACK_PLAYER_ONLY -> FALLBACK_PLAYER;
+            case PlayerSetting.FALLBACK_DISABLED -> FALLBACK_NONE;
+            default -> currentDecode == PlayerEngine.HARD ? FALLBACK_DECODE : FALLBACK_PLAYER;
+        };
+    }
+
+    static int fallbackDecode(int mode, int from, int to, int decode) {
+        int currentDecode = sanitizeDecode(decode);
+        if (from == to || mode == PlayerSetting.FALLBACK_PLAYER_ONLY) return currentDecode;
+        return PlayerEngine.HARD;
+    }
+
+    private static int sanitizeDecode(int decode) {
+        return decode == PlayerEngine.SOFT ? PlayerEngine.SOFT : PlayerEngine.HARD;
+    }
+
+    private int resolveAvailablePlayer(int type) {
+        if (PlayerSetting.isPlayerAvailable(type)) return type;
+        int next = PlayerSetting.nextPlayer(type);
+        while (next != type) {
+            if (PlayerSetting.isPlayerAvailable(next)) {
+                logUnavailablePlayer(type, next);
+                return next;
+            }
+            next = PlayerSetting.nextPlayer(next);
+        }
+        return playerType;
+    }
+
+    private int resolveManualPlayer(int type) {
+        if (PlayerSetting.isPlayerAvailable(type)) return type;
+        SpiderDebug.log("player", "manual player unavailable type=%s package=%s", getPlayerText(type), App.get().getPackageName());
+        Notify.show(ResUtil.getString(R.string.error_play_ijk_unavailable));
+        return playerType;
+    }
+
+    private void logUnavailablePlayer(int from, int to) {
+        SpiderDebug.log("player", "player unavailable from=%s to=%s package=%s", getPlayerText(from), getPlayerText(to), App.get().getPackageName());
+    }
+
+    private void resetPlayerFallback() {
+        playerFallbackTried = new boolean[PLAYER_COUNT];
+        resetFfmpegModeFallback();
+    }
+
+    private void markPlayerFallbackTried(int type) {
+        if (type >= 0 && type < playerFallbackTried.length) playerFallbackTried[type] = true;
+    }
+
+    private boolean isPlayerFallbackTried(int type) {
+        return type >= 0 && type < playerFallbackTried.length && playerFallbackTried[type];
+    }
+
+    private void resetFfmpegModeFallback() {
+        ffmpegModeFallbackTried = new boolean[PlayerSetting.FFMPEG_AUTO_ORDER.length];
+        PlayerSetting.clearFFmpegModeOverride();
+        ffmpegModeEngineRefreshPending = playerType == PlayerSetting.EXO && ffmpegModeEngine != PlayerSetting.getEffectiveFFmpegMode();
+    }
+
+    private void refreshFfmpegModeEngineIfNeeded() {
+        if (!ffmpegModeEngineRefreshPending || playerType != PlayerSetting.EXO || engine == null || player == null) return;
+        SpiderDebug.log("player", "refresh ffmpeg-mode engine from=%d to=%d decode=%d", ffmpegModeEngine, PlayerSetting.getEffectiveFFmpegMode(), engine.getDecode());
+        rebuildPlayer();
+    }
+
+    private void clearFfmpegModeFallbackState() {
+        ffmpegModeFallbackTried = new boolean[PlayerSetting.FFMPEG_AUTO_ORDER.length];
+        ffmpegModeEngineRefreshPending = false;
+        PlayerSetting.clearFFmpegModeOverride();
+    }
+
+    static boolean shouldStopOnManualSwitchFailure(boolean manualSwitchPending, PlayerEngine.ErrorAction action) {
+        return manualSwitchPending && action != PlayerEngine.ErrorAction.RECOVERED;
+    }
+
+    static boolean isCurrentDirectSwitchRefresh(boolean pending, int requestSeq, int currentSeq, int requestPlayerType, int currentPlayerType, PlaySpec requestSpec, PlaySpec currentSpec) {
+        return pending && requestSeq == currentSeq && requestPlayerType == currentPlayerType && requestSpec == currentSpec;
+    }
+
+    static int httpStatus(Throwable error) {
+        int depth = 0;
+        for (Throwable cause = error; cause != null && depth++ < 8; cause = cause.getCause()) {
+            if (cause instanceof HttpDataSource.InvalidResponseCodeException response) return response.responseCode;
+            String message = cause.getMessage();
+            if (TextUtils.isEmpty(message)) continue;
+            Matcher matcher = HTTP_STATUS.matcher(message);
+            if (!matcher.find()) continue;
+            try {
+                return Integer.parseInt(matcher.group(1));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return 0;
+    }
 }

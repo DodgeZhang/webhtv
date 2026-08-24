@@ -85,6 +85,19 @@ gpu-context=androidvk
 gpu-api=vulkan
 ```
 
+The bundled native assets intentionally expose only one Android Vulkan
+AImageReader path: the `v5.5.6-202608072014` AHardwareBuffer YCbCr-to-RGB GPU
+conversion implementation. Options such as
+`android-vulkan-aimagereader-backend` and
+`android-vulkan-conversion-backend` have been removed; do not add them to the
+generated or user `mpv.conf`. The release/acquire flow patch is frame-lifetime
+synchronization and is unrelated to a selectable "stable" renderer.
+
+The playback panel's GPU percentage is derived from mpv `vo-passes` GPU
+timestamps. The native timing patch includes the separate AImageReader
+conversion submission in those passes. It measures this MPV rendering chain
+for practical A/B comparison, not whole-device GPU busy time or power draw.
+
 References checked:
 
 - `mpv-android/mpv-android#596`: enabling Vulkan requires native build changes,
@@ -99,10 +112,11 @@ therefore falls back to OpenGL and logs native/device Vulkan availability.
 
 ## Current HLS limitation
 
-The existing Exo/Media3 stack in this repo is patched for HLS edge cases, notably:
-
-- `third_party/patches/media3-sample-aes-identity.patch`
-- `third_party/patches/media3-hls-pes-synthesized-pusi-quiet.patch`
+The existing Exo/Media3 stack in this repo includes the SAMPLE-AES identity and
+synthesized-PUSI fixes in the locked Media3 source commit recorded by
+`third_party/media-lock.json`. They are no longer reapplied as standalone patch
+files, because doing so would apply the same changes twice and break a clean
+Media3 rebuild.
 
 Some sources rely on these patches. In logs they can appear to libmpv/FFmpeg as
 HLS streams whose media samples are detected as `Video: png`, followed by:

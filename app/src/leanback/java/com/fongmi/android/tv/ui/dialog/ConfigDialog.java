@@ -102,7 +102,7 @@ public class ConfigDialog extends BaseAlertDialog {
         binding.text.setText(url = config.getUrl());
         binding.text.setSelection(TextUtils.isEmpty(url) ? 0 : url.length());
         binding.positive.setText(edit ? R.string.dialog_edit : R.string.dialog_positive);
-        binding.code.setImageBitmap(QRCode.getLightBitmap(Server.get().getAddress(3), 200, 0));
+        binding.code.setImageBitmap(QRCode.getLightBitmap(Server.get().getAddress(4), 200, 0));
         binding.info.setText(ResUtil.getString(R.string.push_info, Server.get().getAddress()).replace("\uff0c", "\n"));
     }
 
@@ -207,7 +207,7 @@ public class ConfigDialog extends BaseAlertDialog {
             return Config.find(url, type).url(text).name(name).update();
         } else {
             Config exists = AppDatabase.get().getConfigDao().find(text, type);
-            return exists != null ? exists : Config.create(type).url(text).name(name).update();
+            return exists != null ? exists.name(name).update() : Config.create(type).url(text).name(name).update();
         }
     }
 

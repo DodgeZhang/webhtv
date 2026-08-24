@@ -3,6 +3,7 @@ package com.fongmi.android.tv.player.exo;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.media3.common.C;
@@ -15,6 +16,12 @@ import androidx.media3.exoplayer.source.preload.PreCacheHelper;
 import com.fongmi.android.tv.player.PlaybackRoute;
 import com.fongmi.android.tv.player.PlaybackTrace;
 import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
+<<<<<<< HEAD
+=======
+import com.fongmi.android.tv.setting.PlaybackPerformanceCatalog;
+import com.fongmi.android.tv.setting.PlaybackExperimentSetting;
+import com.fongmi.android.tv.player.PlaybackExperimentPolicy;
+>>>>>>> upstream/dev
 import com.fongmi.android.tv.setting.PreloadSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
 
@@ -27,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 public class PreCache implements Player.Listener {
 
+    private static final String TAG = "PreCache";
     private static final long TICK_MS = 5000;
     private static final long MIN_STEP_MS = 5000;
     private static final long MAX_STEP_MS = 30000;
@@ -60,6 +68,8 @@ public class PreCache implements Player.Listener {
     private PreCacheHelper helper;
     private Handler handler;
     private HandlerThread worker;
+    private volatile WorkerResources workerResources;
+    private volatile Thread failedWorker;
     private Player player;
     private PlaybackRoute route;
     private PlaybackRoute.Resolution routeResolution = PlaybackRoute.resolve(null);
@@ -78,12 +88,41 @@ public class PreCache implements Player.Listener {
         this.playbackTraceId = PlaybackTrace.normalize(playbackTraceId);
         PriorityTaskDataSource.resetDiagnostics();
         if (!PreloadSetting.isPreload(PlayerSetting.EXO) || !canPreCache(mediaItem)) return;
+<<<<<<< HEAD
+=======
+        boolean automaticPreload = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.EXO,
+                PlaybackPerformanceCatalog.PRELOAD);
+        boolean automaticTuning = PlaybackPerformanceSetting.hasAutomaticOptions(
+                PlayerSetting.EXO,
+                PlaybackPerformanceCatalog.PRELOAD_THREADS,
+                PlaybackPerformanceCatalog.PRELOAD_TIME);
+        boolean automatic = automaticPreload || automaticTuning;
+        if (automatic && !PlaybackExperimentSetting.isAllowed(
+                PlaybackExperimentPolicy.Action.EXO_AUTO_PRELOAD)) {
+            if (!automaticPreload) automatic = false;
+            else {
+                PlaybackTrace.log("exo-preload", this.playbackTraceId,
+                        "event=experiment-suppressed action=keep-foreground-only");
+                return;
+            }
+        }
+>>>>>>> upstream/dev
         this.player = player;
         this.handler = new Handler(player.getApplicationLooper());
         this.routeResolution = routeResolution == null ? PlaybackRoute.resolve(mediaItem.localConfiguration.uri.toString()) : routeResolution;
         this.route = this.routeResolution.route();
         this.autoPolicy = PlaybackPerformanceSetting.isAuto(PlayerSetting.EXO) ? new AutoPreloadPolicy() : null;
         this.helper = createHelper(mediaItem);
+<<<<<<< HEAD
+=======
+        if (this.helper == null) {
+            stop("worker-unavailable");
+            return;
+        }
+        bindMemoryPressure();
+        bindSystemConditions();
+>>>>>>> upstream/dev
         clearSeek();
         lastStartMs = C.TIME_UNSET;
         playable = false;
@@ -127,6 +166,7 @@ public class PreCache implements Player.Listener {
         HandlerThread retiringWorker = worker;
         executor = null;
         worker = null;
+        workerResources = null;
         threads = 0;
         if (retiringWorker == null) {
             shutdownExecutor(retiringExecutor);
@@ -135,10 +175,15 @@ public class PreCache implements Player.Listener {
         // PreCacheHelper.release() posts cancellation to this same looper.
         // Queue resource teardown behind it so SegmentDownloader cannot submit
         // work to an executor which has already entered SHUTTING_DOWN.
-        new Handler(retiringWorker.getLooper()).post(() -> {
+        boolean posted = postToWorker(retiringWorker, () -> {
             shutdownExecutor(retiringExecutor);
             retiringWorker.quitSafely();
         });
+        if (!posted) {
+            shutdownExecutor(retiringExecutor);
+            retiringWorker.quitSafely();
+        }
+        if (failedWorker == retiringWorker) failedWorker = null;
     }
 
     @Override
@@ -251,8 +296,25 @@ public class PreCache implements Player.Listener {
         }
         try {
             helper.preCache(startMs, lengthMs);
+<<<<<<< HEAD
         } catch (RuntimeException | Error e) {
             finishTask(PreloadLifecycleTracker.TaskEvent.Outcome.START_ERROR, "start-error", e);
+=======
+        } catch (RuntimeException e) {
+            PreloadLifecycleTracker.TaskEvent event = finishTask(PreloadLifecycleTracker.TaskEvent.Outcome.INTERNAL_ERROR, "start-error", e);
+            if (event != null && ExoCacheWriteErrorClassifier.isDiskWriteFailure(e)) {
+                openDiskCircuit("start-error", e);
+                return false;
+            }
+            stop("start-error");
+            return false;
+        } catch (Error e) {
+            PreloadLifecycleTracker.TaskEvent event = finishTask(PreloadLifecycleTracker.TaskEvent.Outcome.START_ERROR, "start-error", e);
+            if (event != null && ExoCacheWriteErrorClassifier.isDiskWriteFailure(e)) {
+                openDiskCircuit("start-error", e);
+                return false;
+            }
+>>>>>>> upstream/dev
             throw e;
         }
         lastStartMs = startMs;
@@ -309,17 +371,27 @@ public class PreCache implements Player.Listener {
 
     private PreCacheHelper createHelper(MediaItem mediaItem) {
         DataSource.Factory upstreamFactory = MediaSourceFactory.createUpstreamDataSourceFactory(ExoUtil.extractHeaders(mediaItem));
-        return new PreCacheHelper.Factory(MediaSourceFactory.getCache(), upstreamFactory, ExoUtil.buildRenderersFactory(), getWorker().getLooper())
+        HandlerThread activeWorker = getWorker();
+        WorkerResources resources = workerResources;
+        if (resources == null || resources.worker != activeWorker || resources.isFailed()) return null;
+        PreCacheHelper created = new PreCacheHelper.Factory(MediaSourceFactory.getCache(), upstreamFactory, ExoUtil.buildRenderersFactory(), activeWorker.getLooper())
                 .setDownloadExecutor(getExecutor())
                 .setListener(preCacheListener)
                 .create(mediaItem);
+        if (!resources.bindHelper(created)) {
+            created.release(false);
+            return null;
+        }
+        return created;
     }
 
     private boolean canPreCache(MediaItem mediaItem) {
         if (mediaItem == null || mediaItem.localConfiguration == null) return false;
         MediaItem.LocalConfiguration local = mediaItem.localConfiguration;
-        String scheme = local.uri.getScheme();
-        String url = local.uri.toString();
+        return canPreCache(local.uri.getScheme(), local.uri.toString());
+    }
+
+    static boolean canPreCache(String scheme, String url) {
         return ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) && !MediaSourceFactory.isConcatenatingUrl(url);
     }
 
@@ -366,20 +438,207 @@ public class PreCache implements Player.Listener {
     private Executor getExecutor() {
         int requested = PreloadSetting.getPreloadThreads(PlayerSetting.EXO);
         int count = route == null ? requested : route.effectivePreloadThreads(requested);
-        if (autoPolicy != null) count = route == null ? AutoPreloadPolicy.NORMAL_THREADS : route.effectivePreloadThreads(AutoPreloadPolicy.NORMAL_THREADS);
+        if (autoPolicy != null && PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.EXO,
+                PlaybackPerformanceCatalog.PRELOAD_THREADS)) {
+            count = route == null ? AutoPreloadPolicy.NORMAL_THREADS
+                    : route.effectivePreloadThreads(AutoPreloadPolicy.NORMAL_THREADS);
+        }
         if (executor != null) {
             setEffectiveThreads(count);
             return executor;
         }
         retireExecutor();
         threads = count;
-        return executor = new ThreadPoolExecutor(count, count, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+        ThreadPoolExecutor created = new ThreadPoolExecutor(count, count, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+        executor = created;
+        WorkerResources resources = workerResources;
+        if (resources == null || resources.worker != worker || !resources.bindExecutor(created)) {
+            if (executor == created) executor = null;
+            shutdownExecutor(created);
+        }
+        return created;
     }
 
     private AutoPreloadPolicy.Decision getAutoDecision() {
         if (autoPolicy == null) return null;
         PlaybackAnalyticsListener.Snapshot snapshot = PlaybackAnalyticsListener.getSnapshot();
+<<<<<<< HEAD
         return autoPolicy.evaluate(SystemClock.elapsedRealtime(), route, player.getTotalBufferedDuration(), getSelectedBitrate(), snapshot.bandwidthEstimate(), snapshot.rebufferCount(), player.isLoading());
+=======
+        lastAutoInputs = AutoPreloadPolicy.Inputs.capture(
+                nowMs,
+                autoSession,
+                route,
+                player.getTotalBufferedDuration(),
+                getSelectedBitrate(),
+                snapshot.rebufferCount(),
+                player.isLoading(),
+                PlaybackAnalyticsListener.getBufferTrend(),
+                PlaybackAnalyticsListener.getThroughputSnapshot(),
+                PlaybackAutoContextStore.process().snapshot(),
+                memoryPreloadPaused,
+                lifecycle.hasActiveTask());
+        return effectiveAutoDecision(autoPolicy.evaluate(lastAutoInputs));
+    }
+
+    private AutoPreloadPolicy.Decision effectiveAutoDecision(
+            AutoPreloadPolicy.Decision decision) {
+        if (decision == null) return null;
+        boolean automaticPreload = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.EXO,
+                PlaybackPerformanceCatalog.PRELOAD);
+        if (automaticPreload && !decision.enabled()) return decision;
+        int effectiveThreads = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.EXO,
+                PlaybackPerformanceCatalog.PRELOAD_THREADS)
+                ? Math.max(AutoPreloadPolicy.NORMAL_THREADS, decision.threads())
+                : PreloadSetting.getPreloadThreads(PlayerSetting.EXO);
+        long effectiveDurationMs = PlaybackPerformanceSetting.isAuto(
+                PlayerSetting.EXO,
+                PlaybackPerformanceCatalog.PRELOAD_TIME)
+                ? (decision.durationMs() > 0
+                ? decision.durationMs() : AutoPreloadPolicy.DEGRADED_DURATION_MS)
+                : PreloadSetting.getPreloadDurationMs(PlayerSetting.EXO);
+        return new AutoPreloadPolicy.Decision(
+                effectiveThreads,
+                effectiveDurationMs,
+                decision.mode(),
+                decision.reason());
+    }
+
+    private PlaybackAutoContext.SessionToken currentAutoSession() {
+        PlaybackAutoContext context = PlaybackAutoContextStore.process().snapshot();
+        if (!context.active()
+                || !context.session().traceId().equals(playbackTraceId)
+                || context.kernel().hasValue()
+                && context.kernel().value() != PlaybackAutoContext.Kernel.EXO) {
+            return PlaybackAutoContext.SessionToken.none();
+        }
+        return context.session();
+    }
+
+    private void publishAutoPreloadDecision(
+            AutoPreloadPolicy.Decision decision,
+            PlaybackTelemetry.DecisionOutcome outcome,
+            String reason) {
+        if (player == null) return;
+        PlaybackAnalyticsListener.Snapshot snapshot = PlaybackAnalyticsListener.getSnapshot();
+        AutoPreloadPolicy.Inputs inputs = lastAutoInputs == null
+                ? AutoPreloadPolicy.Inputs.unknown() : lastAutoInputs;
+        AutoPreloadPolicy.ThroughputEvidence throughput = inputs.throughput();
+        AutoPreloadPolicy.SystemEvidence system = inputs.system();
+        ForwardBufferTrend.Snapshot trend = inputs.trend();
+        String mode = decision == null ? "manual" : decision.mode();
+        int selectedThreads = decision == null ? threads : decision.threads();
+        long selectedDurationMs = decision == null
+                ? PreloadSetting.getPreloadDurationMs(PlayerSetting.EXO) : decision.durationMs();
+        String throughputEvidence = String.format(
+                Locale.US,
+                "samples:%d,window:%d,error:%d,trust:%s,confidence:%s",
+                throughput.longSampleCount(),
+                throughput.longWindowMs(),
+                throughput.predictionErrorPermille(),
+                throughput.pathTrust().label(),
+                throughput.pathConfidence().label());
+        String bufferEvidence = String.format(
+                Locale.US,
+                "slope:%d,tte:%d",
+                trend.slopeMsPerSecond(),
+                trend.timeToEmptyMs());
+        String runtimeState = String.format(
+                Locale.US,
+                "loading:%s,rebuffer:%d,memory:%s,contention:%s",
+                player.isLoading(),
+                snapshot.rebufferCount(),
+                inputs.memoryPreloadPaused(),
+                throughput.preloadContended());
+        String systemState = String.format(
+                Locale.US,
+                "%s,%s,%s,%s,%s,%s,%s",
+                system.networkCost().label(),
+                system.validated(),
+                system.metered(),
+                system.roaming(),
+                system.dataSaver().label(),
+                system.power().label(),
+                system.thermal().label());
+        PlaybackTelemetryCoordinator.process().publishDecision(playbackTraceId,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.PRELOAD,
+                        outcome,
+                        "preload-idle",
+                        mode,
+                        outcome == PlaybackTelemetry.DecisionOutcome.REQUESTED ? "task-requested" : "paused",
+                        reason,
+                        outcome == PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                                ? decision == null ? mode : decision.reason() : "none",
+                        List.of(
+                                route == null ? PlaybackTelemetry.DecisionInput.unknown("route") : PlaybackTelemetry.DecisionInput.text(
+                                        "route", route.name().toLowerCase(Locale.US), PlaybackAutoContext.ValueSource.ROUTE_CLASSIFIER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("threads", selectedThreads, PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("duration_ms", selectedDurationMs, PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("buffered_ms", Math.max(0, player.getTotalBufferedDuration()), PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                getSelectedBitrate() > 0 ? PlaybackTelemetry.DecisionInput.number("media_bitrate_bps", getSelectedBitrate(), PlaybackAutoContext.ValueSource.ESTIMATOR, PlaybackAutoContext.Confidence.MEDIUM) : PlaybackTelemetry.DecisionInput.unknown("media_bitrate_bps"),
+                                throughput.usable() ? PlaybackTelemetry.DecisionInput.number("effective_bps", throughput.effectiveBitsPerSecond(), PlaybackAutoContext.ValueSource.ESTIMATOR, throughput.confidence()) : PlaybackTelemetry.DecisionInput.unknown("effective_bps"),
+                                throughput.usable() ? PlaybackTelemetry.DecisionInput.number("short_bps", throughput.shortBitsPerSecond(), PlaybackAutoContext.ValueSource.ESTIMATOR, throughput.confidence()) : PlaybackTelemetry.DecisionInput.unknown("short_bps"),
+                                throughput.usable() ? PlaybackTelemetry.DecisionInput.number("long_bps", throughput.longBitsPerSecond(), PlaybackAutoContext.ValueSource.ESTIMATOR, throughput.confidence()) : PlaybackTelemetry.DecisionInput.unknown("long_bps"),
+                                PlaybackTelemetry.DecisionInput.text("throughput_evidence", throughputEvidence, PlaybackAutoContext.ValueSource.ESTIMATOR, throughput.confidence()),
+                                PlaybackTelemetry.DecisionInput.text("buffer_evidence", bufferEvidence, PlaybackAutoContext.ValueSource.ESTIMATOR, trend.known() ? PlaybackAutoContext.Confidence.MEDIUM : PlaybackAutoContext.Confidence.UNKNOWN),
+                                PlaybackTelemetry.DecisionInput.text("runtime_state", runtimeState, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.text("system_state", systemState, PlaybackAutoContext.ValueSource.SYSTEM_API, system.explicitlySafe() ? PlaybackAutoContext.Confidence.HIGH : PlaybackAutoContext.Confidence.LOW))),
+                SystemClock.elapsedRealtime());
+    }
+
+    private void publishMemoryPreloadDecision(
+            ExoMemoryPressurePolicy.Decision decision,
+            PlaybackTelemetry.DecisionOutcome outcome,
+            String reason) {
+        if (decision == null) return;
+        PlaybackTelemetryCoordinator.process().publishDecision(playbackTraceId,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.PRELOAD,
+                        outcome,
+                        outcome == PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                                ? "preload-active" : "memory-paused",
+                        decision.preloadPaused() ? "memory-paused" : "preload-eligible",
+                        decision.preloadPaused() ? "paused" : "recheck-buffer",
+                        reason,
+                        decision.preloadPaused() ? decision.reason().label() : "none",
+                        List.of(
+                                PlaybackTelemetry.DecisionInput.text("memory_mode", decision.mode().label(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("baseline_bytes", decision.baselineTargetBytes(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("effective_bytes", decision.effectiveTargetBytes(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("preload_paused", decision.preloadPaused(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("buffered_ms", Math.max(0, player == null ? 0 : player.getTotalBufferedDuration()), PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("normal_samples", decision.normalSamples(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH))),
+                SystemClock.elapsedRealtime());
+    }
+
+    private void publishStorageDecision(
+            ExoCacheWritePolicy.Decision decision,
+            PlaybackTelemetry.DecisionOutcome outcome,
+            String reason) {
+        if (decision == null) return;
+        PlaybackTelemetryCoordinator.process().publishDecision(playbackTraceId,
+                new PlaybackTelemetry.DecisionEvent(
+                        PlaybackTelemetry.DecisionDomain.CACHE,
+                        outcome,
+                        "cache-write",
+                        "preload-write",
+                        decision.writeAllowed() ? "allowed" : "blocked",
+                        reason,
+                        decision.reason().label(),
+                        List.of(
+                                PlaybackTelemetry.DecisionInput.bool("write_allowed", decision.writeAllowed(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("actual_capacity_bytes", decision.actualCapacityBytes(), PlaybackAutoContext.ValueSource.SYSTEM_API, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("safe_capacity_bytes", decision.effectiveCapacityBytes(), PlaybackAutoContext.ValueSource.SYSTEM_API, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("cache_size_bytes", decision.existingCacheBytes(), PlaybackAutoContext.ValueSource.SYSTEM_API, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("available_bytes", decision.availableStorageBytes(), PlaybackAutoContext.ValueSource.SYSTEM_API, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("reserve_bytes", decision.reserveBytes(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.number("reclaim_bytes", decision.reclaimBytes(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH))),
+                SystemClock.elapsedRealtime());
+>>>>>>> upstream/dev
     }
 
     private void setEffectiveThreads(int requested) {
@@ -402,8 +661,7 @@ public class PreCache implements Player.Listener {
         if (executor == null) return;
         ThreadPoolExecutor retiringExecutor = executor;
         executor = null;
-        if (worker == null) shutdownExecutor(retiringExecutor);
-        else new Handler(worker.getLooper()).post(() -> shutdownExecutor(retiringExecutor));
+        if (!postToWorker(worker, () -> shutdownExecutor(retiringExecutor))) shutdownExecutor(retiringExecutor);
     }
 
     private void shutdownExecutor(ThreadPoolExecutor target) {
@@ -411,11 +669,144 @@ public class PreCache implements Player.Listener {
         target.shutdownNow();
     }
 
+    static PreCacheWorkerRecovery.Result recoverWorkerResources(PreCacheWorkerRecovery.Queue queue, ThreadPoolExecutor executor, PreCacheWorkerRecovery.FailureListener failureListener) {
+        return PreCacheWorkerRecovery.recover(queue, executor, failureListener);
+    }
+
     private HandlerThread getWorker() {
-        if (worker != null) return worker;
-        worker = new HandlerThread("CurrentMediaPreCache");
-        worker.start();
-        return worker;
+        WorkerResources currentResources = workerResources;
+        if (isWorkerUsable(worker) && currentResources != null && currentResources.worker == worker && !currentResources.isFailed()) return worker;
+        discardFailedWorker();
+        HandlerThread created = new HandlerThread("CurrentMediaPreCache");
+        WorkerResources resources = new WorkerResources(created);
+        created.setUncaughtExceptionHandler(new PreCacheThreadExceptionHandler((thread, error) -> onWorkerRuntimeFailure(resources, thread, error), Thread.getDefaultUncaughtExceptionHandler()));
+        worker = created;
+        workerResources = resources;
+        created.start();
+        failedWorker = null;
+        return created;
+    }
+
+    private void onWorkerRuntimeFailure(WorkerResources failedResources, Thread failedThread, RuntimeException error) {
+        failedResources.markFailed();
+        failedWorker = failedThread;
+        PreCacheHelper failedHelper = failedResources.helper;
+        ThreadPoolExecutor failedExecutor = failedResources.executor;
+        PreCacheWorkerRecovery.Result recovery = releaseFailedWorkerResources(failedThread, failedHelper, failedExecutor, error);
+        logWorkerFailure("worker-failure", error, recovery);
+        Handler target = handler;
+        if (target == null) return;
+        try {
+            boolean posted = target.post(() -> disablePreCacheAfterWorkerFailure(failedThread, failedHelper, failedExecutor, recovery, error));
+            if (!posted) logWorkerFailure("state-cleanup-rejected", error, recovery);
+        } catch (RuntimeException ignored) {
+            // A stopped application looper cannot recover this session. The next
+            // start/release still sees failedWorker and performs local cleanup.
+            logWorkerFailure("state-cleanup-error", error, recovery);
+        }
+    }
+
+    private PreCacheWorkerRecovery.Result releaseFailedWorkerResources(Thread failedThread, PreCacheHelper failedHelper, ThreadPoolExecutor failedExecutor, RuntimeException error) {
+        if (!(failedThread instanceof HandlerThread target) || Thread.currentThread() != target) {
+            shutdownExecutor(failedExecutor);
+            return PreCacheWorkerRecovery.Result.QUEUE_REJECTED;
+        }
+        Looper failedLooper = target.getLooper();
+        if (failedLooper == null || Looper.myLooper() != failedLooper) {
+            shutdownExecutor(failedExecutor);
+            return PreCacheWorkerRecovery.Result.QUEUE_REJECTED;
+        }
+        Handler recoveryHandler = new Handler(failedLooper);
+        PreCacheWorkerRecovery.Queue queue = new PreCacheWorkerRecovery.Queue() {
+            @Override
+            public boolean post(Runnable action) {
+                return recoveryHandler.post(action);
+            }
+
+            @Override
+            public void enqueueRelease() {
+                if (failedHelper != null) failedHelper.release(false);
+            }
+
+            @Override
+            public void quitSafely() {
+                target.quitSafely();
+            }
+
+            @Override
+            public void drain() {
+                // HandlerThread.run() has unwound, but this thread still owns the Looper.
+                Looper.loop();
+            }
+        };
+        return recoverWorkerResources(queue, failedExecutor, (cleanupError, releasePhase) -> logWorkerDrainFailure(error, cleanupError, releasePhase));
+    }
+
+    private void disablePreCacheAfterWorkerFailure(Thread failedThread, PreCacheHelper failedHelper, ThreadPoolExecutor failedExecutor, PreCacheWorkerRecovery.Result recovery, RuntimeException error) {
+        if (worker != failedThread) {
+            if (failedWorker == failedThread) failedWorker = null;
+            shutdownExecutor(failedExecutor);
+            return;
+        }
+        traceWorkerFailure("worker-failure", error, recovery);
+        finishTask(PreloadLifecycleTracker.TaskEvent.Outcome.INTERNAL_ERROR, "worker-failure", error);
+        ThreadPoolExecutor activeExecutor = executor;
+        worker = null;
+        executor = null;
+        WorkerResources activeResources = workerResources;
+        if (activeResources != null && activeResources.worker == failedThread) workerResources = null;
+        threads = 0;
+        if (helper == failedHelper) helper = null;
+        stop("worker-failure");
+        if (failedWorker == failedThread) failedWorker = null;
+        shutdownExecutor(failedExecutor);
+        if (activeExecutor != failedExecutor) shutdownExecutor(activeExecutor);
+    }
+
+    private void logWorkerDrainFailure(RuntimeException original, RuntimeException cleanupError, boolean releasePhase) {
+        String phase = releasePhase ? "release" : "queued-message";
+        Log.e(TAG, String.format(Locale.US, "Worker recovery error phase=%s original=%s cleanup=%s origin=%s", phase, original.getClass().getSimpleName(), cleanupError.getClass().getSimpleName(), origin(cleanupError)));
+    }
+
+    private void logWorkerFailure(String event, RuntimeException error, PreCacheWorkerRecovery.Result recovery) {
+        String origin = origin(error);
+        Log.e(TAG, String.format(Locale.US, "Worker failure event=%s recovery=%s error=%s origin=%s", event, recovery, error.getClass().getSimpleName(), origin));
+    }
+
+    private void traceWorkerFailure(String event, RuntimeException error, PreCacheWorkerRecovery.Result recovery) {
+        String origin = origin(error);
+        PlaybackTrace.log("exo-preload", playbackTraceId, "event=%s session=%d generation=%d recovery=%s error=%s origin=%s", event, lifecycle.sessionId(), generation, recovery, error.getClass().getSimpleName(), origin);
+    }
+
+    private static String origin(Throwable error) {
+        StackTraceElement[] stack = error.getStackTrace();
+        return stack.length == 0 ? "unknown" : stack[0].toString();
+    }
+
+    private void discardFailedWorker() {
+        if (worker == null) return;
+        HandlerThread discardedWorker = worker;
+        ThreadPoolExecutor discardedExecutor = executor;
+        worker = null;
+        executor = null;
+        WorkerResources discardedResources = workerResources;
+        if (discardedResources != null && discardedResources.worker == discardedWorker) workerResources = null;
+        threads = 0;
+        if (failedWorker == discardedWorker) failedWorker = null;
+        discardedWorker.quitSafely();
+        shutdownExecutor(discardedExecutor);
+    }
+
+    private boolean postToWorker(HandlerThread target, Runnable action) {
+        return isWorkerUsable(target) && new Handler(target.getLooper()).post(action);
+    }
+
+    private boolean isWorkerUsable(HandlerThread target) {
+        return isWorkerUsable(target, failedWorker);
+    }
+
+    static boolean isWorkerUsable(Thread target, Thread failedWorker) {
+        return target != null && target != failedWorker && target.isAlive();
     }
 
     private boolean isSeek(int reason) {
@@ -460,6 +851,38 @@ public class PreCache implements Player.Listener {
     }
 
     private record SafeBufferStatus(boolean safe, boolean recovery, long requiredMs, long bufferedMs, boolean loading, long bitrate, int effectiveCapacityBytes, long capacityDurationMs) {
+    }
+
+    private static final class WorkerResources {
+
+        private final HandlerThread worker;
+        private volatile ThreadPoolExecutor executor;
+        private volatile PreCacheHelper helper;
+        private volatile boolean failed;
+
+        private WorkerResources(HandlerThread worker) {
+            this.worker = worker;
+        }
+
+        private synchronized boolean bindExecutor(ThreadPoolExecutor executor) {
+            if (failed) return false;
+            this.executor = executor;
+            return true;
+        }
+
+        private synchronized boolean bindHelper(PreCacheHelper helper) {
+            if (failed) return false;
+            this.helper = helper;
+            return true;
+        }
+
+        private synchronized void markFailed() {
+            failed = true;
+        }
+
+        private boolean isFailed() {
+            return failed;
+        }
     }
 
     private enum BufferGate {

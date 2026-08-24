@@ -32,6 +32,7 @@ import com.fongmi.android.tv.ui.dialog.PlayerButtonConfigDialog;
 import com.fongmi.android.tv.ui.dialog.PlayerOsdDialog;
 import com.fongmi.android.tv.ui.dialog.SpeedDialog;
 import com.fongmi.android.tv.ui.dialog.UaDialog;
+import com.fongmi.android.tv.ui.dialog.VideoAspectModeDialog;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 
@@ -47,6 +48,7 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
     private String[] backBuffer;
     private String[] bufferBytes;
     private String[] caption;
+    private String[] failureFallback;
     private String[] kernel;
     private String[] mpvRender;
     private String[] padLiveMode;
@@ -54,6 +56,7 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
     private String[] render;
     private String[] scale;
     private String[] osd;
+    private String[] introSkipMode;
 
     public static SettingPlayerFragment newInstance() {
         return new SettingPlayerFragment();
@@ -87,9 +90,14 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         setPreloadText();
         mBinding.autoPlayText.setText(getSwitch(PlayerSetting.isAutoPlay()));
         mBinding.autoChangeText.setText(getSwitch(PlayerSetting.isAutoChange()));
+        mBinding.failureFallbackText.setText((failureFallback = ResUtil.getStringArray(R.array.select_player_failure_fallback))[PlayerSetting.getFailureFallback()]);
+        mBinding.autoSkipIntroOutroText.setText((introSkipMode = ResUtil.getStringArray(R.array.select_auto_skip_intro_outro))[Setting.getIntroSkipMode()]);
+        mBinding.musicNotificationText.setText(getSwitch(PlayerSetting.isMusicNotification()));
+        mBinding.audioBookNotificationText.setText(getSwitch(PlayerSetting.isAudioBookNotification()));
         mBinding.audioDecodeText.setText(getSwitch(PlayerSetting.isAudioPrefer()));
         mBinding.audioPassThroughText.setText(getSwitch(PlayerSetting.isAudioPassThrough()));
         mBinding.videoDecodeText.setText(getSwitch(PlayerSetting.isVideoPrefer()));
+        mBinding.ffmpegModeText.setText(getFFmpegModeText());
         mBinding.caption.setVisibility(PlayerSetting.hasCaption() ? View.VISIBLE : View.GONE);
         mBinding.osdText.setText(getOsdText(osd = ResUtil.getStringArray(R.array.select_player_osd)));
         mBinding.kernelText.setText((kernel = ResUtil.getStringArray(R.array.select_player_kernel))[PlayerSetting.getPlayer()]);
@@ -97,6 +105,7 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.scaleText.setText((scale = ResUtil.getStringArray(R.array.select_scale))[PlayerSetting.getScale()]);
         mBinding.lutText.setText(LutSetting.getSummary());
         setMpvRows();
+        setFfmpegModeVisibility();
         mBinding.renderText.setText((render = ResUtil.getStringArray(R.array.select_render))[PlayerSetting.getRender()]);
         mBinding.captionText.setText((caption = ResUtil.getStringArray(R.array.select_caption))[PlayerSetting.isCaption() ? 1 : 0]);
         mBinding.backgroundText.setText((background = ResUtil.getStringArray(R.array.select_background))[PlayerSetting.getBackground()]);
@@ -126,6 +135,8 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.preloadTime.setOnClickListener(this::onPreloadTime);
         mBinding.autoPlay.setOnClickListener(this::setAutoPlay);
         mBinding.autoChange.setOnClickListener(this::setAutoChange);
+        mBinding.failureFallback.setOnClickListener(this::setFailureFallback);
+        mBinding.autoSkipIntroOutro.setOnClickListener(this::setAutoSkipIntroOutro);
         mBinding.render.setOnClickListener(this::setRender);
         mBinding.tunnel.setOnClickListener(this::setTunnel);
         mBinding.exo4kCompat.setOnClickListener(this::onPerformance);
@@ -133,9 +144,12 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.adblock.setOnClickListener(this::setAdblock);
         mBinding.caption.setOnLongClickListener(this::onCaption);
         mBinding.background.setOnClickListener(this::onBackground);
+        mBinding.musicNotification.setOnClickListener(this::setMusicNotification);
+        mBinding.audioBookNotification.setOnClickListener(this::setAudioBookNotification);
         mBinding.audioDecode.setOnClickListener(this::setAudioDecode);
         mBinding.audioPassThrough.setOnClickListener(this::setAudioPassThrough);
         mBinding.videoDecode.setOnClickListener(this::setVideoDecode);
+        mBinding.ffmpegMode.setOnClickListener(this::setFfmpegMode);
     }
 
     private void onUa(View view) {
@@ -160,14 +174,15 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
             mBinding.kernelText.setText(kernel[which]);
             PlayerSetting.putPlayer(which);
             setMpvRows();
+            setFfmpegModeVisibility();
             setPerformanceText();
         });
     }
 
     private void onScale(View view) {
-        ChoiceDialog.showSingle(this, R.string.player_scale, scale, PlayerSetting.getScale(), which -> {
-            mBinding.scaleText.setText(scale[which]);
-            PlayerSetting.putScale(which);
+        VideoAspectModeDialog.show(this, PlayerSetting.getScale(), mode -> {
+            mBinding.scaleText.setText(scale[mode]);
+            PlayerSetting.putScale(mode);
         });
     }
 
@@ -183,6 +198,14 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.mpvRenderText.setText(getMpvRenderText());
     }
 
+<<<<<<< HEAD
+=======
+    private void setFfmpegModeVisibility() {
+        boolean visible = PlayerSetting.getPlayer() == PlayerSetting.EXO;
+        mBinding.ffmpegMode.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+>>>>>>> upstream/dev
     private void onMpvRender(View view) {
         ChoiceDialog.showSingle(this, R.string.player_mpv_render, mpvRender, PlayerSetting.getMpvRender(), which -> {
             PlayerSetting.putMpvRender(which);
@@ -222,17 +245,11 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
     }
 
     private boolean[] getOsdChecked() {
-        return new boolean[]{PlayerSetting.isOsdTitle(), PlayerSetting.isOsdResolution(), PlayerSetting.isOsdTime(), PlayerSetting.isOsdProgress(), PlayerSetting.isOsdTraffic(), PlayerSetting.isOsdMini(), PlayerSetting.isOsdDiagnostics()};
+        return PlayerSetting.getDisplayChecked();
     }
 
     private void setOsdChecked(boolean[] checked) {
-        PlayerSetting.putOsdTitle(checked[0]);
-        PlayerSetting.putOsdResolution(checked[1]);
-        PlayerSetting.putOsdTime(checked[2]);
-        PlayerSetting.putOsdProgress(checked[3]);
-        PlayerSetting.putOsdTraffic(checked[4]);
-        PlayerSetting.putOsdMini(checked[5]);
-        PlayerSetting.putOsdDiagnostics(checked[6]);
+        PlayerSetting.putDisplayChecked(checked);
     }
 
     private String getOsdText(String[] items) {
@@ -379,6 +396,18 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.autoChangeText.setText(getSwitch(PlayerSetting.isAutoChange()));
     }
 
+    private void setFailureFallback(View view) {
+        ChoiceDialog.showSingle(this, R.string.player_failure_fallback, failureFallback, PlayerSetting.getFailureFallback(), which -> {
+            PlayerSetting.putFailureFallback(which);
+            mBinding.failureFallbackText.setText(failureFallback[which]);
+        });
+    }
+
+    private void setAutoSkipIntroOutro(View view) {
+        Setting.putIntroSkipMode((Setting.getIntroSkipMode() + 1) % introSkipMode.length);
+        mBinding.autoSkipIntroOutroText.setText(introSkipMode[Setting.getIntroSkipMode()]);
+    }
+
     private void setRender(View view) {
         if (PlayerSetting.isTunnel() && PlayerSetting.getRender() == 0) setTunnel(view);
         int index = (PlayerSetting.getRender() + 1) % render.length;
@@ -459,6 +488,16 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         });
     }
 
+    private void setMusicNotification(View view) {
+        PlayerSetting.putMusicNotification(!PlayerSetting.isMusicNotification());
+        mBinding.musicNotificationText.setText(getSwitch(PlayerSetting.isMusicNotification()));
+    }
+
+    private void setAudioBookNotification(View view) {
+        PlayerSetting.putAudioBookNotification(!PlayerSetting.isAudioBookNotification());
+        mBinding.audioBookNotificationText.setText(getSwitch(PlayerSetting.isAudioBookNotification()));
+    }
+
     private void setAudioDecode(View view) {
         PlayerSetting.putAudioPrefer(!PlayerSetting.isAudioPrefer());
         PlaybackPerformanceSetting.markCustom();
@@ -478,6 +517,21 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         PlaybackPerformanceSetting.markCustom();
         mBinding.videoDecodeText.setText(getSwitch(PlayerSetting.isVideoPrefer()));
         setPerformanceText();
+    }
+
+    private void setFfmpegMode(View view) {
+        int mode = (PlayerSetting.getFFmpegMode() + 1) % 4;
+        PlayerSetting.putFFmpegMode(mode);
+        mBinding.ffmpegModeText.setText(getFFmpegModeText());
+    }
+
+    private String getFFmpegModeText() {
+        return switch (PlayerSetting.getFFmpegMode()) {
+            case PlayerSetting.FFMPEG_MODE_OFFICIAL -> "Official";
+            case PlayerSetting.FFMPEG_MODE_SIMPLE -> "Simple";
+            case PlayerSetting.FFMPEG_MODE_AUTO -> "自动";
+            default -> "NextLib";
+        };
     }
 
     @Override
