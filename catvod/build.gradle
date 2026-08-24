@@ -33,10 +33,6 @@ dependencies {
     api libs.startup
     api libs.zxing.core
     coreLibraryDesugaring libs.desugar
-<<<<<<< HEAD
-}
-=======
     testImplementation libs.junit
     testImplementation libs.okhttp.mockwebserver
 }
->>>>>>> upstream/dev
