@@ -122,6 +122,123 @@ curl 'https://<你的 Worker 域名>/api/playback/sync/status' \
 
 请求体上限为 128 KiB，单次写入最多 100 条，单次拉取最多 1000 条。删除墓碑和 Webhook 幂等记录保留 90 天。其它内置版本也实现了相同协议：Deno 使用 Deno KV，Vercel 使用 Vercel KV/Upstash Redis REST，Go 与 Rust 使用本地原子 JSON 文件；部署边界见各目录 README。
 
+### 小说 / 漫画 / 音频阅读记录同步
+
+自 schema v4 起，`/api/playback/sync` 同时承载小说、漫画、音频的阅读进度，与视频进度复用同一端点、同一 token、同一 `configKey` 命名空间。客户端在 payload 中携带 `mediaType` 字段区分内容类型，服务端按 `(vodName, mediaType)` 范围做同标题去重，避免同名小说与同名电影互相删除。
+
+| mediaType | 含义 | 对应 Android 端 |
+| --- | --- | --- |
+| `video` | 影视 / 直播（默认，旧 client 不传时填充） | `History` 默认 / `movie`/`tv` 自动归一 |
+| `novel` | 小说 | `WebReaderActivity` `kind=1` |
+| `comic` | 漫画 | `WebReaderActivity` `kind=2` |
+| `audio` | 音频 | `AudioHistory` |
+
+服务端同时接受以下别名并自动归一化：`movie`/`tv` → `video`，`fiction`/`book` → `novel`，`manga` → `comic`，`music` → `audio`，`kind: 1` → `novel`，`kind: 2` → `comic`。未识别的字符串不会 400，而是回落为 `video`，避免客户端升级被服务端拦截。
+
+字段映射与视频一致，复用现有 playback 协议字段，无新增字段（除 `mediaType`）：
+
+| 阅读语义 | playback 字段 | 说明 |
+| --- | --- | --- |
+| 站点 key | `siteKey` | 小说/漫画所在站点 |
+| 内容 ID | `vodId` | 一本书 / 一部漫画的 ID |
+| 书名 | `vodName` | 小说/漫画名 |
+| 封面 | `vodPic` | 封面图 URL |
+| 站点线路 | `flag` | 站点线路名 |
+| 章节名 | `episodeName` | 当前章节名 |
+| 章节 URL | `episodeUrl` | 当前章节 URL |
+| 章节内锚点序号 | `positionMs` | 小说=段落序号，漫画=页码 |
+| 章节内锚点总数 | `durationMs` | 小说=段落总数，漫画=总页数 |
+| 完成标记 | `completed` | `positionMs == durationMs - 1` 时由客户端置 `true` |
+
+> 锚点序号与总数本是序数，但协议字段名沿用 `positionMs`/`durationMs` 是历史命名（视频场景下确实是毫秒）。服务端只做比较与透传，不假设单位，因此小说/漫画复用同一字段无歧义。
+
+写入一条小说阅读进度：
+
+```bash
+curl -X POST 'https://<你的 Worker 域名>/api/playback/sync' \
+  -H 'Content-Type: application/json' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -H 'X-WebHTV-Config-Key: <点播接口 configKey>' \
+  -d '{
+    "event": "playback.progress",
+    "eventId": "novel-progress-1",
+    "timestamp": 1781170000000,
+    "historyKey": "novel_site@@@book_id@@@1",
+    "siteKey": "novel_site",
+    "vodId": "book_id",
+    "vodName": "斗破苍穹",
+    "vodPic": "https://example.com/cover.jpg",
+    "episodeName": "第1章 陨落的天才",
+    "episodeUrl": "https://example.com/chapter/1",
+    "mediaType": "novel",
+    "positionMs": 5,
+    "durationMs": 20,
+    "completed": false
+  }'
+```
+
+等价的 `kind` 写法（与 Android `WebReaderActivity` 一致）：
+
+```bash
+-d '{
+  ...
+  "kind": 1,
+  ...
+}'
+```
+
+写入一条漫画阅读进度（kind=2）：
+
+```bash
+curl -X POST 'https://<你的 Worker 域名>/api/playback/sync' \
+  -H 'Content-Type: application/json' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -H 'X-WebHTV-Config-Key: <点播接口 configKey>' \
+  -d '{
+    "event": "playback.progress",
+    "eventId": "comic-progress-1",
+    "timestamp": 1781170001000,
+    "historyKey": "comic_site@@@manga_id@@@1",
+    "siteKey": "comic_site",
+    "vodId": "manga_id",
+    "vodName": "进击的巨人",
+    "episodeName": "第1话",
+    "episodeUrl": "https://example.com/episode/1",
+    "mediaType": "comic",
+    "positionMs": 3,
+    "durationMs": 24,
+    "completed": false
+  }'
+```
+
+`GET /api/playback/sync/status` 现返回 `byType` 字段，按 `mediaType` 分组列出当前 token + `configKey` 空间下的记录数：
+
+```json
+{
+  "ok": true,
+  "configKey": "...",
+  "items": 87,
+  "tombstones": 3,
+  "nextSince": "412",
+  "retentionDays": 90,
+  "dedupeEnabled": true,
+  "byType": {
+    "video": 60,
+    "novel": 22,
+    "comic": 5,
+    "audio": 0
+  },
+  "endpoint": "https://<你的 Worker 域名>/api/playback/sync"
+}
+```
+
+### 向后兼容
+
+- 旧客户端不传 `mediaType` 字段：服务端视为 `video`，行为与 v3 完全一致。
+- 已部署的 `PLAYBACK_DO` 实例下次访问时自动执行 v4 迁移：`ALTER TABLE playback_items ADD COLUMN media_type TEXT NOT NULL DEFAULT ""`，从现有 payload 回填，并建立 `(config_key, media_type)` 索引。
+- 迁移在 `blockConcurrencyWhile + transactionSync` 内原子完成，半迁移状态不可见。
+- 同标题去重开关已开启时，历史视频数据不会被新的同名小说/漫画误删；开启瞬间的一次性清理也按 `(vod_name, media_type)` 分组，不会跨类型合并。
+
 ## 核心流程
 
 1. 任意 WebHTV App 调用 `/api/device/register` 注册设备并保存 `deviceId/deviceToken`。

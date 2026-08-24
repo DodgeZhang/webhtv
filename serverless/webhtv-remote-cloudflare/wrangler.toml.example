@@ -24,6 +24,14 @@ new_sqlite_classes = ["WebHTVPlaybackSyncDO"]
 tag = "v3"
 new_sqlite_classes = []
 
+# Migration v4: content type (media_type column) for novel/comic/audio support.
+# Same-title dedup is now scoped by (vod_name, media_type) so a novel and a
+# movie with the same title no longer erase each other. Existing PLAYBACK_DO
+# instances auto-apply the schema change on next access.
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = []
+
 # No KV, R2, external database, or required environment variable is needed.
 # RELAY_DO keeps short-lived relay state consistent across devices.
 # PLAYBACK_DO stores playback progress and 90-day deletion tombstones in SQLite.

@@ -459,6 +459,135 @@ class SyncTester:
         self.results['push_live'] = {'status': 'fail', 'http_code': status}
         return False
 
+    # --- 测试 4c: 小说阅读进度写入 (mediaType=novel, kind=1) ---
+    # 验证 v4 schema 新增的 mediaType 字段被服务端持久化，
+    # 且与同名视频记录不互相覆盖 (同名不同类型由 dedupSameTitle 按 media_type 隔离)。
+    def test_push_novel_progress(self):
+        log_separator('测试 4c: 小说阅读进度写入 (mediaType=novel, kind=1)')
+        event_id = f'test-novel-{int(time.time())}'
+        now_ms = int(time.time() * 1000)
+        # positionMs/durationMs 复用为「章节内锚点序号 / 锚点总数」(协议沿用历史字段名，单位非毫秒)
+        payload = {
+            'schema': 'webhtv.playback.v1',
+            'event': 'playback.progress',
+            'eventId': event_id,
+            'timestamp': now_ms,
+            'configKey': self.config_key,
+            'historyKey': 'novel-site@@@novel-book@@@1',
+            'siteKey': 'novel-site',
+            'vodId': 'novel-book',
+            'vodName': '测试小说',
+            'vodPic': 'https://example.com/novel-cover.jpg',
+            'episodeName': '第1章 序章',
+            'episodeUrl': 'https://example.com/novel/chapter-1',
+            'mediaType': 'novel',
+            'positionMs': 5,
+            'durationMs': 20,
+            'completed': False,
+            'speed': 1.0
+        }
+        headers = self._headers({
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-WebHTV-Webhook-Id': event_id,
+            'Idempotency-Key': event_id,
+        })
+        log('INFO', f'写入小说阅读进度: eventId={event_id}, mediaType=novel, 锚点 5/20')
+        status, resp_headers, body = http_request(
+            self._url('/api/playback/sync'), 'POST',
+            headers=headers, body=payload, timeout=15
+        )
+        log('INFO', f'HTTP {status}')
+        log('DBG', f'响应: {body[:800]}')
+        if status == 200:
+            try:
+                data = json.loads(body)
+                applied = data.get('applied', 0)
+                results = data.get('results', [])
+                media_type_back = ''
+                if results:
+                    media_type_back = results[0].get('mediaType', '')
+                log('OK', f'小说阅读进度写入成功: applied={applied}, mediaType={media_type_back}')
+                self.results['push_novel_progress'] = {
+                    'status': 'ok', 'http_code': 200,
+                    'event_id': event_id, 'applied': applied,
+                    'media_type': media_type_back
+                }
+                return True
+            except Exception as e:
+                log('ERR', f'JSON 解析失败: {e}')
+        elif status == 400:
+            log('ERR', f'请求格式错误: {body[:200]}')
+            log('WARN', '服务端可能未更新支持 mediaType 字段 (v4 schema)，请重新部署 Worker')
+        elif status == 401:
+            log('ERR', 'Token 缺失或无效')
+        self.results['push_novel_progress'] = {'status': 'fail', 'http_code': status}
+        return False
+
+    # --- 测试 4d: 漫画阅读进度写入 (mediaType=comic, kind=2) ---
+    # 验证 kind=2 数字别名被服务端归一化为 comic，并写入 media_type 列。
+    def test_push_comic_progress(self):
+        log_separator('测试 4d: 漫画阅读进度写入 (kind=2 → mediaType=comic)')
+        event_id = f'test-comic-{int(time.time())}'
+        now_ms = int(time.time() * 1000)
+        # 故意使用数字 kind 而非 mediaType，验证服务端 alias 归一化
+        payload = {
+            'schema': 'webhtv.playback.v1',
+            'event': 'playback.progress',
+            'eventId': event_id,
+            'timestamp': now_ms,
+            'configKey': self.config_key,
+            'historyKey': 'comic-site@@@comic-manga@@@1',
+            'siteKey': 'comic-site',
+            'vodId': 'comic-manga',
+            'vodName': '测试漫画',
+            'vodPic': 'https://example.com/comic-cover.jpg',
+            'episodeName': '第1话',
+            'episodeUrl': 'https://example.com/comic/episode-1',
+            'kind': 2,
+            'positionMs': 3,
+            'durationMs': 24,
+            'completed': False,
+            'speed': 1.0
+        }
+        headers = self._headers({
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-WebHTV-Webhook-Id': event_id,
+            'Idempotency-Key': event_id,
+        })
+        log('INFO', f'写入漫画阅读进度: eventId={event_id}, kind=2 (期望归一化为 comic), 页码 3/24')
+        status, resp_headers, body = http_request(
+            self._url('/api/playback/sync'), 'POST',
+            headers=headers, body=payload, timeout=15
+        )
+        log('INFO', f'HTTP {status}')
+        log('DBG', f'响应: {body[:800]}')
+        if status == 200:
+            try:
+                data = json.loads(body)
+                applied = data.get('applied', 0)
+                results = data.get('results', [])
+                media_type_back = ''
+                if results:
+                    media_type_back = results[0].get('mediaType', '')
+                if media_type_back == 'comic':
+                    log('OK', f'漫画阅读进度写入成功: applied={applied}, mediaType={media_type_back} (kind=2 已归一化)')
+                else:
+                    log('WARN', f'写入返回但 mediaType={media_type_back!r} (期望 comic)')
+                self.results['push_comic_progress'] = {
+                    'status': 'ok', 'http_code': 200,
+                    'event_id': event_id, 'applied': applied,
+                    'media_type': media_type_back
+                }
+                return True
+            except Exception as e:
+                log('ERR', f'JSON 解析失败: {e}')
+        elif status == 400:
+            log('ERR', f'请求格式错误: {body[:200]}')
+        elif status == 401:
+            log('ERR', 'Token 缺失或无效')
+        self.results['push_comic_progress'] = {'status': 'fail', 'http_code': status}
+        return False
+
     # --- 测试 5: 拉取增量记录 ---
     def test_pull(self):
         log_separator('测试 5/8: 拉取增量 GET /api/playback/sync?since=0')
@@ -655,6 +784,8 @@ class SyncTester:
             self.test_status,
             self.test_push_progress,
             self.test_push_live,
+            self.test_push_novel_progress,
+            self.test_push_comic_progress,
             self.test_pull,
             self.test_delete,
             self.test_batch,
@@ -699,6 +830,8 @@ class SyncTester:
             'status': '📊 同步状态',
             'push_progress': '📮 写入进度',
             'push_live': '📺 直播流写入',
+            'push_novel_progress': '📖 小说阅读进度',
+            'push_comic_progress': '🎨 漫画阅读进度',
             'pull': '📥 拉取增量',
             'delete': '🗑️  删除墓碑',
             'batch': '📦 批量写入',
@@ -749,6 +882,10 @@ class SyncTester:
             return f"applied={r.get('applied', 0)}, skipped={r.get('skipped', 0)}"
         if key == 'push_live':
             return f"durationMs=0, applied={r.get('applied', 0)}"
+        if key == 'push_novel_progress':
+            return f"mediaType={r.get('media_type', '?')}, applied={r.get('applied', 0)}"
+        if key == 'push_comic_progress':
+            return f"mediaType={r.get('media_type', '?')}, applied={r.get('applied', 0)}"
         if key == 'pull':
             return f"changes={r.get('changes', 0)}, upserts={r.get('upserts', 0)}"
         if key == 'delete':
@@ -813,6 +950,39 @@ class SyncTester:
                     '  2. 重新部署: npm run deploy',
                     '  3. 部署后再次运行测试验证',
                 ]
+            })
+
+        # 小说/漫画阅读进度写入失败 (mediaType 未识别 / v4 schema 未部署)
+        novel = self.results.get('push_novel_progress', {})
+        comic = self.results.get('push_comic_progress', {})
+        if novel.get('status') == 'fail' or comic.get('status') == 'fail':
+            tips = [
+                '服务端未支持小说/漫画阅读记录同步 (v4 schema mediaType 字段)',
+                '原因: 已部署的 playback-sync.js 版本过旧，缺少 normalizeMediaType / migrateV4MediaType',
+                '解决方案:',
+                '  1. 确认 src/playback-sync.js 中包含 MEDIA_TYPE_ALIASES / MEDIA_TYPE_KIND_ALIASES',
+                '  2. 确认 wrangler.toml 已追加 v4 migration tag (new_sqlite_classes = [])',
+                '  3. 重新部署: npm run deploy',
+                '  4. 部署后再次运行测试，确认 byType 字段返回 novel/comic 计数',
+            ]
+            if novel.get('status') == 'fail':
+                tips.append(f"  小说写入 HTTP {novel.get('http_code', '?')}")
+            if comic.get('status') == 'fail':
+                tips.append(f"  漫画写入 HTTP {comic.get('http_code', '?')}")
+            suggestions.append({'title': '📖 小说/漫画阅读进度写入失败', 'tips': tips})
+
+        # 小说/漫画已写入但 mediaType 未归一化 (写入成功但返回 video 而非 novel/comic)
+        if novel.get('status') == 'ok' and novel.get('media_type') != 'novel':
+            suggestions.append({
+                'title': '📖 小说 mediaType 未正确归一化',
+                'tips': ['写入返回 mediaType=' + str(novel.get('media_type')) + ' (期望 novel)',
+                         '服务端 normalizeMediaType 未识别 mediaType 字段，请确认 playback-sync.js 已更新到 v4 版本']
+            })
+        if comic.get('status') == 'ok' and comic.get('media_type') != 'comic':
+            suggestions.append({
+                'title': '🎨 漫画 mediaType 未正确归一化 (kind=2 未转 comic)',
+                'tips': ['写入返回 mediaType=' + str(comic.get('media_type')) + ' (期望 comic)',
+                         '服务端 MEDIA_TYPE_KIND_ALIASES 未生效，请确认 playback-sync.js 已更新到 v4 版本']
             })
 
         # 认证问题
@@ -939,6 +1109,8 @@ def run_gui():
         ('capabilities', '⚙️ 服务器能力'),
         ('status', '📊 同步状态'),
         ('push_progress', '📮 写入进度'),
+        ('push_novel_progress', '📖 小说阅读进度'),
+        ('push_comic_progress', '🎨 漫画阅读进度'),
         ('pull', '📥 拉取增量'),
         ('delete', '🗑️ 删除墓碑'),
         ('batch', '📦 批量写入'),
@@ -1108,6 +1280,8 @@ def run_gui():
                 'capabilities': tester.test_capabilities,
                 'status': tester.test_status,
                 'push_progress': tester.test_push_progress,
+                'push_novel_progress': tester.test_push_novel_progress,
+                'push_comic_progress': tester.test_push_comic_progress,
                 'pull': tester.test_pull,
                 'delete': tester.test_delete,
                 'batch': tester.test_batch,

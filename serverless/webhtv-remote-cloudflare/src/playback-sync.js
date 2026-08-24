@@ -6,6 +6,29 @@ const MAX_BATCH_ITEMS = 100;
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 const PLAYBACK_SCHEMA = 'webhtv.playback.v1';
+// Content type carried on every upsert payload so the client can distinguish
+// video / novel / comic / audio progress records sharing the same History
+// schema.  Default is 'video' for backward compatibility: legacy clients that
+// never send mediaType continue to write video records.
+const DEFAULT_MEDIA_TYPE = 'video';
+const MEDIA_TYPES = ['video', 'novel', 'comic', 'audio'];
+// movie/tv come from the Android History.mediaType field (TMDB-style) and are
+// normalized to 'video' so the server only stores a single canonical token.
+const MEDIA_TYPE_ALIASES = {
+  movie: 'video',
+  tv: 'video',
+  video: 'video',
+  novel: 'novel',
+  fiction: 'novel',
+  book: 'novel',
+  comic: 'comic',
+  manga: 'comic',
+  audio: 'audio',
+  music: 'audio'
+};
+// WebReaderActivity.EXTRA_KIND numeric values (1=novel, 2=comic) are accepted
+// as aliases too, so the App can send `kind: 1` without translating locally.
+const MEDIA_TYPE_KIND_ALIASES = { '1': 'novel', '2': 'comic' };
 
 // Per-config_key playback_meta key namespace.  A single DO serves many configKeys
 // (namespaced by Token or the shared empty-token namespace), so settings must
@@ -140,6 +163,11 @@ export class WebHTVPlaybackSyncDO {
       // Migration v3: add vod_name column to playback_items for same-title deduplication.
       // Existing rows are backfilled from the payload JSON.
       this.migrateV3VodName();
+      // Migration v4: add media_type column so novel/comic/audio reading records
+      // can be distinguished from video playback records that share the same
+      // playback_items table.  Same-title dedup is scoped by media_type, so a
+      // novel and a movie with the same name no longer erase each other.
+      this.migrateV4MediaType();
     });
   }
 
@@ -167,6 +195,31 @@ export class WebHTVPlaybackSyncDO {
     // Backfill existing rows: extract vodName from payload JSON.
     this.sql.exec(`UPDATE playback_items SET vod_name = COALESCE(json_extract(payload, '$.vodName'), '') WHERE vod_name = ''`);
     this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_vodname ON playback_items (config_key, vod_name)");
+  }
+
+  migrateV4MediaType() {
+    // Runs inside migrate()'s enclosing transactionSync(), same atomicity
+    // guarantees as migrateV3VodName — column add, backfill and index create
+    // either all succeed or all roll back, no half-migrated state observable.
+    const colExists = this.sql.exec(
+      "SELECT 1 FROM pragma_table_info('playback_items') WHERE name = 'media_type' LIMIT 1"
+    ).toArray().length > 0;
+    if (colExists) {
+      this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_mediatype ON playback_items (config_key, media_type)");
+      return;
+    }
+    // 1. ALTER TABLE — adds the new column with a safe DEFAULT so reads keep
+    //    working even mid-migration (mid-migration reads are blocked anyway
+    //    by blockConcurrencyWhile + transaction).
+    // 2. UPDATE — backfills media_type from payload JSON. Rows written by
+    //    legacy clients never had a mediaType field, so we coerce missing
+    //    values to 'video' (DEFAULT_MEDIA_TYPE) to keep history consistent
+    //    with the legacy "everything is video" behavior.
+    // 3. CREATE INDEX — supports status grouping by media_type and the
+    //    scoped same-title dedup lookup.
+    this.sql.exec('ALTER TABLE playback_items ADD COLUMN media_type TEXT NOT NULL DEFAULT ""');
+    this.sql.exec(`UPDATE playback_items SET media_type = COALESCE(NULLIF(json_extract(payload, '$.mediaType'), ''), '${DEFAULT_MEDIA_TYPE}') WHERE media_type = ''`);
+    this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_mediatype ON playback_items (config_key, media_type)");
   }
 
   async ingest(request) {
@@ -243,6 +296,21 @@ export class WebHTVPlaybackSyncDO {
         SELECT seq FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ?
       )
     `, configKey, configKey, cutoff).one();
+    // byType: per-media_type item counts. Rows backfilled by migrateV4MediaType
+    // already carry a canonical media_type ('video' for legacy rows), so this
+    // breakdown reflects every record in the table. The dashboard can render a
+    // separate "小说/漫画" counter from this without scanning payloads.
+    const byTypeRows = this.sql.exec(`
+      SELECT COALESCE(NULLIF(media_type, ''), ?) AS media_type, COUNT(*) AS count
+        FROM playback_items
+       WHERE config_key = ?
+       GROUP BY media_type
+    `, DEFAULT_MEDIA_TYPE, configKey).toArray();
+    const byType = {};
+    for (const row of byTypeRows) {
+      const key = String(row.media_type || DEFAULT_MEDIA_TYPE);
+      byType[key] = Number(byType[key] || 0) + Number(row.count || 0);
+    }
     // 去重通过物理删除实现（开关开启时），因此 items 已是去重后的真实条数，
     // APP 与 dashboard 看到的是同一份数据，无需 effectiveItems 区分。
     return playbackJson({
@@ -253,6 +321,7 @@ export class WebHTVPlaybackSyncDO {
       nextSince: String(latest.seq || 0),
       retentionDays: 90,
       dedupeEnabled,
+      byType,
       endpoint: `${url.origin}${basePlaybackPath(url.pathname)}`
     });
   }
@@ -285,7 +354,8 @@ export class WebHTVPlaybackSyncDO {
       dedupeEnabled: this.isDedupeEnabled(configKey),
       dedupePolicy: {
         scope: 'physical-dedup',
-        description: '开启时，写入新记录会物理删除同名旧记录并建墓碑；APP 通过增量同步收到 delete 事件后删除本地副本，与 dashboard 保持一致。开启瞬间会立即清理历史重复数据。',
+        scopeBy: 'media_type',
+        description: '开启时，写入新记录会物理删除同名且同 media_type 的旧记录并建墓碑；APP 通过增量同步收到 delete 事件后删除本地副本，与 dashboard 保持一致。开启瞬间会立即清理历史重复数据。同名小说与同名电影因 media_type 不同不会互相删除。',
         tiebreaker: 'updated_at (最大者保留，空 vod_name 保留全部)'
       }
     });
@@ -362,12 +432,14 @@ export class WebHTVPlaybackSyncDO {
       // 同标题去重（开关开启时）：
       // 预检查 — 若已存在更新的同名记录（不同 item_key，例如离线设备重放缓冲），
       // 跳过插入以保留最新进度，避免旧事件覆盖新进度。
+      // 按 media_type 限定范围，使同名小说与同名电影互不影响。
       if (vodName && dedupeEnabled) {
         const newerSibling = firstRow(this.sql.exec(
-          'SELECT 1 AS found FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at > ? LIMIT 1',
+          'SELECT 1 AS found FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND media_type = ? AND updated_at > ? LIMIT 1',
           event.configKey,
           vodName,
           event.itemKey,
+          event.mediaType,
           event.updatedAt
         ));
         if (newerSibling) {
@@ -378,23 +450,25 @@ export class WebHTVPlaybackSyncDO {
 
       this.sql.exec(`
         INSERT INTO playback_items
-          (config_key, item_key, history_key, site_key, vod_id, vod_name, updated_at, seq, payload)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (config_key, item_key, history_key, site_key, vod_id, vod_name, media_type, updated_at, seq, payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(config_key, item_key) DO UPDATE SET
           history_key = excluded.history_key,
           site_key = excluded.site_key,
           vod_id = excluded.vod_id,
           vod_name = excluded.vod_name,
+          media_type = excluded.media_type,
           updated_at = excluded.updated_at,
           seq = excluded.seq,
           payload = excluded.payload
-      `, event.configKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, vodName, event.updatedAt, seq, payload);
+      `, event.configKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, vodName, event.mediaType, event.updatedAt, seq, payload);
 
-      // 同标题去重（开关开启时）：物理删除同 vodName 的旧记录并建墓碑。
+      // 同标题去重（开关开启时）：物理删除同 vodName 且同 media_type 的旧记录并建墓碑。
       // 墓碑通过 pull 增量同步传播到 APP，APP 收到 delete 事件后删除本地副本，
       // 从而与 dashboard 展示保持一致（解决 pull 查询过滤无法清除已同步数据的问题）。
+      // media_type 限定范围，避免同名小说与同名电影互相删除。
       if (vodName && dedupeEnabled) {
-        this.dedupSameTitle(event.configKey, vodName, event.itemKey, event.updatedAt);
+        this.dedupSameTitle(event.configKey, vodName, event.itemKey, event.updatedAt, event.mediaType);
       }
 
       this.recordEvent(event.configKey, event.eventId, receivedAt);
@@ -402,15 +476,18 @@ export class WebHTVPlaybackSyncDO {
     });
   }
 
-  // 物理删除同 vodName 且 updated_at < newerThan 的旧记录，并为每条创建 item 级墓碑。
+  // 物理删除同 vodName 且同 media_type 且 updated_at < newerThan 的旧记录，并为每条创建 item 级墓碑。
   // 墓碑通过 pull 增量同步传播到 APP，确保已同步设备删除本地副本，与 dashboard 一致。
+  // media_type 限定范围，避免同名小说与同名电影互相删除。
   // 返回删除的行数。
-  dedupSameTitle(configKey, vodName, keepItemKey, newerThan) {
+  dedupSameTitle(configKey, vodName, keepItemKey, newerThan, mediaType) {
+    const effectiveMediaType = mediaType || DEFAULT_MEDIA_TYPE;
     const duplicates = this.sql.exec(
-      'SELECT item_key, history_key, site_key, vod_id, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND updated_at < ?',
+      'SELECT item_key, history_key, site_key, vod_id, media_type, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND media_type = ? AND updated_at < ?',
       configKey,
       vodName,
       keepItemKey,
+      effectiveMediaType,
       newerThan
     ).toArray();
 
@@ -433,6 +510,7 @@ export class WebHTVPlaybackSyncDO {
           historyKey: String(dup.history_key || ''),
           siteKey: String(dup.site_key || ''),
           vodId: String(dup.vod_id || ''),
+          mediaType: String(dup.media_type || effectiveMediaType),
           scope: 'item',
           deletedAt: Number(dup.updated_at || newerThan),
           reason: 'vod-name-dedup'
@@ -444,36 +522,40 @@ export class WebHTVPlaybackSyncDO {
         `, configKey, markerKey, String(dup.history_key || ''), String(dup.site_key || ''), String(dup.vod_id || ''), Number(dup.updated_at || newerThan), tombSeq, tombPayload);
       }
       this.sql.exec(
-        'DELETE FROM playback_items WHERE config_key = ? AND item_key = ? AND vod_name = ?',
+        'DELETE FROM playback_items WHERE config_key = ? AND item_key = ? AND vod_name = ? AND media_type = ?',
         configKey,
         dupKey,
-        vodName
+        vodName,
+        effectiveMediaType
       );
     }
     return duplicates.length;
   }
 
-  // 一次性清理：遍历所有有重复 vodName 的组，保留 updated_at 最大的，物理删除其余 + 建墓碑。
+  // 一次性清理：遍历所有有重复 (vodName, media_type) 的组，保留 updated_at 最大的，物理删除其余 + 建墓碑。
   // 在开关从 OFF→ON 时调用，确保历史重复数据也被清理并通过墓碑传播到 APP。
+  // 按 (vod_name, media_type) 分组，避免把同名小说与同名电影误判为重复。
   cleanupDuplicateTitles(configKey) {
-    const dupNames = this.sql.exec(`
-      SELECT vod_name FROM playback_items
+    const dupGroups = this.sql.exec(`
+      SELECT vod_name, media_type FROM playback_items
       WHERE config_key = ? AND vod_name <> ''
-      GROUP BY vod_name
+      GROUP BY vod_name, media_type
       HAVING COUNT(*) > 1
     `, configKey).toArray();
 
     let total = 0;
-    for (const row of dupNames) {
+    for (const row of dupGroups) {
       const name = String(row.vod_name || '');
+      const mediaType = String(row.media_type || DEFAULT_MEDIA_TYPE);
       if (!name) continue;
       const newest = firstRow(this.sql.exec(
-        'SELECT item_key, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? ORDER BY updated_at DESC LIMIT 1',
+        'SELECT item_key, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND media_type = ? ORDER BY updated_at DESC LIMIT 1',
         configKey,
-        name
+        name,
+        mediaType
       ));
       if (!newest) continue;
-      total += this.dedupSameTitle(configKey, name, String(newest.item_key), Number(newest.updated_at));
+      total += this.dedupSameTitle(configKey, name, String(newest.item_key), Number(newest.updated_at), mediaType);
     }
     return total;
   }
@@ -612,6 +694,12 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     if (!deletedAt) throw playbackHttpError(400, 'deletedAt or timestamp is required for a deletion');
     const itemKey = portableItemKey(historyKey, siteKey, vodId);
     const markerKey = scope === 'all' ? 'all' : scope === 'site' ? `site\n${siteKey}` : `item\n${itemKey}`;
+    // mediaType on a deletion is informational only: the tombstone carries it
+    // so the client can render "deleted novel chapter 3" vs "deleted episode 5"
+    // when streaming the deletion feed. It does not gate the deletion scope
+    // (scope=all/site/item still controls which rows are physically deleted),
+    // so a missing mediaType on a deletion is fine and never 400s.
+    const mediaType = normalizeMediaType(raw.mediaType || raw.media_type || raw.kind);
     const payload = compactObject({
       schema: PLAYBACK_SCHEMA,
       action: 'delete',
@@ -621,10 +709,11 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
       historyKey,
       siteKey,
       vodId,
+      mediaType,
       scope,
       deletedAt
     });
-    return { kind: 'delete', configKey, eventId, historyKey, siteKey, vodId, scope, deletedAt, itemKey, markerKey, payload };
+    return { kind: 'delete', configKey, eventId, historyKey, siteKey, vodId, mediaType, scope, deletedAt, itemKey, markerKey, payload };
   }
 
   if (!siteKey) throw playbackHttpError(400, 'siteKey is required');
@@ -650,6 +739,11 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
   // When duration is unknown (live stream), do not clamp positionMs and force progress to 0.
   const clampedPosition = isLiveStream ? positionMs : Math.min(positionMs, durationMs);
   const computedProgress = isLiveStream ? 0 : (suppliedProgress > 0 ? suppliedProgress : Math.min(positionMs, durationMs) / durationMs);
+  // mediaType identifies the content category (video/novel/comic/audio) so the
+  // server can scope same-title deduplication and the client can render
+  // reading history separately from video history.  Legacy clients that never
+  // send mediaType are treated as 'video', matching the pre-v4 behavior.
+  const mediaType = normalizeMediaType(raw.mediaType || raw.media_type || raw.kind);
   const payload = compactObject({
     schema: PLAYBACK_SCHEMA,
     action: 'upsert',
@@ -662,6 +756,7 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     siteName: cleanString(raw.siteName, 2048),
     vodId,
     vodName,
+    mediaType,
     vodPic: cleanString(raw.vodPic || raw.vod_pic || raw.pic || raw.poster, 8192),
     flag: cleanString(raw.flag || raw.vodFlag || raw.line || raw.source, 2048),
     episodeName,
@@ -681,6 +776,7 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     historyKey,
     siteKey,
     vodId,
+    mediaType,
     itemKey: portableItemKey(historyKey, siteKey, vodId),
     updatedAt,
     payload
@@ -780,6 +876,22 @@ function normalizeScope(value, historyKey, siteKey, vodId) {
   return '';
 }
 
+// Coerce raw mediaType/media_type/kind to a canonical token.
+// Accepts strings (novel/comic/audio/movie/tv/video, plus aliases like
+// manga/fiction/book/music) and the numeric kind values emitted by
+// WebReaderActivity (1=novel, 2=comic). Empty input → DEFAULT_MEDIA_TYPE
+// so legacy clients keep writing 'video' records without any change.
+function normalizeMediaType(value) {
+  const text = String(value == null ? '' : value).trim().toLowerCase();
+  if (!text) return DEFAULT_MEDIA_TYPE;
+  if (MEDIA_TYPE_KIND_ALIASES[text]) return MEDIA_TYPE_KIND_ALIASES[text];
+  if (MEDIA_TYPE_ALIASES[text]) return MEDIA_TYPE_ALIASES[text];
+  // Unknown strings (typo, future type) collapse to 'video' rather than 400:
+  // the server only stores 4 categories today, but we never want a client
+  // upgrade blocked from syncing by an over-strict server-side allowlist.
+  return DEFAULT_MEDIA_TYPE;
+}
+
 function portableItemKey(historyKey, siteKey, vodId) {
   if (siteKey && vodId) return `${siteKey}\n${vodId}`;
   return `history\n${historyKey}`;
@@ -840,6 +952,7 @@ function resultFor(event, action, sequence, message) {
     historyKey: event.historyKey,
     siteKey: event.siteKey,
     vodId: event.vodId,
+    mediaType: event.mediaType,
     updatedAt: event.updatedAt,
     deletedAt: event.deletedAt
   });
