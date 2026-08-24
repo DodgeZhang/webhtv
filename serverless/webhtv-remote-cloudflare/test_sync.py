@@ -217,7 +217,15 @@ class SyncTester:
         return h
 
     def _url(self, path):
-        return self.base_url + path
+        # base_url is the sync endpoint (e.g. https://host/api/playback/sync).
+        # We need the origin (scheme + host[:port]) so other paths like /api/health
+        # and /api/server/capabilities resolve correctly instead of being appended
+        # after the full endpoint path.
+        parsed = urllib.parse.urlparse(self.base_url)
+        origin = f"{parsed.scheme}://{parsed.hostname}"
+        if parsed.port:
+            origin += f":{parsed.port}"
+        return origin + path
 
     # --- 测试 0: 网络连通性 ---
     def test_network(self):
