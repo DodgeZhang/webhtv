@@ -2298,6 +2298,9 @@
     <string name="reader_chapter_failed">章节加载失败</string>
     <string name="reader_opening">正在打开 %1$s</string>
     <string name="reader_opening_default">正在打开阅读器</string>
+    <string name="cat_web_opening">正在打开设置中心</string>
+    <string name="cat_web_failed">页面加载失败：%1$s</string>
+    <string name="cat_web_external">已用浏览器打开</string>
     <string name="dialog_short_drama_site_disabled">已排除：%1$s</string>
     <string name="dialog_short_drama_enabled_label">启用规则</string>
     <string name="dialog_short_drama_disabled_label">已排除</string>
@@ -2431,6 +2434,7 @@
     <string name="node_bundle">检查猫源 bundle…</string>
     <string name="node_starting">启动服务…</string>
     <string name="node_ready">猫源已就绪</string>
+    <string name="node_switch_restart">已有猫源在运行，换源需重启应用后生效</string>
     <string name="node_background">后台继续</string>
     <string name="node_speed">%1$s/s</string>
     <string name="node_size_pair">%1$s / %2$s</string></resources>

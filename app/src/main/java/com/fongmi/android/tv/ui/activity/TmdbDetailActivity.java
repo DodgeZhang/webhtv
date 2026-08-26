@@ -403,6 +403,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private int statusBarInsetTop;
     private int detailThemeMode;
     private int loadGeneration;
+    /** 本次取详情的起始时刻，用来认出「猫源开内嵌页」是不是自己这次导航触发的。volatile：加载在后台线程发起，事件在主线程读。 */
+    private volatile long detailLoadStart;
     private int inlinePlaybackGeneration;
     private int mAdFeedbackGeneration;
     private int tmdbDialogGeneration;
@@ -2160,6 +2162,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         String id = getIdText();
         String title = getNameText();
         long loadStart = System.currentTimeMillis();
+        detailLoadStart = loadStart;
         SpiderDebug.log("tmdb-detail-flow", "load start mode=%d key=%s id=%s title=%s reusable=%s", mode, key, id, title, reusableBundle != null);
         detailTasks.submit(() -> {
             if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
@@ -2174,6 +2177,14 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             long sourceStart = System.currentTimeMillis();
             try {
                 Result result = SiteApi.detailContent(key, id);
+                // 猫源设置项：点击的本意是开网页，detail 只是副产物。留在这儿会让内嵌页背后压着空白详情页，
+                // 用户从内嵌页返回时先落回这里。兜底路径——正常由 CatWebEvent 更早地退场。
+                if (com.fongmi.android.tv.api.CatAction.shouldYieldDetail(key, loadStart, result)) {
+                    SpiderDebug.log("tmdb-detail-flow", "yield to cat webview key=%s id=%s", key, id);
+                    runOnAliveUi(this::finish);
+                    if (tmdbFuture != null) tmdbFuture.cancel(true);
+                    return;
+                }
                 if (result != null && !result.getList().isEmpty()) {
                     loadedVod = result.getVod();
                     if (loadedVod != null && loadedVod.getSite() == null) {
@@ -10217,6 +10228,20 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode == RESULT_OK && requestCode == 1001) PlayerHelper.onExternalResult(data, service()::dispatchNext, controller()::seekTo);
+    }
+
+    /**
+     * 猫源开了内嵌设置页：这次点击的本意就是开网页，本页立刻退场。
+     *
+     * <p>不能等 detail 结果再判定——那份结果还要等 TMDB 富集，主线程也可能被播放服务启动堵住，
+     * 这段时间里从内嵌页按返回就会落回本页（空白详情页）。用请求时刻和本次取详情的起始时间比，
+     * 确认是自己触发的才退。
+     */
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onCatWebEvent(com.fongmi.android.tv.event.CatWebEvent event) {
+        if (!event.after(detailLoadStart)) return;
+        SpiderDebug.log("tmdb-detail-flow", "yield to cat webview (event) key=%s id=%s", getKeyText(), getIdText());
+        finish();
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)

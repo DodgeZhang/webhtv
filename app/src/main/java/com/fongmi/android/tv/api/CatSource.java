@@ -1,11 +1,11 @@
 package com.fongmi.android.tv.api;
 
-import android.net.Uri;
 import android.text.TextUtils;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.node.NodeRuntime;
 import com.github.catvod.crawler.SpiderDebug;
+import com.github.catvod.utils.Json;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -58,15 +58,55 @@ public class CatSource {
     private static final String VIDEO = "video";
 
     /**
+     * 这段响应是不是猫源配置。
+     *
+     * <p>用来在多个本机端口里认出真正的猫源服务：魔改 bundle 会额外起自己的 HTTP 服务
+     * （如内置弹幕服务器），那些服务对 {@code /config} 会返回 401 信封或欢迎页——都是
+     * 非空响应，只判空会把它们当成就绪。所以这里按配置形状判定。
+     */
+    public static boolean isConfig(String text) {
+        if (TextUtils.isEmpty(text)) return false;
+        try {
+            JsonElement root = Json.parse(text);
+            if (root == null || root.isJsonNull()) return false;
+            // 扁平站点数组：空数组说明不是在服务站点，当作不匹配继续探下一个端口
+            if (root.isJsonArray()) return !root.getAsJsonArray().isEmpty();
+            if (!root.isJsonObject()) return false;
+            JsonObject object = root.getAsJsonObject();
+            if (object.has("sites")) return true;
+            JsonElement video = object.get(VIDEO);
+            return video != null && video.isJsonObject() && video.getAsJsonObject().has("sites");
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
      * @throws IllegalArgumentException 配置既不是站点数组也不是对象时——服务端返回空响应、
      *                                  HTML 错误页或纯文本都会走到这里，明确报错比抛 NPE 好定位。
      */
     public static JsonObject normalize(String url, JsonElement root) {
         if (root == null || root.isJsonNull()) throw new IllegalArgumentException("配置为空");
         if (!root.isJsonArray() && !root.isJsonObject()) throw new IllegalArgumentException("配置格式不是 JSON 对象或数组");
+        if (root.isJsonObject()) reject(root.getAsJsonObject());
         JsonObject object = root.isJsonArray() ? wrap(root.getAsJsonArray()) : lift(root.getAsJsonObject());
         rebase(object, base(url));
         return object;
+    }
+
+    /**
+     * 服务端的错误信封（如 {@code {errorCode:401, errorMessage:"Unauthorized"}}）照常是合法
+     * JSON 对象，往下走会解析出空 sites，用户只看到「订阅无效」而没有任何原因。这里如实报错。
+     *
+     * <p>判定刻意收窄到「有 errorMessage 且没有任何配置内容」——{@code normalize} 对所有点播
+     * 配置都跑，不能把恰好带这个字段的正常配置和仓库配置（{@code urls}）误判掉。
+     */
+    private static void reject(JsonObject object) {
+        if (object.has("sites") || object.has(VIDEO) || object.has("urls")) return;
+        String message = string(object, "errorMessage");
+        if (TextUtils.isEmpty(message)) return;
+        JsonElement code = object.get("errorCode");
+        throw new IllegalArgumentException(code == null ? message : message + "（" + code + "）");
     }
 
     private static JsonObject wrap(JsonArray sites) {
@@ -110,13 +150,25 @@ public class CatSource {
         return element.getAsString();
     }
 
-    /** {@code scheme://userinfo@host:port}——保留 userinfo，免得每次请求都先吃一个 401。 */
+    /**
+     * {@code scheme://userinfo@host:port}——保留 userinfo，免得每次请求都先吃一个 401。
+     *
+     * <p>刻意不用 {@code Uri.parse}：这一段只需要截到 authority 结束，纯字符串处理就够，
+     * 且能让 {@code normalize} 在普通单元测试里跑（{@code android.net.Uri} 的桩会波及全局）。
+     */
     private static String base(String url) {
         if (TextUtils.isEmpty(url)) return "";
-        Uri uri = Uri.parse(url);
-        String scheme = uri.getScheme();
-        String authority = uri.getEncodedAuthority();
-        if (TextUtils.isEmpty(scheme) || TextUtils.isEmpty(authority)) return "";
-        return scheme + "://" + authority;
+        int mark = url.indexOf("://");
+        if (mark <= 0) return "";
+        int start = mark + 3;
+        int end = url.length();
+        for (int i = start; i < url.length(); i++) {
+            char c = url.charAt(i);
+            if (c == '/' || c == '?' || c == '#') {
+                end = i;
+                break;
+            }
+        }
+        return end == start ? "" : url.substring(0, end);
     }
 }

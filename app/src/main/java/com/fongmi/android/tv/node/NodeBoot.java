@@ -74,19 +74,43 @@ final class NodeBoot {
                 + "    setInterval(() => {}, 60000);\n"
                 // bundle 里 listen 没指定端口时由系统分配，端口是随机的，
                 // 所以启动后把实际端口落盘，Java 侧读它来拼地址。
+                //
+                // 魔改 bundle 会额外起自己的 HTTP 服务（如内置弹幕服务器），句柄顺序不保证
+                // 猫源那个在前。只落第一个会让 Java 侧连到弹幕服务，取配置吃 401 —— 表现为
+                // 「订阅无效」且无任何报错。所以把全部候选端口都落盘，我们指定的排最前，
+                // 由 Java 侧逐个探 /config 认准真正的猫源服务。
+                // 附带服务可能比猫源晚绑定，所以不能一见到端口就收工——持续到目标端口出现
+                // 或窗口用尽，期间每轮都把最新候选集落盘。
+                + "    let last = '';\n"
                 + "    const publish = () => {\n"
                 + "      try {\n"
                 + "        const handles = process._getActiveHandles ? process._getActiveHandles() : [];\n"
+                + "        const ports = [];\n"
                 + "        for (const h of handles) {\n"
                 + "          if (h && typeof h.address === 'function' && h.constructor && h.constructor.name === 'Server') {\n"
                 + "            const a = h.address();\n"
-                + "            if (a && a.port) {\n"
-                + "              require('fs').writeFileSync('" + portEscaped + "', String(a.port));\n"
-                + "              console.log('cat bundle listening on ' + a.port);\n"
-                + "              return true;\n"
-                + "            }\n"
+                + "            if (a && a.port && !ports.includes(a.port)) ports.push(a.port);\n"
                 + "          }\n"
                 + "        }\n"
+                + "        if (!ports.length) return false;\n"
+                + (listenPort > 0
+                ? "        const want = " + listenPort + ";\n"
+                + "        if (ports.includes(want)) { ports.splice(ports.indexOf(want), 1); ports.unshift(want); }\n"
+                : "")
+                // 先写临时文件再 rename：Java 侧在并发轮询这个文件，truncate-then-write
+                // 会让它读到半截端口号。
+                + "        const fs = require('fs');\n"
+                + "        const text = ports.join(',');\n"
+                // 候选集没变就不必重写：目标端口始终不出现时（bundle 忽略了 DEV_HTTP_PORT），
+                // 否则会在 30 秒窗口里把同样的内容写 60 遍
+                + "        if (text === last) return " + (listenPort > 0 ? "ports.includes(want)" : "true") + ";\n"
+                + "        fs.writeFileSync('" + portEscaped + ".tmp', text);\n"
+                + "        fs.renameSync('" + portEscaped + ".tmp', '" + portEscaped + "');\n"
+                + "        last = text;\n"
+                + "        console.log('cat bundle listening on ' + text);\n"
+                + (listenPort > 0
+                ? "        return ports.includes(want);\n"
+                : "        return true;\n")
                 + "      } catch (e) { console.error('publish port failed', e.message); }\n"
                 + "      return false;\n"
                 + "    };\n"

@@ -5,6 +5,7 @@ import android.text.TextUtils;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.api.CatSource;
 import com.fongmi.android.tv.nodejs.NodeBridge;
 import com.fongmi.android.tv.utils.Notify;
 import com.github.catvod.Proxy;
@@ -12,6 +13,8 @@ import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.net.OkHttp;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -38,6 +41,14 @@ public final class NodeRuntime {
     private static final AtomicBoolean LAUNCHED = new AtomicBoolean(false);
     private static volatile boolean running;
     private static int lastPercent = -2;
+    /**
+     * 已经跑起来的是哪个 bundle。
+     *
+     * <p>Node 不能在进程内重启，所以换到另一个猫源时必须如实拒绝——早先是直接把当前服务
+     * 的地址回给调用方，于是新源静默拿到<b>旧源的配置</b>，界面上表现为「确定后没反应」，
+     * 还会把旧源的站点当成新源的存进配置里。
+     */
+    private static volatile String servingUrl = "";
 
     public interface Callback {
         void onProgress(String message);
@@ -63,11 +74,18 @@ public final class NodeRuntime {
     }
 
     public static String configUrl() {
-        return baseUrl() + "/config";
+        return configUrl(port);
+    }
+
+    private static String configUrl(int value) {
+        return "http://127.0.0.1:" + value + "/config";
     }
 
     /**
-     * 启动运行时。多次调用只有第一次生效——Node 在单进程内不可重启。
+     * 启动运行时。一个进程只能真正启动一次——Node 不可重启。
+     *
+     * <p>再次以<b>同一个</b> bundle 调用会直接复用已就绪的服务；换成<b>另一个</b> bundle 则
+     * 明确失败，并告知需要重启应用。不能沿用旧服务：那会让新源拿到旧源的配置。
      *
      * @param url 用户填的猫源地址（{@code .../index.js.md5}）
      */
@@ -76,15 +94,39 @@ public final class NodeRuntime {
             post(callback, "未填写猫源地址");
             return;
         }
+        // LAUNCHED 才是「Node 已经认定了某个 bundle」的真信号：即使服务还没就绪、或者起来后又退了，
+        // 也没法在本进程里换成另一个 bundle。只看 running 会漏掉这些中间态。
+        if (LAUNCHED.get() && !same(url)) {
+            reject(context, callback);
+            return;
+        }
         if (running) {
             if (callback != null) callback.onReady(baseUrl());
             return;
         }
         if (!STARTING.compareAndSet(false, true)) {
-            post(callback, "正在启动中");
+            // 正在启动的可能是别的 bundle：那种情况下等下去也等不到自己的源，得如实说要重启
+            if (same(url) || TextUtils.isEmpty(servingUrl)) post(callback, "正在启动中");
+            else reject(context, callback);
             return;
         }
+        servingUrl = NodeBundle.bundleUrl(url);
         new Thread(() -> run(context, url, callback), "node-runtime").start();
+    }
+
+    /** 是否就是当前这个 bundle。比的是去掉 {@code .md5} 后的 bundle 地址，避免两种写法被当成两个源。 */
+    private static boolean same(String url) {
+        String requested = NodeBundle.bundleUrl(url);
+        return !TextUtils.isEmpty(requested) && requested.equals(servingUrl);
+    }
+
+    /** 换源要重启才生效：说清楚，别让用户对着「没反应」猜。 */
+    private static void reject(Context context, Callback callback) {
+        String message = context.getString(R.string.node_switch_restart);
+        SpiderDebug.log("node", "reject switch: running=%s requested another bundle", servingUrl);
+        NodeNotify.done(context, message);
+        toast(message);
+        post(callback, message);
     }
 
     private static void run(Context context, String url, Callback callback) {
@@ -152,25 +194,44 @@ public final class NodeRuntime {
         }
     }
 
-    /** 先等引导脚本把实际端口落盘，再轮询 /config 确认路由装配完成。 */
+    /**
+     * 先等引导脚本把候选端口落盘，再逐个探 /config，认准返回猫源配置的那个。
+     *
+     * <p>候选可能有多个：魔改 bundle 会额外起自己的 HTTP 服务（如内置弹幕服务器）。那些
+     * 服务对 {@code /config} 返回 401 信封或欢迎页，都是非空响应——只判空会认错端口，
+     * 配置里 sites 解析为空，表现为「订阅无效」且无任何报错。所以按配置形状判定。
+     *
+     * <p>每轮都重读端口文件：附带服务可能比猫源晚绑定，候选集会随之变化。
+     */
     private static boolean waitReady(Context context, NodeDialog dialog, File portFile, Callback callback) {
+        String announced = "";
         for (int i = 0; i < 90; i++) {
             try {
                 Thread.sleep(500);
-                if (port == 0) {
-                    int value = readPort(portFile);
-                    if (value <= 0) continue;
-                    port = value;
-                    step(context, dialog, callback, "服务已监听 " + value + "，装配站点 ...", -1);
+                List<Integer> candidates = readPorts(portFile);
+                if (candidates.isEmpty()) continue;
+                String text = candidates.toString();
+                if (!text.equals(announced)) {
+                    announced = text;
+                    step(context, dialog, callback, "服务已监听 " + join(candidates) + "，装配站点 ...", -1);
                 }
-                String text = OkHttp.string(configUrl());
-                if (!TextUtils.isEmpty(text)) return true;
+                for (int candidate : candidates) {
+                    if (!CatSource.isConfig(OkHttp.string(configUrl(candidate)))) continue;
+                    port = candidate;
+                    return true;
+                }
             } catch (InterruptedException e) {
                 return false;
             } catch (Exception ignored) {
             }
         }
         return false;
+    }
+
+    private static String join(List<Integer> ports) {
+        StringBuilder builder = new StringBuilder();
+        for (int value : ports) builder.append(builder.length() == 0 ? "" : "/").append(value);
+        return builder.toString();
     }
 
     /**
@@ -190,15 +251,24 @@ public final class NodeRuntime {
         return 0;
     }
 
-    private static int readPort(File file) {
-        if (!file.exists()) return 0;
+    /** 引导脚本落盘的候选端口，逗号分隔，猫源那个（我们指定的）在最前。兼容只有单个端口的旧格式。 */
+    private static List<Integer> readPorts(File file) {
+        List<Integer> ports = new ArrayList<>();
+        if (!file.exists()) return ports;
         try (java.io.InputStream in = new java.io.FileInputStream(file)) {
-            byte[] buf = new byte[16];
+            byte[] buf = new byte[128];
             int len = in.read(buf);
-            if (len <= 0) return 0;
-            return Integer.parseInt(new String(buf, 0, len).trim());
+            if (len <= 0) return ports;
+            for (String part : new String(buf, 0, len).trim().split(",")) {
+                try {
+                    int value = Integer.parseInt(part.trim());
+                    if (value > 0 && !ports.contains(value)) ports.add(value);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            return ports;
         } catch (Exception ignored) {
-            return 0;
+            return ports;
         }
     }
 

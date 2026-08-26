@@ -1318,6 +1318,9 @@
     <string name="reader_chapter_failed">Failed to load chapter</string>
     <string name="reader_opening">Opening %1$s</string>
     <string name="reader_opening_default">Opening reader</string>
+    <string name="cat_web_opening">Opening settings</string>
+    <string name="cat_web_failed">Failed to load page: %1$s</string>
+    <string name="cat_web_external">Opened in browser</string>
     <string name="dialog_short_drama_site_rules">Short drama source rules: enabled sources or keywords, separated by ;. Default: [短];短剧</string>
     <string name="dialog_short_drama_site_manage">Select short drama sources</string>
     <string name="dialog_short_drama_site_default">Default [短]/短剧</string>
@@ -2435,6 +2438,7 @@
     <string name="node_bundle">Checking cat source bundle…</string>
     <string name="node_starting">Starting service…</string>
     <string name="node_ready">Cat source ready</string>
+    <string name="node_switch_restart">Another cat source is already running. Restart the app to switch.</string>
     <string name="node_background">Run in background</string>
     <string name="node_speed">%1$s/s</string>
     <string name="node_size_pair">%1$s / %2$s</string></resources>
