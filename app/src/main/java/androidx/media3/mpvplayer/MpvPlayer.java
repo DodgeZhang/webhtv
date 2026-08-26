@@ -94,6 +94,11 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private static final long LOAD_START_RETRY_DELAY_MS = 1000;
     private static final long MEDIA_REPLACEMENT_STOP_TIMEOUT_MS = 1200;
     private static final long TRACK_REFRESH_DEBOUNCE_MS = 80;
+    // Last resort out of the seek buffering window. PLAYBACK_RESTART and the
+    // paused-for-cache observer are the normal exits; this only covers a seek mpv
+    // never answers, so it must outlast a slow-but-working seek. Matches the seek
+    // latch timeout in MpvSeekPositionState so both give up on the same evidence.
+    private static final long SEEK_BUFFERING_TIMEOUT_MS = MpvSeekPositionState.TARGET_TIMEOUT_MS;
 
     private static final int MAX_OBSERVED_TRACKS = 64;
     private static final int MAX_OBSERVED_CHAPTERS = 512;
@@ -163,6 +168,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private final AtomicBoolean mainThreadHeartbeatPending;
     private final Runnable endFileValidationRunnable;
     private final Runnable loadStartRetryRunnable;
+    private final Runnable seekBufferingTimeoutRunnable;
     private final Runnable mediaReplacementStopTimeoutRunnable;
     private final Runnable trackRefreshRunnable;
     private final Runnable chapterRefreshRunnable;
@@ -244,6 +250,10 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private boolean loadStarted;
     private boolean playbackRestarted;
     private boolean stopping;
+    // True between a seek request and the discontinuity that resolves it. Lets the
+    // rebuffer accounting in PlayerManager tell a user-initiated seek apart from a
+    // network stall, since both surface as STATE_BUFFERING.
+    private boolean seekBufferingActive;
     private boolean eofReached;
     private boolean idleActive;
     private boolean currentLikelyHls;
@@ -356,6 +366,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         mainThreadWatchdogRunnable = this::runMainThreadWatchdog;
         endFileValidationRunnable = this::validateEarlyEndFile;
         loadStartRetryRunnable = this::retryLoadIfNotStarted;
+        seekBufferingTimeoutRunnable = this::timeOutSeekBuffering;
         mediaReplacementStopTimeoutRunnable = this::resumeMediaReplacementAfterStopTimeout;
         trackRefreshRunnable = this::runScheduledTrackRefresh;
         chapterRefreshRunnable = this::runScheduledChapterRefresh;
@@ -457,7 +468,11 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 ? startPositionMs : C.TIME_UNSET;
         loadStartPositionMs = C.TIME_UNSET;
         seekPositionState.clear();
+<<<<<<< HEAD
 >>>>>>> upstream/dev
+=======
+        endSeekBuffering("set-media-items");
+>>>>>>> upstream/beta
         cachedPositionMs = Math.max(0, startPositionMs == C.TIME_UNSET ? 0 : startPositionMs);
         cachedDurationMs = C.TIME_UNSET;
         resetVideoMetadataCache();
@@ -582,6 +597,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
             clearVideoOutput();
             mainHandler.removeCallbacks(stateRefreshRunnable);
             mainHandler.removeCallbacks(endFileValidationRunnable);
+            mainHandler.removeCallbacks(seekBufferingTimeoutRunnable);
             releaseNativeContext("release");
         } finally {
             stopMainThreadWatchdog();
@@ -605,8 +621,23 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         if (initialized && playbackState != Player.STATE_IDLE) {
             if (fileLoaded) cacheObserverState.onPlaybackDiscontinuity(SystemClock.elapsedRealtime());
             seekMpv(cachedPositionMs);
+<<<<<<< HEAD
             if (currentLikelyHls && playbackRestarted) hlsProxy.preloadAround(cachedPositionMs);
             if (playbackState == Player.STATE_ENDED) playbackState = Player.STATE_BUFFERING;
+=======
+            if (currentLikelyHls && playbackRestarted) requestHlsPreload(cachedPositionMs);
+            int nextState = MpvPlaybackState.resolveAfterSeekRequest(playbackState, fileLoaded, stopping);
+            // Re-arm for a seek that lands inside an open seek window too, so scrubbing
+            // does not keep running against the first seek's deadline. A BUFFERING that
+            // came from a stall is deliberately not adopted: its rebuffer is already
+            // counted, and arming the timeout there could publish READY over a session
+            // that really is stuck.
+            if (nextState == Player.STATE_BUFFERING
+                    && (playbackState != Player.STATE_BUFFERING || seekBufferingActive)) {
+                beginSeekBuffering("request");
+            }
+            playbackState = nextState;
+>>>>>>> upstream/beta
         }
         invalidateState();
         return Futures.immediateVoidFuture();
@@ -1070,6 +1101,17 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         return Math.max(0, cachedDecoderDroppedFrames) + Math.max(0, cachedOutputDroppedFrames);
     }
 
+    /**
+     * True while the BUFFERING currently published exists because of a seek.
+     *
+     * <p>Rebuffer statistics drive the network guard and the HLS variant policy, and a seek
+     * is a user action rather than evidence that the source cannot keep up. Callers use this
+     * to keep the seek window out of those counters.
+     */
+    public boolean isSeekBuffering() {
+        return seekBufferingActive;
+    }
+
     /** Cached observer values only; this method never queries MPV synchronously. */
     public FrameTimingSnapshot getFrameTimingSnapshot() {
         double displayFps = cachedEstimatedDisplayFps > 0
@@ -1304,10 +1346,16 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 throw new IOException(e == null ? "MPV native libraries are unavailable" : e.getMessage(), e);
             }
             copySupportAssets();
-            nativeContextOwner = this;
+            // Claim ownership only once the native context exists. Assigning before the
+            // attempt leaves a failed create owning the process-wide slot: this method's
+            // takeover branch above has already released the previous owner, so nothing
+            // else would ever reset it, and every later playback would take the takeover
+            // path against an instance whose initialized flag is still false.
             if (!mpvTryCreate(context)) {
+                nativeContextOwner = null;
                 throw new IOException("MPV native context creation is already in progress");
             }
+            nativeContextOwner = this;
             applyPreInitOptions();
             mpvInit();
             initialized = true;
@@ -1662,6 +1710,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 stateChanged = loading != nextLoading || playbackState != nextPlaybackState;
                 loading = nextLoading;
                 playbackState = nextPlaybackState;
+                if (nextPlaybackState == Player.STATE_READY) endSeekBuffering("paused-for-cache");
             }
             case "eof-reached" -> {
                 boolean wasEnded = playbackState == Player.STATE_ENDED;
@@ -1865,6 +1914,10 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 stopping = false;
                 eofReached = false;
                 idleActive = false;
+                // A new load supersedes any open seek window. Leaving it armed lets its
+                // timeout fire once this load reaches FILE_LOADED and publish READY over
+                // a file that has not restarted playback yet.
+                endSeekBuffering("start-file");
                 resetFailureSignals();
                 if (shouldCollectDebugDetails()) PlaybackTrace.log("mpv", playbackTraceId, "event=start-file source=%s", MpvDiagnosticsPolicy.sourceSummary(currentPlayableUri));
                 mainHandler.removeCallbacks(endFileValidationRunnable);
@@ -1913,10 +1966,31 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 safeSetPropertyBoolean("pause", !playWhenReady);
                 startStateRefresh();
             }
+            case MPVLib.MpvEvent.MPV_EVENT_SEEK -> {
+                // mpv stops playback here and only resumes at PLAYBACK_RESTART. Seeks that
+                // mpv starts on its own (chapter jumps, its own EDL/loop handling) never
+                // pass through handleSeek, so this is the second entrance to the same
+                // window; handleSeek covers the ones the app requests.
+                boolean reseekingInWindow = playbackState == Player.STATE_BUFFERING && seekBufferingActive;
+                if (fileLoaded && !stopping && playbackState != Player.STATE_IDLE
+                        && playbackState != Player.STATE_ENDED
+                        && (playbackState != Player.STATE_BUFFERING || reseekingInWindow)) {
+                    // A BUFFERING that a cache stall opened is left alone: it is not a seek,
+                    // and claiming it would drop a real rebuffer from the statistics. An open
+                    // seek window does restart its deadline, so a chain of chapter jumps
+                    // cannot inherit the remaining time of the first one.
+                    playbackState = Player.STATE_BUFFERING;
+                    beginSeekBuffering("event");
+                }
+            }
             case MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
                 playbackRestarted = true;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+                endSeekBuffering("playback-restart");
+>>>>>>> upstream/beta
                 if (currentLikelyHls) requestHlsPreload(cachedPositionMs);
 >>>>>>> upstream/dev
                 updateVideoSize("event=playback-restart");
@@ -1966,6 +2040,10 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
             SpiderDebug.log("mpv", "ignore replaced-media end-file generation=%d reason=%s(%d) error=%s(%d)", mediaReplacementCoordinator.generation(), endFileReasonName(reason), reason, mpvErrorName(error), error);
             return;
         }
+        // The file is over however this ends, so no seek inside it can still resolve.
+        // Clearing here rather than per-branch covers the natural-EOF path, which sets
+        // ENDED directly instead of going through markPlaybackEnded().
+        endSeekBuffering("end-file");
         lastEndFileReason = reason;
         lastEndFileError = error;
         lastEndFileErrorText = errorText;
@@ -2001,6 +2079,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
 
     private void markPlaybackEnded(String reason) {
         if (playbackState == Player.STATE_ENDED) return;
+        endSeekBuffering("ended");
         eofReached = true;
         loading = false;
         playbackState = Player.STATE_ENDED;
@@ -2782,6 +2861,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         stopMpv(true);
         clearSurfaceFrameRate();
         closeContentFds();
+        endSeekBuffering("stop");
         loading = false;
         fileLoaded = false;
         fileLoadedAtElapsedRealtimeMs = 0;
@@ -2907,6 +2987,57 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         } catch (Throwable e) {
             fail(e, PlaybackException.ERROR_CODE_UNSPECIFIED);
         }
+    }
+
+    /**
+     * Opens the buffering window that spans a seek.
+     *
+     * <p>The window closes on an mpv-side signal: the MPV_EVENT_PLAYBACK_RESTART event or the
+     * {@code paused-for-cache} observer reaching READY. If a seek is swallowed natively neither
+     * arrives, so the window also carries a deadline — one that closes the window but only
+     * overrides the state once it has confirmed mpv is not still waiting on its cache, since a
+     * genuine stall must keep reporting BUFFERING. The latch in {@link MpvSeekPositionState}
+     * cannot serve as that guard: it only clamps the reported position, never the state.
+     */
+    private void beginSeekBuffering(String source) {
+        seekBufferingActive = true;
+        loading = true;
+        mainHandler.removeCallbacks(seekBufferingTimeoutRunnable);
+        mainHandler.postDelayed(seekBufferingTimeoutRunnable, SEEK_BUFFERING_TIMEOUT_MS);
+        startStateRefresh();
+        if (shouldCollectDebugDetails()) PlaybackTrace.log("mpv", playbackTraceId, "seek-buffering action=enter source=%s targetMs=%d", source, cachedPositionMs);
+    }
+
+    private void endSeekBuffering(String reason) {
+        if (!seekBufferingActive) return;
+        seekBufferingActive = false;
+        mainHandler.removeCallbacks(seekBufferingTimeoutRunnable);
+        if (shouldCollectDebugDetails()) PlaybackTrace.log("mpv", playbackTraceId, "seek-buffering action=exit reason=%s positionMs=%d", reason, cachedPositionMs);
+    }
+
+    private void timeOutSeekBuffering() {
+        if (released || !seekBufferingActive) return;
+        endSeekBuffering("timeout");
+        if (stopping || playbackState != Player.STATE_BUFFERING || !fileLoaded) return;
+        // Neither exit signal arrived, so decide from mpv rather than from the clock. Ask for
+        // paused-for-cache directly: the observed copy cannot be trusted here, since the very
+        // situation this covers is a seek whose observer callbacks never came. This is a rare
+        // fallback path, so one synchronous read is affordable.
+        //
+        // Still waiting on the cache means the BUFFERING is honest. Publishing READY would hide
+        // the progress indicator over a frozen frame — the exact bug the seek window fixes, just
+        // 15 s later — and would also cancel the stall watchdog, since checkBufferingStall()
+        // disarms on READY. Leave the state alone and let that watchdog own the stall.
+        boolean pausedForCache = nativeBooleanProperty("paused-for-cache", true);
+        if (pausedForCache) {
+            PlaybackTrace.log("mpv", playbackTraceId, "seek-buffering action=hold reason=paused-for-cache positionMs=%d", cachedPositionMs);
+            return;
+        }
+        playbackState = Player.STATE_READY;
+        loading = false;
+        PlaybackTrace.log("mpv", playbackTraceId, "seek-buffering action=release reason=timeout positionMs=%d", cachedPositionMs);
+        invalidateState();
+        startStateRefresh();
     }
 
     private void loadCurrentUri() {
@@ -4368,6 +4499,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
 
     private void fail(Throwable e, int errorCode) {
         playerError = new PlaybackException(e.getMessage(), e, errorCode);
+        endSeekBuffering("fail");
         playbackState = Player.STATE_IDLE;
         loading = false;
         fileLoaded = false;

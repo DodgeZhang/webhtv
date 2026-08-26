@@ -2391,4 +2391,15 @@
     <string name="speech_ad_skip_seconds_invalid">請輸入 1 到 120 之間的整數。</string>
     <string name="speech_ad_model_not_ready">模型未就緒</string>
     <string name="ad_audio_speech_candidate_title">偵測到語音廣告</string>
-    <string name="ad_audio_speech_candidate_message">命中廣告關鍵詞，跳過約 %1$d 秒？</string></resources>
+    <string name="ad_audio_speech_candidate_message">命中廣告關鍵詞，跳過約 %1$d 秒？</string>
+    <string name="node_title">正在準備貓源</string>
+    <string name="node_prepare">準備中…</string>
+    <string name="node_hint">僅首次需要：Node 執行環境下載一次後即可重複使用。</string>
+    <string name="node_downloading">下載 Node 執行環境</string>
+    <string name="node_extracting">解壓中…</string>
+    <string name="node_bundle">檢查貓源 bundle…</string>
+    <string name="node_starting">啟動服務…</string>
+    <string name="node_ready">貓源已就緒</string>
+    <string name="node_background">背景繼續</string>
+    <string name="node_speed">%1$s/s</string>
+    <string name="node_size_pair">%1$s / %2$s</string></resources>

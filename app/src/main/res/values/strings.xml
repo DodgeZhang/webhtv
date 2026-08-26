@@ -2426,4 +2426,15 @@
     <string name="speech_ad_skip_seconds_invalid">Enter a whole number from 1 to 120.</string>
     <string name="speech_ad_model_not_ready">model not ready</string>
     <string name="ad_audio_speech_candidate_title">Speech advertisement detected</string>
-    <string name="ad_audio_speech_candidate_message">Speech keywords matched. Skip about %1$d seconds?</string></resources>
+    <string name="ad_audio_speech_candidate_message">Speech keywords matched. Skip about %1$d seconds?</string>
+    <string name="node_title">Preparing cat source</string>
+    <string name="node_prepare">Preparing…</string>
+    <string name="node_hint">First run only: the Node runtime is downloaded once and reused afterwards.</string>
+    <string name="node_downloading">Downloading Node runtime</string>
+    <string name="node_extracting">Extracting…</string>
+    <string name="node_bundle">Checking cat source bundle…</string>
+    <string name="node_starting">Starting service…</string>
+    <string name="node_ready">Cat source ready</string>
+    <string name="node_background">Run in background</string>
+    <string name="node_speed">%1$s/s</string>
+    <string name="node_size_pair">%1$s / %2$s</string></resources>

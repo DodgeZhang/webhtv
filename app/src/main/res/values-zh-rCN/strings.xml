@@ -2422,4 +2422,15 @@
     <string name="speech_ad_skip_seconds_invalid">请输入 1 到 120 之间的整数。</string>
     <string name="speech_ad_model_not_ready">模型未就绪</string>
     <string name="ad_audio_speech_candidate_title">检测到语音广告</string>
-    <string name="ad_audio_speech_candidate_message">命中广告关键词，跳过约 %1$d 秒？</string></resources>
+    <string name="ad_audio_speech_candidate_message">命中广告关键词，跳过约 %1$d 秒？</string>
+    <string name="node_title">正在准备猫源</string>
+    <string name="node_prepare">准备中…</string>
+    <string name="node_hint">仅首次需要：Node 运行时下载一次后即可复用。</string>
+    <string name="node_downloading">下载 Node 运行时</string>
+    <string name="node_extracting">解压中…</string>
+    <string name="node_bundle">检查猫源 bundle…</string>
+    <string name="node_starting">启动服务…</string>
+    <string name="node_ready">猫源已就绪</string>
+    <string name="node_background">后台继续</string>
+    <string name="node_speed">%1$s/s</string>
+    <string name="node_size_pair">%1$s / %2$s</string></resources>
