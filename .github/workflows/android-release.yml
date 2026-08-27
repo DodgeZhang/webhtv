@@ -100,6 +100,7 @@ jobs:
             --tests 'com.fongmi.android.tv.utils.GithubProxyTest' \
             --tests 'com.fongmi.android.tv.ui.dialog.AboutDialogLayoutTest' \
             --tests 'com.fongmi.android.tv.ui.dialog.UpdateDialogChannelVisibilityTest' \
+            --tests 'com.fongmi.android.tv.ui.adapter.VodAdapterLayoutTest' \
             --no-daemon
           ./gradlew \
             :app:testLeanbackArm64_v8aDebugUnitTest \
