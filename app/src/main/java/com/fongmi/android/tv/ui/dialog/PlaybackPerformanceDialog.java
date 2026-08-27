@@ -532,6 +532,7 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
                     PlayerSetting.getPlayer() == PlayerSetting.MPV
                             ? onOff(PlaybackPerformanceSetting.isDv7Hdr10FallbackEnabled())
                             : PlaybackPerformanceSetting.getDv7HandlingText();
+            case PlaybackPerformanceCatalog.DEFERRED_CUES -> onOff(PlaybackPerformanceSetting.isDeferredCuesEnabled());
             case PlaybackPerformanceCatalog.SOFT_VIDEO_TUNE -> onOff(PlaybackPerformanceSetting.isSoftVideoTuneEnabled());
             case PlaybackPerformanceCatalog.AUDIO_PASSTHROUGH -> onOff(PlayerSetting.isAudioPassThrough());
             case PlaybackPerformanceCatalog.PREFER_AAC -> onOff(PlayerSetting.isPreferAAC());
@@ -628,6 +629,7 @@ public final class PlaybackPerformanceDialog extends DialogFragment {
                                 : PlaybackPerformanceSetting.DV7_HANDLING_P81);
                 refresh();
             };
+            case PlaybackPerformanceCatalog.DEFERRED_CUES -> () -> toggle(PlaybackPerformanceSetting::isDeferredCuesEnabled, PlaybackPerformanceSetting::putDeferredCuesEnabled);
             case PlaybackPerformanceCatalog.SOFT_VIDEO_TUNE -> () -> toggle(PlaybackPerformanceSetting::isSoftVideoTuneEnabled, PlaybackPerformanceSetting::putSoftVideoTuneEnabled);
             case PlaybackPerformanceCatalog.AUDIO_PASSTHROUGH -> () -> togglePlayer(id, PlayerSetting::isAudioPassThrough, PlayerSetting::putAudioPassThrough);
             case PlaybackPerformanceCatalog.PREFER_AAC -> () -> togglePlayer(id, PlayerSetting::isPreferAAC, PlayerSetting::putPreferAAC);

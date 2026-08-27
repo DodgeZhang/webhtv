@@ -255,9 +255,14 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     protected void onPlayerRebuilt() {
     }
 
+    /**
+     * The rendered frame is revealed by clearing the shutter in the caller. The
+     * loading spinner deliberately stays up until STATE_READY: a first frame does
+     * not mean playback can proceed, and hiding the spinner here would present a
+     * still-buffering session as a frozen picture. Subclasses own the spinner and
+     * clear it from their own state handling.
+     */
     protected void onExoFirstFrame() {
-        View progress = getExoView().getRootView().findViewById(R.id.progress);
-        if (progress != null) progress.setVisibility(View.GONE);
     }
 
     protected void onTracksChanged() {

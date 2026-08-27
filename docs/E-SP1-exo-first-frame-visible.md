@@ -3,8 +3,17 @@
 - 任务 ID：`E-SP1`
 - 类别：Exo 性能专项
 - 唯一文档：`docs/E-SP1-exo-first-frame-visible.md`
-- 状态：已完成并提交。
+- 状态：已完成并提交；其超时副作用已由 [`E-SP3`](E-SP3-exo-buffering-stall-watchdog.md) 纠正。
 - 下一动作：无；后续真实首帧耗时优化归 `E-SP2`，不得继续扩展本任务。
+
+## 记载更正（E-SP3 补记）
+
+下文「实现」称“原有 trace、超时取消和 telemetry 保持不变”，「目标与边界」亦声明不修改 `STATE_READY`、`PlaybackStartupPolicy` 与 seek。实际随附提交 `f2721c43b6654ae7307647ebaaaa4248a50a9ab7`（Task-Guard `exo-dv7-timeout-after-first-frame`）在 `onRenderedFirstFrame()` 新增 `App.removeCallbacks(runnable)`，**撤销了启播超时**：
+
+- 影响面超出 DV7，覆盖所有 Exo 播放；
+- 首帧不等于 `STATE_READY`，撤超时后音频轨迟迟不来的会话会永久停在 BUFFERING，而 BUFFERING 停滞当时没有任何兜底，`fallbackPlayback()` 的自动降级链因此不触发。
+
+即本文声明的边界与实际实现不符。`E-SP3` 已将该处改为「换防」（交给 BUFFERING 停滞看门狗）而非撤防，并同时收回本任务中在首帧隐藏加载圈的行为——首帧只解除 shutter，加载圈交回 `STATE_READY` 收。本文其余结论（首帧可见性目标、`E-SP2` 分工）不变。
 
 ## 目标与边界
 
