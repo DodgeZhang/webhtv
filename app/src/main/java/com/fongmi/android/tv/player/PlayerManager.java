@@ -216,7 +216,11 @@ public class PlayerManager implements ParseCallback {
     private final Runnable playbackTelemetryRunnable;
     private final ExoBufferingStallWatchdog bufferingStallWatchdog =
             new ExoBufferingStallWatchdog();
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
     private final Callback callback;
     private final PlaybackMediaSignalHub mediaSignals = new PlaybackMediaSignalHub(8);
     private final PlaybackMediaClock mediaClock = new PlaybackMediaClock(500L);
@@ -447,7 +451,11 @@ public class PlayerManager implements ParseCallback {
         ijkBufferMemoryRegistration.close();
         mpvResourceSystemRegistration.close();
         playbackExperimentRegistration.close();
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
         stopNativeAudioSession();
         clearDanmaku("release");
         releaseLiveDanmakuSession();
@@ -1723,7 +1731,11 @@ public class PlayerManager implements ParseCallback {
                 && player.getPlayWhenReady();
         if (activePlayback) scheduleNetworkProtection(0);
         else resetNetworkProtectionSession("reset");
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
         retry = 0;
         localProxyRetry = 0;
         resetPlayerFallback();
@@ -7973,7 +7985,11 @@ public void resetTrack(int type) {
                     "action=managed-reload-buffering result=excluded-from-rebuffer");
             return;
         }
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
         boolean startupComplete = playbackTrace.hasStage(PlaybackTrace.Stage.FIRST_FRAME) || playbackTrace.hasStage(PlaybackTrace.Stage.AUDIO_PLAYABLE);
         PlaybackBufferingTracker.Event event = playbackBufferingTracker.update(
                 state == Player.STATE_BUFFERING,
@@ -8398,7 +8414,11 @@ public void resetTrack(int type) {
         callback.onError(ResUtil.getString(R.string.error_play_timeout));
     }
 
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
     private void onPlaybackTimeout() {
         cancelBufferingStallWatchdog();
         completeIjkBufferManagedReload(

@@ -472,7 +472,11 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
 >>>>>>> upstream/dev
 =======
         endSeekBuffering("set-media-items");
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
         cachedPositionMs = Math.max(0, startPositionMs == C.TIME_UNSET ? 0 : startPositionMs);
         cachedDurationMs = C.TIME_UNSET;
         resetVideoMetadataCache();
@@ -637,7 +641,11 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 beginSeekBuffering("request");
             }
             playbackState = nextState;
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
         }
         invalidateState();
         return Futures.immediateVoidFuture();
@@ -1990,7 +1998,11 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
 =======
 =======
                 endSeekBuffering("playback-restart");
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
                 if (currentLikelyHls) requestHlsPreload(cachedPositionMs);
 >>>>>>> upstream/dev
                 updateVideoSize("event=playback-restart");

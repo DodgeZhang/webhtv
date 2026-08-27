@@ -108,7 +108,11 @@ public class ExoUtil {
 =======
     // FFmpeg AVDiscard values.
     private static final int FFMPEG_SKIP_FRAME_DEFAULT = 0;
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
     private static final int FFMPEG_SKIP_LOOP_FILTER_ALL = 48;
     private static final int FFMPEG_LOWRES_HALF = 1;
     private static final int FFMPEG_MIN_DECODE_BUFFERS = 4;
@@ -972,7 +976,11 @@ public class ExoUtil {
 =======
 =======
         private final boolean ffmpegVideoTune;
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
         @Nullable private final ExoDecoderRuntimeSession decoderRuntimeSession;
         private final ExoDecoderRuntimeSession.OutputConfig decoderOutput;
         private final ExoFrameSchedulingExperimentPolicy.Decision
@@ -1006,7 +1014,11 @@ public class ExoUtil {
 =======
 =======
             this.ffmpegVideoTune = ffmpegVideoTune;
+<<<<<<< HEAD
 >>>>>>> upstream/dev3
+=======
+>>>>>>> upstream/beta
+>>>>>>> 89600dc7c686b7d6e830df0ffba8029efa41532e
             this.decoderRuntimeSession = decoderRuntimeSession;
             this.decoderOutput = decoderOutput;
             this.frameSchedulingDecision = frameSchedulingDecision;
