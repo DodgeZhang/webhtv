@@ -476,7 +476,7 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
         }
         String pic = item.getPic().isEmpty() ? getPic() : item.getPic();
         if (isHistoryResume()) HistoryResumeCoordinator.openSelected(requireActivity(), getHistoryResumeCid(), getHistoryResumeKey(), getHistoryResumeTargetCid(), item);
-        else VideoActivity.collect(requireActivity(), item.getSiteKey(), item.getId(), item.getName(), pic, getWallPic());
+        else VideoActivity.collect(requireActivity(), item.getSiteKey(), item.getId(), item.getName(), pic, getWallPic(), getKeyword());
     }
 
     @Override
@@ -735,13 +735,12 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
         Collect all = Collect.all();
         all.setSelected("all".equals(activeSiteKey));
         items.add(all);
-        boolean fixedOrder = Setting.getSearchResultSort() == 1;
         for (int i = 1; i < mAllCollectItems.size(); i++) {
             Collect raw = mAllCollectItems.get(i);
             if (!matchFilter(raw.getSite())) continue;
             String siteKey = raw.getSite().getKey();
             List<Vod> visible = getVisibleItems(siteKey);
-            if (!SearchSourceVisibility.shouldShow(mSimilarity, fixedOrder, !visible.isEmpty())) continue;
+            if (!SearchSourceVisibility.shouldShow(!visible.isEmpty())) continue;
             Collect item = new Collect(raw.getSite(), visible);
             item.setPage(mPaging.getPage(raw.getSite().getKey()));
             item.setSelected(raw.getSite().getKey().equals(activeSiteKey));

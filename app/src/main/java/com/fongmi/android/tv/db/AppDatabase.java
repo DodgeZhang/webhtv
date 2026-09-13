@@ -44,8 +44,12 @@ public abstract class AppDatabase extends RoomDatabase {
 @Database(entities = {Keep.class, Site.class, Live.class, Track.class, Config.class, Device.class, History.class, PlaybackDeleteTombstone.class, TmdbSeasonProgress.class}, version = AppDatabase.VERSION)
 public abstract class AppDatabase extends RoomDatabase {
 
+<<<<<<< HEAD
     public static final int VERSION = 43;
 >>>>>>> upstream/dev
+=======
+    public static final int VERSION = 45;
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     public static final String NAME = "tv";
     public static final String SYMBOL = "@@@";
     private static final int BACKUP_KEEP_COUNT = 7;
@@ -184,7 +188,12 @@ public abstract class AppDatabase extends RoomDatabase {
                 .addMigrations(Migrations.MIGRATION_40_41)
                 .addMigrations(Migrations.MIGRATION_41_42)
                 .addMigrations(Migrations.MIGRATION_42_43)
+<<<<<<< HEAD
 >>>>>>> upstream/dev
+=======
+                .addMigrations(Migrations.MIGRATION_43_44)
+                .addMigrations(Migrations.MIGRATION_44_45)
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
                 .fallbackToDestructiveMigration(true)
                 .allowMainThreadQueries().build();
     }

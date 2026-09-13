@@ -11,6 +11,7 @@ import androidx.media3.common.Player;
 import androidx.media3.common.Tracks;
 
 import com.fongmi.android.tv.bean.Track;
+import com.fongmi.android.tv.player.AudioPlaybackDiagnostics;
 import com.fongmi.android.tv.player.PlaybackRoute;
 import com.fongmi.android.tv.player.PlaybackTrace;
 import com.fongmi.android.tv.player.lut.MpvLutShader;
@@ -49,6 +50,34 @@ public interface PlayerEngine {
 
     default void restart(PlaySpec spec, long position, boolean playWhenReady) {
         start(spec, position, playWhenReady);
+    }
+
+    /**
+     * Whether this engine can append one already-resolved VOD item without replacing playback.
+     * Native and system engines remain unsupported unless they implement the full contract.
+     */
+    default boolean supportsPlaylistQueue() {
+        return false;
+    }
+
+    /** Appends one prepared source to the current playlist without starting or preparing it. */
+    default boolean appendPlaylistItem(PlaySpec spec, String mediaId) {
+        return false;
+    }
+
+    /** Removes only media items after the currently playing item. */
+    default boolean removePlaylistItemsAfterCurrent() {
+        return false;
+    }
+
+    /** Configures bounded playlist preloading; unsupported engines keep the old path. */
+    default boolean setPlaylistPreloadDurationMs(long durationMs) {
+        return false;
+    }
+
+    /** Commits business/diagnostic context after a natural transition to a queued item. */
+    default boolean commitPlaylistTransition(PlaySpec spec) {
+        return false;
     }
 
     default void stop() {
@@ -131,6 +160,11 @@ default void resetTrack(int type) {
     /** Source-track identity and runtime decode/output facts for the selected video track. */
     default VideoPlaybackDetails getVideoPlaybackDetails() {
         return VideoPlaybackDetails.empty();
+    }
+
+    /** Actual runtime audio decode and AudioTrack/AO output facts. */
+    default AudioPlaybackDiagnostics.Snapshot getAudioPlaybackDiagnostics() {
+        return AudioPlaybackDiagnostics.Snapshot.empty();
     }
 
     default long getDroppedFrames() {

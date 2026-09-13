@@ -190,9 +190,16 @@ verify_abi() {
   contains_string "$directory/libmpv.so" "v$LIBPLACEBO_VERSION"
   contains_string "$directory/libmpv.so" "WebHTV stream_cb controls enabled"
 <<<<<<< HEAD
+<<<<<<< HEAD
   contains_string "$directory/libmpv.so" "Using Vulkan AHardwareBuffer GPU conversion"
   contains_string "$directory/libmpv.so" "AImageReader has no buffer yet"
 =======
+=======
+  contains_string "$directory/libmpv.so" "disc-menu-active"
+  contains_string "$directory/libmpv.so" "discnav"
+  contains_string "$directory/libmpv.so" "WebHTV event-only disc navigation polling enabled"
+  contains_string "$directory/libmpv.so" "WebHTV MediaCodec reset discards pending output"
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
   contains_string "$directory/libmpv.so" "Vulkan AImageReader backend:"
   contains_string "$directory/libmpv.so" "Using Vulkan YCbCr AHardwareBuffer sampling"
   contains_string "$directory/libmpv.so" "Vulkan AImageReader sync-fd:"
@@ -201,13 +208,17 @@ verify_abi() {
   contains_string "$directory/libmpv.so" "video output has no queue-safe EL decoder"
   contains_string "$directory/libmpv.so" "DV7 HDR10 fallback: using MediaCodec base-layer decoder"
   contains_string "$directory/libmpv.so" "DV7 HDR10 fallback: stripping EL/RPU before decoder."
+  contains_string "$directory/libmpv.so" "DV7 HDR10 fallback: synchronized decoder parameters to the HDR10 base layer."
   contains_string "$directory/libmpv.so" "DV7 HDR10 fallback: failed to produce base-layer packet."
+  contains_string "$directory/libmpv.so" "DV7 P8.1 conversion: removed stale enhancement-layer configuration."
   reject_string "$directory/libmpv.so" "DV7 HDR10 fallback: preserving decoder input and stripping Dolby Vision frame metadata."
   reject_string "$directory/libmpv.so" "Using device native output sample rate for passthrough compatibility"
   contains_string "$directory/libmpv.so" "Using 7.1 IEC61937 carrier mask for TrueHD"
+  contains_string "$directory/libmpv.so" "Using 7.1 IEC61937 carrier mask for Android 12+ 8-channel stream"
   contains_string "$directory/libmpv.so" "WebHTV Vulkan auto backend prefers direct AHardwareBuffer sampling"
   contains_string "$directory/libmpv.so" "WebHTV Vulkan auto uses a queue-safe four-output bounded-fence pool"
   contains_string "$directory/libmpv.so" "CPU-precomputed UV transform"
+  contains_string "$directory/libmpv.so" "Generic Vulkan conversion uses CPU-precomputed UV transform"
   contains_string "$directory/libmpv.so" "Stable Vulkan conversion preserves Dolby Vision raw YUV component mapping"
   contains_string "$directory/libmpv.so" "WebHTV Vulkan keeps AImage until the conversion fence completes"
   contains_string "$directory/libmpv.so" "WebHTV AImageReader uses stable release/acquire flow"
@@ -218,6 +229,8 @@ verify_abi() {
   contains_string "$directory/libmvformat.so" "MMT protocol over TLV packets"
   contains_string "$directory/libmvformat.so" "WebHTV proxy range offset accepted"
   contains_string "$directory/libmvcodec.so" "failing hardware decode so the player can fall back"
+  contains_string "$directory/libmvcodec.so" "WebHTV MediaCodec output release/flush serialization enabled"
+  contains_string "$directory/libmvcodec.so" "WebHTV hardware audio MediaCodec decoder:"
   contains_string "$directory/libmpv.so" "No usable fontconfig configuration file found, using fallback."
 >>>>>>> upstream/dev
   if [ -n "$CURL_VERSION" ]; then

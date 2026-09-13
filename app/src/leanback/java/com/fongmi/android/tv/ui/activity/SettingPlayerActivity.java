@@ -52,7 +52,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
     private String[] render;
     private String[] scale;
     private String[] osd;
-    private String[] introSkipMode;
 
     public static void start(Activity activity) {
         activity.startActivity(new Intent(activity, SettingPlayerActivity.class));
@@ -78,7 +77,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.tunnelText.setText(getSwitch(PlayerSetting.isTunnel()));
         setPerformanceText();
         setPlayerButtonsText();
-        mBinding.adblockText.setText(getSwitch(Setting.isAdblock()));
         mBinding.speedText.setText(format.format(PlayerSetting.getSpeed()));
         mBinding.bufferText.setText(String.valueOf(PlayerSetting.getBuffer()));
         mBinding.bufferBytesText.setText((bufferBytes = ResUtil.getStringArray(R.array.select_buffer_bytes))[PlayerSetting.getBufferBytesOption()]);
@@ -88,21 +86,18 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.autoPlayText.setText(getSwitch(PlayerSetting.isAutoPlay()));
         mBinding.autoChangeText.setText(getSwitch(PlayerSetting.isAutoChange()));
         mBinding.failureFallbackText.setText((failureFallback = ResUtil.getStringArray(R.array.select_player_failure_fallback))[PlayerSetting.getFailureFallback()]);
-        mBinding.autoSkipIntroOutroText.setText((introSkipMode = getResources().getStringArray(R.array.select_auto_skip_intro_outro))[Setting.getIntroSkipMode()]);
         mBinding.backgroundText.setText(getSwitch(PlayerSetting.isBackgroundOn()));
         mBinding.musicNotificationText.setText(getSwitch(PlayerSetting.isMusicNotification()));
         mBinding.audioBookNotificationText.setText(getSwitch(PlayerSetting.isAudioBookNotification()));
         mBinding.audioDecodeText.setText(getSwitch(PlayerSetting.isAudioPrefer()));
         mBinding.audioPassThroughText.setText(getSwitch(PlayerSetting.isAudioPassThrough()));
         mBinding.videoDecodeText.setText(getSwitch(PlayerSetting.isVideoPrefer()));
-        mBinding.ffmpegModeText.setText(getFFmpegModeText());
         mBinding.osdText.setText(getOsdText(osd = ResUtil.getStringArray(R.array.select_player_osd)));
         mBinding.kernelText.setText((kernel = ResUtil.getStringArray(R.array.select_player_kernel))[PlayerSetting.getPlayer()]);
         mpvRender = ResUtil.getStringArray(R.array.select_mpv_render);
         mBinding.scaleText.setText((scale = ResUtil.getStringArray(R.array.select_scale))[PlayerSetting.getScale()]);
         mBinding.lutText.setText(LutSetting.getSummary());
         setMpvRows();
-        setFfmpegModeVisibility();
         mBinding.renderText.setText((render = ResUtil.getStringArray(R.array.select_render))[PlayerSetting.getRender()]);
         mBinding.captionText.setText((caption = ResUtil.getStringArray(R.array.select_caption))[PlayerSetting.isCaption() ? 1 : 0]);
         hidePerformanceRows();
@@ -117,6 +112,10 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.lut.setOnClickListener(this::onLut);
         mBinding.mpvConfig.setOnClickListener(view -> MpvConfigDialog.show(this, () -> mBinding.mpvConfigText.setText(MpvConfigStore.summary())));
         mBinding.mpvRender.setOnClickListener(this::setMpvRender);
+        mBinding.blurayMenu.setOnClickListener(view -> {
+            PlayerSetting.putBlurayMenu(!PlayerSetting.isBlurayMenu());
+            mBinding.blurayMenuText.setText(getSwitch(PlayerSetting.isBlurayMenu()));
+        });
         mBinding.osd.setOnClickListener(this::onOsd);
         mBinding.playerButtons.setOnClickListener(view -> PlayerButtonConfigDialog.show(this, this::setPlayerButtonsText));
         mBinding.speed.setOnClickListener(this::onSpeed);
@@ -131,12 +130,10 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.autoPlay.setOnClickListener(this::setAutoPlay);
         mBinding.autoChange.setOnClickListener(this::setAutoChange);
         mBinding.failureFallback.setOnClickListener(this::setFailureFallback);
-        mBinding.autoSkipIntroOutro.setOnClickListener(this::setAutoSkipIntroOutro);
         mBinding.render.setOnClickListener(this::setRender);
         mBinding.tunnel.setOnClickListener(this::setTunnel);
         mBinding.exo4kCompat.setOnClickListener(this::onPerformance);
         mBinding.caption.setOnClickListener(this::setCaption);
-        mBinding.adblock.setOnClickListener(this::setAdblock);
         mBinding.caption.setOnLongClickListener(this::onCaption);
         mBinding.background.setOnClickListener(this::onBackground);
         mBinding.musicNotification.setOnClickListener(this::setMusicNotification);
@@ -144,7 +141,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.audioDecode.setOnClickListener(this::setAudioDecode);
         mBinding.audioPassThrough.setOnClickListener(this::setAudioPassThrough);
         mBinding.videoDecode.setOnClickListener(this::setVideoDecode);
-        mBinding.ffmpegMode.setOnClickListener(this::setFfmpegMode);
     }
 
     private void setVisible() {
@@ -181,7 +177,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
             mBinding.kernelText.setText(kernel[index]);
             PlayerSetting.putPlayer(index);
             setMpvRows();
-            setFfmpegModeVisibility();
             setPerformanceText();
         });
 >>>>>>> upstream/dev
@@ -202,8 +197,10 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         boolean visible = PlayerSetting.getPlayer() == PlayerSetting.MPV;
         mBinding.mpvConfig.setVisibility(visible ? View.VISIBLE : View.GONE);
         mBinding.mpvRender.setVisibility(visible ? View.VISIBLE : View.GONE);
+        mBinding.blurayMenu.setVisibility(visible ? View.VISIBLE : View.GONE);
         mBinding.mpvConfigText.setText(MpvConfigStore.summary());
         mBinding.mpvRenderText.setText(getMpvRenderText());
+<<<<<<< HEAD
     }
 
 <<<<<<< HEAD
@@ -211,6 +208,9 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
     private void setFfmpegModeVisibility() {
         boolean visible = PlayerSetting.getPlayer() == PlayerSetting.EXO;
         mBinding.ffmpegMode.setVisibility(visible ? View.VISIBLE : View.GONE);
+=======
+        mBinding.blurayMenuText.setText(getSwitch(PlayerSetting.isBlurayMenu()));
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     }
 
 >>>>>>> upstream/dev
@@ -365,11 +365,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         });
     }
 
-    private void setAutoSkipIntroOutro(View view) {
-        Setting.putIntroSkipMode((Setting.getIntroSkipMode() + 1) % introSkipMode.length);
-        mBinding.autoSkipIntroOutroText.setText(introSkipMode[Setting.getIntroSkipMode()]);
-    }
-
     private void setRender(View view) {
         if (PlayerSetting.isTunnel() && PlayerSetting.getRender() == 0) setTunnel(view);
         int index = (PlayerSetting.getRender() + 1) % render.length;
@@ -433,11 +428,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.captionText.setText(caption[PlayerSetting.isCaption() ? 1 : 0]);
     }
 
-    private void setAdblock(View view) {
-        Setting.putAdblock(!Setting.isAdblock());
-        mBinding.adblockText.setText(getSwitch(Setting.isAdblock()));
-    }
-
     private boolean onCaption(View view) {
         if (PlayerSetting.isCaption()) startActivity(new Intent(Settings.ACTION_CAPTIONING_SETTINGS));
         return PlayerSetting.isCaption();
@@ -472,21 +462,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         PlaybackPerformanceSetting.markCustom();
         mBinding.videoDecodeText.setText(getSwitch(PlayerSetting.isVideoPrefer()));
         setPerformanceText();
-    }
-
-    private void setFfmpegMode(View view) {
-        int mode = (PlayerSetting.getFFmpegMode() + 1) % 4;
-        PlayerSetting.putFFmpegMode(mode);
-        mBinding.ffmpegModeText.setText(getFFmpegModeText());
-    }
-
-    private String getFFmpegModeText() {
-        return switch (PlayerSetting.getFFmpegMode()) {
-            case PlayerSetting.FFMPEG_MODE_OFFICIAL -> "Official";
-            case PlayerSetting.FFMPEG_MODE_SIMPLE -> "Simple";
-            case PlayerSetting.FFMPEG_MODE_AUTO -> "自动";
-            default -> "NextLib";
-        };
     }
 
     private void onBackground(View view) {

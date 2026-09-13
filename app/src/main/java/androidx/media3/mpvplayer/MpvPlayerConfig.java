@@ -25,6 +25,7 @@ public final class MpvPlayerConfig {
     private final String gpuApi;
     private final String ao;
     private final String audioSpdif;
+    private final boolean multichannelPcm;
     private final String logLevel;
     private final boolean openglEs;
     private final boolean tlsVerify;
@@ -35,6 +36,12 @@ public final class MpvPlayerConfig {
     private final int demuxerReadaheadSeconds;
     private final int rebufferMs;
     private final boolean performanceOptionsPriority;
+<<<<<<< HEAD
+=======
+    private final boolean automaticCacheTime;
+    private final boolean automaticHlsVariant;
+    private final boolean deferStartupTrackRefresh;
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     private final Map<String, String> extraOptions;
 
     private MpvPlayerConfig(Builder builder) {
@@ -49,6 +56,7 @@ public final class MpvPlayerConfig {
         gpuApi = builder.gpuApi;
         ao = builder.ao;
         audioSpdif = builder.audioSpdif;
+        multichannelPcm = builder.multichannelPcm;
         logLevel = builder.logLevel;
         openglEs = builder.openglEs;
         tlsVerify = builder.tlsVerify;
@@ -59,6 +67,12 @@ public final class MpvPlayerConfig {
         demuxerReadaheadSeconds = builder.demuxerReadaheadSeconds;
         rebufferMs = builder.rebufferMs;
         performanceOptionsPriority = builder.performanceOptionsPriority;
+<<<<<<< HEAD
+=======
+        automaticCacheTime = builder.automaticCacheTime;
+        automaticHlsVariant = builder.automaticHlsVariant;
+        deferStartupTrackRefresh = builder.deferStartupTrackRefresh;
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
         extraOptions = Collections.unmodifiableMap(new LinkedHashMap<>(builder.extraOptions));
     }
 
@@ -112,6 +126,10 @@ public final class MpvPlayerConfig {
         return audioSpdif;
     }
 
+    public boolean multichannelPcm() {
+        return multichannelPcm;
+    }
+
     public String logLevel() {
         return logLevel;
     }
@@ -152,6 +170,21 @@ public final class MpvPlayerConfig {
         return performanceOptionsPriority;
     }
 
+<<<<<<< HEAD
+=======
+    public boolean automaticCacheTime() {
+        return automaticCacheTime;
+    }
+
+    public boolean automaticHlsVariant() {
+        return automaticHlsVariant;
+    }
+
+    public boolean deferStartupTrackRefresh() {
+        return deferStartupTrackRefresh;
+    }
+
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     public Map<String, String> extraOptions() {
         return extraOptions;
     }
@@ -170,6 +203,7 @@ public final class MpvPlayerConfig {
         private String gpuApi = "";
         private String ao = "audiotrack,opensles";
         private String audioSpdif = "";
+        private boolean multichannelPcm;
         private String logLevel = "all=v";
         private boolean openglEs = true;
         private boolean tlsVerify = true;
@@ -180,6 +214,12 @@ public final class MpvPlayerConfig {
         private int demuxerReadaheadSeconds = DEFAULT_CACHE_SECONDS;
         private int rebufferMs = 5_000;
         private boolean performanceOptionsPriority = true;
+<<<<<<< HEAD
+=======
+        private boolean automaticCacheTime;
+        private boolean automaticHlsVariant;
+        private boolean deferStartupTrackRefresh;
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 
         private Builder(Context context) {
             Context app = context.getApplicationContext();
@@ -248,6 +288,11 @@ public final class MpvPlayerConfig {
             return this;
         }
 
+        public Builder multichannelPcm(boolean multichannelPcm) {
+            this.multichannelPcm = multichannelPcm;
+            return this;
+        }
+
         public Builder logLevel(String logLevel) {
             this.logLevel = logLevel;
             return this;
@@ -293,6 +338,24 @@ public final class MpvPlayerConfig {
             return this;
         }
 
+<<<<<<< HEAD
+=======
+        public Builder automaticCacheTime(boolean automaticCacheTime) {
+            this.automaticCacheTime = automaticCacheTime;
+            return this;
+        }
+
+        public Builder automaticHlsVariant(boolean automaticHlsVariant) {
+            this.automaticHlsVariant = automaticHlsVariant;
+            return this;
+        }
+
+        public Builder deferStartupTrackRefresh(boolean deferStartupTrackRefresh) {
+            this.deferStartupTrackRefresh = deferStartupTrackRefresh;
+            return this;
+        }
+
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
         public Builder option(String name, String value) {
             extraOptions.put(name, value);
             return this;

@@ -48,14 +48,54 @@ public class BackupPreferenceFilterTest {
     }
 
     @Test
+    public void touchOptimizationFollowsSettingsOption() {
+        SyncOptions settingsOnly = new SyncOptions().config(false).spider(false).webHome(false).settings(true);
+        SyncOptions spiderOnly = new SyncOptions().config(false).spider(true).webHome(false).settings(false);
+
+        assertTrue(Backup.include("touch_optimized", settingsOnly));
+        assertFalse(Backup.include("touch_optimized", spiderOnly));
+    }
+
+    @Test
+    public void speechAdRulePreferencesFollowSettingsOption() {
+        SyncOptions settingsOnly = new SyncOptions().config(false).spider(false)
+                .webHome(false).settings(true);
+        SyncOptions configOnly = new SyncOptions().config(true).spider(false)
+                .webHome(false).settings(false);
+        SyncOptions spiderOnly = new SyncOptions().config(false).spider(true)
+                .webHome(false).settings(false);
+        SyncOptions everything = new SyncOptions().config(true).spider(true)
+                .webHome(true).settings(true);
+
+        for (String key : new String[]{
+                "speech_ad_rules_v1", "speech_ad_rules_source", "speech_ad_builtin_enabled"}) {
+            assertTrue(key, Backup.include(key, settingsOnly));
+            assertTrue(key, Backup.include(key, everything));
+            assertFalse(key, Backup.include(key, configOnly));
+            assertFalse(key, Backup.include(key, spiderOnly));
+        }
+    }
+
+    @Test
+    public void playbackOverlayFollowsSettingsOption() {
+        SyncOptions settingsOnly = new SyncOptions().config(false).spider(false).webHome(false).settings(true);
+        SyncOptions spiderOnly = new SyncOptions().config(false).spider(true).webHome(false).settings(false);
+
+        assertTrue(Backup.include("playback_overlay_enabled", settingsOnly));
+        assertFalse(Backup.include("playback_overlay_enabled", spiderOnly));
+    }
+
+    @Test
     public void githubProxyPreferencesFollowSettingsOption() {
         SyncOptions settingsOnly = new SyncOptions().config(false).spider(false).webHome(false).settings(true);
         SyncOptions webHomeOnly = new SyncOptions().config(false).spider(false).webHome(true).settings(false);
 
         assertTrue(Backup.include("github_proxy", settingsOnly));
         assertTrue(Backup.include("github_proxy_enabled", settingsOnly));
+        assertTrue(Backup.include("github_proxy_mode", settingsOnly));
         assertFalse(Backup.include("github_proxy", webHomeOnly));
         assertFalse(Backup.include("github_proxy_enabled", webHomeOnly));
+        assertFalse(Backup.include("github_proxy_mode", webHomeOnly));
     }
 
     @Test
@@ -71,4 +111,89 @@ public class BackupPreferenceFilterTest {
         assertEquals(3, backup.getWebHomeExtensionPreferenceCount());
         assertEquals(2, backup.getWebHomeExtensionSourceCount());
     }
+<<<<<<< HEAD
+=======
+
+    @Test
+    public void playbackExperimentStateRemainsDeviceLocal() {
+        SyncOptions everything = new SyncOptions()
+                .config(true)
+                .spider(true)
+                .webHome(true)
+                .settings(true);
+
+        assertFalse(Backup.include("playback_experiment_schema", everything));
+        assertFalse(Backup.include("playback_experiment_enabled", everything));
+        assertFalse(Backup.include("playback_experiment_exo", everything));
+        assertFalse(Backup.include("playback_experiment_mpv", everything));
+        assertFalse(Backup.include("playback_experiment_ijk", everything));
+        assertFalse(Backup.include(
+                "playback_experiment_exo_frame_schema", everything));
+        assertFalse(Backup.include(
+                "playback_experiment_exo_frame_device", everything));
+        assertFalse(Backup.include(
+                "playback_experiment_exo_frame_unit", everything));
+        assertFalse(Backup.include(
+                "playback_experiment_profile_ab_schema", everything));
+        assertFalse(Backup.include(
+                "playback_experiment_profile_ab_device", everything));
+        assertFalse(Backup.include(
+                "playback_experiment_profile_ab_enabled", everything));
+        assertFalse(Backup.include(
+                "playback_experiment_profile_ab_samples_v1", everything));
+        assertFalse(Backup.include(
+                "playback_performance_profile_merge_schema", everything));
+        assertFalse(Backup.include(
+                "playback_performance_profile_merge_rolled_back",
+                everything));
+        assertFalse(Backup.include(
+                "playback_performance_profile_merge_migrated_mask",
+                everything));
+        assertFalse(Backup.include(
+                "playback_performance_profile_auto_light_v1",
+                everything));
+        assertFalse(Backup.include(
+                "playback_experiment_lightweight_assessment_schema",
+                everything));
+        assertFalse(Backup.include(
+                "playback_experiment_lightweight_assessment_device",
+                everything));
+        assertFalse(Backup.include(
+                "playback_experiment_lightweight_assessment_enabled",
+                everything));
+        assertFalse(Backup.include(
+                "playback_experiment_lightweight_assessment_samples_v1",
+                everything));
+    }
+
+    @Test
+    public void dynamicNetworkProtectionFollowsSettingsBackupButRetiredConsentDoesNot() {
+        SyncOptions everything = new SyncOptions()
+                .config(true)
+                .spider(true)
+                .webHome(true)
+                .settings(true);
+
+        assertTrue(Backup.include(
+                "perf_exo_network_protection_mode", everything));
+        assertFalse(Backup.include(
+                "perf_exo_single_rate_rescue_enabled_v1", everything));
+    }
+
+    @Test
+    public void updateDownloadSettingsFollowAppSettingsSync() {
+        SyncOptions settings = new SyncOptions().config(false).spider(false).settings(true);
+
+        assertTrue(Backup.include("update_source", settings));
+        // 旧键仍要备份：恢复到新版后 Setting.migrateLegacyGithubProxy() 靠它们把
+        // 用户当年的代理选择迁成 github_proxy 多源列表，剔掉就等于丢弃而非迁移。
+        assertTrue(Backup.include("update_github_proxy", settings));
+        assertTrue(Backup.include("update_github_proxy_url", settings));
+        assertTrue(Backup.include("update_github_proxy_mode", settings));
+        assertTrue(Backup.include("update_oci_mirror", settings));
+        assertTrue(Backup.include("update_oci_mirror_url", settings));
+        assertFalse(Backup.include("update_channel", settings));
+        assertFalse(Backup.include("update_fallback", settings));
+    }
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 }

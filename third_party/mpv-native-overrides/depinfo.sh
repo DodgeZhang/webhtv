@@ -70,9 +70,13 @@ dep_mpv=(ffmpeg libass lua libplacebo curl libbluray libiconv uchardet libarchiv
 dep_mpv_android=(mpv)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 v_ci_ffmpeg=8ae0b34901ba60a802f183ee75a250a9fc3e09a5
 ci_tarball="prefix-ndk-${v_ndk}-lua-${v_lua}-unibreak-${v_unibreak}-harfbuzz-${v_harfbuzz}-fribidi-${v_fribidi}-freetype-${v_freetype}-mbedtls-${v_mbedtls}-nghttp2-${v_nghttp2}-curl-${v_curl}-ffmpeg-${v_ci_ffmpeg}.tgz"
 =======
 v_ci_ffmpeg=04482c8d13ac27b2a9fe93f5d388929eef8af5f4
+=======
+v_ci_ffmpeg=177f090e0503b7e013922ca903bde14b1c375f18
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 ci_tarball="prefix-ndk-${v_ndk}-webhtv-fongmi-ffmpeg9.tgz"
 >>>>>>> upstream/dev

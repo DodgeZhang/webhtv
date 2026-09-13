@@ -76,8 +76,14 @@ WebHome 主页、扩展、模板、示例和 AI skills 统一放在 [webhome-dev
 
 ### 环境要求
 
+<<<<<<< HEAD
 - Android Studio 仅是可选 IDE，不是项目依赖。命令行构建不读取 Android Studio 的安装目录或内置 JBR，只需要 `JAVA_HOME`/`PATH` 中可用的 JDK 和独立配置的 Android SDK。
 - JDK 21。不要使用 JDK 17；当前 `sourceCompatibility` / `targetCompatibility` 均为 Java 21。
+=======
+- 项目使用纯命令行工具链，不依赖任何 IDE。必须在 `JAVA_HOME`/`PATH` 中配置独立 JDK 21，并单独配置 Android SDK Command-line Tools。
+- 需要 JDK 21；当前 `sourceCompatibility` / `targetCompatibility` 均为 Java 21。
+- Python 3.10。Chaquo 运行时和构建时 Python 均固定为 3.10，仅安装 Python 3.11/3.12/3.13 会失败。
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 - Android SDK Platform 37 和 Build Tools 37.0.0。当前 `compileSdk=37`、`minSdk=24`、`targetSdk=28`。
 <<<<<<< HEAD
 - Android NDK 28.2.13676358。普通 Gradle 打包会直接使用仓库内置的 MPV native assets 和 `libplayer.so`。`scripts/build_mpv_player_jni.sh` 只重建 JNI 桥接库 `libplayer.so`，不会重编 `libmpv.so`、FFmpeg 或 libplacebo。
@@ -104,7 +110,7 @@ export all_proxy=socks5://127.0.0.1:7897
 
 ### 从零 clone 到打包
 
-先安装或确认 Android SDK Command-line Tools，并通过 `ANDROID_HOME`、`ANDROID_SDK_ROOT` 或根目录 `local.properties` 告诉构建系统 SDK 的位置。`local.properties` 是普通文本配置，直接在仓库根目录创建即可，不需要 Android Studio。macOS 常见 SDK 路径示例：
+先安装或确认 Android SDK Command-line Tools，并通过 `ANDROID_HOME`、`ANDROID_SDK_ROOT` 或根目录 `local.properties` 告诉构建系统 SDK 的位置。`local.properties` 是普通文本配置，直接在仓库根目录创建即可。macOS 常见 SDK 路径示例：
 
 ```bash
 export ANDROID_HOME="$HOME/Library/Android/sdk"
@@ -113,10 +119,14 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 Linux 常见路径是 `$HOME/Android/Sdk`；Windows 可手动创建 `local.properties`，内容类似 `sdk.dir=C\:\\Users\\你的用户名\\AppData\\Local\\Android\\Sdk`。
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 如 SDK 未安装 API 37/Build Tools/NDK，可用 Android Studio SDK Manager 安装，或使用命令行工具：
 =======
 如 SDK 未安装 API 37、Build Tools 或 Platform Tools，使用 Android SDK 自带的 `sdkmanager` 安装；Android Studio 的 SDK Manager 只是可选的图形界面：
 >>>>>>> upstream/beta
+=======
+如 SDK 未安装 API 37、Build Tools 或 Platform Tools，使用 Android SDK Command-line Tools 自带的 `sdkmanager` 安装：
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 
 ```bash
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
@@ -200,12 +210,13 @@ bash gradlew :app:assembleMobileArm64_v8aDebug :app:assembleLeanbackArmeabi_v7aD
 
 | ABI | MPV | FFmpeg | libplacebo | 网络后端 | 说明 |
 | --- | --- | --- | --- | --- | --- |
-| `arm64-v8a` | `0.41.0-940-gcca559b41` | `04482c8d13ac`（9.0-fongmi） | `7.375.0` / `b694a21bf2dc` | curl 8.21.0 + nghttp2 1.69.0 | 截至 2026-08-17，当前 assets 已通过能力、ELF 与打包规则校验 |
-| `armeabi-v7a` | `0.41.0-940-gcca559b41` | `04482c8d13ac`（9.0-fongmi） | `7.375.0` / `b694a21bf2dc` | curl 8.21.0 + nghttp2 1.69.0 | 截至 2026-08-17，当前 assets 已通过能力、ELF 与打包规则校验 |
+| `arm64-v8a` | `0.41.0-940-gcca559b41` | `177f090e0503`（9.0.1-fongmi） | `7.375.0` / `b694a21bf2dc` | curl 8.21.0 + nghttp2 1.69.0 | C0-M 双 ABI、ELF、APK 和 arm64 手机播放/生命周期验证通过 |
+| `armeabi-v7a` | `0.41.0-940-gcca559b41` | `177f090e0503`（9.0.1-fongmi） | `7.375.0` / `b694a21bf2dc` | curl 8.21.0 + nghttp2 1.69.0 | C0-M 独立重建及 ELF/资产验证通过，不能跨 ABI 复制 |
 
 替换或升级 MPV native 时必须遵守：
 
 - `libmpv.so`、FFmpeg（codec/device/filter/format/util/swresample/swscale）、静态链接进 MPV 的 libplacebo、curl、nghttp2、MbedTLS 和 `libc++_shared.so` 必须按同一 ABI、同一 lock 成套构建，不能再混用旧 `libmpv.so` 与新依赖作为正式方案。
+<<<<<<< HEAD
 <<<<<<< HEAD
 - 当前已提交 assets 使用 MPV `94335ab87ab225ca3e36e0faeac831639d3e1d4e`、FFmpeg n8.0.3 `8ae0b34901ba60a802f183ee75a250a9fc3e09a5`、libplacebo `a7a18af88ff0a17c04840dcb3246047bb6b46df3`（7.371.0）、curl 8.21.0、nghttp2 1.69.0 和 NDK r28c。curl 使用 MbedTLS，只启用 HTTP/HTTPS 与 HTTP/2，不包含 HTTP/3、ngtcp2、nghttp3 或 quiche。FFmpeg 8.1.2 组合在 vivo Android 15 播放初始化时可触发 `pthread_mutex_lock called on a destroyed mutex`，因此没有进入正式 lock。
 - MPV 原生构建额外锁定应用 `FongMi/mpv@fd679c812149fe1f3e246897b1015ae109da7c74` 的 Vulkan/MediaCodec 互操作实现，通过 AImageReader 和 Android Hardware Buffer 将 MediaCodec 输出留在 GPU 链路，设备扩展满足时可使 `hwdec-current=mediacodec` 与 `gpu-next/androidvk/Vulkan` 同时生效；能力不足时仍允许回退 `mediacodec-copy`。
@@ -215,6 +226,9 @@ bash gradlew :app:assembleMobileArm64_v8aDebug :app:assembleLeanbackArmeabi_v7aD
 - 固定 MPV 源码会应用 `third_party/patches/mpv-stream-cb-disc-controls.patch`。该补丁扩展 `stream_cb` 光盘控制并接入 `demux_disc`；修改补丁或 `stream_cb.h` 后必须同时重建 `libmpv.so` 和 `libplayer.so`。AImageReader暂态补丁只改变`libmpv.so`，修改后必须重建并同步提交两套ARM ABI的`libmpv.so`。
 =======
 - 当前 native lock 使用 MPV `cca559b41ceb0bb7731cf6ef2e1f33276cd30c42`、FFmpeg 9.0-fongmi `04482c8d13ac27b2a9fe93f5d388929eef8af5f4`、libplacebo `b694a21bf2dc176c1e98b8a13c6421a0de5f3da5`（7.375.0/API 375）、mpv-android `99a60ad2141d5ace94453590903c2c6b9a0a2443` 和 NDK r29/API 24。curl 使用 MbedTLS 3.6.7，只启用 HTTP/HTTPS 与 HTTP/2，不包含 HTTP/3、ngtcp2、nghttp3 或 quiche。
+=======
+- 当前 native lock 使用 MPV `cca559b41ceb0bb7731cf6ef2e1f33276cd30c42`、FFmpeg 9.0.1-fongmi `177f090e0503b7e013922ca903bde14b1c375f18`、libplacebo `b694a21bf2dc176c1e98b8a13c6421a0de5f3da5`（7.375.0/API 375）、mpv-android `99a60ad2141d5ace94453590903c2c6b9a0a2443` 和 NDK r29/API 24。C0-M 不启用 `dovi_rpu convert=p81`，并继续保留本地 Range、MediaCodec、DV、Vulkan、AudioTrack 和 JNI 保护。curl 使用 MbedTLS 3.6.7，只启用 HTTP/HTTPS 与 HTTP/2，不包含 HTTP/3、ngtcp2、nghttp3 或 quiche。
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 - 最新 FongMi MPV 分支已经内建重写后的 AImageReader/AHardwareBuffer OpenGL/Vulkan 后端、异步 fence、HDR/Dolby Vision、双 Surface OSD 和 Android helper scheme；旧的 `fd679c81` 不是新分支祖先，原 `mpv-aimagereader-transient-buffer.patch` 已删除，不能在新分支上重复叠加。
 - curl 与 nghttp2 静态链接进 `libmpv.so`，APK 不新增独立网络 `.so`。它增强 MPV 直接远程 HTTP/HTTPS 输入；App 自己处理的本地 HLS 代理、`stream_cb` 和 FFmpeg/lavf 路径仍按各自实现工作，不能把启用 curl 理解为所有播放请求都强制走同一后端。
 - FFmpeg 文件名、ELF `SONAME` 和所有 `DT_NEEDED` 都要从 `libav*`/`libsw*` 等长改为 `libmv*`/`libmw*`，不能只重命名文件，否则会和 `nextlib-media3ext` 内置 FFmpeg 发生 Android linker 复用冲突。
@@ -391,7 +405,7 @@ keyPassword=your_key_password
 - `third_party/patches/nextlib-*.patch`:在 `anilbeesetti/nextlib@6ff6cf9d0820382b3c233d018c52e4163b09d345` 上叠加 FFmpeg 软解负载控制和 AV3A/libarcdav3a 支持。
 - `third_party/mpv-player-jni`:MPV `libplayer.so` JNI 桥接源码，修改后用 `scripts/build_mpv_player_jni.sh` 重建。
 - `app/src/*/assets/mpv-libs/*`:随 APK 打包的 MPV native 库和 JNI 桥接库。
-- `nextlib-media3ext`:`io.github.anilbeesetti:nextlib-media3ext:1.10.0-0.12.1-fongmi-softload-av3a-ffmpeg901-r1`，提供 FFmpeg renderer；内置 FongMi FFmpeg `177f090e0503b7e013922ca903bde14b1c375f18`（9.0.1）和静态链接的 `libarcdav3a`，Exo 可软解 `audio/av3a`，并在输出设备不接受源多声道 PCM 时下混到立体声。MPV native 仍按其独立 lock 使用旧 FFmpeg，不能共用该 AAR 内的 `.so`。
+- `nextlib-media3ext`:`io.github.anilbeesetti:nextlib-media3ext:1.10.0-0.12.1-fongmi-softload-av3a-ffmpeg901-r1`，提供 FFmpeg renderer；内置 FongMi FFmpeg `177f090e0503b7e013922ca903bde14b1c375f18`（9.0.1）和静态链接的 `libarcdav3a`，Exo 可软解 `audio/av3a`，并在输出设备不接受源多声道 PCM 时下混到立体声。MPV C0-M 现在使用同一 FFmpeg 源 revision，但仍独立构建 `libmv*`/`libmw*`，不能共用该 AAR 内的 `.so`。
 - `ExoplayerHdrUtils`:`com.suyashbelekar:exoplayerhdrutils:0.4.0`，提供基于 libdovi 的实时 HEVC RPU 转换。Exo 按“原生 DV7 硬解 → P8.1 转换硬解 → HDR10/HEVC 硬解”选择整次播放路径：原生 DV7 可用时保持原码流；原生 DV7 不可用但 P8.1 可用时使用 mode 2 转换并移除增强层；两者都不可用而设备支持 HDR10/HEVC 时，起播前直接使用 HDR10 基底层。能力查询误报或 P8.1 实际初始化/解码失败时，同一会话最多回退 HDR10 一次，不自动切软解或循环重试；用户选择 HDR10 模式时仍整次使用 HDR10 基底层。
 
 `settings.gradle` 中的依赖顺序是仓库本地 `third_party/maven`、Maven Central、Google Maven、`app/libs` 和 JitPack。`app/build.gradle` 会强制所有 `androidx.media3` 依赖使用 `1.11.0-alpha01-fongmi`，避免传递依赖拉回官方版本。
@@ -446,7 +460,7 @@ other/        Logo 图片和辅助工具
 | 仓库 | 分支 | Commit |
 | --- | --- | --- |
 | [TV](https://github.com/FongMi/TV) | `fongmi` | `1a19fee278fa2234da725d61a53bf59b69fe9127`（`560 / 5.6.0`） |
-| [FFmpeg](https://github.com/FongMi/FFmpeg) | `release-9.0-fongmi` | `04482c8d13ac27b2a9fe93f5d388929eef8af5f4` |
+| [FFmpeg](https://github.com/FongMi/FFmpeg) | `release-9.0-fongmi` | `177f090e0503b7e013922ca903bde14b1c375f18` |
 | [mpv-android](https://github.com/FongMi/mpv-android) | `fongmi` | `99a60ad2141d5ace94453590903c2c6b9a0a2443` |
 | [media](https://github.com/FongMi/media) | `release` | `2bc207851df311340767e913931ca7b28cab1794` |
 | [mpv](https://github.com/FongMi/mpv) | `fongmi` | `cca559b41ceb0bb7731cf6ef2e1f33276cd30c42` |

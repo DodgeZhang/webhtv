@@ -25,6 +25,7 @@ import com.fongmi.android.tv.history.HistoryDisplayPolicy;
 import com.fongmi.android.tv.player.VideoAspectMode;
 import com.fongmi.android.tv.playback.PlaybackProgressWriter;
 import com.fongmi.android.tv.playback.PlaybackDeleteTombstoneStore;
+import com.fongmi.android.tv.playback.SubtitleSource;
 import com.fongmi.android.tv.playback.TmdbSeasonProgressStore;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
@@ -118,7 +119,18 @@ public class History implements Diffable<History> {
     @ColumnInfo(defaultValue = "0")
     private int tmdbEpisodeNumber;
 
-    private transient int player = PlayerSetting.NONE;
+    @SerializedName("player")
+    @ColumnInfo(defaultValue = "-1")
+    private int player = PlayerSetting.NONE;
+    /**
+     * 外挂字幕来源的 JSON（{@link SubtitleSource}），空串表示这条记录没有外部字幕偏好。
+     *
+     * <p>存整个值对象而不是拆五列：这几个字段没有一个会进 WHERE 或 ORDER BY，
+     * 拆列只会让 {@link #copy()}、迁移和备份各多几行。
+     */
+    @SerializedName("subtitleSource")
+    @ColumnInfo(defaultValue = "")
+    private String subtitleSource;
     private transient long updateTime;
     private transient String playbackSourceKey;
     @Ignore
@@ -166,6 +178,7 @@ public class History implements Diffable<History> {
         item.tmdbSeasonNumber = tmdbSeasonNumber;
         item.tmdbEpisodeNumber = tmdbEpisodeNumber;
         item.player = player;
+        item.subtitleSource = subtitleSource;
         item.updateTime = updateTime;
         item.playbackSourceKey = playbackSourceKey;
         item.sourceBindingKey = sourceBindingKey;
@@ -775,6 +788,23 @@ public class History implements Diffable<History> {
         this.player = PlayerSetting.sanitizePlayer(player);
     }
 
+    public String getSubtitleSource() {
+        return subtitleSource == null ? "" : subtitleSource;
+    }
+
+    public void setSubtitleSource(String subtitleSource) {
+        this.subtitleSource = subtitleSource == null ? "" : subtitleSource;
+    }
+
+    /** 解析失败返回 null，不抛——一条脏数据不能让整条历史不可用。 */
+    public SubtitleSource getSubtitleSourceObject() {
+        return SubtitleSource.decode(subtitleSource);
+    }
+
+    public void setSubtitleSourceObject(SubtitleSource source) {
+        this.subtitleSource = SubtitleSource.encode(source);
+    }
+
     public int getCid() {
         return cid;
     }
@@ -872,7 +902,15 @@ public class History implements Diffable<History> {
     public boolean setTmdbEpisodePosition(Episode episode) {
         TmdbEpisode tmdbEpisode = episode == null ? null : episode.getTmdbEpisode();
         int episodeNumber = tmdbEpisode == null ? 0 : tmdbEpisode.getNumber();
-        int seasonNumber = tmdbEpisode == null ? 0 : tmdbEpisode.getSeasonNumber();
+        return setTmdbEpisodePosition(tmdbEpisode, episodeNumber);
+    }
+
+    public boolean setTmdbEpisodePositionWithUnknownSeason(int episodeNumber) {
+        return setTmdbEpisodePosition(null, Math.max(0, episodeNumber));
+    }
+
+    private boolean setTmdbEpisodePosition(TmdbEpisode tmdbEpisode, int episodeNumber) {
+        int seasonNumber = tmdbEpisode == null ? -1 : tmdbEpisode.getSeasonNumber();
         return setTmdbEpisodePosition(seasonNumber, episodeNumber);
     }
 
@@ -1061,9 +1099,16 @@ public class History implements Diffable<History> {
      * 将历史记录的 key 迁移到新值。
      * 仅在 key 实际变化时删除旧 key，避免同 key 先删后写失败导致历史消失。
      * 迁移后立即 save 新 key，缩短「旧已删、新未写」窗口。
+     *
+     * <p>push（网盘/推送/本地文件）记录不迁移：它的 key 第二段就是那条播放地址本身
+     * （见 {@link #getVodId()} 与 SiteApi#pushDetail），而从历史进入播放正是靠这一段反解
+     * 出 vodId。普通站点的 vodId 是稳定的条目 id，迁移无害；push 迁移则会把记录改写成详情
+     * 阶段解析出的另一条地址，那条地址往往带时效，下次从历史打开必然失败，用户只能回网盘
+     * 重新找。按名合并（{@link #canMergeByName()}）已对 push 豁免，这里补齐同样的豁免。
      */
     public void replace(String key) {
         if (TextUtils.isEmpty(key) || TextUtils.equals(getKey(), key)) return;
+        if (isPushHistory()) return;
         String previous = getKey();
         enrichTmdbId();
         updateTime = System.currentTimeMillis();

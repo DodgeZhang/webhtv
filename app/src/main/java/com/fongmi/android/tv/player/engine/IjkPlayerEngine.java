@@ -11,6 +11,7 @@ import androidx.media3.common.util.UnstableApi;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Track;
+import com.fongmi.android.tv.player.AudioPlaybackDiagnostics;
 import com.fongmi.android.tv.player.PlaybackTrace;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.player.exo.TrackUtil;
@@ -129,6 +130,75 @@ public class IjkPlayerEngine implements PlayerEngine {
     }
 
     @Override
+<<<<<<< HEAD
+=======
+    public PlaybackFactsSnapshot getPlaybackFactsSnapshot() {
+        Format video = player.getSelectedVideoFormatSnapshot();
+        Format audio = player.getSelectedAudioFormatSnapshot();
+        return new PlaybackFactsSnapshot(
+                video,
+                audio,
+                video,
+                audio,
+                player.getVideoCodecInfoSnapshot(),
+                player.getAudioCodecInfoSnapshot(),
+                decoderKind(player.getVideoDecoderSnapshot()),
+                null,
+                "",
+                "",
+                null);
+    }
+
+    @Override
+    public AudioPlaybackDiagnostics.Snapshot getAudioPlaybackDiagnostics() {
+        Format format = player.getSelectedAudioFormatSnapshot();
+        AudioPlaybackDiagnostics.Track track =
+                AudioPlaybackDiagnostics.track(format, "");
+        String decoderName = player.getAudioCodecInfoSnapshot();
+        AudioPlaybackDiagnostics.DecodeMode decodeMode = "PCM".equalsIgnoreCase(
+                track.codec()) ? AudioPlaybackDiagnostics.DecodeMode.NONE
+                : decoderName == null || decoderName.isBlank()
+                ? AudioPlaybackDiagnostics.DecodeMode.UNKNOWN
+                : AudioPlaybackDiagnostics.DecodeMode.SOFTWARE;
+        AudioPlaybackDiagnostics.OutputMode outputMode = decoderName == null
+                || decoderName.isBlank()
+                ? AudioPlaybackDiagnostics.OutputMode.UNKNOWN
+                : AudioPlaybackDiagnostics.OutputMode.PCM;
+        ErrorSnapshot error = player.getLastErrorSnapshot();
+        boolean decoderFailed = error != null
+                && error.stage() != null
+                && error.stage().ordinal() >= OpenStage.COMPONENT_OPENED.ordinal();
+        if (decoderFailed) {
+            AudioPlaybackDiagnostics.FailureReason failureReason = error.prepared()
+                    ? AudioPlaybackDiagnostics.FailureReason.DECODER_RUNTIME
+                    : AudioPlaybackDiagnostics.FailureReason.DECODER_INIT;
+            return new AudioPlaybackDiagnostics.Snapshot(track, track, decodeMode,
+                    decoderName, outputMode, 0, 0, false, "",
+                    AudioPlaybackDiagnostics.lastAttemptLevel(
+                            failureReason, outputMode, decodeMode),
+                    AudioPlaybackDiagnostics.RuntimeState.FAILED, failureReason);
+        }
+        return new AudioPlaybackDiagnostics.Snapshot(track, track, decodeMode,
+                decoderName, outputMode, 0, 0, false, "");
+    }
+
+    @Override
+    public RuntimeMetrics getRuntimeMetrics() {
+        long tcpBytesPerSecond = player.getTcpSpeedSnapshot();
+        long bandwidth = tcpBytesPerSecond > Long.MAX_VALUE / 8L
+                ? Long.MAX_VALUE : tcpBytesPerSecond * 8L;
+        long bitrate = player.getBitrateSnapshot();
+        IjkDecodePressurePolicy.DecodeSnapshot decode =
+                player.getDecodePressureSnapshot();
+        return new RuntimeMetrics(
+                bandwidth > 0 ? bandwidth : null,
+                bitrate > 0 ? bitrate : null,
+                decode.available() ? decode.outputFps() : null,
+                null);
+    }
+
+    @Override
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     public String getPlaybackTraceId() {
         return spec == null ? PlaybackTrace.NONE : spec.getPlaybackTraceId();
     }

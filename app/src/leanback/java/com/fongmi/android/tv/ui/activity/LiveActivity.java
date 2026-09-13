@@ -59,6 +59,7 @@ import com.fongmi.android.tv.ui.custom.CustomLiveListView;
 import com.fongmi.android.tv.ui.custom.CustomSeekView;
 import com.fongmi.android.tv.ui.custom.PlayerOsdController;
 import com.fongmi.android.tv.ui.dialog.HistoryDialog;
+import com.fongmi.android.tv.ui.dialog.PlaybackSpeedDialog;
 import com.fongmi.android.tv.ui.dialog.LiveDialog;
 import com.fongmi.android.tv.ui.dialog.PassDialog;
 <<<<<<< HEAD
@@ -84,6 +85,11 @@ import java.util.List;
 public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnClickListener, ChannelAdapter.OnClickListener, EpgDataAdapter.OnClickListener, CustomKeyDownLive.Listener, CustomLiveListView.Callback, TrackDialog.Listener, PassListener, ConfigListener, LiveListener {
 
     private static final long PLAYBACK_END_RETRY_DELAY = 500;
+
+    @Override
+    protected boolean shouldAutoPlay() {
+        return true;
+    }
 
     private ActivityLiveBinding mBinding;
     private ChannelAdapter mChannelAdapter;
@@ -421,8 +427,11 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     private void onSpeed() {
         if (!player().isVod()) return;
-        mBinding.control.action.speed.setText(player().addSpeed());
-        PlayerSetting.putDefaultSpeed(player().getSpeed());
+        PlaybackSpeedDialog.show(this, player().getSpeed(), speed -> {
+            if (!isServiceReady() || !isOwner() || !player().isVod()) return;
+            mBinding.control.action.speed.setText(player().setSpeed(speed));
+            PlayerSetting.putDefaultSpeed(player().getSpeed());
+        });
     }
 
     private void onSpeedAdd() {
@@ -669,10 +678,8 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     private void showControl(View view) {
         mBinding.control.getRoot().setVisibility(View.VISIBLE);
-        // OSD 启用时，不显示 widget.top（避免与 OSD 的 topLeft/topRight 重影）
-        if (!PlayerSetting.isOsdEnabled()) {
-            mBinding.widget.top.setVisibility(View.VISIBLE);
-        }
+        // 控制栏显示时统一由 PlayerOsdController 显示标题、分辨率和时间，避免旧栏重影
+        mBinding.widget.top.setVisibility(View.GONE);
         if (mOsd != null) mOsd.setControlsVisible(true);
         App.post(view::requestFocus, 25);
         setR1Callback();

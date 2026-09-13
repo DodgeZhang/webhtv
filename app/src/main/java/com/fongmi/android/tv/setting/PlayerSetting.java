@@ -25,10 +25,6 @@ public class PlayerSetting {
     public static final int[] KERNEL_ORDER = {EXO, IJK, MPV, SYSTEM};
     public static final int RENDER_SURFACE = 0;
     public static final int RENDER_TEXTURE = 1;
-    public static final int FFMPEG_MODE_NEXTLIB = 0;
-    public static final int FFMPEG_MODE_OFFICIAL = 1;
-    public static final int FFMPEG_MODE_SIMPLE = 2;
-    public static final int FFMPEG_MODE_AUTO = 3;
     public static final int MPV_RENDER_OPENGL = 0;
     public static final int MPV_RENDER_VULKAN = 1;
     public static final int AUDIO_BACKGROUND_ARTWORK = 0;
@@ -62,10 +58,10 @@ public class PlayerSetting {
     private static final int DEFAULT_PLAY_CACHE_OPTION = 0;
     private static final String KEY_IMMERSIVE_AUDIO_PLAYBACK = "immersive_audio_playback";
     private static final String KEY_FAILURE_FALLBACK = "player_failure_fallback";
-    private static final String KEY_FFMPEG_MODE = "ffmpeg_mode";
     private static final String KEY_CUSTOM_ASPECT_WIDTH = "custom_aspect_width";
     private static final String KEY_CUSTOM_ASPECT_HEIGHT = "custom_aspect_height";
     private static final String KEY_BRIGHTNESS_MIGRATED = "player_brightness_migrated";
+    private static final String KEY_REMEMBER_BRIGHTNESS = "player_remember_brightness";
     private static final String KEY_DISPLAY_TIME = "display_time";
     private static final String KEY_DISPLAY_TRAFFIC = "display_traffic";
     private static final String KEY_DISPLAY_SIZE = "display_size";
@@ -80,6 +76,12 @@ public class PlayerSetting {
     private static final String KEY_OSD_MINI = "player_osd_mini";
     private static boolean legacyOsdMigrated;
     private static boolean legacyBrightnessMigrated;
+    /**
+     * 当前播放会话正在使用的内核（NONE 表示没有会话，按全局默认）。
+     * 只存在于内存：进程内所有「现在用的是哪个内核」的判断都读它，退出播放后清空。
+     * 由 PlayerManager 在建引擎/切引擎时写入，volatile 以便工作线程（取播放地址）读到最新值。
+     */
+    private static volatile int activePlayer = NONE;
 
     public static int getPlayer() {
         int player = Prefers.getInt("player", EXO);
@@ -90,6 +92,25 @@ public class PlayerSetting {
 
     public static void putPlayer(int player) {
         Prefers.put("player", sanitizePlayer(player));
+    }
+
+    /**
+     * 当前实际在跑的内核，与全局默认内核解耦。
+     * 播放器里切内核只影响本次播放（并由 History 按剧集记住），不再回写全局默认，
+     * 因此运行期凡是问「现在用的是哪个内核」的地方都要读这里，而不是 getPlayer()；
+     * getPlayer() 只代表设置页里的全局默认值，也是没有播放会话时的兜底。
+     */
+    public static int getActivePlayer() {
+        int player = activePlayer;
+        return isPlayer(player) ? player : getPlayer();
+    }
+
+    public static void putActivePlayer(int player) {
+        activePlayer = isPlayer(player) ? player : NONE;
+    }
+
+    public static void clearActivePlayer() {
+        activePlayer = NONE;
     }
 
     public static boolean isImmersiveAudioMode() {
@@ -424,6 +445,15 @@ public class PlayerSetting {
         Prefers.put("player_auto_play", autoPlay);
     }
 
+    /** Whether MPV should enter the HDMV Blu-ray menu instead of the main title. */
+    public static boolean isBlurayMenu() {
+        return Prefers.getBoolean("playback_bluray_menu", false);
+    }
+
+    public static void putBlurayMenu(boolean enabled) {
+        Prefers.put("playback_bluray_menu", enabled);
+    }
+
     public static int getBackground() {
         return Prefers.getInt("background", 2);
     }
@@ -556,12 +586,38 @@ public class PlayerSetting {
         putOsdDiagnostics(valueAt(checked, 4, isOsdDiagnostics()));
     }
 
+    /**
+     * 是否记住播放页亮度。关闭时播放页完全不接管窗口亮度（跟随系统），
+     * 手势调节只在当次播放生效、不落盘，退出播放页即还原。
+     * <p>
+     * 默认关闭：历史上「一进播放页就自动变亮」的反馈都源于无条件套用记忆值，
+     * 而自动亮度机型的手势基准是固定的 0.5（见 Util.getBrightness），
+     * 随手一滑就会把偏高的值永久固化，用户没有任何入口关掉它。
+     */
+    public static boolean isRememberBrightness() {
+        return Prefers.getBoolean(KEY_REMEMBER_BRIGHTNESS, false);
+    }
+
+    /**
+     * 切换开关时两个方向都丢弃记忆值，让每次开启都从「跟随系统」起步。
+     * <p>
+     * 只在关闭时清理是不对称的：旧版用户升级后 prefs 里可能残留一个很旧甚至被夹到 1.0 的值，
+     * 开启开关会立刻把屏幕拉到那个亮度，正是本开关要消除的现象。
+     * 由用户开启后自己滑一次来建立记忆值，语义最清晰。
+     */
+    public static void putRememberBrightness(boolean remember) {
+        Prefers.put(KEY_REMEMBER_BRIGHTNESS, remember);
+        Prefers.remove("player_brightness");
+    }
+
     public static float getBrightness() {
+        if (!isRememberBrightness()) return BrightnessPolicy.FOLLOW_SYSTEM;
         migrateLegacyBrightness();
         return Math.min(Math.max(Prefers.getFloat("player_brightness", -1), -1), 1);
     }
 
     public static void putBrightness(float brightness) {
+        if (!isRememberBrightness()) return;
         legacyBrightnessMigrated = true;
         Prefers.put(KEY_BRIGHTNESS_MIGRATED, true);
         Prefers.put("player_brightness", Math.min(Math.max(brightness, 0), 1));
@@ -572,6 +628,10 @@ public class PlayerSetting {
      * 在 1023/2047/4095 量程机型上算出的基准值远大于 1，手势结果被永久夹到 1.0 并持久化，
      * 表现为「一进播放页屏幕自动变到最亮且调不下来」。这里一次性丢弃这个污染值，
      * 让亮度回到跟随系统，用户重新调节即可。
+     * <p>
+     * 自「记住播放亮度」开关引入后，putRememberBrightness 在开关的两个方向都会清空
+     * player_brightness，历史污染值已在开关开启时被无条件清掉，这段迁移退化为兜底：
+     * 只有当将来出现「不经开关就启用记忆」的新路径时才会再次生效。
      */
     private static void migrateLegacyBrightness() {
         if (legacyBrightnessMigrated) return;
@@ -663,67 +723,6 @@ public class PlayerSetting {
 
     public static void putVideoPrefer(boolean videoPrefer) {
         KernelPerformanceSetting.putVideoPrefer(getPlayer(), videoPrefer);
-    }
-
-    // AUTO 模式失败遍历顺序：能力从全到简（NextLib 有 ffmpeg 音视频兜底+解码调度调优；Simple 有音视频兜底；Official 纯官方）。
-    public static final int[] FFMPEG_AUTO_ORDER = {FFMPEG_MODE_NEXTLIB, FFMPEG_MODE_SIMPLE, FFMPEG_MODE_OFFICIAL};
-
-    // 进程内运行时覆盖，仅在设置为 AUTO 时生效，用于失败链遍历具体模式；不写盘。
-    private static volatile int ffmpegModeOverride = NONE;
-
-    public static int getFFmpegMode() {
-        int defaultMode = getDefaultFFmpegMode();
-        return sanitizeFFmpegMode(Prefers.getInt(KEY_FFMPEG_MODE, defaultMode), defaultMode);
-    }
-
-    public static void putFFmpegMode(int mode) {
-        Prefers.put(KEY_FFMPEG_MODE, sanitizeFFmpegMode(mode, getDefaultFFmpegMode()));
-        clearFFmpegModeOverride();
-    }
-
-    // ExoUtil 构造渲染器时使用的具体模式。AUTO 时解析成运行时覆盖，无覆盖则取遍历首项。
-    public static int getEffectiveFFmpegMode() {
-        int mode = getFFmpegMode();
-        if (mode != FFMPEG_MODE_AUTO) return mode;
-        int override = ffmpegModeOverride;
-        return isConcreteFFmpegMode(override) ? override : FFMPEG_AUTO_ORDER[0];
-    }
-
-    public static boolean isAutoFFmpegMode() {
-        return getFFmpegMode() == FFMPEG_MODE_AUTO;
-    }
-
-    public static void setFFmpegModeOverride(int mode) {
-        ffmpegModeOverride = isConcreteFFmpegMode(mode) ? mode : NONE;
-    }
-
-    public static void clearFFmpegModeOverride() {
-        ffmpegModeOverride = NONE;
-    }
-
-    static int getDefaultFFmpegMode() {
-        return sanitizeFFmpegMode(App.get().getResources().getInteger(R.integer.default_ffmpeg_mode), FFMPEG_MODE_SIMPLE);
-    }
-
-    static int sanitizeFFmpegMode(int mode, int defaultMode) {
-        if (isFFmpegMode(mode)) return mode;
-        return isFFmpegMode(defaultMode) ? defaultMode : FFMPEG_MODE_SIMPLE;
-    }
-
-    private static boolean isFFmpegMode(int mode) {
-        return isConcreteFFmpegMode(mode) || mode == FFMPEG_MODE_AUTO;
-    }
-
-    private static boolean isConcreteFFmpegMode(int mode) {
-        return mode == FFMPEG_MODE_NEXTLIB || mode == FFMPEG_MODE_OFFICIAL || mode == FFMPEG_MODE_SIMPLE;
-    }
-
-    public static boolean useNextLibFFmpeg() {
-        return getEffectiveFFmpegMode() == FFMPEG_MODE_NEXTLIB;
-    }
-
-    public static void putUseNextLibFFmpeg(boolean useNextLib) {
-        putFFmpegMode(useNextLib ? FFMPEG_MODE_NEXTLIB : FFMPEG_MODE_OFFICIAL);
     }
 
     public static boolean isPreferAAC() {

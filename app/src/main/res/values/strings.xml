@@ -1,7 +1,11 @@
 <resources xmlns:xliff="http://schemas.android.com/apk/res-auto">
 
     <!-- App -->
-    <string name="app_name">MO TV</string>
+   <string name="app_name">默影视</string>
+   <string name="setting_app_branding">App icon</string>
+    <string name="app_branding_icon_current">Default icon</string>
+    <string name="app_branding_icon_history">Original icon</string>
+   <string name="app_branding_icon_select">Select icon</string>
     <string name="app_exit_confirm">Press back again to exit</string>
 
     <!-- Live -->
@@ -9,7 +13,7 @@
     <string name="live_refresh">Refresh</string>
     <string name="live_line">Line <xliff:g name="name">%s</xliff:g></string>
     <string name="live_control_source">Live source</string>
-    <string name="live_no_epg">00:00 - 23:59 暂无节目信息</string>
+    <string name="live_no_epg">00:00 - 23:59 No program info</string>
 
     <!-- Detail -->
     <string name="detail_title"><xliff:g name="name">%s</xliff:g> : <xliff:g name="name">%s</xliff:g></string>
@@ -238,8 +242,9 @@
     <string name="setting_auto_backup">Automatic backup</string>
     <string name="setting_fullscreen_menu_key">Fullscreen menu key</string>
     <string name="setting_home_menu_key">Home menu key</string>
-    <string name="setting_play_back_to_detail">Return playback to detail</string>
-    <string name="setting_play_speed">Playback speed</string>
+   <string name="setting_play_back_to_detail">Return playback to detail</string>
+   <string name="setting_playback_overlay">Playback menu overlay</string>
+   <string name="setting_play_speed">Playback speed</string>
     <string name="setting_episode_history">Remember episode progress</string>
     <string name="setting_history_aggregation">Aggregate history by TMDB</string>
     <string name="setting_history_aggregation_hint">Unify history across sources based on TMDB match</string>
@@ -265,6 +270,19 @@
     <string name="intro_skip_confirm_intro">Skip intro</string>
     <string name="intro_skip_confirm_recap">Skip recap</string>
     <string name="intro_skip_confirm_outro">Skip outro</string>
+    <string name="intro_skip_confirm_preview">Skip next-episode preview</string>
+    <!-- Detected (not user-set) intro/outro time shown on the control bar; %1$s is the timestamp -->
+    <string name="intro_skip_detected_value">~%1$s</string>
+    <string name="intro_skip_kind_recap">Recap</string>
+    <string name="intro_skip_kind_intro">Intro</string>
+    <string name="intro_skip_kind_outro">Outro</string>
+    <string name="intro_skip_kind_preview">Preview</string>
+    <string name="setting_intro_skip_kinds">Segments to skip</string>
+    <string name="intro_skip_kinds_none">None</string>
+    <string name="intro_skip_kinds_all">All</string>
+    <!-- Shown after an automatic skip; %1$s is the segment type -->
+    <string name="intro_skip_notice_seeked">Skipped %1$s</string>
+    <string name="intro_skip_notice_ended">Skipped %1$s, going to the next episode</string>
     <string name="personal_recommendation_confirm_title">Enable personal recommendations</string>
     <string name="personal_recommendation_confirm_message">Personal recommendations read movie and show titles from local viewing history, and may send the current title and history titles to TMDB or Douban as search keywords to build related lists.\n\nPlayback URLs, account information, source configuration, and playback progress are not sent. You can turn this off at any time.</string>
     <string name="setting_search_thread">Search threads</string>
@@ -504,7 +522,7 @@
     <string name="site_health_report_summary_reason">%1$d sites · %2$d samples · %3$d failures · %4$d degraded · Top %5$s x%6$d</string>
     <string name="site_health_report_setting_summary">%1$d sites · %2$d samples</string>
     <string name="site_health_report_row_meta">%1$d samples · %2$d failures</string>
-    <string name="site_health_report_ad_blocked">广告拦截 · %1$d 次</string>
+    <string name="site_health_report_ad_blocked">Ads blocked · %1$d</string>
     <string name="site_health_report_stage">%1$s · %2$s · %3$d/%4$d</string>
     <string name="site_health_report_rate">%1$d%%</string>
     <string name="site_health_report_no_data">No data</string>
@@ -518,6 +536,9 @@
     <string name="site_health_clear_site">Clear this site</string>
     <string name="site_health_clear_site_title">Clear site health?</string>
     <string name="site_health_clear_site_message">Clear health samples for %1$s?</string>
+    <string name="site_health_clear_all">Clear all samples</string>
+    <string name="site_health_clear_all_title">Clear all site health samples?</string>
+    <string name="site_health_clear_all_message">This will delete all playback-chain health samples. This action cannot be undone.</string>
     <string name="site_health_stage_search">Search</string>
     <string name="site_health_stage_detail">Detail</string>
     <string name="site_health_stage_parse">Parse</string>
@@ -846,6 +867,7 @@
     <string name="setting_proxy_test_failed">Proxy test failed: %1$s</string>
     <string name="setting_one_key_sync">One-key sync</string>
     <string name="setting_incognito">Incognito mode</string>
+    <string name="setting_touch_optimization">Touch optimization</string>
     <string name="setting_drive_check">Drive link check</string>
     <string name="setting_audio_source">Audio source config</string>
     <string name="setting_novel_source">Novel source config</string>
@@ -876,6 +898,7 @@
     <string name="setting_about">About</string>
     <string name="setting_version">Version</string>
     <string name="setting_choose">Choose</string>
+    <string name="setting_choose_dir">Folder</string>
     <string name="setting_reset">Reset</string>
     <string name="setting_delete">Delete</string>
     <string name="setting_disable">Disable</string>
@@ -901,6 +924,10 @@
     <string name="setting_github_proxy_remove">Remove</string>
     <string name="setting_github_proxy_reset">Reset to default</string>
     <string name="setting_github_proxy_invalid">Please enter a valid http/https URL</string>
+    <string name="setting_github_proxy_probe">Probe latency</string>
+    <string name="setting_github_proxy_latency">%1$d ms</string>
+    <string name="setting_github_proxy_latency_failed">Failed</string>
+    <string name="setting_github_proxy_latency_testing">Testing</string>
 
     <!-- Backup & Restore -->
     <string name="restore_select">Select backup</string>
@@ -932,10 +959,12 @@
     <string name="sync_select_none">Deselect all</string>
     <string name="sync_item_config">Interfaces and source lists</string>
     <string name="sync_item_spider">Jar/script saved data</string>
+    <string name="sync_item_mpv_config">MPV configuration management</string>
     <string name="sync_item_login_state">Login state</string>
     <string name="sync_item_webhome">WebHome saved data</string>
     <string name="sync_item_search">Search records</string>
     <string name="sync_item_history">Watch history</string>
+    <string name="history_watched_time">Watched %1$s</string>
     <string name="sync_item_keep">Favorites</string>
     <string name="sync_item_settings">App settings</string>
     <string name="sync_item_remote_relay">Relay server config</string>
@@ -1061,6 +1090,18 @@
     <string name="player_mpv_config">MPV config manager</string>
     <string name="player_mpv_render">MPV renderer</string>
     <string name="mpv_render_native_unavailable">Unavailable</string>
+    <string name="player_bluray_menu">Blu-ray disc menu</string>
+    <string name="disc_menu_root">Top menu</string>
+    <string name="disc_menu_popup">Pop-up menu</string>
+    <string name="disc_menu_previous">Back</string>
+    <string name="disc_menu_up">Up</string>
+    <string name="disc_menu_down">Down</string>
+    <string name="disc_menu_left">Left</string>
+    <string name="disc_menu_right">Right</string>
+    <string name="disc_menu_open">Disc menu</string>
+    <string name="disc_menu_open_hint">Open the disc top menu. Long press for navigation controls.</string>
+    <string name="disc_menu_navigation">Menu navigation</string>
+    <string name="disc_menu_touch_hint">Tap the disc buttons directly, or select with these controls.</string>
     <string name="mpv_config_target">%1$s · %2$s</string>
     <string name="mpv_config_default">Default</string>
     <string name="mpv_config_local">Local mpv.conf</string>
@@ -1070,6 +1111,54 @@
     <string name="mpv_config_history_empty">No MPV config history</string>
     <string name="mpv_config_script_hint">Script URL or choose local script</string>
     <string name="mpv_config_scripts_count">%1$d scripts</string>
+    <string name="mpv_config_custom_buttons">Script buttons</string>
+    <string name="mpv_config_custom_button_new">New script button</string>
+    <string name="mpv_config_custom_button_new_desc">Add a button to the player controls</string>
+    <string name="mpv_config_custom_button_title">Script buttons</string>
+    <string name="mpv_config_custom_button_subtitle">Manage playback buttons in the script list</string>
+    <string name="mpv_config_custom_button_empty">No custom buttons yet</string>
+    <string name="mpv_config_custom_button_empty_slot">Empty slot</string>
+    <string name="mpv_config_custom_button_drag">Drag to reorder</string>
+    <string name="mpv_config_custom_button_import_export">Import / Export</string>
+    <string name="mpv_config_custom_button_import_export_desc">Back up or share custom buttons and their Lua scripts as an XML file</string>
+    <string name="mpv_config_custom_button_import">Import</string>
+    <string name="mpv_config_custom_button_export">Export</string>
+    <string name="mpv_config_custom_button_imported">Imported %1$d buttons</string>
+    <string name="mpv_config_custom_button_exported">Buttons exported</string>
+    <string name="mpv_config_custom_button_file_invalid">Unable to read or write the selected file</string>
+    <string name="mpv_config_custom_button_lua_section">Lua scripts</string>
+    <string name="mpv_config_custom_button_add">New script button</string>
+    <string name="mpv_config_custom_button_edit">Edit script button</string>
+    <string name="mpv_config_custom_button_name">Button title</string>
+    <string name="mpv_config_custom_button_name_hint">For example: Change quality</string>
+    <string name="mpv_config_custom_button_short">Short press Lua</string>
+    <string name="mpv_config_custom_button_long">Long press Lua</string>
+    <string name="mpv_config_custom_button_startup">Run on MPV startup</string>
+    <string name="mpv_config_custom_button_enabled">Enable button</string>
+    <string name="mpv_config_custom_button_enabled_short">ON</string>
+    <string name="mpv_config_custom_button_disabled_short">OFF</string>
+    <string name="mpv_config_custom_button_delete">Delete button</string>
+    <string name="mpv_config_custom_button_delete_message">Delete “%1$s”?</string>
+    <string name="mpv_config_custom_button_saved">Custom button saved</string>
+    <string name="mpv_config_custom_buttons_limit">You can add up to 8 custom buttons</string>
+    <string name="mpv_config_custom_buttons_invalid">Invalid custom button id</string>
+    <string name="mpv_config_custom_button_trigger">Trigger</string>
+    <string name="mpv_config_custom_button_trigger_click">Click</string>
+    <string name="mpv_config_custom_button_trigger_long">Long press</string>
+    <string name="mpv_config_custom_button_trigger_startup">On startup</string>
+    <string name="mpv_config_custom_button_code_hint">Enter Lua script</string>
+    <string name="mpv_config_script_new">New script</string>
+    <string name="mpv_config_script_create_desc">Choose how to add a script. Enable its player button later in script settings.</string>
+    <string name="mpv_config_script_text_edit">Create from text</string>
+    <string name="mpv_config_script_text_edit_desc">Open the text editor to enter and save the Lua script</string>
+    <string name="mpv_config_script_settings_title">Script settings</string>
+    <string name="mpv_config_script_enabled">Enable script</string>
+    <string name="mpv_config_script_settings_desc">Set the name, enabled state, and trigger</string>
+    <string name="mpv_config_script_open_editor">Open editor</string>
+    <string name="mpv_config_script_import_url">Import script from URL</string>
+    <string name="mpv_config_script_import_url_desc">Download and save a remote Lua/JS script</string>
+    <string name="mpv_config_script_import_file">Import script file</string>
+    <string name="mpv_config_script_import_file_desc">Choose a Lua/JS script file from this device</string>
     <string name="mpv_config_saved">MPV config saved. Reopen playback to apply it.</string>
     <string name="mpv_config_empty">MPV config is empty</string>
     <string name="mpv_config_file_invalid">Invalid mpv.conf file</string>
@@ -1127,7 +1216,6 @@
     <string name="player_audio_decode">Audio software decode</string>
     <string name="player_audio_passthrough">Audio passthrough</string>
     <string name="player_video_decode">Video software decode</string>
-    <string name="player_ffmpeg_mode">FFmpeg mode</string>
     <string name="player_aac_track">Prefer aac track</string>
     <string name="player_music_notification">Music background notification</string>
     <string name="player_audio_book_notification">Audiobook background notification</string>
@@ -1143,8 +1231,19 @@
     <string name="player_preload_size">Preload size</string>
     <string name="player_preload_time">Preload time</string>
     <string name="player_preload_time_value">%1$d seconds</string>
+<<<<<<< HEAD
     <string name="player_auto_play">Auto play</string>
+=======
+    <string name="player_preload_ahead">Preload-ahead target</string>
+    <string name="player_preload_ahead_value">%1$d min</string>
+    <string name="player_preload_ahead_whole">Entire media</string>
+    <string name="player_preload_pause">Continue preload while paused</string>
+    <string name="player_preload_pause_wifi">Wi-Fi only</string>
+    <string name="player_preload_pause_always">Always</string>
+    <string name="player_auto_play">Auto play VOD</string>
+>>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     <string name="player_auto_change">Auto source change</string>
+    <string name="player_remember_brightness">Remember playback brightness</string>
     <string name="player_failure_fallback">Failure fallback</string>
     <string name="player_speed">Press speed</string>
     <string name="player_ua">User-Agent</string>
@@ -1170,6 +1269,7 @@
     <string name="subtitle_manual_apply_failed">Subtitle found but could not be applied</string>
     <string name="subtitle_manual_inactive">Start playback before searching subtitles</string>
     <string name="player_subtitle_realtime_model">Real-time recognition language</string>
+    <string name="subtitle_realtime_source_language">Original audio language</string>
     <string name="subtitle_realtime_model_status">%1$s · %2$s</string>
     <string name="subtitle_realtime_model_select_title">Select audio source language</string>
     <string name="subtitle_realtime_model_delete_action">Delete model</string>
@@ -1302,9 +1402,9 @@
     <string name="dialog_audio_playback_style">Audio playback style</string>
     <string name="dialog_audio_playback_style_immersive">Immersive audio (merged upstream)</string>
     <string name="dialog_audio_playback_style_built_in">Standard audio (built-in)</string>
-    <string name="dialog_audio_enabled_label">启用规则</string>
-    <string name="dialog_audio_add_hint">添加关键词或站点…</string>
-    <string name="dialog_audio_add">添加</string>
+    <string name="dialog_audio_enabled_label">Enabled rules</string>
+    <string name="dialog_audio_add_hint">Add a keyword or site…</string>
+    <string name="dialog_audio_add">Add</string>
     <string name="dialog_novel_enabled_label">Enabled rules</string>
     <string name="dialog_novel_add_hint">Add a keyword or site…</string>
     <string name="dialog_novel_add">Add</string>
@@ -1321,20 +1421,24 @@
     <string name="cat_web_opening">Opening settings</string>
     <string name="cat_web_failed">Failed to load page: %1$s</string>
     <string name="cat_web_external">Opened in browser</string>
+    <string name="cat_web_download">Downloading %1$s to Downloads</string>
+    <string name="cat_web_download_failed">Download failed</string>
     <string name="dialog_short_drama_site_rules">Short drama source rules: enabled sources or keywords, separated by ;. Default: [短];短剧</string>
     <string name="dialog_short_drama_site_manage">Select short drama sources</string>
     <string name="dialog_short_drama_site_default">Default [短]/短剧</string>
     <string name="dialog_short_drama_site_disabled">Excluded: %1$s</string>
-    <string name="dialog_short_drama_enabled_label">启用规则</string>
-    <string name="dialog_short_drama_disabled_label">已排除</string>
-    <string name="dialog_short_drama_add_hint">添加关键词或站点…</string>
-    <string name="dialog_short_drama_add">添加</string>
+    <string name="dialog_short_drama_enabled_label">Enabled rules</string>
+    <string name="dialog_short_drama_disabled_label">Excluded</string>
+    <string name="dialog_short_drama_add_hint">Add a keyword or site…</string>
+    <string name="dialog_short_drama_add">Add</string>
 
     <string name="dialog_reset">Reset</string>
     <string name="setting_show">Show</string>
     <string name="setting_hide">Hide</string>
     <string name="dialog_select_title">Select chapter</string>
     <string name="dialog_config_hint">Please enter the config…</string>
+    <string name="dialog_config_choose_dir">Choose folder (cat source local package)</string>
+    <string name="dialog_config_choose_failed">Could not read the selected item, please pick the package folder or zip again</string>
     <string name="dialog_config_name">Please enter the name…</string>
     <string name="dialog_config_url">Please enter the url…</string>
 
@@ -1360,6 +1464,8 @@
     <string name="error_play_stage_network">Network reading failed. Check the network and request headers, or choose another line.</string>
     <string name="error_play_stage_media">Media parsing failed or no playable audio/video track was found. Choose another line or player.</string>
     <string name="error_play_stage_decoder">Audio/video decoding failed. Try another decode mode or player.</string>
+    <string name="error_play_stage_audio_output">Audio output failed. Reopen playback or try another decode mode.</string>
+    <string name="error_play_stage_video_output">Video output failed. Reopen playback or try another decode mode.</string>
     <string name="error_play_stage_output">Audio/video output failed. Reopen playback or try another decode mode.</string>
     <string name="error_play_stage_drm">DRM authorization or protected-media handling failed. Choose another line or player.</string>
     <string name="error_play_stage_unknown">Playback failed, but there is not enough evidence to identify the failing stage.</string>
@@ -1409,6 +1515,38 @@
     <string name="update_backup_done">Backup completed, starting update</string>
     <string name="update_backup_failed">Backup failed, will continue update anyway</string>
     <string name="update_backup_permission_denied">Storage permission denied, cannot backup, will continue update anyway</string>
+    <string name="update_settings">Update settings</string>
+    <string name="update_settings_title">Update settings</string>
+    <string name="update_settings_source">Download method</string>
+    <string name="update_source_github">GitHub</string>
+    <string name="update_source_oci">OCI</string>
+    <string name="update_github_proxy">GitHub proxy</string>
+    <string name="update_github_proxy_value">GitHub proxy · %1$s</string>
+    <string name="update_oci_mirror">OCI Registry mirror</string>
+    <string name="update_oci_mirror_value">OCI mirror · %1$s</string>
+    <string name="update_custom_url">Custom HTTPS origin</string>
+    <string name="update_proxy_mode_full">Full URL prefix</string>
+    <string name="update_proxy_mode_strip">Remove https://</string>
+    <string name="update_proxy_direct">Direct</string>
+    <string name="update_proxy_custom">Custom</string>
+    <string name="update_proxy_invalid">Enter a valid HTTPS origin without credentials or a path.</string>
+    <string name="update_settings_save">Save</string>
+    <string name="update_settings_saved">Update settings saved</string>
+    <string name="apk_push_url_busy">Another APK link download is already active</string>
+    <string name="apk_push_url_schedule_failed">Unable to start the APK link download</string>
+    <string name="apk_push_url_downloading">APK link received. Downloading on this device...</string>
+    <string name="apk_push_url_install_ready">APK downloaded. Confirm installation.</string>
+    <string name="apk_push_url_download_failed">APK link download failed: %1$s</string>
+    <string name="apk_push_url_progress_title">Receiving APK</string>
+    <string name="apk_push_url_progress_hint">Downloading the APK sent over your LAN. Android will still ask you to confirm installation.</string>
+    <string name="apk_push_url_progress_known">Receiving %1$d%% · %2$s / %3$s</string>
+    <string name="apk_push_url_progress_unknown">Received %1$s</string>
+    <string name="apk_push_url_progress_detail_remaining">%1$s/s · %2$s left · %3$s elapsed</string>
+    <string name="apk_push_url_progress_detail">%1$s/s · %2$s elapsed</string>
+    <string name="apk_push_url_cancel">Cancel download</string>
+    <string name="apk_push_url_canceled">APK download canceled</string>
+    <string name="update_download_identity">The update package identity or signature does not match this app.</string>
+    <string name="update_download_source_unavailable">The selected update source is not available for this release.</string>
 
     <!-- Crash -->
     <string name="crash_info">An unexpected error occurred.\nSorry for the inconvenience.</string>
@@ -1651,6 +1789,16 @@
         <item>ja</item>
         <item>zh-en</item>
     </string-array>
+    <string-array name="select_realtime_subtitle_language">
+        <item>Mandarin</item>
+        <item>Cantonese</item>
+        <item>English</item>
+        <item>German</item>
+        <item>French</item>
+        <item>Spanish</item>
+        <item>Japanese</item>
+        <item>Chinese + English</item>
+    </string-array>
     <string-array name="select_subtitle_language">
         <item>Chinese first</item>
         <item>Simplified Chinese</item>
@@ -1853,11 +2001,11 @@
     <string name="detail_external_open_failed">Unable to open external link</string>
     <string name="detail_image_permission_denied">Storage permission denied</string>
 
-    <string name="detail_tmdb_photos">剧照</string>
-    <string name="detail_tmdb_posters">海报</string>
-    <string name="detail_no_overview">暂无简介</string>
-    <string name="detail_image_rotate">旋转</string>
-    <string name="tmdb_external_links_label">外部链接</string>
+    <string name="detail_tmdb_photos">Stills</string>
+    <string name="detail_tmdb_posters">Posters</string>
+    <string name="detail_no_overview">No overview</string>
+    <string name="detail_image_rotate">Rotate</string>
+    <string name="tmdb_external_links_label">External links</string>
     <string name="tmdb_ratings_label">Ratings</string>
     <string name="tmdb_ratings_votes">Votes</string>
     <string name="control_display">Display</string>
@@ -1972,93 +2120,100 @@
     <string name="viewing_report_badges">🏆 Achievements</string>
 
     <!-- AI 智能去广 -->
-    <string name="setting_ai_ad_detection">AI 智能去广</string>
-    <string name="setting_ad_rule_manage">广告规则管理</string>
-    <string name="ad_rule_add_manual">手动添加规则</string>
-    <string name="ad_rule_import_candidates">待审核接口规则（%d）</string>
-    <string name="ad_rule_import_title">导入接口去广规则</string>
-    <string name="ad_rule_import_action">导入（默认停用）</string>
-    <string name="ad_rule_ignore_all">忽略全部</string>
-    <string name="ad_rule_import_empty">暂无待审核接口规则</string>
-    <string name="ad_rule_section_custom">自定义规则</string>
-    <string name="ad_rule_section_server">接口配置规则</string>
-    <string name="ad_rule_empty">暂无规则</string>
-    <string name="ad_rule_delete_confirm">删除规则</string>
-    <string name="ad_rule_delete_message">确定删除“%1$s”吗？接口导入规则删除后可在待审核规则中重新导入。</string>
-    <string name="ad_rule_server_empty">来自配置 · 暂无</string>
-    <string name="ad_rule_server_summary">来自配置 · 共 %d 条（只读）</string>
-    <string name="ad_rule_edit_title">编辑规则</string>
-    <string name="ad_rule_field_name">规则名称（可选）</string>
-    <string name="ad_rule_field_hosts">域名列表（每行一个）</string>
-    <string name="ad_rule_field_hosts_hint">仅对这些域名生效，留空表示全局</string>
-    <string name="ad_rule_field_regex">广告规则（每行一个正则）</string>
-    <string name="ad_rule_field_regex_hint">匹配的 URL 会被屏蔽</string>
-    <string name="ad_rule_field_exclude">白名单（每行一个正则）</string>
-    <string name="ad_rule_field_exclude_hint">匹配的 URL 不会被屏蔽</string>
-    <string name="ad_rule_empty_input">至少填写一项</string>
-    <string name="ad_rule_invalid_regex">正则表达式无效：%s</string>
-    <string name="ad_rule_count">%d 条规则</string>
-    <string name="ad_rule_count_with_pending">%1$d 条规则 · %2$d 条待审核</string>
-    <string name="play_ad_feedback">有广告</string>
-    <string name="ad_feedback_analyzing">AI 正在分析广告特征…</string>
-    <string name="ad_feedback_no_url">当前没有可分析的播放地址</string>
-    <string name="ad_feedback_ai_disabled">请先在增强设置中开启 AI 与智能去广</string>
-    <string name="ad_feedback_failed">分析失败：%s</string>
-    <string name="ad_feedback_empty_result">AI 未识别到明显的广告特征</string>
-    <string name="ad_feedback_preview_title">AI 广告分析结果</string>
-    <string name="ad_feedback_confidence">置信度 %d%%</string>
-    <string name="ad_feedback_reasoning">分析说明</string>
-    <string name="ad_feedback_apply">应用并屏蔽</string>
-    <string name="ad_feedback_applied">已添加去广规则</string>
-    <string name="ad_feedback_low_confidence">置信度较低，建议人工核对后再应用</string>
-    <string name="ad_feedback_no_ad">AI 未识别到明显的广告特征</string>
-    <string name="ad_feedback_saved">已添加去广规则</string>
-    <string name="ad_rule_preview_title">AI 广告分析结果</string>
-    <string name="ad_rule_confidence_value">置信度：%d%%</string>
-    <string name="ad_rule_low_confidence_warning">置信度较低，证据不足，建议人工核对后再应用</string>
-    <string name="ad_rule_preview_hosts">屏蔽域名</string>
-    <string name="ad_rule_preview_regex">广告规则（正则）</string>
-    <string name="ad_block_stats">广告拦截统计</string>
-    <string name="ad_block_total">总拦截次数</string>
-    <string name="ad_feedback_count">AI 反馈次数</string>
-    <string name="ad_ai_success_rate">AI 分析成功率</string>
-    <string name="ad_site_rank">站点拦截排行</string>
-    <string name="ad_rule_rank">规则命中排行</string>
-    <string name="ad_stats_reset">重置统计</string>
-    <string name="ad_stats_reset_confirm">确定重置所有统计数据吗？</string>
-    <string name="ad_stats_empty">暂无统计数据</string>
-    <string name="ad_stats_overview">统计概览</string>
-    <string name="ad_stats_times">次</string>
+    <string name="setting_ai_ad_detection">AI ad detection</string>
+    <string name="setting_ad_rule_manage">Ad rule manager</string>
+    <string name="ad_rule_add_manual">Add rule manually</string>
+    <string name="ad_rule_import_candidates">Source rules pending review (%d)</string>
+    <string name="ad_rule_import_title">Import ad rules from source</string>
+    <string name="ad_rule_import_action">Import only (keep disabled)</string>
+    <string name="ad_rule_import_enable_action">Import and enable selected</string>
+    <string name="ad_rule_select_low_risk">Select low risk</string>
+    <string name="ad_rule_select_all">Select all</string>
+    <string name="ad_rule_invert_selection">Invert selection</string>
+    <string name="ad_rule_ignore_all">Ignore all</string>
+    <string name="ad_rule_import_empty">No source rules pending review</string>
+    <string name="ad_rule_section_custom">Custom rules</string>
+    <string name="ad_rule_section_server">Rules from source config</string>
+    <string name="ad_rule_empty">No rules</string>
+    <string name="ad_rule_enable_imported">Enable all imported source rules</string>
+    <string name="ad_rule_disable_imported">Disable all imported source rules</string>
+    <string name="ad_rule_disable_imported_confirm">Temporarily disable all imported source rules? You can re-enable them together at any time.</string>
+    <string name="ad_rule_delete_confirm">Delete rule</string>
+    <string name="ad_rule_delete_message">Delete “%1$s”? Imported source rules can be re-imported from the pending review list.</string>
+    <string name="ad_rule_server_empty">From config · none</string>
+    <string name="ad_rule_server_summary">From config · %d rules (read-only)</string>
+    <string name="ad_rule_edit_title">Edit rule</string>
+    <string name="ad_rule_field_name">Rule name (optional)</string>
+    <string name="ad_rule_field_hosts">Hosts (one per line)</string>
+    <string name="ad_rule_field_hosts_hint">Applies only to these hosts. Leave empty to match all.</string>
+    <string name="ad_rule_field_regex">Ad patterns (one regex per line)</string>
+    <string name="ad_rule_field_regex_hint">Matching URLs are blocked</string>
+    <string name="ad_rule_field_exclude">Allowlist (one regex per line)</string>
+    <string name="ad_rule_field_exclude_hint">Matching URLs are never blocked</string>
+    <string name="ad_rule_empty_input">Fill in at least one field</string>
+    <string name="ad_rule_invalid_regex">Invalid regular expression: %s</string>
+    <string name="ad_rule_count">%d rules</string>
+    <string name="ad_rule_count_with_pending">%1$d rules · %2$d pending review</string>
+    <string name="play_ad_feedback">Report ad</string>
+    <string name="ad_feedback_analyzing">AI is analyzing ad patterns…</string>
+    <string name="ad_feedback_no_url">No playback URL available to analyze</string>
+    <string name="ad_feedback_ai_disabled">Turn on AI and ad detection in Ad blocking settings first</string>
+    <string name="ad_feedback_failed">Analysis failed: %s</string>
+    <string name="ad_feedback_empty_result">AI found no clear ad patterns</string>
+    <string name="ad_feedback_preview_title">AI ad analysis</string>
+    <string name="ad_feedback_confidence">Confidence %d%%</string>
+    <string name="ad_feedback_reasoning">Reasoning</string>
+    <string name="ad_feedback_apply">Apply and block</string>
+    <string name="ad_feedback_applied">Ad rule added</string>
+    <string name="ad_feedback_low_confidence">Low confidence. Review manually before applying.</string>
+    <string name="ad_feedback_no_ad">AI found no clear ad patterns</string>
+    <string name="ad_feedback_saved">Ad rule added</string>
+    <string name="ad_rule_preview_title">AI ad analysis</string>
+    <string name="ad_rule_confidence_value">Confidence: %d%%</string>
+    <string name="ad_rule_low_confidence_warning">Low confidence and weak evidence. Review manually before applying.</string>
+    <string name="ad_rule_preview_hosts">Blocked hosts</string>
+    <string name="ad_rule_preview_regex">Ad patterns (regex)</string>
+    <string name="ad_block_stats">Ad blocking stats</string>
+    <string name="ad_block_total">Total blocked</string>
+    <string name="ad_feedback_count">AI reports</string>
+    <string name="ad_ai_success_rate">AI success rate</string>
+    <string name="ad_site_rank">Top blocked sites</string>
+    <string name="ad_rule_rank">Top matching rules</string>
+    <string name="ad_stats_reset">Reset stats</string>
+    <string name="ad_stats_reset_confirm">Reset all statistics?</string>
+    <string name="ad_stats_empty">No statistics yet</string>
+    <string name="ad_stats_overview">Overview</string>
+    <string name="ad_stats_times">times</string>
     <string name="ad_stats_percent">%.1f%%</string>
-    <string name="ad_stats_site_name">站点</string>
-    <string name="ad_stats_rule_name">规则</string>
-    <string name="ad_stats_count">次数</string>
-    <string name="ad_stats_source">来源</string>
-    <string name="ad_stats_source_default">默认</string>
+    <string name="ad_stats_site_name">Site</string>
+    <string name="ad_stats_rule_name">Rule</string>
+    <string name="ad_stats_count">Count</string>
+    <string name="ad_stats_source">Source</string>
+    <string name="ad_stats_source_default">Default</string>
     <string name="ad_stats_source_ai">AI</string>
-    <string name="ad_stats_source_manual">手动</string>
-    <string name="ad_stats_source_unknown">未知</string>
-    <string name="ad_rule_preview_exclude">白名单（正则）</string>
-    <string name="ad_rule_preview_none">（无）</string>
-    <string name="ad_rule_preview_confirm">应用并屏蔽</string>
-    <string name="ad_rule_section_summary">AI/自定义 %1$d 条 · 接口配置 %2$d 条 · 内置 HLS %3$d 条</string>
-    <string name="ad_rule_hls_builtin_summary">内置 HLS · v%1$d · %2$s</string>
-    <string name="ad_rule_hls_enabled">已启用</string>
-    <string name="ad_rule_hls_disabled">默认关闭</string>
-    <string name="ad_rule_hls_invalid">规则异常：%1$s</string>
-    <string name="ad_rule_detail_hint">查看完整规则</string>
-    <string name="ad_rule_detail_hosts">适用域名</string>
-    <string name="ad_rule_detail_regex">匹配规则</string>
-    <string name="ad_rule_detail_script">自动化脚本</string>
-    <string name="ad_rule_detail_exclude">白名单 / 正片保护</string>
-    <string name="ad_rule_detail_json">完整规则（JSON）</string>
-    <string name="ad_rule_detail_id">规则 ID：%1$s</string>
-    <string name="ad_rule_detail_source">来源：%1$s</string>
-    <string name="ad_rule_default_disable_confirm">临时停用此接口配置规则？\n可能导致部分广告无法过滤，可随时重新启用。</string>
-    <string name="ad_rule_imported_disable_confirm">临时停用此接口导入规则？\n可随时重新启用，删除后也可从待审核规则重新导入。</string>
-    <string name="ad_rule_ai_disable_confirm">临时停用此 AI 识别规则？\n可随时重新启用。</string>
-    <string name="ad_rule_manual_disable_confirm">临时停用此手动规则？\n可随时重新启用。</string>
-    <string name="ad_rule_default_enable_confirm">重新启用此默认规则？</string>
+    <string name="ad_stats_source_manual">Manual</string>
+    <string name="ad_stats_source_unknown">Unknown</string>
+    <string name="ad_rule_preview_exclude">Allowlist (regex)</string>
+    <string name="ad_rule_preview_none">(none)</string>
+    <string name="ad_rule_preview_confirm">Apply and block</string>
+    <string name="ad_rule_section_summary">AI/custom %1$d · source config %2$d · built-in HLS %3$d</string>
+    <string name="ad_rule_hls_builtin_summary">Built-in HLS · v%1$d · %2$s</string>
+    <string name="ad_rule_hls_enabled">Enabled</string>
+    <string name="ad_rule_hls_disabled">Off by default</string>
+    <string name="ad_rule_hls_invalid">Invalid rule: %1$s</string>
+    <string name="ad_rule_detail_hint">View full rule</string>
+    <string name="ad_rule_detail_hosts">Applies to hosts</string>
+    <string name="ad_rule_detail_regex">Match patterns</string>
+    <string name="ad_rule_detail_script">Automation script</string>
+    <string name="ad_rule_detail_exclude">Allowlist / content protection</string>
+    <string name="ad_rule_detail_json">Full rule (JSON)</string>
+    <string name="ad_rule_detail_id">Rule ID: %1$s</string>
+    <string name="ad_rule_detail_source">Source: %1$s</string>
+    <string name="ad_rule_default_disable_confirm">Temporarily disable this source config rule?\nSome ads may stop being filtered. You can re-enable it at any time.</string>
+    <string name="ad_rule_imported_disable_confirm">Temporarily disable this imported source rule?\nYou can re-enable it at any time, and re-import it from the pending review list after deleting.</string>
+    <string name="ad_rule_ai_disable_confirm">Temporarily disable this AI rule?\nYou can re-enable it at any time.</string>
+    <string name="ad_rule_manual_disable_confirm">Temporarily disable this manual rule?\nYou can re-enable it at any time.</string>
+    <string name="ad_rule_default_enable_confirm">Re-enable this default rule?</string>
 
 <string name="player_karaoke_status_free">Karaoke · Free sing</string>
 
@@ -2399,7 +2554,7 @@
 
 <string name="player_audio_repeat">Repeat</string>
 
-    <string name="web_theme_detail_loading">正在加载详情页…</string>
+    <string name="web_theme_detail_loading">Loading details…</string>
     <string name="ad_audio_candidate_title">Suspected advertisement</string>
     <string name="ad_audio_match_title">Audio advertisement matched</string>
     <string name="ad_audio_candidate_message">Rule %1$s matched. Skip about %2$d seconds?</string>
@@ -2421,6 +2576,27 @@
     <string name="speech_ad_enabled">Speech ad recognition</string>
     <string name="speech_ad_keywords">Ad keywords</string>
     <string name="speech_ad_keyword_count">%1$d keywords</string>
+    <string name="speech_ad_rules">Speech rules</string>
+    <string name="speech_ad_rules_none">No speech rules</string>
+    <string name="speech_ad_rules_summary">%1$d rules · %2$s</string>
+    <string name="speech_ad_rules_error">Rule settings error: %1$s</string>
+    <string name="speech_ad_rules_manage">Manage speech rules</string>
+    <string name="speech_ad_rules_edit">Edit rules</string>
+    <string name="speech_ad_rules_import">Import text rules</string>
+    <string name="speech_ad_rules_clear">Clear custom rules</string>
+    <string name="speech_ad_rules_view_builtin">View built-in rules</string>
+    <string name="speech_ad_rules_clear_confirm">Clear the current custom speech rules?</string>
+    <string name="speech_ad_rules_clear_done">Custom speech rules cleared</string>
+    <string name="speech_ad_rules_saved">Speech rules saved</string>
+    <string name="speech_ad_rules_imported">Imported %1$d speech rules</string>
+    <string name="speech_ad_rules_import_failed">Speech rule import failed: %1$s</string>
+    <string name="speech_ad_rules_source_none">none</string>
+    <string name="speech_ad_rules_source_builtin">built-in</string>
+    <string name="speech_ad_rules_source_user">edited</string>
+    <string name="speech_ad_rules_source_imported">imported</string>
+    <string name="speech_ad_rules_source_combined">built-in + custom</string>
+    <string name="speech_ad_builtin">Built-in speech rules</string>
+    <string name="speech_ad_builtin_value">%1$s · %2$d rules</string>
     <string name="speech_ad_skip_seconds">Skip duration</string>
     <string name="speech_ad_skip_seconds_value">%1$d seconds</string>
     <string name="speech_ad_skip_mode">Skip mode</string>
@@ -2443,4 +2619,25 @@
     <string name="node_switch_restart">Switching cat source…</string>
     <string name="node_background">Run in background</string>
     <string name="node_speed">%1$s/s</string>
-    <string name="node_size_pair">%1$s / %2$s</string></resources>
+    <string name="node_size_pair">%1$s / %2$s</string>
+    <string name="setting_ad">Ad blocking</string>
+    <string name="setting_ad_summary">Master switch, rules, audio fingerprint, intro skip</string>
+    <string name="setting_ad_group_basic">Basic</string>
+    <string name="setting_ad_group_rule">Rules and stats</string>
+    <string name="setting_ad_group_audio">Audio detection</string>
+    <string name="setting_ad_group_segment">Segment skipping</string>
+    <string name="setting_ad_master">Ad blocking master switch</string>
+    <string name="setting_ad_audio_auto_skip">Skip automatically</string>
+    <string name="setting_ad_probe_source">Community rule source</string>
+    <string name="setting_ad_probe_source_hint">Must be an https address. Rules are unsigned, so only use a source you trust.</string>
+    <string name="setting_ad_probe_source_default">Default</string>
+    <string name="setting_ad_probe_source_off">Off</string>
+    <string name="setting_ad_probe_refresh">Refresh rules now</string>
+    <string name="setting_ad_probe_refreshing">Refreshing…</string>
+    <string name="setting_ad_probe_refreshed">Updated: %1$s · %2$d rules</string>
+    <string name="setting_ad_probe_unchanged">Already up to date, %1$d rules</string>
+    <string name="setting_ad_probe_failed">Refresh failed: %1$s</string>
+    <string name="setting_ad_probe_revision">Revision %1$d · %2$d rules</string>
+    <string name="setting_ad_probe_never">Never fetched</string>
+    <string name="setting_ad_probe_url_invalid">The rule source must start with https://</string>
+    <string name="setting_ad_probe_source_disabled">Set a community rule source first</string></resources>

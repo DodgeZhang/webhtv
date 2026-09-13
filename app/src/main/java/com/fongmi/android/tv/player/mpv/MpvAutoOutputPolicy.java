@@ -27,6 +27,18 @@ public final class MpvAutoOutputPolicy {
                                     DolbyVisionSupport dolbyVisionSupport,
                                     int dolbyVisionProfile,
                                     boolean dv7Hdr10FallbackEnabled) {
+        return evaluate(width, height, hardDecode, leanback, lutOrFilterActive,
+                customGpuProcessing, dolbyVisionSupport, dolbyVisionProfile,
+                dv7Hdr10FallbackEnabled, DolbyVisionSupport.UNKNOWN);
+    }
+
+    public static Decision evaluate(int width, int height, boolean hardDecode,
+                                    boolean leanback, boolean lutOrFilterActive,
+                                    boolean customGpuProcessing,
+                                    DolbyVisionSupport dolbyVisionSupport,
+                                    int dolbyVisionProfile,
+                                    boolean dv7Hdr10FallbackEnabled,
+                                    DolbyVisionSupport hevcHdr10Support) {
         if (!leanback) return new Decision(false, "not-tv");
         if (!hardDecode) return new Decision(false, "software-decode");
         if (lutOrFilterActive) return new Decision(false, "lut-or-filter-active");
@@ -40,10 +52,20 @@ public final class MpvAutoOutputPolicy {
                     && dolbyVisionSupport == DolbyVisionSupport.UNSUPPORTED) {
                 return new Decision(true, "dv7-hdr10-base-layer");
             }
+            if (dolbyVisionProfile == 8
+                    && dolbyVisionSupport == DolbyVisionSupport.UNSUPPORTED
+                    && hevcHdr10Support == DolbyVisionSupport.SUPPORTED) {
+                return new Decision(true, "dv8-hdr10-base-layer");
+            }
             return new Decision(false, dolbyVisionSupport == DolbyVisionSupport.UNKNOWN
                     ? "dolby-vision-hw-unknown" : "dolby-vision-hw-unsupported");
         }
         return new Decision(true, "tv-hardware-decode");
+    }
+
+    /** A same-item rebuild must not retry an output that already failed. */
+    public static Decision afterSurfaceFailure(Decision candidate, boolean failedForItem) {
+        return failedForItem ? new Decision(false, "surface-direct-failed-for-item") : candidate;
     }
 
     /** Select the initial TV output before MPV has reported a video size. */
@@ -69,6 +91,20 @@ public final class MpvAutoOutputPolicy {
 
     public static boolean shouldLeaveSurfaceDirectForSubtitle(boolean automaticOutput, boolean currentlyDirect, boolean externalSubtitleActive, boolean userRequestedSubtitle) {
         return automaticOutput && currentlyDirect && requiresGpuSubtitle(externalSubtitleActive, userRequestedSubtitle);
+    }
+
+    public static boolean canRevealDirectFrame(boolean automaticOutput,
+                                               boolean outputEvaluated,
+                                               boolean playbackReady,
+                                               boolean surfaceDirect,
+                                               int width,
+                                               int height) {
+        return automaticOutput
+                && !outputEvaluated
+                && playbackReady
+                 && surfaceDirect
+                 && width > 0
+                 && height > 0;
     }
 
     public enum Transition {
