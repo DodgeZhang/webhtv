@@ -359,6 +359,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean overviewExpanded;
     private boolean useParse;
     private boolean inlineStarted;
+    private boolean inlinePlaybackPending;
     private boolean inlineHttpRefreshAttempted;
     private boolean detailPlayerActive;
     private boolean autoPlayed;
@@ -706,6 +707,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         clearEpisodeRenderCaches();
         resetEpisodeRange();
         inlineStarted = false;
+        inlinePlaybackPending = false;
         detailPlayerActive = false;
         autoPlayed = false;
         inlinePlaybackGeneration++;
@@ -2527,6 +2529,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void cancelPendingInlinePlayback() {
         inlinePlaybackGeneration++;
+        inlinePlaybackPending = false;
         updateInlineDisplayPanel();
     }
 
@@ -7052,6 +7055,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void playInline(long resumePosition, String failedUrl, String failureMessage) {
         if (selectedFlag == null || selectedEpisode == null) return;
+        inlinePlaybackPending = true;
         int generation = ++inlinePlaybackGeneration;
         String key = getKeyText();
         String flag = selectedFlag.getFlag();
@@ -7064,6 +7068,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 Result result = SiteApi.playerContent(key, flag, episodeUrl, playerKernel);
                 runOnAliveUi(() -> {
                     if (!isInlinePlaybackRequestCurrent(generation, key, flag, episodeUrl)) return;
+                    inlinePlaybackPending = false;
                     String resolvedUrl = result.getUrl() == null ? "" : result.getUrl().v();
                     if (!TextUtils.isEmpty(failedUrl) && TextUtils.equals(failedUrl, resolvedUrl)) {
                         SpiderDebug.log("webhome-inline", "http refresh rejected unchanged url key=%s id=%s", key, episodeUrl);
@@ -7076,6 +7081,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 String message = e.getMessage();
                 runOnAliveUi(() -> {
                     if (!isInlinePlaybackRequestCurrent(generation, key, flag, episodeUrl)) return;
+                    inlinePlaybackPending = false;
                     String fallback = TextUtils.isEmpty(failureMessage) ? getString(R.string.error_play_url) : failureMessage;
                     showInlineError(TextUtils.isEmpty(message) ? fallback : message);
                 });
@@ -7108,6 +7114,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void startInlinePlayer(Result result, long resumePosition) {
+        inlinePlaybackPending = false;
         // 决定性拦截：play_url 协议为 novel:// / pics:// / manga:// → 直启阅读器，不再喂给内联 player
         // （选集 / quality 切换 / 重连 / resume 全走此汇聚点。）
         if (NovelRouter.guardInlinePlay(this, result,
@@ -7209,6 +7216,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void toggleInlinePlayback() {
         if (!isInlinePlayerMode()) return;
         if (inlinePlaybackReconnectPending) return;
+        if (isSamePendingInlinePlayback(selectedEpisode)) return;
         if (controller() == null || service() == null || player().isEmpty()) {
             onPlay();
             return;
@@ -9389,7 +9397,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         return 3;
     }
 
+    private boolean isSamePendingInlinePlayback(Episode episode) {
+        return inlinePlaybackPending && selectedEpisode != null && selectedEpisode.equals(episode);
+    }
+
     private void selectInlineEpisode(Episode episode) {
+        if (isSamePendingInlinePlayback(episode)) return;
         if (NovelRouter.route(this, getKeyText(), episode, vod, selectedFlag, () -> inlinePlay(episode))) return;
         inlinePlay(episode);
     }
@@ -9848,6 +9861,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.playerPanel.setVisibility(View.GONE);
         binding.playerPanelSpacer.setVisibility(View.GONE); // 同步隐藏 spacer
         inlineStarted = false;
+        inlinePlaybackPending = false;
         detailPlayerActive = false;
         pendingInlineResult = null;
         currentInlineResult = null;

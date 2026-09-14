@@ -15,7 +15,7 @@ public class SearchResultDownFocusTest {
     public void validDownPressFocusesTheNextResultImmediately() throws Exception {
         String source = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/CollectActivity.java");
         int start = source.indexOf("private boolean onSearchDown(int position, int count)");
-        int end = source.indexOf("private void focusSearchTarget(int position)");
+        int end = source.indexOf("boolean onLoadMore", start);
 
         assertTrue("result-row navigation must define its down policy", start >= 0 && end > start);
         String down = source.substring(start, end);

@@ -1042,6 +1042,9 @@
     <string name="player_kernel_external">外調</string>
     <string name="player_scale">縮放比例</string>
     <string name="player_lut">LUT 調色</string>
+    <string name="player_mpv_config">MPV 設定管理</string>
+    <string name="player_mpv_render">MPV 渲染後端</string>
+    <string name="mpv_render_native_unavailable">目前不可用</string>
     <string name="player_bluray_menu">藍光原盤選單</string>
     <string name="disc_menu_root">主選單</string>
     <string name="disc_menu_popup">彈出選單</string>
@@ -1054,9 +1057,6 @@
     <string name="disc_menu_open_hint">開啟原碟主選單；長按開啟選單導覽</string>
     <string name="disc_menu_navigation">選單導覽</string>
     <string name="disc_menu_touch_hint">可直接點選畫面中的選單按鈕，也可使用方向鍵選擇</string>
-    <string name="player_mpv_config">MPV 設定管理</string>
-    <string name="player_mpv_render">MPV 渲染後端</string>
-    <string name="mpv_render_native_unavailable">目前不可用</string>
     <string name="mpv_config_target">%1$s · %2$s</string>
     <string name="mpv_config_default">預設</string>
     <string name="mpv_config_local">本機 mpv.conf</string>
@@ -1933,6 +1933,13 @@
         <item>搜尋後選擇播放源</item>
     </string-array>
 
+    <string-array name="select_interface_failover_mode">
+        <item>關閉</item>
+        <item>自動容災</item>
+        <item>手動確認</item>
+    </string-array>
+
+
     <string-array name="select_auto_skip_intro_outro">
         <item>關閉</item>
         <item>自動跳過</item>
@@ -2336,6 +2343,12 @@
     <string name="setting_history_aggregation">歷史記錄跨源聚合</string>
     <string name="setting_history_aggregation_hint">基於 TMDB 匹配統一不同源的歷史記錄</string>
     <string name="setting_global_history">全域歷史續播</string>
+    <string name="setting_interface_failover">點播介面容災</string>
+    <string name="interface_failover_title">介面載入失敗</string>
+    <string name="interface_failover_message">目前介面：%1$s</string>
+    <string name="interface_failover_next">正在嘗試下一個介面：%1$s</string>
+    <string name="interface_failover_switch">切換介面</string>
+    <string name="interface_failover_cancelled">已取消介面切換</string>
     <string name="history_other_config">其他配置</string>
     <string name="history_source_unavailable">介面已失效</string>
     <string name="history_source_searching">正在配對可續播播放源…</string>

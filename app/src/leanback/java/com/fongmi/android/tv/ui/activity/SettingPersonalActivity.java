@@ -39,6 +39,7 @@ public class SettingPersonalActivity extends BaseActivity {
     private String[] searchColumn;
     private String[] searchResultSort;
     private String[] globalHistoryMode;
+    private String[] interfaceFailoverMode;
 
     public static void start(Activity activity) {
         activity.startActivity(new Intent(activity, SettingPersonalActivity.class));
@@ -70,6 +71,7 @@ public class SettingPersonalActivity extends BaseActivity {
         mBinding.playBackToDetail.setOnClickListener(this::setPlayBackToDetail);
         mBinding.episodeHistory.setOnClickListener(this::setEpisodeHistory);
         mBinding.globalHistory.setOnClickListener(this::setGlobalHistory);
+        mBinding.interfaceFailover.setOnClickListener(this::setInterfaceFailover);
         mBinding.playSpeed.setOnClickListener(this::setPlaySpeed);
         mBinding.groupRule.setOnClickListener(this::setGroupRule);
         mBinding.homeHistory.setOnClickListener(this::setHomeHistory);
@@ -98,6 +100,7 @@ public class SettingPersonalActivity extends BaseActivity {
         mBinding.playBackToDetailText.setText(getSwitch(Setting.isPlayBackToDetail()));
         mBinding.episodeHistoryText.setText(getSwitch(Setting.isEpisodeHistory()));
         mBinding.globalHistoryText.setText((globalHistoryMode = getResources().getStringArray(R.array.select_global_history_mode))[Setting.getGlobalHistoryMode()]);
+        mBinding.interfaceFailoverText.setText((interfaceFailoverMode = getResources().getStringArray(R.array.select_interface_failover_mode))[Setting.getInterfaceFailoverMode()]);
         mBinding.playSpeedText.setText(getSpeedText(PlayerSetting.getDefaultSpeed()));
         mBinding.groupRuleText.setText(getString(R.string.setting_group_rule_summary, GroupRuleConfig.enabledCount(), GroupRuleConfig.totalCount()));
         mBinding.homeHistoryText.setText(getSwitch(Setting.isHomeHistory()));
@@ -178,6 +181,11 @@ public class SettingPersonalActivity extends BaseActivity {
     private void setGlobalHistory(View view) {
         Setting.putGlobalHistoryMode((Setting.getGlobalHistoryMode() + 1) % globalHistoryMode.length);
         RefreshEvent.history();
+        setText();
+    }
+
+    private void setInterfaceFailover(View view) {
+        Setting.putInterfaceFailoverMode((Setting.getInterfaceFailoverMode() + 1) % interfaceFailoverMode.length);
         setText();
     }
 

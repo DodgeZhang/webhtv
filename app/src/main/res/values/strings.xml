@@ -1087,6 +1087,9 @@
     <string name="player_kernel_external">External</string>
     <string name="player_scale">Scale</string>
     <string name="player_lut">LUT color</string>
+    <string name="player_mpv_config">MPV config manager</string>
+    <string name="player_mpv_render">MPV renderer</string>
+    <string name="mpv_render_native_unavailable">Unavailable</string>
     <string name="player_bluray_menu">Blu-ray disc menu</string>
     <string name="disc_menu_root">Top menu</string>
     <string name="disc_menu_popup">Pop-up menu</string>
@@ -1099,9 +1102,6 @@
     <string name="disc_menu_open_hint">Open the disc top menu. Long press for navigation controls.</string>
     <string name="disc_menu_navigation">Menu navigation</string>
     <string name="disc_menu_touch_hint">Tap the disc buttons directly, or select with these controls.</string>
-    <string name="player_mpv_config">MPV config manager</string>
-    <string name="player_mpv_render">MPV renderer</string>
-    <string name="mpv_render_native_unavailable">Unavailable</string>
     <string name="mpv_config_target">%1$s · %2$s</string>
     <string name="mpv_config_default">Default</string>
     <string name="mpv_config_local">Local mpv.conf</string>
@@ -1711,6 +1711,19 @@
         <item>Auto-match source</item>
         <item>Choose source from search</item>
     </string-array>
+
+    <string-array name="select_interface_failover_mode">
+        <item>Off</item>
+        <item>Auto</item>
+        <item>Confirm</item>
+    </string-array>
+
+    <string name="setting_interface_failover">VOD config failover</string>
+    <string name="interface_failover_title">Interface load failed</string>
+    <string name="interface_failover_message">Current: %1$s</string>
+    <string name="interface_failover_next">Trying next interface: %1$s</string>
+    <string name="interface_failover_switch">Switch</string>
+    <string name="interface_failover_cancelled">Interface switch cancelled</string>
 
     <string-array name="select_auto_skip_intro_outro">
         <item>Off</item>

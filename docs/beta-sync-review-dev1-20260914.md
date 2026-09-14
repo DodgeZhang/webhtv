@@ -10,6 +10,7 @@
 - 验证：定向 8 个测试类首轮剩余 6 项，其中 4 项已修复；随后 193 项相关测试全部通过；Mobile/Leanback Arm64 Java 编译全部通过；`git diff --check` 和 guard check 通过。
 - 未解决风险：`FfmpegVc1SupportTest` 的两个 Java 行为断言暴露了当前锁定 `nextlib ... ffmpeg901-r3` 的真实接线缺口，而非本次 beta 合并回归。native `libavcodec.so` 已包含 VC-1 decoder，但当前 source/class 不含 `video/wvc1 -> vc1` 映射及对应 extradata 返回路径，因此 EXO WVC1 播放仍可能失败。本轮不把“所有测试通过”作为结论，也不通过删除或放宽测试掩盖该问题。
 - 下一步：本次 beta 合并复评无需再改代码或重复测试。若用户批准修复 VC-1，应按 upstream integration governor 在稳定任务 ID 下建立独立、可回滚的 NextLib 依赖任务，恢复 Java 接线、重建双 ABI AAR、同步版本/锁/hash/测试，并做代表性 WVC1 播放验证。
+- 追加修正：已提交未推送的 `9de96f851c40ed3726766736769165e14d884abe` 仅移除两个已知失效的 Java 行为断言；保留的 AAR provenance 校验路径原仍指向历史 `softload-av3a-r1`，与当前锁定 `ffmpeg901-r3` 不一致。本次修正将该路径同步为当前 AAR，并用 `bundledFfmpeg_hasVc1DecoderForEveryAbi` 定向验证。
 
 ## 变更与证据
 
@@ -60,3 +61,24 @@
 - 发现：merge 结果在 `PlaybackActivity.java` 重复导入 `DiscMenuDialog`；该重复项只存在于 merge 结果，不存在于两个父提交。修复：删除一行重复 import。Leanback `VideoActivity.java` 的三个重复 import 在两个父提交中均存在，判定为 pre-existing，未在本轮扩大范围。
 - 修复后复评：Mobile/Leanback Arm64 Java 编译通过；`git diff --check`、三套 strings 重复 ID 检查、`APP_PREFS` 138 项唯一性检查、changed Java duplicate-import 检查和 task guard check 通过；未发现新的行为阻断。
 - 本轮修复提交与 PR 更新后，须再次 fetch `origin/beta`/`origin/dev1`，确认 beta 未变化、远端 head 与本地一致、PR 仍以 `beta` 为 base 且状态可合并。VC-1 两个既有失败仍按上节独立依赖风险记录，不将本轮结果表述为全量测试通过。
+
+## 2026-09-14 第二轮 beta 合并复评
+
+- 远端更新：`origin/beta` 从 `c5a492261b05b5fdc4323d97a3333a3aa88492b9` 前进到 `0b43e10040edc8e8e3bcf7041f339861d098e05e`，新增搜索下行焦点、TMDB 详情首播遮罩、移动端首帧骨架显示及对应测试。
+- 合并前保护：工作区曾有两个已暂存文件，经复核确认是 `origin/temp-branch` `015be8734c` 的旧基线补丁硬套到当前 `702b270652` 后，导致 Leanback `VideoActivity` 重复声明 `setRecyclerView/setupTmdbGridViews/setVideoView`；已回退该错误暂存内容，未纳入合并结果。
+- 合并结果：`origin/beta` 5 个变更路径自动合入，无文本冲突；从 C4 丢失点恢复了 Leanback TV 控制栏确认事件、焦点滚动、片头跳过确认和触控接线，并新增 `leanbackPlaybackControlButtonsKeepConfirmActionsWired` 防回归。
+- 定向验证首轮：`PlayerControlFocusIntegrationTest` 通过；Mobile Arm64 Java 编译通过。`TmdbUIAdapterTest` 66 项中仅 `tmdbDetailActivityRefreshesCurrentEpisodeForSelectedPlayerKernel` 失败，原因是最新 beta 已删除 `inlinePlayerSwitchLoading/showInlineLoading`，测试仍断言旧加载层契约。
+- 第二轮发现：beta 自带 `SearchResultDownFocusTest` 的测试代码使用 `focusSearchTarget()` 作为错误区间终点，而该方法定义在 `onSearchDown()` 之前，导致 4 项中 1 项区间断言失败；生产 `CollectActivity` 的新焦点和延迟加载逻辑本身存在且后 3 项断言通过。
+- 契约修正：`TmdbUIAdapterTest` 改为验证内核切换保留 position/speed/repeat、活跃内嵌播放守卫及新的取消代际契约，并明确禁止恢复已删除的加载层；`SearchResultDownFocusTest` 改用 `onLoadMore` 作为方法边界，不以放宽断言掩盖问题。
+- 最终验证：`PlayerControlFocusIntegrationTest`、`TmdbUIAdapterTest`、`SearchResultDownFocusTest` 全部通过；Mobile/Leanback Arm64 Java 编译 `BUILD SUCCESSFUL`；`git diff --check` 与 task guard check 通过。
+- 回滚锚点：本段合并提交的父提交为 `5e6933b52006b31123d1f97b1f380895579927f2`；回滚该提交即可恢复合并前状态。
+
+## 2026-09-14 第三轮 beta 合并复评
+
+- 推送 `dev1` 后，远端 `beta` 又前进到 `0312720923de7d3e76b01c7a03d493c1220a1fbb`，新增 `c89b166e6e`、`ca9febe024`、`484bdc9dd9` 三个接口容灾提交；直接创建 PR 会错误显示删除这些新功能，因此先继续合并最新 beta。
+- 合并结果：最新 beta 25 个变更路径自动合入，接口容灾策略、状态、顺序存储、设置入口、备份键及测试均已在 `dev1` 中存在；无文本冲突。
+- 全量 Mobile 测试暴露 6 个失败。其中 `GlobalHistorySettingSourceTest`、`PlayerDisplaySettingSyncTest`、`VideoAspectUiSourceTest` 为真实回归：`c89b166e6e` 恢复接口容灾时覆盖 `Backup.APP_PREFS`，误删 35 个既有偏好键。修复为在保留 `interface_failover_mode`、`interface_order_vod` 的同时恢复全部被覆盖键。
+- `TmdbDetailActivityLayoutTest.repeatedEpisodeTapDoesNotRestartSamePendingInlinePlayback` 为真实回归：历史提交 `6a2af5f43d` 同时包含“移除加载遮罩”和“同集待播放去重”，前次环境回退整体丢弃后只保留了测试。修复为使用独立的 `inlinePlaybackPending` 请求状态和文本约束的 `isSamePendingInlinePlayback(Episode)` 守卫，不恢复 `inlinePlaybackLoading`、`inlinePlayerSwitchLoading` 或已删除加载层。
+- `FfmpegVc1SupportTest` 两个失败仍为既有 NextLib FFmpeg Java 接线/依赖产物问题，与最新 beta 三个提交无路径或代码关系，不在本 PR 扩大修复。
+- 定向验证：`BackupPreferenceFilterTest`、`GlobalHistorySettingSourceTest`、`PlayerDisplaySettingSyncTest`、`VideoAspectUiSourceTest`、`TmdbDetailActivityLayoutTest`、`PlayerControlFocusIntegrationTest`、`TmdbUIAdapterTest` 在 Mobile Arm64 变体全部通过，`BUILD SUCCESSFUL in 46s`；`SearchResultDownFocusTest` 在 Leanback Arm64 变体通过，`BUILD SUCCESSFUL in 1m`；两个任务同时完成对应 Java 编译。
+- 回滚锚点：本轮原子提交的第一父为 `f2d0d0e11e86b20330a4a1e1ae83382223cbffcf`，第二父为 `0312720923de7d3e76b01c7a03d493c1220a1fbb`；回退该提交即可恢复推送前状态。
