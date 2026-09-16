@@ -168,6 +168,15 @@ public class AdBlockStatsDialogLayoutTest {
     }
 
     @Test
+    public void simplifiedChineseBlockLogUsesTheRequestedFieldLabels() throws Exception {
+        String strings = read(findRepositoryRoot().resolve(Path.of("app", "src", "main", "res", "values-zh-rCN", "strings.xml")));
+
+        assertTrue(strings.contains(">切片开始时间</string>"));
+        assertTrue(strings.contains(">切片结束时间</string>"));
+        assertTrue(strings.contains(">广告切片总时长</string>"));
+    }
+
+    @Test
     public void simplifiedChineseStatsDialogLocalizesPipelineRankingTitle() throws Exception {
         String strings = read(findRepositoryRoot().resolve(Path.of("app", "src", "main", "res", "values-zh-rCN", "strings.xml")));
 
