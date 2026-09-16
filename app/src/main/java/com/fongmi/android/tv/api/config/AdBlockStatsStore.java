@@ -82,7 +82,7 @@ public class AdBlockStatsStore {
             AdBlockStats stats = load();
             stats.incrementBlocks(sourceName, pipeline, ruleId, 1);
             stats.recordBlockLog(System.currentTimeMillis(), sourceName, pipeline,
-                    adDomain, ruleId, segmentDurationSeconds);
+                    adDomain, ruleId, 0, segmentDurationSeconds);
             save(stats);
         });
     }
@@ -123,7 +123,7 @@ public class AdBlockStatsStore {
             if (removedSegments != null && !removedSegments.isEmpty()) {
                 for (HlsManifestCleaner.RemovedSegment segment : removedSegments) {
                     stats.recordBlockLog(blockedAt, sourceName, pipeline, segment.adDomain(),
-                            segment.ruleId(), segment.durationSec());
+                            segment.ruleId(), segment.startSeconds(), segment.durationSec());
                 }
                 if (safeFallbackCount > 0) {
                     stats.recordBlockLogs(blockedAt, sourceName, pipeline, adDomain,

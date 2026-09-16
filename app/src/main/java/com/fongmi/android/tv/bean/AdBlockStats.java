@@ -97,9 +97,14 @@ public class AdBlockStats {
 
     public void recordBlockLog(long blockedAt, String sourceName, String pipelineName,
                                String adDomain, String ruleId, double segmentDurationSeconds) {
+        recordBlockLog(blockedAt, sourceName, pipelineName, adDomain, ruleId, 0, segmentDurationSeconds);
+    }
+
+    public void recordBlockLog(long blockedAt, String sourceName, String pipelineName,
+                               String adDomain, String ruleId, double segmentStartSeconds, double segmentDurationSeconds) {
         List<AdBlockLog> logs = getBlockLogs();
         logs.add(0, new AdBlockLog(blockedAt, sourceName, pipelineName, adDomain,
-                ruleId, segmentDurationSeconds));
+                ruleId, segmentStartSeconds, segmentDurationSeconds));
         while (logs.size() > 1000) logs.remove(logs.size() - 1);
     }
 

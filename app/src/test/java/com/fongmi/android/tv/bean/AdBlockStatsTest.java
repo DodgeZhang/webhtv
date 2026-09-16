@@ -95,6 +95,16 @@ public class AdBlockStatsTest {
     }
 
     @Test
+    public void blockLogStoresSegmentStartAndDuration() {
+        AdBlockStats stats = new AdBlockStats();
+        stats.recordBlockLog(1000L, "采集源A", "EXO", "ads.example.com", "rule-a", 12.5, 6.0);
+
+        AdBlockLog log = stats.getBlockLogs().get(0);
+        assertEquals(12.5, log.getSegmentStartSeconds(), 0.001);
+        assertEquals(6.0, log.getSegmentDurationSeconds(), 0.001);
+    }
+
+    @Test
     public void detailedLogsKeepOnlyTheMostRecentEntries() {
         AdBlockStats stats = new AdBlockStats();
         for (int index = 0; index < 1005; index++) {

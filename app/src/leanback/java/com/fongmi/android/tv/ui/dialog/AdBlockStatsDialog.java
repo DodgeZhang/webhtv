@@ -470,8 +470,9 @@ public class AdBlockStatsDialog {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             AdBlockLog item = items.get(position);
-            holder.binding.name.setText(item.getAdDomain());
-            holder.binding.source.setText(item.getSourceName() + " · " + item.getPipelineName() + " · " + item.getRuleId());
+            holder.binding.name.setText(item.getSourceName() + " · " + item.getAdDomain());
+            holder.binding.source.setText(String.format(Locale.getDefault(),
+                    "%s · %s · %.1fs", item.getPipelineName(), item.getRuleId(), item.getSegmentStartSeconds()));
             holder.binding.source.setVisibility(View.VISIBLE);
             holder.binding.count.setText(String.format(Locale.getDefault(), "%.1fs", item.getSegmentDurationSeconds()));
         }

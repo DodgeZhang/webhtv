@@ -8,18 +8,20 @@ public class AdBlockLog {
     private String pipelineName;
     private String adDomain;
     private String ruleId;
+    private double segmentStartSeconds;
     private double segmentDurationSeconds;
 
     public AdBlockLog() {
     }
 
     public AdBlockLog(long blockedAt, String sourceName, String pipelineName, String adDomain,
-                      String ruleId, double segmentDurationSeconds) {
+                      String ruleId, double segmentStartSeconds, double segmentDurationSeconds) {
         this.blockedAt = blockedAt;
         this.sourceName = sourceName;
         this.pipelineName = pipelineName;
         this.adDomain = adDomain;
         this.ruleId = ruleId;
+        this.segmentStartSeconds = segmentStartSeconds;
         this.segmentDurationSeconds = segmentDurationSeconds;
     }
 
@@ -41,6 +43,10 @@ public class AdBlockLog {
 
     public String getRuleId() {
         return ruleId;
+    }
+
+    public double getSegmentStartSeconds() {
+        return segmentStartSeconds;
     }
 
     public double getSegmentDurationSeconds() {
