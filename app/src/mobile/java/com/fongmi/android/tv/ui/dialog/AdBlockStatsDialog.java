@@ -16,6 +16,7 @@ import com.fongmi.android.tv.bean.AdBlockStats;
 import com.fongmi.android.tv.bean.RuleHitRecord;
 import com.fongmi.android.tv.databinding.DialogAdBlockStatsBinding;
 import com.fongmi.android.tv.impl.Callback;
+import com.fongmi.android.tv.widget.AdBlockChartView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
@@ -162,8 +163,11 @@ public class AdBlockStatsDialog {
 
         List<SiteRankItem> chartItems = buildSiteRank(stats);
         binding.chartEmpty.setVisibility(chartItems.isEmpty() ? View.VISIBLE : View.GONE);
-        binding.chartRecycler.setVisibility(chartItems.isEmpty() ? View.GONE : View.VISIBLE);
-        binding.chartRecycler.setAdapter(new SiteRankAdapter(chartItems));
+        binding.chartView.setVisibility(chartItems.isEmpty() ? View.GONE : View.VISIBLE);
+        List<AdBlockChartView.Entry> chartEntries = chartItems.stream()
+                .map(item -> new AdBlockChartView.Entry(item.getSiteKey(), item.getCount()))
+                .collect(Collectors.toList());
+        binding.chartView.setEntries(chartEntries);
     }
 
     private List<SiteRankItem> buildSiteRank(AdBlockStats stats) {

@@ -101,7 +101,9 @@ public class AdBlockStatsDialogLayoutTest {
             assertTrue(layout.contains("android:id=\"@+id/logPage\""));
             assertTrue(layout.contains("android:id=\"@+id/logRecycler\""));
             assertTrue(layout.contains("android:id=\"@+id/chartPage\""));
-            assertTrue(layout.contains("android:id=\"@+id/chartRecycler\""));
+            assertTrue(layout.contains("android:id=\"@+id/chartView\""));
+            assertTrue(layout.contains("com.fongmi.android.tv.widget.AdBlockChartView"));
+            assertTrue(dialog.contains("binding.chartView.setEntries"));
             assertTrue(dialog.contains("R.string.ad_stats_log"));
             assertTrue(dialog.contains("R.string.ad_stats_chart"));
             assertTrue(dialog.contains("binding.logPage.setVisibility"));

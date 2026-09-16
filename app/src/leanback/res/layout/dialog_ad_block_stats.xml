@@ -344,13 +344,13 @@
                 android:textColor="#5F6368"
                 android:textSize="15sp"
                 android:visibility="gone" />
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/chartRecycler"
+            <com.fongmi.android.tv.widget.AdBlockChartView
+                android:id="@+id/chartView"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:overScrollMode="never"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp" />
         </androidx.appcompat.widget.LinearLayoutCompat>
     </FrameLayout>
 
