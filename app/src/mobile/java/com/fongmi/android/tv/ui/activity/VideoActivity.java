@@ -3664,7 +3664,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     }
 
     private Episode getAdjacentEpisode(int offset) {
-        List<Episode> items = mFlagAdapter == null || mFlagAdapter.isEmpty() ? mEpisodeAdapter.getItems() : getFlag().getEpisodes();
+        List<Episode> items = mFlagAdapter == null || mFlagAdapter.isEmpty() ? getCurrentEpisodeItems() : getFlag().getEpisodes();
         if (items.isEmpty()) return new Episode();
         int position = getSelectedEpisodePosition(items) + offset;
         position = Math.max(0, Math.min(position, items.size() - 1));
