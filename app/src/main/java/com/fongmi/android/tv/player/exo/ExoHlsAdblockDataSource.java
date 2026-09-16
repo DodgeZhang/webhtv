@@ -14,6 +14,7 @@ import com.fongmi.android.tv.utils.HlsAdblockNotice;
 import com.fongmi.android.tv.utils.HlsAdblockPipeline;
 import com.fongmi.android.tv.utils.HlsManifestCleaner;
 import com.fongmi.android.tv.api.config.HlsRuleConfig;
+import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.utils.Notify;
 import com.github.catvod.crawler.SpiderDebug;
 
@@ -47,8 +48,14 @@ final class ExoHlsAdblockDataSource implements DataSource {
         try {
             byte[] original = readAll();
             String text = new String(original, StandardCharsets.UTF_8);
+            List<HlsManifestCleaner.Rule> rules = List.of();
+            boolean legacyFallback = false;
+            if (Setting.isAdblock()) {
+                rules = HlsRuleConfig.getRules();
+                legacyFallback = !rules.isEmpty() && HlsRuleConfig.isLegacyFallbackEnabled();
+            }
             HlsAdblockPipeline.Outcome outcome = HlsAdblockPipeline.apply(
-                    dataSpec.uri.toString(), text, HlsRuleConfig.getRules(), HlsRuleConfig.isLegacyFallbackEnabled());
+                    dataSpec.uri.toString(), text, rules, legacyFallback);
             manifest = outcome.manifest().getBytes(StandardCharsets.UTF_8);
             position = 0;
             recordAndNotify(dataSpec.uri, outcome);

@@ -131,7 +131,7 @@ public class AdBlockStatsDialog {
             binding.topSiteShare.setText("0%");
         } else {
             SiteRankItem top = siteRank.get(0);
-            binding.topSite.setText(top.getSiteKey());
+            binding.topSite.setText(top.getDisplayName());
             double share = stats.getTotalBlocked() > 0 ? top.getCount() * 100.0 / stats.getTotalBlocked() : 0.0;
             binding.topSiteShare.setText(String.format(Locale.getDefault(), "%.1f%%", share));
         }
@@ -175,14 +175,22 @@ public class AdBlockStatsDialog {
         binding.chartEmpty.setVisibility(chartItems.isEmpty() ? View.VISIBLE : View.GONE);
         binding.chartView.setVisibility(chartItems.isEmpty() ? View.GONE : View.VISIBLE);
         List<AdBlockChartView.Entry> chartEntries = chartItems.stream()
-                .map(item -> new AdBlockChartView.Entry(item.getSiteKey(), item.getCount()))
+                .map(item -> new AdBlockChartView.Entry(item.getDisplayName(), item.getCount()))
                 .collect(Collectors.toList());
         binding.chartView.setEntries(chartEntries);
     }
 
     private List<SiteRankItem> buildSiteRank(AdBlockStats stats) {
+        Map<String, String> displayNames = new java.util.HashMap<>();
+        for (AdBlockLog log : stats.getBlockLogs()) {
+            String name = log.getSiteName();
+            if (name == null || name.isBlank()) continue;
+            if (!log.getSiteKey().isBlank()) displayNames.putIfAbsent(log.getSiteKey(), name);
+            displayNames.putIfAbsent(log.getSourceName(), name);
+        }
         return stats.getSiteBlocked().entrySet().stream()
-                .map(entry -> new SiteRankItem(entry.getKey(), entry.getValue()))
+                .map(entry -> new SiteRankItem(entry.getKey(),
+                        displayNames.getOrDefault(entry.getKey(), entry.getKey()), entry.getValue()))
                 .sorted(Comparator.comparingLong(SiteRankItem::getCount).reversed())
                 .limit(10)
                 .collect(Collectors.toList());
@@ -210,15 +218,25 @@ public class AdBlockStatsDialog {
     // 站点排行项
     private static class SiteRankItem {
         private final String siteKey;
+        private final String displayName;
         private final long count;
 
         public SiteRankItem(String siteKey, long count) {
+            this(siteKey, siteKey, count);
+        }
+
+        public SiteRankItem(String siteKey, String displayName, long count) {
             this.siteKey = siteKey;
+            this.displayName = displayName;
             this.count = count;
         }
 
         public String getSiteKey() {
             return siteKey;
+        }
+
+        public String getDisplayName() {
+            return displayName;
         }
 
         public long getCount() {
@@ -248,7 +266,7 @@ public class AdBlockStatsDialog {
                 visibleItems.add(group);
                 if (expanded.contains(group.getSiteKey())) {
                     visibleItems.addAll(type == GroupType.SOURCE
-                            ? stats.getBlockLogsBySource(group.getSiteKey())
+                            ? stats.getBlockLogsBySite(group.getSiteKey())
                             : stats.getBlockLogsByPipeline(group.getSiteKey()));
                 }
             }
@@ -266,7 +284,7 @@ public class AdBlockStatsDialog {
             if (visible instanceof SiteRankItem) {
                 SiteRankItem group = (SiteRankItem) visible;
                 boolean isExpanded = expanded.contains(group.getSiteKey());
-                holder.binding.name.setText((isExpanded ? "▼ " : "▶ ") + group.getSiteKey());
+                holder.binding.name.setText((isExpanded ? "▼ " : "▶ ") + group.getDisplayName());
                 holder.binding.source.setVisibility(View.GONE);
                 holder.binding.count.setText(String.valueOf(group.getCount()));
                 holder.itemView.setOnClickListener(view -> {
@@ -441,7 +459,7 @@ public class AdBlockStatsDialog {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             SiteRankItem item = items.get(position);
-            holder.binding.name.setText(item.getSiteKey());
+            holder.binding.name.setText(item.getDisplayName());
             holder.binding.count.setText(String.valueOf(item.getCount()));
             holder.binding.source.setVisibility(View.GONE);
         }

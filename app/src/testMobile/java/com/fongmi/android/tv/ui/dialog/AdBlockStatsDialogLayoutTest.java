@@ -147,6 +147,7 @@ public class AdBlockStatsDialogLayoutTest {
 
             assertTrue(dialog.contains("class ExpandableLogAdapter"));
             assertTrue(dialog.contains("getBlockLogsBySource"));
+            assertTrue(dialog.contains("getBlockLogsBySite"));
             assertTrue(dialog.contains("getBlockLogsByRule"));
             assertTrue(dialog.contains("getBlockLogsByPipeline"));
             assertTrue(dialog.contains("itemView.setOnClickListener"));

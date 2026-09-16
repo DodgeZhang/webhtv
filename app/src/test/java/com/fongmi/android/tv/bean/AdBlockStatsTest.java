@@ -120,6 +120,16 @@ public class AdBlockStatsTest {
     }
 
     @Test
+    public void siteLogLookupUsesStableKeyAndAcceptsLegacyDisplayName() {
+        AdBlockStats stats = new AdBlockStats();
+        stats.recordBlockLog(1000L, "dytt", "电影天堂[采]", "vip.dytt-tvs.com",
+                "EXO", "ads.cdn.example", "rule-a", 0, 6.0);
+
+        assertEquals(1, stats.getBlockLogsBySite("dytt").size());
+        assertEquals(1, stats.getBlockLogsBySite("电影天堂[采]").size());
+    }
+
+    @Test
     public void detailedLogsKeepOnlyTheMostRecentEntries() {
         AdBlockStats stats = new AdBlockStats();
         for (int index = 0; index < 1005; index++) {

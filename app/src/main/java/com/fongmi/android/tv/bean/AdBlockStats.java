@@ -145,6 +145,16 @@ public class AdBlockStats {
         return filterLogs(sourceName, 0);
     }
 
+    /** Supports stable site-key aggregates while remaining compatible with older display-name keys. */
+    public List<AdBlockLog> getBlockLogsBySite(String siteKeyOrName) {
+        List<AdBlockLog> result = new ArrayList<>();
+        for (AdBlockLog log : getBlockLogs()) {
+            if (Objects.equals(siteKeyOrName, log.getSiteKey())
+                    || Objects.equals(siteKeyOrName, log.getSourceName())) result.add(log);
+        }
+        return result;
+    }
+
     public List<AdBlockLog> getBlockLogsByRule(String ruleId) {
         return filterLogs(ruleId, 1);
     }

@@ -84,4 +84,47 @@ public class HlsAdblockPipelineTest {
         assertTrue(outcome.structured());
         assertEquals(Map.of("rule-one", 1L), outcome.ruleCounts());
     }
+
+    @Test
+    public void keepsStructuredSegmentDetailsWhenLegacyFallbackIsDisabled() {
+        String manifest = "#EXTM3U\n"
+                + "#EXTINF:7.0,\nhttps://ads.example.com/ad.ts\n"
+                + "#EXTINF:8.0,\nmain-1.ts\n"
+                + "#EXTINF:8.0,\nmain-2.ts\n"
+                + "#EXTINF:8.0,\nmain-3.ts\n"
+                + "#EXT-X-ENDLIST\n";
+        HlsManifestCleaner.Rule rule = HlsManifestCleaner.Rule.builder()
+                .id("rule-one")
+                .hostSuffixes(List.of("ads.example.com"))
+                .minimumSignals(1)
+                .build();
+
+        HlsAdblockPipeline.Outcome outcome = HlsAdblockPipeline.apply(
+                "https://video.example.com/index.m3u8", manifest, List.of(rule), false);
+
+        assertTrue(outcome.structured());
+        assertEquals(1, outcome.removedSegmentDetails().size());
+        HlsManifestCleaner.RemovedSegment removed = outcome.removedSegmentDetails().get(0);
+        assertEquals("ads.example.com", removed.adDomain());
+        assertEquals("rule-one", removed.ruleId());
+        assertEquals(0.0, removed.startSeconds(), 0.001);
+        assertEquals(7.0, removed.durationSec(), 0.001);
+    }
+
+    @Test
+    public void disablesLegacyHeuristicsWithoutRules() {
+        String manifest = "#EXTM3U\n"
+                + "#EXT-X-DISCONTINUITY\n"
+                + "#EXTINF:4.0,\nmain-1.ts\n"
+                + "#EXT-X-DISCONTINUITY\n"
+                + "#EXTINF:4.0,\nmain-2.ts\n"
+                + "#EXT-X-ENDLIST\n";
+
+        HlsAdblockPipeline.Outcome outcome = HlsAdblockPipeline.apply(
+                "https://cdn.example.com/index.m3u8", manifest, List.of(), false);
+
+        assertFalse(outcome.structured());
+        assertFalse(outcome.legacy());
+        assertEquals(manifest, outcome.manifest());
+    }
 }

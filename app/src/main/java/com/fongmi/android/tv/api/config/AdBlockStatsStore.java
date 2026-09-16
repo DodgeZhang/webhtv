@@ -83,7 +83,7 @@ public class AdBlockStatsStore {
         SiteIdentity identity = resolveSiteIdentity(siteKeyOrDomain, adDomain);
         executor.execute(() -> {
             AdBlockStats stats = load();
-            stats.incrementBlocks(identity.siteName(), pipeline, ruleId, 1);
+            stats.incrementBlocks(identity.siteKey(), pipeline, ruleId, 1);
             stats.recordBlockLog(System.currentTimeMillis(), identity.siteKey(), identity.siteName(),
                     identity.siteDomain(), pipeline, adDomain, ruleId, 0, segmentDurationSeconds);
             save(stats);
@@ -115,12 +115,12 @@ public class AdBlockStatsStore {
             if (ruleCounts != null) {
                 for (Map.Entry<String, Long> entry : ruleCounts.entrySet()) {
                     long count = entry.getValue() == null ? 0 : Math.max(0, entry.getValue());
-                    stats.incrementBlocks(identity.siteName(), pipeline, entry.getKey(), count);
+                    stats.incrementBlocks(identity.siteKey(), pipeline, entry.getKey(), count);
                     if (count > 0) detailedCounts.put(entry.getKey(), count);
                 }
             }
             long safeFallbackCount = Math.max(0, fallbackCount);
-            stats.incrementBlocks(identity.siteName(), pipeline, "hls.legacy-fallback", safeFallbackCount);
+            stats.incrementBlocks(identity.siteKey(), pipeline, "hls.legacy-fallback", safeFallbackCount);
             if (safeFallbackCount > 0) detailedCounts.put("hls.legacy-fallback", safeFallbackCount);
 
             long blockedAt = System.currentTimeMillis();
@@ -148,7 +148,12 @@ public class AdBlockStatsStore {
             }
         }
         PlaybackRuntime.SiteIdentity current = PlaybackRuntime.currentSiteIdentity(siteDomain);
-        return new SiteIdentity(current.siteKey(), current.siteName(), current.siteDomain());
+        if (!TextUtils.isEmpty(current.siteKey())) {
+            return new SiteIdentity(current.siteKey(), current.siteName(), current.siteDomain());
+        }
+        String fallbackKey = TextUtils.isEmpty(siteKeyOrDomain) ? siteDomain : siteKeyOrDomain;
+        String fallbackName = TextUtils.isEmpty(fallbackKey) ? current.siteName() : fallbackKey;
+        return new SiteIdentity(fallbackKey, fallbackName, current.siteDomain());
     }
 
     public static String getRuleDisplayName(String ruleId) {
