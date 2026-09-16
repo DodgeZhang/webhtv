@@ -362,6 +362,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean inlinePlaybackPending;
     private boolean inlineHttpRefreshAttempted;
     private boolean detailPlayerActive;
+    private boolean detailPlayerFullscreenPending;
     private boolean autoPlayed;
     private boolean defaultPlaybackLaunchPending;
     private boolean inlineFullscreen;
@@ -708,6 +709,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         resetEpisodeRange();
         inlineStarted = false;
         inlinePlaybackPending = false;
+        detailPlayerFullscreenPending = false;
         detailPlayerActive = false;
         autoPlayed = false;
         inlinePlaybackGeneration++;
@@ -7055,8 +7057,14 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         ensureInlineDanmakuController();
         binding.playerPanel.setVisibility(View.VISIBLE);
         binding.playerPanelSpacer.setVisibility(View.VISIBLE); // spacer 作为焦点桥梁需要可见
-        enterInlineFullscreen();
-        if (!current) playInline();
+        detailPlayerFullscreenPending = !current;
+        if (current) revealDetailPlayerFullscreen();
+        else playInline();
+    }
+
+    private void revealDetailPlayerFullscreen() {
+        detailPlayerFullscreenPending = false;
+        if (!inlineFullscreen) enterInlineFullscreen();
     }
 
     private void playInline() {
@@ -9869,6 +9877,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.playerPanelSpacer.setVisibility(View.GONE); // 同步隐藏 spacer
         inlineStarted = false;
         inlinePlaybackPending = false;
+        detailPlayerFullscreenPending = false;
         detailPlayerActive = false;
         pendingInlineResult = null;
         currentInlineResult = null;
@@ -10420,6 +10429,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         if (service() == null || inlineControlController == null) return;
         player().setDanmakuController(binding.exo.getDanmakuController());
         inlineControlController.applyDanmakuSetting();
+    }
+
+    @Override
+    protected void onFirstFrameRendered() {
+        if (!detailPlayerFullscreenPending || !isPlayerMode() || !inlineStarted || !isOwner()) return;
+        revealDetailPlayerFullscreen();
     }
 
     @Override
