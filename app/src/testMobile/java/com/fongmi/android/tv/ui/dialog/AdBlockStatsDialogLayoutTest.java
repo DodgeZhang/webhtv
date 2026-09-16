@@ -112,6 +112,34 @@ public class AdBlockStatsDialogLayoutTest {
     }
 
     @Test
+    public void blockLogUsesARealTableWithEveryRequestedFieldForBothFlavors() throws Exception {
+        Path root = findRepositoryRoot();
+        for (String flavor : new String[] {"mobile", "leanback"}) {
+            String dialogLayout = read(root.resolve(Path.of("app", "src", flavor, "res", "layout", "dialog_ad_block_stats.xml")));
+            String rowLayout = read(root.resolve(Path.of("app", "src", flavor, "res", "layout", "adapter_ad_block_log.xml")));
+            String dialogSource = read(root.resolve(Path.of("app", "src", flavor, "java", "com", "fongmi", "android", "tv", "ui", "dialog", "AdBlockStatsDialog.java")));
+
+            assertTrue(dialogLayout.contains("android:id=\"@+id/logTableScroll\""));
+            assertTrue(dialogLayout.contains("@string/ad_log_site_name"));
+            assertTrue(dialogLayout.contains("@string/ad_log_site_domain"));
+            assertTrue(dialogLayout.contains("@string/ad_log_rule_domain"));
+            assertTrue(dialogLayout.contains("@string/ad_log_blocked_at"));
+            assertTrue(dialogLayout.contains("@string/ad_log_segment_start"));
+            assertTrue(dialogLayout.contains("@string/ad_log_segment_end"));
+            assertTrue(dialogLayout.contains("@string/ad_log_segment_duration"));
+            assertTrue(rowLayout.contains("android:id=\"@+id/siteName\"") && rowLayout.contains("android:textStyle=\"bold\""));
+            assertTrue(rowLayout.contains("android:id=\"@+id/siteDomain\""));
+            assertTrue(rowLayout.contains("android:id=\"@+id/ruleDomain\""));
+            assertTrue(rowLayout.contains("android:id=\"@+id/blockedAt\""));
+            assertTrue(rowLayout.contains("android:id=\"@+id/segmentStart\""));
+            assertTrue(rowLayout.contains("android:id=\"@+id/segmentEnd\""));
+            assertTrue(rowLayout.contains("android:id=\"@+id/segmentDuration\""));
+            assertTrue(dialogSource.contains("AdapterAdBlockLogBinding.inflate"));
+            assertTrue(dialogSource.contains("getSegmentEndSeconds()"));
+        }
+    }
+
+    @Test
     public void rankingTabsSupportExpandingGroupedBlockLogsForBothFlavors() throws Exception {
         Path root = findRepositoryRoot();
         for (String flavor : new String[] {"mobile", "leanback"}) {

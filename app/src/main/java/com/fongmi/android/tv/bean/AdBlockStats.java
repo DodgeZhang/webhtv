@@ -102,14 +102,28 @@ public class AdBlockStats {
 
     public void recordBlockLog(long blockedAt, String sourceName, String pipelineName,
                                String adDomain, String ruleId, double segmentStartSeconds, double segmentDurationSeconds) {
+        recordBlockLog(blockedAt, sourceName, sourceName, adDomain, pipelineName, adDomain,
+                ruleId, segmentStartSeconds, segmentDurationSeconds);
+    }
+
+    public void recordBlockLog(long blockedAt, String siteKey, String siteName, String siteDomain,
+                               String pipelineName, String adDomain, String ruleId,
+                               double segmentStartSeconds, double segmentDurationSeconds) {
         List<AdBlockLog> logs = getBlockLogs();
-        logs.add(0, new AdBlockLog(blockedAt, sourceName, pipelineName, adDomain,
-                ruleId, segmentStartSeconds, segmentDurationSeconds));
+        logs.add(0, new AdBlockLog(blockedAt, siteKey, siteName, siteDomain, pipelineName,
+                adDomain, ruleId, segmentStartSeconds, segmentDurationSeconds));
         while (logs.size() > 1000) logs.remove(logs.size() - 1);
     }
 
     public void recordBlockLogs(long blockedAt, String sourceName, String pipelineName,
                                 String adDomain, Map<String, Long> ruleCounts,
+                                double totalDurationSeconds) {
+        recordBlockLogs(blockedAt, sourceName, sourceName, adDomain, pipelineName, adDomain,
+                ruleCounts, totalDurationSeconds);
+    }
+
+    public void recordBlockLogs(long blockedAt, String siteKey, String siteName, String siteDomain,
+                                String pipelineName, String adDomain, Map<String, Long> ruleCounts,
                                 double totalDurationSeconds) {
         if (ruleCounts == null || ruleCounts.isEmpty()) return;
         long totalCount = 0;
@@ -121,8 +135,8 @@ public class AdBlockStats {
         for (Map.Entry<String, Long> entry : ruleCounts.entrySet()) {
             long count = entry.getValue() == null ? 0 : Math.max(0, entry.getValue());
             for (long index = 0; index < count; index++) {
-                recordBlockLog(blockedAt, sourceName, pipelineName, adDomain,
-                        entry.getKey(), durationPerSegment);
+                recordBlockLog(blockedAt, siteKey, siteName, siteDomain, pipelineName, adDomain,
+                        entry.getKey(), 0, durationPerSegment);
             }
         }
     }

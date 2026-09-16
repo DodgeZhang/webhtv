@@ -19,13 +19,16 @@ import com.fongmi.android.tv.api.config.AdBlockStatsStore;
 import com.fongmi.android.tv.bean.AdBlockLog;
 import com.fongmi.android.tv.bean.AdBlockStats;
 import com.fongmi.android.tv.bean.RuleHitRecord;
+import com.fongmi.android.tv.databinding.AdapterAdBlockLogBinding;
 import com.fongmi.android.tv.databinding.DialogAdBlockStatsBinding;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.widget.AdBlockChartView;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -165,7 +168,7 @@ public class AdBlockStatsDialog {
 
         List<AdBlockLog> logs = stats.getBlockLogs();
         binding.logEmpty.setVisibility(logs.isEmpty() ? View.VISIBLE : View.GONE);
-        binding.logRecycler.setVisibility(logs.isEmpty() ? View.GONE : View.VISIBLE);
+        binding.logTableScroll.setVisibility(logs.isEmpty() ? View.GONE : View.VISIBLE);
         binding.logRecycler.setAdapter(new BlockLogAdapter(logs));
 
         List<SiteRankItem> chartItems = buildSiteRank(stats);
@@ -460,6 +463,7 @@ public class AdBlockStatsDialog {
 
     private static class BlockLogAdapter extends RecyclerView.Adapter<BlockLogAdapter.ViewHolder> {
         private final List<AdBlockLog> items;
+        private final SimpleDateFormat timeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
 
         BlockLogAdapter(List<AdBlockLog> items) {
             this.items = items;
@@ -468,17 +472,34 @@ public class AdBlockStatsDialog {
         @NonNull
         @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.adapter_ad_stats_item, parent, false));
+            AdapterAdBlockLogBinding binding = AdapterAdBlockLogBinding.inflate(
+                    LayoutInflater.from(parent.getContext()), parent, false);
+            return new ViewHolder(binding);
         }
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             AdBlockLog item = items.get(position);
-            holder.binding.name.setText(item.getSourceName() + " · " + item.getAdDomain());
-            holder.binding.source.setText(String.format(Locale.getDefault(),
-                    "%s · %s · %.1fs", item.getPipelineName(), item.getRuleId(), item.getSegmentStartSeconds()));
-            holder.binding.source.setVisibility(View.VISIBLE);
-            holder.binding.count.setText(String.format(Locale.getDefault(), "%.1fs", item.getSegmentDurationSeconds()));
+            String unknown = holder.itemView.getContext().getString(R.string.ad_log_unknown);
+            holder.binding.siteName.setText(value(item.getSiteName(), unknown));
+            holder.binding.siteDomain.setText(value(item.getSiteDomain(), unknown));
+            String rule = AdBlockStatsStore.getRuleDisplayName(item.getRuleId());
+            String domain = value(item.getAdDomain(), unknown);
+            holder.binding.ruleDomain.setText(rule + "\n" + domain);
+            holder.binding.blockedAt.setText(item.getBlockedAt() > 0
+                    ? timeFormat.format(new Date(item.getBlockedAt())) : unknown);
+            holder.binding.segmentStart.setText(item.hasSegmentTiming() ? seconds(item.getSegmentStartSeconds()) : unknown);
+            holder.binding.segmentEnd.setText(item.hasSegmentTiming() ? seconds(item.getSegmentEndSeconds()) : unknown);
+            holder.binding.segmentDuration.setText(item.hasSegmentTiming() ? seconds(item.getSegmentDurationSeconds()) : unknown);
+            holder.binding.pipeline.setText(value(item.getPipelineName(), unknown));
+        }
+
+        private static String seconds(double value) {
+            return String.format(Locale.getDefault(), "%.1f s", value);
+        }
+
+        private static String value(String value, String fallback) {
+            return value == null || value.isBlank() ? fallback : value;
         }
 
         @Override
@@ -487,11 +508,11 @@ public class AdBlockStatsDialog {
         }
 
         static class ViewHolder extends RecyclerView.ViewHolder {
-            private final com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding binding;
+            private final AdapterAdBlockLogBinding binding;
 
-            ViewHolder(@NonNull View itemView) {
-                super(itemView);
-                binding = com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding.bind(itemView);
+            ViewHolder(AdapterAdBlockLogBinding binding) {
+                super(binding.getRoot());
+                this.binding = binding;
             }
         }
     }

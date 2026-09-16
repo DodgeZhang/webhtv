@@ -105,6 +105,21 @@ public class AdBlockStatsTest {
     }
 
     @Test
+    public void blockLogKeepsSiteIdentitySeparateFromDomainsAndComputesEndTime() {
+        AdBlockStats stats = new AdBlockStats();
+        stats.recordBlockLog(1000L, "dytt", "电影天堂[采]", "vip.dytt-tvs.com",
+                "EXO", "ads.cdn.example", "hls.legacy-fallback", 12.5, 6.0);
+
+        AdBlockLog log = stats.getBlockLogs().get(0);
+        assertEquals("dytt", log.getSiteKey());
+        assertEquals("电影天堂[采]", log.getSiteName());
+        assertEquals("vip.dytt-tvs.com", log.getSiteDomain());
+        assertEquals("ads.cdn.example", log.getAdDomain());
+        assertEquals(18.5, log.getSegmentEndSeconds(), 0.001);
+        assertTrue(log.hasSegmentTiming());
+    }
+
+    @Test
     public void detailedLogsKeepOnlyTheMostRecentEntries() {
         AdBlockStats stats = new AdBlockStats();
         for (int index = 0; index < 1005; index++) {
