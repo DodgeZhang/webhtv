@@ -1357,6 +1357,7 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
         initTmdbMode();
         super.initView(savedInstanceState);
         SpiderDebug.log("video-flow", "initView after playback cost=%dms", System.currentTimeMillis() - start);
+        applyPlaybackOverlay();
         mFrameParams = mBinding.video.getLayoutParams();
         mPlayerUi = new VodPlayerUiController(new VodPlayerUiHost() {
             @Override
@@ -1400,6 +1401,10 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
         setViewModel();
         checkId();
         SpiderDebug.log("video-flow", "initView end cost=%dms sinceLaunch=%dms", System.currentTimeMillis() - start, getLaunchCost(System.currentTimeMillis()));
+    }
+
+    private void applyPlaybackOverlay() {
+        mBinding.control.getRoot().setBackgroundResource(Setting.isPlaybackOverlayEnabled() ? R.drawable.shape_controller_scrim : R.color.transparent);
     }
 
     /**
