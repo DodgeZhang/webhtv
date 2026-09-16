@@ -129,10 +129,6 @@ public class AdBlockStatsStore {
                     stats.recordBlockLog(blockedAt, identity.siteKey(), identity.siteName(), identity.siteDomain(),
                             pipeline, segment.adDomain(), segment.ruleId(), segment.startSeconds(), segment.durationSec());
                 }
-                if (safeFallbackCount > 0) {
-                    stats.recordBlockLogs(blockedAt, identity.siteKey(), identity.siteName(), identity.siteDomain(),
-                            pipeline, siteDomain, Map.of("hls.legacy-fallback", safeFallbackCount), totalDurationSeconds);
-                }
             } else {
                 stats.recordBlockLogs(blockedAt, identity.siteKey(), identity.siteName(), identity.siteDomain(),
                         pipeline, siteDomain, detailedCounts, totalDurationSeconds);

@@ -39,6 +39,32 @@ public class HlsAdblockPipelineTest {
     }
 
     @Test
+    public void legacyFallbackReportsRemovedSegmentDomainAndTimeline() {
+        String original = "#EXTM3U\n"
+                + "#EXTINF:6.0,\nhttps://ads.example.com/ad-1.ts\n"
+                + "#EXTINF:6.0,\nhttps://ads.example.com/ad-2.ts\n"
+                + "#EXTINF:8.0,\nhttps://video.example.com/main-1.ts\n"
+                + "#EXTINF:8.0,\nhttps://video.example.com/main-2.ts\n"
+                + "#EXTINF:8.0,\nhttps://video.example.com/main-3.ts\n"
+                + "#EXT-X-ENDLIST\n";
+        String filtered = "#EXTM3U\n"
+                + "#EXTINF:8.0,\nhttps://video.example.com/main-1.ts\n"
+                + "#EXTINF:8.0,\nhttps://video.example.com/main-2.ts\n"
+                + "#EXTINF:8.0,\nhttps://video.example.com/main-3.ts\n"
+                + "#EXT-X-ENDLIST\n";
+
+        List<HlsManifestCleaner.RemovedSegment> removed = HlsAdblockPipeline.legacyRemovedSegments(
+                "https://video.example.com/index.m3u8", original, filtered);
+
+        assertEquals(2, removed.size());
+        assertEquals("ads.example.com", removed.get(0).adDomain());
+        assertEquals("hls.legacy-fallback", removed.get(0).ruleId());
+        assertEquals(0.0, removed.get(0).startSeconds(), 0.001);
+        assertEquals(6.0, removed.get(1).startSeconds(), 0.001);
+        assertEquals(12.0, removed.stream().mapToDouble(HlsManifestCleaner.RemovedSegment::durationSec).sum(), 0.001);
+    }
+
+    @Test
     public void exposesStructuredRuleCounts() {
         String manifest = "#EXTM3U\n"
                 + "#EXTINF:7.0,\nhttps://ads.example.com/ad.ts\n"

@@ -106,7 +106,7 @@ public class M3u8 implements Process {
 
     private void recordAndNotify(HttpUrl url, HlsAdblockPipeline.Outcome clean) {
         if (!clean.structured() && !clean.legacy()) return;
-        long fallbackCount = clean.legacy() ? 1 : 0;
+        long fallbackCount = clean.legacy() ? Math.max(1, clean.removedSegments()) : 0;
         AdBlockStatsStore.recordBlocks(url.host(), "HLS", clean.ruleCounts(), fallbackCount,
                 url.host(), clean.removedDurationSec(), clean.removedSegmentDetails());
         if (!HlsAdblockNotice.shouldNotify(url.toString(), System.currentTimeMillis())) return;

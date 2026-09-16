@@ -18,7 +18,11 @@ public final class HlsRuleConfig {
     private static final Gson DETAIL_GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static List<HlsManifestCleaner.Rule> rules = List.of();
     private static List<Entry> entries = List.of();
-    private static final String LEGACY_FALLBACK_KEY = "hls.legacy-fallback";
+    public static final String LEGACY_FALLBACK_KEY = "hls.legacy-fallback";
+    public static final String LEGACY_FALLBACK_SUMMARY = "路径/文件名少数派 · 不连续标签短块 · 仅完整 HLS 点播清单";
+    public static final String LEGACY_FALLBACK_DETAIL = "策略一：按分片路径或文件名前缀分组，仅移除明显少数组。\n"
+            + "策略二：按 #EXT-X-DISCONTINUITY 分块，仅移除相对主块明显偏短的少数块。\n"
+            + "适用范围：仅处理包含 #EXT-X-ENDLIST 的完整 HLS 点播清单。";
     private static boolean dirty = true;
 
     private HlsRuleConfig() {}
@@ -53,8 +57,9 @@ public final class HlsRuleConfig {
         compileExternal("vod", VodConfig.get().getConfig().getUrl(), VodConfig.get().getHlsRules(), overrides, compiled, summaries);
         compileExternal("live", LiveConfig.get().getConfig().getUrl(), LiveConfig.get().getHlsRules(), overrides, compiled, summaries);
         boolean fallbackEnabled = !Boolean.FALSE.equals(overrides.get(LEGACY_FALLBACK_KEY));
-        summaries.add(new Entry(LEGACY_FALLBACK_KEY, LEGACY_FALLBACK_KEY, "内置兜底规则", 1,
-                "builtin", fallbackEnabled, true, "", "HlsAdsParser legacy fallback"));
+        summaries.add(new Entry(LEGACY_FALLBACK_KEY, LEGACY_FALLBACK_KEY,
+                "内置兜底规则（路径/文件名少数派、不连续短块）", 1,
+                "builtin", fallbackEnabled, true, "", LEGACY_FALLBACK_DETAIL));
         rules = List.copyOf(compiled);
         entries = List.copyOf(summaries);
         dirty = false;
