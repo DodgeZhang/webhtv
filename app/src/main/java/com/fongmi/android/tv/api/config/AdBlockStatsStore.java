@@ -7,6 +7,7 @@ import com.fongmi.android.tv.bean.AdBlockStats;
 import com.fongmi.android.tv.bean.Rule;
 import com.fongmi.android.tv.bean.RuleHitRecord;
 import com.fongmi.android.tv.bean.UserAdRule;
+import com.fongmi.android.tv.utils.HlsManifestCleaner;
 import com.fongmi.android.tv.utils.RuleIdUtil;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Prefers;
@@ -72,9 +73,16 @@ public class AdBlockStatsStore {
     }
 
     public static void recordBlock(String siteKey, String pipeline, String ruleId) {
+        recordBlock(siteKey, pipeline, ruleId, siteKey, 0);
+    }
+
+    public static void recordBlock(String sourceName, String pipeline, String ruleId,
+                                   String adDomain, double segmentDurationSeconds) {
         executor.execute(() -> {
             AdBlockStats stats = load();
-            stats.incrementBlocks(siteKey, pipeline, ruleId, 1);
+            stats.incrementBlocks(sourceName, pipeline, ruleId, 1);
+            stats.recordBlockLog(System.currentTimeMillis(), sourceName, pipeline,
+                    adDomain, ruleId, segmentDurationSeconds);
             save(stats);
         });
     }
@@ -85,15 +93,46 @@ public class AdBlockStatsStore {
     }
 
     public static void recordBlocks(String siteKey, String pipeline, Map<String, Long> ruleCounts, long fallbackCount) {
+        recordBlocks(siteKey, pipeline, ruleCounts, fallbackCount, siteKey, 0);
+    }
+
+    public static void recordBlocks(String sourceName, String pipeline, Map<String, Long> ruleCounts,
+                                    long fallbackCount, String adDomain, double totalDurationSeconds) {
+        recordBlocks(sourceName, pipeline, ruleCounts, fallbackCount, adDomain,
+                totalDurationSeconds, List.of());
+    }
+
+    public static void recordBlocks(String sourceName, String pipeline, Map<String, Long> ruleCounts,
+                                    long fallbackCount, String adDomain, double totalDurationSeconds,
+                                    List<HlsManifestCleaner.RemovedSegment> removedSegments) {
         executor.execute(() -> {
             AdBlockStats stats = load();
+            Map<String, Long> detailedCounts = new HashMap<>();
             if (ruleCounts != null) {
                 for (Map.Entry<String, Long> entry : ruleCounts.entrySet()) {
                     long count = entry.getValue() == null ? 0 : Math.max(0, entry.getValue());
-                    stats.incrementBlocks(siteKey, pipeline, entry.getKey(), count);
+                    stats.incrementBlocks(sourceName, pipeline, entry.getKey(), count);
+                    if (count > 0) detailedCounts.put(entry.getKey(), count);
                 }
             }
-            stats.incrementBlocks(siteKey, pipeline, "hls.legacy-fallback", Math.max(0, fallbackCount));
+            long safeFallbackCount = Math.max(0, fallbackCount);
+            stats.incrementBlocks(sourceName, pipeline, "hls.legacy-fallback", safeFallbackCount);
+            if (safeFallbackCount > 0) detailedCounts.put("hls.legacy-fallback", safeFallbackCount);
+
+            long blockedAt = System.currentTimeMillis();
+            if (removedSegments != null && !removedSegments.isEmpty()) {
+                for (HlsManifestCleaner.RemovedSegment segment : removedSegments) {
+                    stats.recordBlockLog(blockedAt, sourceName, pipeline, segment.adDomain(),
+                            segment.ruleId(), segment.durationSec());
+                }
+                if (safeFallbackCount > 0) {
+                    stats.recordBlockLogs(blockedAt, sourceName, pipeline, adDomain,
+                            Map.of("hls.legacy-fallback", safeFallbackCount), totalDurationSeconds);
+                }
+            } else {
+                stats.recordBlockLogs(blockedAt, sourceName, pipeline,
+                        adDomain, detailedCounts, totalDurationSeconds);
+            }
             save(stats);
         });
     }

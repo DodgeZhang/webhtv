@@ -2608,6 +2608,8 @@
     <string name="ad_stats_reset_confirm">确定重置所有统计数据吗？</string>
     <string name="ad_stats_empty">暂无统计数据</string>
     <string name="ad_stats_overview">概览</string>
+    <string name="ad_stats_log">拦截日志</string>
+    <string name="ad_stats_chart">统计图表</string>
     <string name="ad_site_overview">站点统计概览</string>
     <string name="ad_site_count">涉及站点数</string>
     <string name="ad_top_site">拦截最多站点</string>

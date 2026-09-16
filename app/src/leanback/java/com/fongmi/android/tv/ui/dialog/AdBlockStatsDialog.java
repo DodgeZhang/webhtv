@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.config.AdBlockStatsStore;
+import com.fongmi.android.tv.bean.AdBlockLog;
 import com.fongmi.android.tv.bean.AdBlockStats;
 import com.fongmi.android.tv.bean.RuleHitRecord;
 import com.fongmi.android.tv.databinding.DialogAdBlockStatsBinding;
@@ -84,6 +85,8 @@ public class AdBlockStatsDialog {
             binding.statsTabs.addTab(binding.statsTabs.newTab().setText(R.string.ad_site_rank));
             binding.statsTabs.addTab(binding.statsTabs.newTab().setText(R.string.ad_rule_rank));
             binding.statsTabs.addTab(binding.statsTabs.newTab().setText(R.string.ad_pipeline_rank));
+            binding.statsTabs.addTab(binding.statsTabs.newTab().setText(R.string.ad_stats_log));
+            binding.statsTabs.addTab(binding.statsTabs.newTab().setText(R.string.ad_stats_chart));
             binding.statsTabs.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
                 @Override public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) { showPage(tab.getPosition()); }
                 @Override public void onTabUnselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
@@ -98,6 +101,8 @@ public class AdBlockStatsDialog {
         binding.sitePage.setVisibility(position == 1 ? View.VISIBLE : View.GONE);
         binding.rulePage.setVisibility(position == 2 ? View.VISIBLE : View.GONE);
         binding.pipelinePage.setVisibility(position == 3 ? View.VISIBLE : View.GONE);
+        binding.logPage.setVisibility(position == 4 ? View.VISIBLE : View.GONE);
+        binding.chartPage.setVisibility(position == 5 ? View.VISIBLE : View.GONE);
     }
 
     private void loadStats() {
@@ -127,17 +132,16 @@ public class AdBlockStatsDialog {
             binding.topSiteShare.setText(String.format(Locale.getDefault(), "%.1f%%", share));
         }
 
-        // 站点拦截排行
+        // 站点、规则和播放链路默认显示汇总项，点击汇总项展开对应的逐条日志。
         if (siteRank.isEmpty()) {
             binding.siteRankEmpty.setVisibility(View.VISIBLE);
             binding.siteRankRecycler.setVisibility(View.GONE);
         } else {
             binding.siteRankEmpty.setVisibility(View.GONE);
             binding.siteRankRecycler.setVisibility(View.VISIBLE);
-            binding.siteRankRecycler.setAdapter(new SiteRankAdapter(siteRank));
+            binding.siteRankRecycler.setAdapter(new GroupedLogAdapter(siteRank, stats, GroupType.SOURCE));
         }
 
-        // 规则命中排行
         List<RuleHitRecord> ruleRank = AdBlockStatsStore.getTopRules(10);
         if (ruleRank.isEmpty()) {
             binding.ruleRankEmpty.setVisibility(View.VISIBLE);
@@ -145,10 +149,9 @@ public class AdBlockStatsDialog {
         } else {
             binding.ruleRankEmpty.setVisibility(View.GONE);
             binding.ruleRankRecycler.setVisibility(View.VISIBLE);
-            binding.ruleRankRecycler.setAdapter(new RuleRankAdapter(ruleRank));
+            binding.ruleRankRecycler.setAdapter(new RuleGroupedLogAdapter(ruleRank, stats));
         }
 
-        // 播放链路排行与站点、规则使用同一份�共享快照
         List<SiteRankItem> pipelineRank = buildPipelineRank(stats);
         if (pipelineRank.isEmpty()) {
             binding.pipelineRankEmpty.setVisibility(View.VISIBLE);
@@ -156,8 +159,18 @@ public class AdBlockStatsDialog {
         } else {
             binding.pipelineRankEmpty.setVisibility(View.GONE);
             binding.pipelineRankRecycler.setVisibility(View.VISIBLE);
-            binding.pipelineRankRecycler.setAdapter(new SiteRankAdapter(pipelineRank));
+            binding.pipelineRankRecycler.setAdapter(new GroupedLogAdapter(pipelineRank, stats, GroupType.PIPELINE));
         }
+
+        List<AdBlockLog> logs = stats.getBlockLogs();
+        binding.logEmpty.setVisibility(logs.isEmpty() ? View.VISIBLE : View.GONE);
+        binding.logRecycler.setVisibility(logs.isEmpty() ? View.GONE : View.VISIBLE);
+        binding.logRecycler.setAdapter(new BlockLogAdapter(logs));
+
+        List<SiteRankItem> chartItems = buildSiteRank(stats);
+        binding.chartEmpty.setVisibility(chartItems.isEmpty() ? View.VISIBLE : View.GONE);
+        binding.chartRecycler.setVisibility(chartItems.isEmpty() ? View.GONE : View.VISIBLE);
+        binding.chartRecycler.setAdapter(new SiteRankAdapter(chartItems));
     }
 
     private List<SiteRankItem> buildSiteRank(AdBlockStats stats) {
@@ -206,6 +219,204 @@ public class AdBlockStatsDialog {
         }
     }
 
+    private enum GroupType { SOURCE, PIPELINE }
+
+    private static class GroupedLogAdapter extends RecyclerView.Adapter<GroupedLogAdapter.ViewHolder> {
+        private final List<SiteRankItem> groups;
+        private final AdBlockStats stats;
+        private final GroupType type;
+        private final java.util.Set<String> expanded = new java.util.HashSet<>();
+        private final List<Object> visibleItems = new ArrayList<>();
+
+        GroupedLogAdapter(List<SiteRankItem> groups, AdBlockStats stats, GroupType type) {
+            this.groups = groups;
+            this.stats = stats;
+            this.type = type;
+            rebuild();
+        }
+
+        private void rebuild() {
+            visibleItems.clear();
+            for (SiteRankItem group : groups) {
+                visibleItems.add(group);
+                if (expanded.contains(group.getSiteKey())) {
+                    visibleItems.addAll(type == GroupType.SOURCE
+                            ? stats.getBlockLogsBySource(group.getSiteKey())
+                            : stats.getBlockLogsByPipeline(group.getSiteKey()));
+                }
+            }
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.adapter_ad_stats_item, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            Object visible = visibleItems.get(position);
+            if (visible instanceof SiteRankItem) {
+                SiteRankItem group = (SiteRankItem) visible;
+                boolean isExpanded = expanded.contains(group.getSiteKey());
+                holder.binding.name.setText((isExpanded ? "▼ " : "▶ ") + group.getSiteKey());
+                holder.binding.source.setVisibility(View.GONE);
+                holder.binding.count.setText(String.valueOf(group.getCount()));
+                holder.itemView.setOnClickListener(view -> {
+                    if (!expanded.add(group.getSiteKey())) expanded.remove(group.getSiteKey());
+                    rebuild();
+                    notifyDataSetChanged();
+                });
+            } else {
+                bindLog(holder, (AdBlockLog) visible);
+            }
+        }
+
+        private void bindLog(ViewHolder holder, AdBlockLog log) {
+            holder.binding.name.setText("  " + log.getAdDomain());
+            holder.binding.source.setText(log.getSourceName() + " · " + log.getPipelineName() + " · " + log.getRuleId());
+            holder.binding.source.setVisibility(View.VISIBLE);
+            holder.binding.count.setText(String.format(Locale.getDefault(), "%.1fs", log.getSegmentDurationSeconds()));
+            holder.itemView.setOnClickListener(null);
+        }
+
+        @Override
+        public int getItemCount() {
+            return visibleItems.size();
+        }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            private final com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding binding;
+
+            ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                binding = com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding.bind(itemView);
+            }
+        }
+    }
+
+    private static class RuleGroupedLogAdapter extends RecyclerView.Adapter<RuleGroupedLogAdapter.ViewHolder> {
+        private final List<RuleHitRecord> groups;
+        private final AdBlockStats stats;
+        private final java.util.Set<String> expanded = new java.util.HashSet<>();
+        private final List<Object> visibleItems = new ArrayList<>();
+
+        RuleGroupedLogAdapter(List<RuleHitRecord> groups, AdBlockStats stats) {
+            this.groups = groups;
+            this.stats = stats;
+            rebuild();
+        }
+
+        private void rebuild() {
+            visibleItems.clear();
+            for (RuleHitRecord group : groups) {
+                visibleItems.add(group);
+                if (expanded.contains(group.getRuleId())) visibleItems.addAll(stats.getBlockLogsByRule(group.getRuleId()));
+            }
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.adapter_ad_stats_item, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            Object visible = visibleItems.get(position);
+            if (visible instanceof RuleHitRecord) {
+                RuleHitRecord group = (RuleHitRecord) visible;
+                boolean isExpanded = expanded.contains(group.getRuleId());
+                String name = "hls.legacy-fallback".equals(group.getRuleId()) ? "内部兜底规则" : group.getRuleName();
+                if (name == null || name.isEmpty()) name = group.getRuleId();
+                holder.binding.name.setText((isExpanded ? "▼ " : "▶ ") + name);
+                holder.binding.source.setText(group.getRuleSource());
+                holder.binding.source.setVisibility(View.VISIBLE);
+                holder.binding.count.setText(String.valueOf(group.getHitCount()));
+                holder.itemView.setOnClickListener(view -> {
+                    if (!expanded.add(group.getRuleId())) expanded.remove(group.getRuleId());
+                    rebuild();
+                    notifyDataSetChanged();
+                });
+            } else {
+                AdBlockLog log = (AdBlockLog) visible;
+                holder.binding.name.setText("  " + log.getAdDomain());
+                holder.binding.source.setText(log.getSourceName() + " · " + log.getPipelineName());
+                holder.binding.source.setVisibility(View.VISIBLE);
+                holder.binding.count.setText(String.format(Locale.getDefault(), "%.1fs", log.getSegmentDurationSeconds()));
+                holder.itemView.setOnClickListener(null);
+            }
+        }
+
+        @Override
+        public int getItemCount() {
+            return visibleItems.size();
+        }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            private final com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding binding;
+
+            ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                binding = com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding.bind(itemView);
+            }
+        }
+    }
+
+    private static class ExpandableLogAdapter extends RecyclerView.Adapter<ExpandableLogAdapter.ViewHolder> {
+        private final List<AdBlockLog> items;
+        private boolean expanded;
+
+        ExpandableLogAdapter(List<AdBlockLog> items) {
+            this.items = items;
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.adapter_ad_stats_item, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            AdBlockLog item = items.get(position);
+            holder.binding.name.setText(item.getAdDomain());
+            holder.binding.source.setText(item.getSourceName() + " · " + item.getPipelineName() + " · " + item.getRuleId());
+            holder.binding.source.setVisibility(expanded ? View.VISIBLE : View.GONE);
+            holder.binding.count.setText(String.format(Locale.getDefault(), "%.1fs", item.getSegmentDurationSeconds()));
+            holder.itemView.setOnClickListener(view -> {
+                expanded = !expanded;
+                notifyDataSetChanged();
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return items.size();
+        }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            private final com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding binding;
+
+            ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                binding = com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding.bind(itemView);
+            }
+        }
+    }
+
+    private List<AdBlockLog> getBlockLogsBySource(AdBlockStats stats, String source) {
+        return stats.getBlockLogsBySource(source);
+    }
+
+    private List<AdBlockLog> getBlockLogsByRule(AdBlockStats stats, String rule) {
+        return stats.getBlockLogsByRule(rule);
+    }
+
+    private List<AdBlockLog> getBlockLogsByPipeline(AdBlockStats stats, String pipeline) {
+        return stats.getBlockLogsByPipeline(pipeline);
+    }
+
     // 站点排行适配器
     private static class SiteRankAdapter extends RecyclerView.Adapter<SiteRankAdapter.ViewHolder> {
         private final List<SiteRankItem> items;
@@ -237,6 +448,43 @@ public class AdBlockStatsDialog {
             private final com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding binding;
 
             public ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                binding = com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding.bind(itemView);
+            }
+        }
+    }
+
+    private static class BlockLogAdapter extends RecyclerView.Adapter<BlockLogAdapter.ViewHolder> {
+        private final List<AdBlockLog> items;
+
+        BlockLogAdapter(List<AdBlockLog> items) {
+            this.items = items;
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.adapter_ad_stats_item, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            AdBlockLog item = items.get(position);
+            holder.binding.name.setText(item.getAdDomain());
+            holder.binding.source.setText(item.getSourceName() + " · " + item.getPipelineName() + " · " + item.getRuleId());
+            holder.binding.source.setVisibility(View.VISIBLE);
+            holder.binding.count.setText(String.format(Locale.getDefault(), "%.1fs", item.getSegmentDurationSeconds()));
+        }
+
+        @Override
+        public int getItemCount() {
+            return items.size();
+        }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            private final com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding binding;
+
+            ViewHolder(@NonNull View itemView) {
                 super(itemView);
                 binding = com.fongmi.android.tv.databinding.AdapterAdStatsItemBinding.bind(itemView);
             }

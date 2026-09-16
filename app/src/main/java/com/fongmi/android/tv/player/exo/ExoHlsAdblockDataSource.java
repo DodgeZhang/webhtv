@@ -48,7 +48,7 @@ final class ExoHlsAdblockDataSource implements DataSource {
             byte[] original = readAll();
             String text = new String(original, StandardCharsets.UTF_8);
             HlsAdblockPipeline.Outcome outcome = HlsAdblockPipeline.apply(
-                    dataSpec.uri.toString(), text, HlsRuleConfig.getRules(), true);
+                    dataSpec.uri.toString(), text, HlsRuleConfig.getRules(), HlsRuleConfig.isLegacyFallbackEnabled());
             manifest = outcome.manifest().getBytes(StandardCharsets.UTF_8);
             position = 0;
             recordAndNotify(dataSpec.uri, outcome);
@@ -125,7 +125,8 @@ final class ExoHlsAdblockDataSource implements DataSource {
     private static void recordAndNotify(Uri uri, HlsAdblockPipeline.Outcome outcome) {
         if (!outcome.structured() && !outcome.legacy()) return;
         long fallbackCount = outcome.legacy() ? 1 : 0;
-        AdBlockStatsStore.recordBlocks(uri.getHost(), "EXO", outcome.ruleCounts(), fallbackCount);
+        AdBlockStatsStore.recordBlocks(uri.getHost(), "EXO", outcome.ruleCounts(), fallbackCount,
+                uri.getHost(), outcome.removedDurationSec(), outcome.removedSegmentDetails());
         if (!HlsAdblockNotice.shouldNotify(uri.toString(), System.currentTimeMillis())) return;
         String message = notice(outcome);
         App.post(() -> Notify.show(message));

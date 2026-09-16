@@ -36,6 +36,7 @@ public final class HlsManifestCleaner {
             int removedCount = 0;
             double removedDurationSec = 0;
             Map<String, Long> ruleCounts = new LinkedHashMap<>();
+            List<RemovedSegment> removedSegments = new ArrayList<>();
             for (Node node : nodes) {
                 if (!(node instanceof Segment segment)) continue;
                 segmentCount++;
@@ -45,6 +46,9 @@ public final class HlsManifestCleaner {
                     removedCount++;
                     removedDurationSec += segment.durationSec;
                     ruleCounts.merge(matchedRule.id, 1L, Long::sum);
+                    URI resolved = URI.create(baseUrl).resolve(segment.uri);
+                    String host = resolved.getHost() == null ? "" : resolved.getHost();
+                    removedSegments.add(new RemovedSegment(host, matchedRule.id, segment.durationSec));
                 }
             }
             if (removedCount == 0) return Result.unchanged(manifest);
@@ -70,7 +74,8 @@ public final class HlsManifestCleaner {
                 if (discontinuitySequenceIncrement > 0 && !manifest.contains("#EXT-X-DISCONTINUITY-SEQUENCE:")) return Result.fallback(manifest);
             }
             return new Result(render(nodes, manifest.endsWith("\n"), mediaSequenceIncrement, discontinuitySequenceIncrement),
-                    true, false, removedCount, removedDurationSec, Collections.unmodifiableMap(ruleCounts));
+                    true, false, removedCount, removedDurationSec, Collections.unmodifiableMap(ruleCounts),
+                    Collections.unmodifiableList(removedSegments));
         } catch (RuntimeException e) {
             return Result.fallback(manifest);
         }
@@ -250,10 +255,18 @@ public final class HlsManifestCleaner {
         }
     }
 
+    public record RemovedSegment(String adDomain, String ruleId, double durationSec) {}
+
     public record Result(String manifest, boolean changed, boolean fallback, int removedSegments,
-                         double removedDurationSec, Map<String, Long> ruleCounts) {
-        private static Result unchanged(String manifest) { return new Result(manifest, false, false, 0, 0, Map.of()); }
-        private static Result fallback(String manifest) { return new Result(manifest, false, true, 0, 0, Map.of()); }
+                         double removedDurationSec, Map<String, Long> ruleCounts,
+                         List<RemovedSegment> removedSegmentDetails) {
+        private static Result unchanged(String manifest) {
+            return new Result(manifest, false, false, 0, 0, Map.of(), List.of());
+        }
+
+        private static Result fallback(String manifest) {
+            return new Result(manifest, false, true, 0, 0, Map.of(), List.of());
+        }
     }
 
     public static final class Rule {

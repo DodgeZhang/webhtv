@@ -2276,6 +2276,8 @@
     <string name="ad_stats_reset_confirm">Reset all statistics?</string>
     <string name="ad_stats_empty">No statistics yet</string>
     <string name="ad_stats_overview">Overview</string>
+    <string name="ad_stats_log">Block log</string>
+    <string name="ad_stats_chart">Charts</string>
     <string name="ad_site_overview">Site overview</string>
     <string name="ad_site_count">Sites involved</string>
     <string name="ad_top_site">Most blocked site</string>

@@ -802,7 +802,7 @@ public final class MpvHlsProxy extends NanoHTTPD {
         if (!Setting.isAdblock() || !isVodPlaylist(text)) return text;
         if (HlsAdblockPipeline.isCoreM3u8Proxy(url)) return text;
         try {
-            HlsAdblockPipeline.Outcome outcome = HlsAdblockPipeline.apply(url, text, HlsRuleConfig.getRules(), true);
+            HlsAdblockPipeline.Outcome outcome = HlsAdblockPipeline.apply(url, text, HlsRuleConfig.getRules(), HlsRuleConfig.isLegacyFallbackEnabled());
             recordAndNotifyAdblock(url, outcome);
             if (!TextUtils.equals(outcome.manifest(), text)) {
                 if (kernel == PlayerSetting.MPV) {
@@ -826,7 +826,8 @@ public final class MpvHlsProxy extends NanoHTTPD {
         okhttp3.HttpUrl parsed = okhttp3.HttpUrl.parse(url);
         if (parsed == null) return;
         long fallbackCount = outcome.legacy() ? 1 : 0;
-        AdBlockStatsStore.recordBlocks(parsed.host(), "MPV", outcome.ruleCounts(), fallbackCount);
+        AdBlockStatsStore.recordBlocks(parsed.host(), "MPV", outcome.ruleCounts(), fallbackCount,
+                parsed.host(), outcome.removedDurationSec(), outcome.removedSegmentDetails());
         if (!HlsAdblockNotice.shouldNotify(url, System.currentTimeMillis())) return;
         int removed = outcome.removedSegments() > 0 ? outcome.removedSegments() : (int) fallbackCount;
         String message = outcome.structured() && outcome.removedDurationSec() > 0

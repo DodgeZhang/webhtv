@@ -92,6 +92,38 @@ public class AdBlockStatsDialogLayoutTest {
     }
 
     @Test
+    public void statsDialogIncludesDetailedLogAndChartTabsForBothFlavors() throws Exception {
+        Path root = findRepositoryRoot();
+        for (String flavor : new String[] {"mobile", "leanback"}) {
+            String layout = read(root.resolve(Path.of("app", "src", flavor, "res", "layout", "dialog_ad_block_stats.xml")));
+            String dialog = read(root.resolve(Path.of("app", "src", flavor, "java", "com", "fongmi", "android", "tv", "ui", "dialog", "AdBlockStatsDialog.java")));
+
+            assertTrue(layout.contains("android:id=\"@+id/logPage\""));
+            assertTrue(layout.contains("android:id=\"@+id/logRecycler\""));
+            assertTrue(layout.contains("android:id=\"@+id/chartPage\""));
+            assertTrue(layout.contains("android:id=\"@+id/chartRecycler\""));
+            assertTrue(dialog.contains("R.string.ad_stats_log"));
+            assertTrue(dialog.contains("R.string.ad_stats_chart"));
+            assertTrue(dialog.contains("binding.logPage.setVisibility"));
+            assertTrue(dialog.contains("binding.chartPage.setVisibility"));
+        }
+    }
+
+    @Test
+    public void rankingTabsSupportExpandingGroupedBlockLogsForBothFlavors() throws Exception {
+        Path root = findRepositoryRoot();
+        for (String flavor : new String[] {"mobile", "leanback"}) {
+            String dialog = read(root.resolve(Path.of("app", "src", flavor, "java", "com", "fongmi", "android", "tv", "ui", "dialog", "AdBlockStatsDialog.java")));
+
+            assertTrue(dialog.contains("class ExpandableLogAdapter"));
+            assertTrue(dialog.contains("getBlockLogsBySource"));
+            assertTrue(dialog.contains("getBlockLogsByRule"));
+            assertTrue(dialog.contains("getBlockLogsByPipeline"));
+            assertTrue(dialog.contains("itemView.setOnClickListener"));
+        }
+    }
+
+    @Test
     public void mobileStatsDialogUsesReadableTextOnWhiteSurface() throws Exception {
         Path root = findRepositoryRoot();
         String dialog = read(root.resolve(Path.of("app", "src", "mobile", "res", "layout", "dialog_ad_block_stats.xml")));

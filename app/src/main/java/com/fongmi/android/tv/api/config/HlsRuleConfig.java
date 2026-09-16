@@ -18,6 +18,7 @@ public final class HlsRuleConfig {
     private static final Gson DETAIL_GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static List<HlsManifestCleaner.Rule> rules = List.of();
     private static List<Entry> entries = List.of();
+    private static final String LEGACY_FALLBACK_KEY = "hls.legacy-fallback";
     private static boolean dirty = true;
 
     private HlsRuleConfig() {}
@@ -30,6 +31,12 @@ public final class HlsRuleConfig {
     public static synchronized List<Entry> getEntries() {
         if (dirty) reload();
         return entries;
+    }
+
+    public static synchronized boolean isLegacyFallbackEnabled() {
+        if (dirty) reload();
+        return entries.stream().filter(item -> LEGACY_FALLBACK_KEY.equals(item.key()))
+                .findFirst().map(Entry::enabled).orElse(true);
     }
 
     public static synchronized void invalidate() {
@@ -45,6 +52,9 @@ public final class HlsRuleConfig {
         compileBuiltin(builtin, overrides, compiled, summaries);
         compileExternal("vod", VodConfig.get().getConfig().getUrl(), VodConfig.get().getHlsRules(), overrides, compiled, summaries);
         compileExternal("live", LiveConfig.get().getConfig().getUrl(), LiveConfig.get().getHlsRules(), overrides, compiled, summaries);
+        boolean fallbackEnabled = !Boolean.FALSE.equals(overrides.get(LEGACY_FALLBACK_KEY));
+        summaries.add(new Entry(LEGACY_FALLBACK_KEY, LEGACY_FALLBACK_KEY, "内置兜底规则", 1,
+                "builtin", fallbackEnabled, true, "", "HlsAdsParser legacy fallback"));
         rules = List.copyOf(compiled);
         entries = List.copyOf(summaries);
         dirty = false;
