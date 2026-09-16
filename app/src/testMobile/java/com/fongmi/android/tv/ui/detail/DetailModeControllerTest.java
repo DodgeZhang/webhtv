@@ -125,29 +125,31 @@ public class DetailModeControllerTest {
     }
 
     @Test
-    public void playerDetailMode_entersFullscreenBeforeAsyncPlayerLoad() throws Exception {
+    public void playerDetailMode_waitsForFirstFrameBeforeFullscreen() throws Exception {
         Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = Files.readString(activityPath, StandardCharsets.UTF_8);
         String playBody = methodBody(source, "private void playDetailFullscreen()");
-        int enterFullscreen = playBody.indexOf("enterInlineFullscreen();");
-        int startPlayback = playBody.indexOf("if (!current) playInline();");
+        String firstFrameBody = methodBody(source, "protected void onFirstFrameRendered()");
 
-        // 详情直放点击后必须先铺满全屏播放器，再异步解析；不能先显示沉浸融合详情页。
-        assertTrue("detail-player playback must enter fullscreen before async player loading",
-                enterFullscreen >= 0 && startPlayback > enterFullscreen);
-        assertTrue("detail-player must not defer fullscreen until the first frame",
-                !playBody.contains("detailPlayerFullscreenPending"));
+        int startPlayback = playBody.indexOf("playInline();");
+        int earlyFullscreen = playBody.indexOf("enterInlineFullscreen();");
+        assertTrue("new detail-player playback must resolve and start before fullscreen reveal",
+                startPlayback >= 0 && earlyFullscreen < 0);
+        assertTrue("detail-player must retain a pending reveal until the first frame",
+                playBody.contains("detailPlayerFullscreenPending = !current;")
+                        && firstFrameBody.contains("revealDetailPlayerFullscreen();"));
     }
 
     @Test
-    public void playerDetailMode_doesNotClearPlayerAfterEnteringFullscreen() throws Exception {
+    public void playerDetailMode_reusesCurrentPlaybackWithoutReloading() throws Exception {
         Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = Files.readString(activityPath, StandardCharsets.UTF_8);
         String playBody = methodBody(source, "private void playDetailFullscreen()");
         String inlineBody = methodBody(source, "private void playInline(long resumePosition, String failedUrl, String failureMessage)");
 
-        assertTrue("detail-player startup must enter fullscreen before resolving playback",
-                playBody.contains("enterInlineFullscreen();")
+        assertTrue("current playback may reveal fullscreen immediately while new playback resolves once",
+                playBody.contains("if (current) revealDetailPlayerFullscreen();")
+                        && playBody.contains("else playInline();")
                         && !inlineBody.contains("stopInlinePlayerForReload();"));
     }
 
