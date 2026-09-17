@@ -1551,7 +1551,7 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
                 .setTitle(R.string.intro_skip_confirm_title)
                 .setMessage(IntroSkipKinds.confirmMessage(segment))
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> action.run())
-                .setNegativeButton(android.R.string.cancel, null)
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> mIntroSkipPlayback.declineConfirmation(segment))
                 .show();
             mIntroSkipConfirmDialog.setOnDismissListener(dialog -> {
                 mIntroSkipPlayback.cancelConfirmation(segment);

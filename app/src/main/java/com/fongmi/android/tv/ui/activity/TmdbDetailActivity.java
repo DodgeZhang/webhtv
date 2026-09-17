@@ -10852,7 +10852,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                     .setTitle(R.string.intro_skip_confirm_title)
                     .setMessage(IntroSkipKinds.confirmMessage(segment))
                     .setPositiveButton(android.R.string.ok, (dialog, which) -> action.run())
-                    .setNegativeButton(android.R.string.cancel, null)
+                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> introSkipPlayback.declineConfirmation(segment))
                     .show();
             introSkipConfirmDialog.setOnDismissListener(dialog -> {
                 introSkipPlayback.cancelConfirmation(segment);
