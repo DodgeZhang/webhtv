@@ -1,5 +1,6 @@
 package com.fongmi.android.tv.service;
 
+import com.fongmi.android.tv.bean.TmdbConfig;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -36,42 +37,46 @@ public final class TmdbConfigTestService {
 
     static Check testApi(OkHttpClient client, String credential, String apiHost) {
         if (credential == null || credential.trim().isEmpty()) return Check.failed("API Key / Access Token is empty");
-        HttpUrl base = parseHost(apiHost);
-        if (base == null) return Check.failed("invalid URL");
-        HttpUrl.Builder url = base.newBuilder().addPathSegments("3/configuration");
-        String value = credential.trim();
-        Request.Builder request = new Request.Builder().get();
-        if (value.length() > 80 || value.startsWith("eyJ")) {
-            request.url(url.build()).header("Authorization", "Bearer " + value);
-        } else {
-            request.url(url.addQueryParameter("api_key", value).build());
-        }
-        try (Response response = client.newCall(request.build()).execute()) {
-            if (!response.isSuccessful()) return Check.failed("HTTP " + response.code());
-            ResponseBody body = response.body();
-            if (body == null) return Check.failed("empty response");
-            JsonObject json = JsonParser.parseString(body.string()).getAsJsonObject();
-            if (!json.has("images") || !json.get("images").isJsonObject()) {
-                return Check.failed("response is not TMDB configuration data");
+        TmdbConfig config = config(credential, apiHost, null, null);
+        try {
+            HttpUrl base = HttpUrl.parse(config.getApiBase() + "/configuration");
+            if (base == null) return Check.failed("invalid URL");
+            HttpUrl.Builder url = base.newBuilder();
+            Request.Builder request = new Request.Builder().get();
+            if (config.getAccessToken().isEmpty()) {
+                request.url(url.addQueryParameter("api_key", config.getApiKey()).build());
+            } else {
+                request.url(url.build()).header("Authorization", "Bearer " + config.getAccessToken());
             }
-            return Check.success();
+            try (Response response = client.newCall(request.build()).execute()) {
+                if (!response.isSuccessful()) return Check.failed("HTTP " + response.code());
+                ResponseBody body = response.body();
+                if (body == null) return Check.failed("empty response");
+                JsonObject json = JsonParser.parseString(body.string()).getAsJsonObject();
+                if (!json.has("images") || !json.get("images").isJsonObject()) {
+                    return Check.failed("response is not TMDB configuration data");
+                }
+                return Check.success();
+            }
         } catch (Exception e) {
             return Check.failed(message(e));
         }
     }
 
     static Check testImage(OkHttpClient client, String imageHost) {
-        HttpUrl base = parseHost(imageHost);
-        if (base == null) return Check.failed("invalid URL");
-        HttpUrl url = base.newBuilder().addPathSegments("t/p/w92/wwemzKWzjKYJFfCeiB57q3r4Bcm.png").build();
-        try (Response response = client.newCall(new Request.Builder().url(url).get().build()).execute()) {
-            if (!response.isSuccessful()) return Check.failed("HTTP " + response.code());
-            ResponseBody body = response.body();
-            String type = response.header("Content-Type", "").toLowerCase(Locale.ROOT);
-            if (!type.startsWith("image/")) return Check.failed("response is not an image");
-            if (body == null || body.contentLength() == 0) return Check.failed("empty image");
-            byte[] prefix = body.source().peek().readByteArray(16);
-            return hasImageSignature(prefix) ? Check.success() : Check.failed("invalid image data");
+        TmdbConfig config = config(null, null, imageHost, null);
+        try {
+            HttpUrl url = HttpUrl.parse(config.getImageBase() + "/wwemzKWzjKYJFfCeiB57q3r4Bcm.png");
+            if (url == null) return Check.failed("invalid URL");
+            try (Response response = client.newCall(new Request.Builder().url(url).get().build()).execute()) {
+                if (!response.isSuccessful()) return Check.failed("HTTP " + response.code());
+                ResponseBody body = response.body();
+                String type = response.header("Content-Type", "").toLowerCase(Locale.ROOT);
+                if (!type.startsWith("image/")) return Check.failed("response is not an image");
+                if (body == null || body.contentLength() == 0) return Check.failed("empty image");
+                byte[] prefix = body.source().peek().readByteArray(16);
+                return hasImageSignature(prefix) ? Check.success() : Check.failed("invalid image data");
+            }
         } catch (Exception e) {
             return Check.failed(message(e));
         }
@@ -79,32 +84,54 @@ public final class TmdbConfigTestService {
 
     static Check testOmdb(OkHttpClient client, String apiKey, String baseUrl) {
         if (apiKey == null || apiKey.trim().isEmpty()) return Check.failed("OMDb API Key is empty");
-        HttpUrl base = parseHost(baseUrl);
-        if (base == null) return Check.failed("invalid OMDb URL");
-        HttpUrl url = base.newBuilder()
-                .addQueryParameter("i", "tt0111161")
-                .addQueryParameter("apikey", apiKey.trim())
-                .build();
-        try (Response response = client.newCall(new Request.Builder().url(url).get().build()).execute()) {
-            if (!response.isSuccessful()) return Check.failed("HTTP " + response.code());
-            ResponseBody body = response.body();
-            if (body == null) return Check.failed("empty response");
-            JsonObject json = JsonParser.parseString(body.string()).getAsJsonObject();
-            if (json.has("Response") && "False".equalsIgnoreCase(json.get("Response").getAsString())) {
-                return Check.failed(json.has("Error") ? json.get("Error").getAsString() : "OMDb rejected the request");
+        try {
+            HttpUrl base = parseHost(baseUrl);
+            if (base == null) return Check.failed("invalid OMDb URL");
+            HttpUrl url = base.newBuilder()
+                    .addQueryParameter("i", "tt0111161")
+                    .addQueryParameter("apikey", apiKey.trim())
+                    .build();
+            try (Response response = client.newCall(new Request.Builder().url(url).get().build()).execute()) {
+                if (!response.isSuccessful()) return Check.failed("HTTP " + response.code());
+                ResponseBody body = response.body();
+                if (body == null) return Check.failed("empty response");
+                JsonObject json = JsonParser.parseString(body.string()).getAsJsonObject();
+                if (json.has("Response") && "False".equalsIgnoreCase(json.get("Response").getAsString())) {
+                    return Check.failed(json.has("Error") ? json.get("Error").getAsString() : "OMDb rejected the request");
+                }
+                if (!json.has("imdbID") || !json.get("imdbID").getAsString().startsWith("tt")) {
+                    return Check.failed("response is not valid OMDb data");
+                }
+                return Check.success();
             }
-            if (!json.has("imdbID") || !json.get("imdbID").getAsString().startsWith("tt")) {
-                return Check.failed("response is not valid OMDb data");
-            }
-            return Check.success();
         } catch (Exception e) {
             return Check.failed(message(e));
         }
     }
 
+    private static TmdbConfig config(String credential, String apiHost, String imageHost, String omdbApiKey) {
+        JsonObject json = new JsonObject();
+        String value = trim(credential);
+        if (value.split("\\.").length >= 3) json.addProperty("accessToken", value);
+        else json.addProperty("apiKey", value);
+        if (apiHost != null) json.addProperty("apiBase", trim(apiHost));
+        if (imageHost != null) json.addProperty("imageBase", trim(imageHost));
+        if (omdbApiKey != null) json.addProperty("omdbApiKey", trim(omdbApiKey));
+        return TmdbConfig.objectFrom(json.toString());
+    }
+
+    private static String trim(String value) {
+        return value == null ? "" : value.trim();
+    }
+
     private static Check timed(CheckSupplier supplier) {
         long started = System.nanoTime();
-        Check result = supplier.get();
+        Check result;
+        try {
+            result = supplier.get();
+        } catch (RuntimeException e) {
+            result = Check.failed(message(e));
+        }
         return result.withLatency(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
     }
 

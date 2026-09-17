@@ -3086,10 +3086,12 @@ public class TmdbDetailActivityLayoutTest {
         int delegatedPlay = onPlayBody.indexOf("modeController.play();");
         assertTrue("current inline episode clicks must reuse playback before delegated playback",
                 reuseCurrentPlayback >= 0 && delegatedPlay >= 0 && reuseCurrentPlayback < delegatedPlay);
-        assertTrue("detail-player fullscreen entry must not reload the already playing episode",
+        int enterFullscreen = detailBody.indexOf("enterInlineFullscreen();");
+        int startPlayback = detailBody.indexOf("if (!current) playInline();");
+        assertTrue("detail-player fullscreen entry must be immediate and must not reload the already playing episode",
                 detailBody.contains("boolean current = isCurrentInlinePlayback(selectedEpisode);")
-                        && detailBody.contains("if (current) revealDetailPlayerFullscreen();")
-                        && detailBody.contains("else playInline();"));
+                        && enterFullscreen >= 0
+                        && startPlayback > enterFullscreen);
         assertTrue("current inline playback identity must include episode, site key, and line flag",
                 source.contains("private Episode inlinePlaybackEpisode;")
                         && source.contains("private String inlinePlaybackKey = \"\";")

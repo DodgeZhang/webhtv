@@ -146,12 +146,14 @@ public class TmdbSourceDialog {
         String apiHost = inputText(apiHostInput);
         String imageHost = inputText(imageHostInput);
         String omdbApiKey = inputText(omdbApiKeyInput);
+        AlertDialog sourceDialog = dialog;
         testButton.setEnabled(false);
         Task.execute(() -> {
             TmdbConfigTestService.Result result = TmdbConfigTestService.test(credential, apiHost, imageHost, omdbApiKey);
             activity.runOnUiThread(() -> {
                 testButton.setEnabled(true);
-                if (dialog == null || !dialog.isShowing()) return;
+                if (activity.isFinishing() || activity.isDestroyed() || sourceDialog == null
+                        || dialog != sourceDialog || !sourceDialog.isShowing()) return;
                 String apiResult = resultText(result.api, R.string.dialog_tmdb_test_api_success, R.string.dialog_tmdb_test_api_failed);
                 String imageResult = resultText(result.image, R.string.dialog_tmdb_test_image_success, R.string.dialog_tmdb_test_image_failed);
                 String omdbResult = resultText(result.omdb, R.string.dialog_tmdb_test_omdb_success, R.string.dialog_tmdb_test_omdb_failed);

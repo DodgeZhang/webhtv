@@ -9,6 +9,7 @@ import java.util.Base64;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -32,7 +33,7 @@ public class TmdbConfigTestServiceTest {
     }
 
     @Test
-    public void acceptsValidTmdbDataAndPngImage() {
+    public void acceptsValidTmdbDataAndPngImage() throws Exception {
         server.enqueue(new MockResponse().setHeader("Content-Type", "application/json").setBody("{\"images\":{}}"));
         server.enqueue(new MockResponse().setHeader("Content-Type", "image/png")
                 .setBody(new okio.Buffer().write(Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"))));
@@ -45,6 +46,9 @@ public class TmdbConfigTestServiceTest {
         assertTrue(result.api.latencyMillis >= 0);
         assertTrue(result.image.latencyMillis >= 0);
         assertTrue(result.omdb.latencyMillis >= 0);
+        assertEquals("/3/configuration?api_key=key", server.takeRequest().getPath());
+        assertEquals("/t/p/w342/wwemzKWzjKYJFfCeiB57q3r4Bcm.png", server.takeRequest().getPath());
+        assertEquals("/?i=tt0111161&apikey=omdb-key", server.takeRequest().getPath());
     }
 
     @Test
@@ -70,5 +74,25 @@ public class TmdbConfigTestServiceTest {
     public void rejectsFakeImageBytes() {
         server.enqueue(new MockResponse().setHeader("Content-Type", "image/png").setBody("fake"));
         assertFalse(TmdbConfigTestService.testImage(client, server.url("/").toString()).success);
+    }
+
+    @Test
+    public void normalizesSavedApiAndImagePaths() throws Exception {
+        server.enqueue(new MockResponse().setHeader("Content-Type", "application/json").setBody("{\"images\":{}}"));
+        server.enqueue(new MockResponse().setHeader("Content-Type", "image/png")
+                .setBody(new okio.Buffer().write(Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"))));
+
+        assertTrue(TmdbConfigTestService.testApi(client, "first.second.third", server.url("/3").toString()).success);
+        assertTrue(TmdbConfigTestService.testImage(client, server.url("/t/p/w185").toString()).success);
+
+        RecordedRequest apiRequest = server.takeRequest();
+        assertEquals("/3/configuration", apiRequest.getPath());
+        assertEquals("Bearer first.second.third", apiRequest.getHeader("Authorization"));
+        assertEquals("/t/p/w342/wwemzKWzjKYJFfCeiB57q3r4Bcm.png", server.takeRequest().getPath());
+    }
+
+    @Test
+    public void invalidBearerHeaderBecomesFailedCheck() {
+        assertFalse(TmdbConfigTestService.testApi(client, "first.second.\nbad", server.url("/").toString()).success);
     }
 }

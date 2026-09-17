@@ -138,19 +138,18 @@ public class DetailModeControllerTest {
     }
 
     @Test
-    public void playerDetailMode_waitsForFirstFrameBeforeFullscreen() throws Exception {
+    public void playerDetailMode_entersFullscreenBeforeStartingPlayback() throws Exception {
         Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = Files.readString(activityPath, StandardCharsets.UTF_8);
         String playBody = methodBody(source, "private void playDetailFullscreen()");
-        String firstFrameBody = methodBody(source, "protected void onFirstFrameRendered()");
 
-        int startPlayback = playBody.indexOf("playInline();");
-        int earlyFullscreen = playBody.indexOf("enterInlineFullscreen();");
-        assertTrue("new detail-player playback must resolve and start before fullscreen reveal",
-                startPlayback >= 0 && earlyFullscreen < 0);
-        assertTrue("detail-player must retain a pending reveal until the first frame",
-                playBody.contains("detailPlayerFullscreenPending = !current;")
-                        && firstFrameBody.contains("revealDetailPlayerFullscreen();"));
+        int enterFullscreen = playBody.indexOf("enterInlineFullscreen();");
+        int startPlayback = playBody.indexOf("if (!current) playInline();");
+        assertTrue("new detail-player playback must enter fullscreen before playback starts",
+                enterFullscreen >= 0 && startPlayback > enterFullscreen);
+        assertTrue("detail-player must not retain a first-frame pending transition",
+                playBody.contains("detailPlayerFullscreenPending = false;")
+                        && !playBody.contains("detailPlayerFullscreenPending = !current;"));
     }
 
     @Test
@@ -160,9 +159,11 @@ public class DetailModeControllerTest {
         String playBody = methodBody(source, "private void playDetailFullscreen()");
         String inlineBody = methodBody(source, "private void playInline(long resumePosition, String failedUrl, String failureMessage)");
 
-        assertTrue("current playback may reveal fullscreen immediately while new playback resolves once",
-                playBody.contains("if (current) revealDetailPlayerFullscreen();")
-                        && playBody.contains("else playInline();")
+        int enterFullscreen = playBody.indexOf("enterInlineFullscreen();");
+        int startPlayback = playBody.indexOf("if (!current) playInline();");
+        assertTrue("current playback may enter fullscreen immediately while new playback resolves once",
+                enterFullscreen >= 0
+                        && startPlayback > enterFullscreen
                         && !inlineBody.contains("stopInlinePlayerForReload();"));
     }
 

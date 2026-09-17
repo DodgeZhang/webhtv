@@ -127,6 +127,8 @@ public class AdBlockStatsDialogLayoutTest {
             assertTrue(dialogLayout.contains("@string/ad_log_segment_start"));
             assertTrue(dialogLayout.contains("@string/ad_log_segment_end"));
             assertTrue(dialogLayout.contains("@string/ad_log_segment_duration"));
+            assertTrue(dialogLayout.contains("android:id=\"@+id/logRecycler\""));
+            assertTrue(dialogLayout.contains("android:layout_width=\"1660dp\""));
             assertTrue(rowLayout.contains("android:id=\"@+id/siteName\"") && rowLayout.contains("android:textStyle=\"bold\""));
             assertTrue(rowLayout.contains("android:id=\"@+id/siteDomain\""));
             assertTrue(rowLayout.contains("android:id=\"@+id/ruleDomain\""));
@@ -136,6 +138,7 @@ public class AdBlockStatsDialogLayoutTest {
             assertTrue(rowLayout.contains("android:id=\"@+id/segmentDuration\""));
             assertTrue(dialogSource.contains("AdapterAdBlockLogBinding.inflate"));
             assertTrue(dialogSource.contains("getSegmentEndSeconds()"));
+            assertTrue(dialogSource.contains("segmentDuration.setText(item.hasSegmentTiming()"));
         }
     }
 
@@ -174,7 +177,7 @@ public class AdBlockStatsDialogLayoutTest {
 
         assertTrue(strings.contains(">切片开始时间</string>"));
         assertTrue(strings.contains(">切片结束时间</string>"));
-        assertTrue(strings.contains(">广告切片总时长</string>"));
+        assertTrue(strings.contains(">切片时长</string>"));
     }
 
     @Test

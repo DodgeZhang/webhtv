@@ -15,17 +15,18 @@ public class TmdbDetailDirectPlayTransitionSourceTest {
     private static final Path SOURCE = Paths.get("src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java");
 
     @Test
-    public void firstDirectPlayWaitsForFirstFrameBeforeCoveringDetail() throws Exception {
+    public void firstDirectPlayEntersFullscreenBeforeStartingPlayback() throws Exception {
         String source = Files.readString(SOURCE, StandardCharsets.UTF_8);
         String playMethod = methodBody(source, "private void playDetailFullscreen()");
 
-        assertTrue(source.contains("private boolean detailPlayerFullscreenPending;"));
-        assertTrue(playMethod.contains("detailPlayerFullscreenPending = !current;"));
-        assertTrue(playMethod.contains("if (current) revealDetailPlayerFullscreen();"));
-        assertTrue(playMethod.contains("else playInline();"));
-        assertFalse(playMethod.contains("enterInlineFullscreen();"));
+        int enterFullscreen = playMethod.indexOf("enterInlineFullscreen();");
+        int startPlayback = playMethod.indexOf("if (!current) playInline();");
+        assertTrue(enterFullscreen >= 0);
+        assertTrue(startPlayback > enterFullscreen);
+        assertTrue(playMethod.contains("detailPlayerFullscreenPending = false;"));
+        assertFalse(playMethod.contains("detailPlayerFullscreenPending = !current;"));
+        assertFalse(playMethod.contains("revealDetailPlayerFullscreen();"));
         assertTrue(source.contains("protected void onFirstFrameRendered()"));
-        assertTrue(source.contains("revealDetailPlayerFullscreen();"));
     }
 
     @Test
