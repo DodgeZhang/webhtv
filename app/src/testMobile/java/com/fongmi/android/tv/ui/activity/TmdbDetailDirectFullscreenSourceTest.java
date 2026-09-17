@@ -23,11 +23,15 @@ public class TmdbDetailDirectFullscreenSourceTest {
         assertFalse("detail direct play must not switch to VideoActivity",
                 onPlay.contains("playDefaultPlayback();")
                         || onPlay.contains("VideoActivity.startDirectTmdb("));
-        assertTrue("detail direct play must prepare current-page playback and reveal fullscreen",
-                fullscreen.contains("detailPlayerFullscreenPending = !current;")
-                        && fullscreen.contains("if (current) revealDetailPlayerFullscreen();")
-                        && fullscreen.contains("else playInline();"));
-        assertTrue("the current-page player must enter fullscreen when playback is ready",
+        int enterFullscreen = fullscreen.indexOf("enterInlineFullscreen();");
+        int startPlayback = fullscreen.indexOf("if (!current) playInline();");
+        assertTrue("detail direct play must enter fullscreen immediately before playback starts",
+                enterFullscreen >= 0 && startPlayback > enterFullscreen);
+        assertTrue("detail direct play must not wait for the first frame before entering fullscreen",
+                fullscreen.contains("detailPlayerFullscreenPending = false;")
+                        && !fullscreen.contains("detailPlayerFullscreenPending = !current;")
+                        && !fullscreen.contains("revealDetailPlayerFullscreen();"));
+        assertTrue("the retained reveal helper must still enter fullscreen for other pending paths",
                 reveal.contains("if (!inlineFullscreen) enterInlineFullscreen();"));
     }
 
