@@ -334,10 +334,10 @@
                     android:orientation="vertical">
 
         <androidx.appcompat.widget.LinearLayoutCompat
-            android:layout_width="1400dp"
+            android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:background="@color/black_10"
-            android:gravity="center"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
             <com.google.android.material.textview.MaterialTextView
                 android:layout_width="220dp"
