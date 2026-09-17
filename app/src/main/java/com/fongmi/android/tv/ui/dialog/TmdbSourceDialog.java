@@ -137,7 +137,7 @@ public class TmdbSourceDialog {
                 .setOnDismissListener(d -> { if (onDismiss != null) onDismiss.run(); })
                 .create();
         dialog.show();
-        wireConfigDialogFocus(dialog, ruleInput, addBtn, disabledRuleInput, addDisabledBtn, manageBtn, testBtn, resetBtn);
+        wireConfigDialogFocus(dialog, ruleInput, addBtn, disabledRuleInput, addDisabledBtn, manageBtn, resetBtn);
         LightDialog.apply(dialog);
     }
 
@@ -145,17 +145,19 @@ public class TmdbSourceDialog {
         String credential = inputText(apiKeyInput);
         String apiHost = inputText(apiHostInput);
         String imageHost = inputText(imageHostInput);
+        String omdbApiKey = inputText(omdbApiKeyInput);
         testButton.setEnabled(false);
         Task.execute(() -> {
-            TmdbConfigTestService.Result result = TmdbConfigTestService.test(credential, apiHost, imageHost);
+            TmdbConfigTestService.Result result = TmdbConfigTestService.test(credential, apiHost, imageHost, omdbApiKey);
             activity.runOnUiThread(() -> {
                 testButton.setEnabled(true);
                 if (dialog == null || !dialog.isShowing()) return;
                 String apiResult = resultText(result.api, R.string.dialog_tmdb_test_api_success, R.string.dialog_tmdb_test_api_failed);
                 String imageResult = resultText(result.image, R.string.dialog_tmdb_test_image_success, R.string.dialog_tmdb_test_image_failed);
+                String omdbResult = resultText(result.omdb, R.string.dialog_tmdb_test_omdb_success, R.string.dialog_tmdb_test_omdb_failed);
                 new MaterialAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_LightDialog)
                         .setTitle(R.string.dialog_tmdb_test_result_title)
-                        .setMessage(apiResult + "\n" + imageResult)
+                        .setMessage(apiResult + "\n" + imageResult + "\n" + omdbResult)
                         .setPositiveButton(R.string.dialog_positive, null)
                         .show();
             });
@@ -163,7 +165,9 @@ public class TmdbSourceDialog {
     }
 
     private String resultText(TmdbConfigTestService.Check check, int successText, int failureText) {
-        return check.success ? activity.getString(successText) : activity.getString(failureText, check.message);
+        return check.success
+                ? activity.getString(successText, check.latencyMillis)
+                : activity.getString(failureText, check.message, check.latencyMillis);
     }
 
     private static String inputText(EditText input) {
@@ -172,6 +176,10 @@ public class TmdbSourceDialog {
 
     private MaterialAlertDialogBuilder builder() {
         return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog);
+    }
+
+    private void wireConfigDialogFocus(AlertDialog dialog, EditText ruleInput, View addBtn, EditText disabledRuleInput, View addDisabledBtn, View manageBtn, View resetBtn) {
+        wireConfigDialogFocus(dialog, ruleInput, addBtn, disabledRuleInput, addDisabledBtn, manageBtn, dialog.findViewById(R.id.testConfig), resetBtn);
     }
 
     private void wireConfigDialogFocus(AlertDialog dialog, EditText ruleInput, View addBtn, EditText disabledRuleInput, View addDisabledBtn, View manageBtn, View testBtn, View resetBtn) {

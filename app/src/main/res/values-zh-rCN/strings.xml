@@ -2743,10 +2743,13 @@
     <string name="setting_ad_probe_revision">revision %1$d · %2$d 条规则</string>
     <string name="setting_ad_probe_never">尚未拉取</string>
     <string name="setting_ad_probe_url_invalid">规则源必须以 https:// 开头</string>
-    <string name="setting_ad_probe_source_disabled">请先填写社区规则源地址</string>    <string name="dialog_tmdb_test_config">测试配置</string>
+    <string name="setting_ad_probe_source_disabled">请先填写社区规则源地址</string>
+    <string name="dialog_tmdb_test_config">测试配置</string>
     <string name="dialog_tmdb_test_result_title">配置测试结果</string>
-    <string name="dialog_tmdb_test_api_success">API 域名：连接成功并返回有效 TMDB 数据</string>
-    <string name="dialog_tmdb_test_api_failed">API 域名：测试失败（%1$s）</string>
-    <string name="dialog_tmdb_test_image_success">图片域名：连接成功并返回有效图片</string>
-    <string name="dialog_tmdb_test_image_failed">图片域名：测试失败（%1$s）</string>
+    <string name="dialog_tmdb_test_api_success">TMDB API：连接成功并返回有效数据（%1$d 毫秒）</string>
+    <string name="dialog_tmdb_test_api_failed">TMDB API：测试失败（%1$s，%2$d 毫秒）</string>
+    <string name="dialog_tmdb_test_image_success">图片域名：连接成功并返回有效图片（%1$d 毫秒）</string>
+    <string name="dialog_tmdb_test_image_failed">图片域名：测试失败（%1$s，%2$d 毫秒）</string>
+    <string name="dialog_tmdb_test_omdb_success">OMDb API：连接成功并返回有效数据（%1$d 毫秒）</string>
+    <string name="dialog_tmdb_test_omdb_failed">OMDb API：测试失败（%1$s，%2$d 毫秒）</string>
 </resources>

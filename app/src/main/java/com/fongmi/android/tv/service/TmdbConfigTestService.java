@@ -23,12 +23,15 @@ public final class TmdbConfigTestService {
     private TmdbConfigTestService() {
     }
 
-    public static Result test(String credential, String apiHost, String imageHost) {
-        return test(CLIENT, credential, apiHost, imageHost);
+    public static Result test(String credential, String apiHost, String imageHost, String omdbApiKey) {
+        return test(CLIENT, credential, apiHost, imageHost, omdbApiKey, "https://www.omdbapi.com/");
     }
 
-    static Result test(OkHttpClient client, String credential, String apiHost, String imageHost) {
-        return new Result(testApi(client, credential, apiHost), testImage(client, imageHost));
+    static Result test(OkHttpClient client, String credential, String apiHost, String imageHost, String omdbApiKey, String omdbBaseUrl) {
+        return new Result(
+                timed(() -> testApi(client, credential, apiHost)),
+                timed(() -> testImage(client, imageHost)),
+                timed(() -> testOmdb(client, omdbApiKey, omdbBaseUrl)));
     }
 
     static Check testApi(OkHttpClient client, String credential, String apiHost) {
@@ -74,6 +77,41 @@ public final class TmdbConfigTestService {
         }
     }
 
+    static Check testOmdb(OkHttpClient client, String apiKey, String baseUrl) {
+        if (apiKey == null || apiKey.trim().isEmpty()) return Check.failed("OMDb API Key is empty");
+        HttpUrl base = parseHost(baseUrl);
+        if (base == null) return Check.failed("invalid OMDb URL");
+        HttpUrl url = base.newBuilder()
+                .addQueryParameter("i", "tt0111161")
+                .addQueryParameter("apikey", apiKey.trim())
+                .build();
+        try (Response response = client.newCall(new Request.Builder().url(url).get().build()).execute()) {
+            if (!response.isSuccessful()) return Check.failed("HTTP " + response.code());
+            ResponseBody body = response.body();
+            if (body == null) return Check.failed("empty response");
+            JsonObject json = JsonParser.parseString(body.string()).getAsJsonObject();
+            if (json.has("Response") && "False".equalsIgnoreCase(json.get("Response").getAsString())) {
+                return Check.failed(json.has("Error") ? json.get("Error").getAsString() : "OMDb rejected the request");
+            }
+            if (!json.has("imdbID") || !json.get("imdbID").getAsString().startsWith("tt")) {
+                return Check.failed("response is not valid OMDb data");
+            }
+            return Check.success();
+        } catch (Exception e) {
+            return Check.failed(message(e));
+        }
+    }
+
+    private static Check timed(CheckSupplier supplier) {
+        long started = System.nanoTime();
+        Check result = supplier.get();
+        return result.withLatency(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+    }
+
+    private interface CheckSupplier {
+        Check get();
+    }
+
     private static HttpUrl parseHost(String host) {
         if (host == null || host.trim().isEmpty()) return null;
         String value = host.trim();
@@ -104,28 +142,36 @@ public final class TmdbConfigTestService {
     public static final class Result {
         public final Check api;
         public final Check image;
+        public final Check omdb;
 
-        Result(Check api, Check image) {
+        Result(Check api, Check image, Check omdb) {
             this.api = api;
             this.image = image;
+            this.omdb = omdb;
         }
     }
 
     public static final class Check {
         public final boolean success;
         public final String message;
+        public final long latencyMillis;
 
-        private Check(boolean success, String message) {
+        private Check(boolean success, String message, long latencyMillis) {
             this.success = success;
             this.message = message;
+            this.latencyMillis = latencyMillis;
         }
 
         static Check success() {
-            return new Check(true, "");
+            return new Check(true, "", 0);
         }
 
         static Check failed(String message) {
-            return new Check(false, message);
+            return new Check(false, message, 0);
+        }
+
+        Check withLatency(long latencyMillis) {
+            return new Check(success, message, Math.max(0, latencyMillis));
         }
     }
 }
