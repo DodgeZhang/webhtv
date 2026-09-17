@@ -171,7 +171,6 @@ public class PlayerOsdController {
     }
 
     public String sampleSpeedText() {
-        updateSpeed(source.getPlayer());
         return lastSpeedText;
     }
 
