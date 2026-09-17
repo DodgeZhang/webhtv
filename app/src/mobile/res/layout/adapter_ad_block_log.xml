@@ -30,6 +30,17 @@
                 android:textColor="@color/dialog_outlined_button_text"
                 android:textSize="13sp" />
             <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/playbackContext"
+                android:layout_width="260dp"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:ellipsize="end"
+                android:maxLines="3"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:textColor="@color/dialog_outlined_button_text"
+                android:textSize="13sp" />
+            <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/ruleDomain"
                 android:layout_width="340dp"
                 android:layout_height="match_parent"

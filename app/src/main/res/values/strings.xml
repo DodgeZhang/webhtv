@@ -2285,6 +2285,7 @@
     <string name="ad_log_segment_start">Segment start time</string>
     <string name="ad_log_segment_end">Segment end time</string>
     <string name="ad_log_segment_duration">Ad segment duration</string>
+    <string name="ad_log_playback_context">Playback title / line / episode</string>
     <string name="ad_log_pipeline">Pipeline</string>
     <string name="ad_log_unknown">Unknown</string>
     <string name="ad_site_overview">Site overview</string>

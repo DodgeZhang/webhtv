@@ -1,5 +1,7 @@
 package com.fongmi.android.tv.bean;
 
+import com.fongmi.android.tv.playback.PlaybackRuntime;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -110,8 +112,11 @@ public class AdBlockStats {
                                String pipelineName, String adDomain, String ruleId,
                                double segmentStartSeconds, double segmentDurationSeconds) {
         List<AdBlockLog> logs = getBlockLogs();
-        logs.add(0, new AdBlockLog(blockedAt, siteKey, siteName, siteDomain, pipelineName,
-                adDomain, ruleId, segmentStartSeconds, segmentDurationSeconds));
+        AdBlockLog log = new AdBlockLog(blockedAt, siteKey, siteName, siteDomain, pipelineName,
+                adDomain, ruleId, segmentStartSeconds, segmentDurationSeconds);
+        PlaybackRuntime.PlaybackIdentity playback = PlaybackRuntime.currentPlaybackIdentity();
+        log.setPlaybackContext(playback.vodName(), playback.lineName(), playback.episodeName());
+        logs.add(0, log);
         while (logs.size() > 1000) logs.remove(logs.size() - 1);
     }
 

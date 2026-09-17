@@ -11,6 +11,9 @@ public class AdBlockLog {
     private String pipelineName;
     private String adDomain;
     private String ruleId;
+    private String vodName;
+    private String lineName;
+    private String episodeName;
     private double segmentStartSeconds;
     private double segmentDurationSeconds;
 
@@ -73,6 +76,25 @@ public class AdBlockLog {
 
     public String getRuleId() {
         return ruleId;
+    }
+
+    public String getVodName() {
+        return empty(vodName) ? "" : vodName;
+    }
+
+    public String getLineName() {
+        return empty(lineName) ? "" : lineName;
+    }
+
+    public String getEpisodeName() {
+        return empty(episodeName) ? "" : episodeName;
+    }
+
+    public AdBlockLog setPlaybackContext(String vodName, String lineName, String episodeName) {
+        this.vodName = vodName;
+        this.lineName = lineName;
+        this.episodeName = episodeName;
+        return this;
     }
 
     public double getSegmentStartSeconds() {
