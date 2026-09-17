@@ -12,22 +12,23 @@ import static org.junit.Assert.assertTrue;
 public class TmdbDetailDirectFullscreenSourceTest {
 
     @Test
-    public void detailDirectPlayLaunchesVideoActivityInsteadOfInlineDetailPlayer() throws Exception {
+    public void detailDirectPlayUsesCurrentPageFullscreenPlayer() throws Exception {
         String source = source();
         String onPlay = method(source, "private void onPlay()");
-        String defaultPlayback = method(source, "private void playDefaultPlayback()");
+        String fullscreen = method(source, "private void playDetailFullscreen()");
+        String reveal = method(source, "private void revealDetailPlayerFullscreen()");
 
-        assertTrue("detail-player mode must launch the standalone player directly",
-                onPlay.contains("if (isPlayerMode())")
-                        && onPlay.contains("playDefaultPlayback();")
-                        && onPlay.indexOf("playDefaultPlayback();") < onPlay.indexOf("modeController.play();"));
-        assertTrue("the direct route must stop before falling through to inline playback",
-                onPlay.contains("playDefaultPlayback();\n            return;"));
-        assertTrue("the direct route must open VideoActivity with resolved TMDB playback state",
-                defaultPlayback.contains("VideoActivity.startDirectTmdb(this"));
-        int playerBranchEnd = onPlay.indexOf("        if (enterInlineFullscreenIfCurrentInlinePlayback");
-        assertFalse("detail direct play must not enter the embedded fullscreen implementation",
-                onPlay.substring(0, playerBranchEnd).contains("enterInlineFullscreenIfCurrentInlinePlayback"));
+        assertTrue("play action must delegate to the active detail-mode controller",
+                onPlay.contains("modeController.play();"));
+        assertFalse("detail direct play must not switch to VideoActivity",
+                onPlay.contains("playDefaultPlayback();")
+                        || onPlay.contains("VideoActivity.startDirectTmdb("));
+        assertTrue("detail direct play must prepare current-page playback and reveal fullscreen",
+                fullscreen.contains("detailPlayerFullscreenPending = !current;")
+                        && fullscreen.contains("if (current) revealDetailPlayerFullscreen();")
+                        && fullscreen.contains("else playInline();"));
+        assertTrue("the current-page player must enter fullscreen when playback is ready",
+                reveal.contains("if (!inlineFullscreen) enterInlineFullscreen();"));
     }
 
     private static String source() throws Exception {

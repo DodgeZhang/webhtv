@@ -6086,10 +6086,6 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void onPlay() {
         if (vod == null) return;
-        if (isPlayerMode()) {
-            playDefaultPlayback();
-            return;
-        }
         if (enterInlineFullscreenIfCurrentInlinePlayback(selectedEpisode)) return;
         saveInlineHistory();
         updateInlineHistory(selectedEpisode);
