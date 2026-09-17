@@ -35,6 +35,12 @@ public class PlayerDetailController extends BaseTmdbDetailModeController {
     }
 
     @Override
+    public boolean shouldBindPlaybackService() {
+        return true;
+    }
+
+
+    @Override
     public void onExitFullscreen() {
         host.closeDetailFullscreenPlayer();
     }

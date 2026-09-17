@@ -74,6 +74,19 @@ public class DetailModeControllerTest {
     }
 
     @Test
+    public void playerDetailController_bindsPlaybackServiceWithoutAutoPlay() throws Exception {
+        Path controllerPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "detail", "PlayerDetailController.java"));
+        String source = Files.readString(controllerPath, StandardCharsets.UTF_8);
+
+        assertTrue("detail direct-play must bind PlaybackService before the explicit play click",
+                source.contains("public boolean shouldBindPlaybackService()")
+                        && source.contains("return true;"));
+        assertTrue("binding PlaybackService must not enable automatic playback",
+                source.contains("protected boolean autoPlay()")
+                        && source.contains("return false; // 详情直放必须由用户点击播放"));
+    }
+
+    @Test
     public void tmdbDetailActivity_delegatesToModeController() throws Exception {
         Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = new String(Files.readAllBytes(activityPath), StandardCharsets.UTF_8);
