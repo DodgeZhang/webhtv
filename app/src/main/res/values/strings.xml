@@ -2748,4 +2748,10 @@
     <string name="setting_ad_probe_revision">Revision %1$d · %2$d rules</string>
     <string name="setting_ad_probe_never">Never fetched</string>
     <string name="setting_ad_probe_url_invalid">The rule source must start with https://</string>
-    <string name="setting_ad_probe_source_disabled">Set a community rule source first</string></resources>
+    <string name="setting_ad_probe_source_disabled">Set a community rule source first</string>    <string name="dialog_tmdb_test_config">Test configuration</string>
+    <string name="dialog_tmdb_test_result_title">Configuration test</string>
+    <string name="dialog_tmdb_test_api_success">API domain: connected and returned valid TMDB data</string>
+    <string name="dialog_tmdb_test_api_failed">API domain: failed (%1$s)</string>
+    <string name="dialog_tmdb_test_image_success">Image domain: connected and returned a valid image</string>
+    <string name="dialog_tmdb_test_image_failed">Image domain: failed (%1$s)</string>
+</resources>
