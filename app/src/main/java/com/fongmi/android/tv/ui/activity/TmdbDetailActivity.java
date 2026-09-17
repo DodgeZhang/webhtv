@@ -2010,6 +2010,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.title.setTextSize(28f);
         binding.overview.setTextSize(13f);
         TmdbDetailLayoutUtils.setHeightDp(binding.episodePhotoList, 124);
+        TmdbDetailLayoutUtils.setHeightDp(binding.posterList, 238);
+        binding.posterList.setClipToOutline(false);
+        binding.posterList.setClipChildren(false);
         TmdbDetailLayoutUtils.setHeightDp(binding.castList, 180);
         TmdbDetailLayoutUtils.setHeightDp(binding.creatorList, 180);
         TmdbDetailLayoutUtils.setHeightDp(binding.relatedList, 262);
