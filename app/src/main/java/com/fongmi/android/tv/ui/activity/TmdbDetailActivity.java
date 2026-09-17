@@ -7819,7 +7819,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void updateInlineLoading() {
-        boolean loading = inlinePlaybackPending || (player() != null && player().isLoading());
+        boolean loading = inlinePlaybackPending || (player() != null && !player().isPlaying() && player().isLoading());
         binding.playerLoading.removeCallbacks(inlineLoadingSpeedRefresh);
         binding.playerLoading.setVisibility(loading ? View.VISIBLE : View.GONE);
         if (!loading) {
