@@ -174,7 +174,7 @@ public class AdBlockStatsDialogLayoutTest {
 
         assertTrue(strings.contains(">切片开始时间</string>"));
         assertTrue(strings.contains(">切片结束时间</string>"));
-        assertTrue(strings.contains(">广告切片总时长</string>"));
+        assertTrue(strings.contains(">切片时长</string>"));
     }
 
     @Test
