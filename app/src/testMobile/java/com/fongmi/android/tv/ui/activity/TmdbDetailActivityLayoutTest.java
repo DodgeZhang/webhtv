@@ -14,6 +14,17 @@ import static org.junit.Assert.assertTrue;
 public class TmdbDetailActivityLayoutTest {
 
     @Test
+    public void defaultPosterRailLeavesRoomForTheFullRoundedPosterCard() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String defaultTemplate = javaBlockAt(source, "private void applyDefaultDetailTemplate()");
+
+        assertTrue("default detail modes must leave room for the full 222dp rounded card and focus scaling",
+                defaultTemplate.contains("TmdbDetailLayoutUtils.setHeightDp(binding.posterList, 238);")
+                        && defaultTemplate.contains("binding.posterList.setClipToOutline(false);")
+                        && defaultTemplate.contains("binding.posterList.setClipChildren(false);"));
+    }
+
+    @Test
     public void cinemaPosterRailLeavesRoomForTheFullRoundedPosterCard() throws Exception {
         String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
         String cinemaTemplate = javaBlockAt(source, "private void applyCinemaDetailTemplate()");
