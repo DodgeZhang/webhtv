@@ -1,7 +1,6 @@
 package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Activity;
-import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,7 +13,6 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.config.AdBlockStatsStore;
 import com.fongmi.android.tv.bean.AdBlockLog;
 import com.fongmi.android.tv.bean.AdBlockStats;
-import com.fongmi.android.tv.ui.activity.AdBlockPreviewActivity;
 import com.fongmi.android.tv.bean.RuleHitRecord;
 import com.fongmi.android.tv.databinding.AdapterAdBlockLogBinding;
 import com.fongmi.android.tv.databinding.DialogAdBlockStatsBinding;
@@ -507,17 +505,6 @@ public class AdBlockStatsDialog {
             holder.binding.segmentEnd.setText(item.hasSegmentTiming() ? seconds(item.getSegmentEndSeconds()) : unknown);
             holder.binding.segmentDuration.setText(item.hasSegmentTiming() ? seconds(item.getSegmentDurationSeconds()) : unknown);
             holder.binding.pipeline.setText(value(item.getPipelineName(), unknown));
-            String segmentKey = item.getSegmentKey();
-            holder.binding.segmentKey.setText(segmentKey.isBlank() ? "旧记录无切片键" : segmentKey);
-            boolean previewAvailable = !segmentKey.isBlank()
-                    && com.fongmi.android.tv.utils.AdBlockPreviewStore.has(segmentKey);
-            holder.binding.verify.setEnabled(previewAvailable);
-            holder.binding.verify.setText(previewAvailable ? "验证" : "不可验证");
-            holder.binding.verify.setOnClickListener(previewAvailable ? view -> {
-                Intent intent = new Intent(view.getContext(), AdBlockPreviewActivity.class);
-                intent.putExtra(AdBlockPreviewActivity.EXTRA_SEGMENT_KEY, segmentKey);
-                view.getContext().startActivity(intent);
-            } : null);
         }
 
         private static String playbackContext(AdBlockLog item, String unknown) {
