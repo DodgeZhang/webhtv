@@ -3,6 +3,8 @@ package com.fongmi.android.tv.api.config;
 import com.fongmi.android.tv.bean.HlsAdRule;
 import com.fongmi.android.tv.bean.HlsRulePackage;
 import com.fongmi.android.tv.bean.HlsRuleState;
+import com.fongmi.android.tv.bean.Rule;
+import com.fongmi.android.tv.utils.RuleIdUtil;
 import com.fongmi.android.tv.utils.HlsManifestCleaner;
 import com.github.catvod.crawler.SpiderDebug;
 import com.google.gson.Gson;
@@ -56,6 +58,7 @@ public final class HlsRuleConfig {
         compileBuiltin(builtin, overrides, compiled, summaries);
         compileExternal("vod", VodConfig.get().getConfig().getUrl(), VodConfig.get().getHlsRules(), overrides, compiled, summaries);
         compileExternal("live", LiveConfig.get().getConfig().getUrl(), LiveConfig.get().getHlsRules(), overrides, compiled, summaries);
+        compileLegacyRules(RuleConfig.get().getRules(), compiled);
         boolean fallbackEnabled = !Boolean.FALSE.equals(overrides.get(LEGACY_FALLBACK_KEY));
         summaries.add(new Entry(LEGACY_FALLBACK_KEY, LEGACY_FALLBACK_KEY,
                 "内置 HLS 兜底规则（路径/文件名前缀少数组、不连续标签明显短块）", 1,
@@ -63,6 +66,23 @@ public final class HlsRuleConfig {
         rules = List.copyOf(compiled);
         entries = List.copyOf(summaries);
         dirty = false;
+    }
+
+    static void compileLegacyRules(List<Rule> legacyRules, List<HlsManifestCleaner.Rule> output) {
+        if (legacyRules == null) return;
+        for (Rule rule : legacyRules) {
+            if (rule == null || rule.getRegex().isEmpty()) continue;
+            try {
+                output.add(HlsManifestCleaner.Rule.builder()
+                        .id("legacy:" + RuleIdUtil.computeRuleId(rule))
+                        .playlistHostPatterns(rule.getHosts())
+                        .segmentUrlPatterns(rule.getRegex())
+                        .minimumSignals(1)
+                        .build());
+            } catch (RuntimeException e) {
+                SpiderDebug.log(TAG, "Skip invalid legacy rule %s: %s", rule.getName(), e.getMessage());
+            }
+        }
     }
 
     private static void compileBuiltin(HlsRulePackage rulePackage, Map<String, Boolean> overrides,

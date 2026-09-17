@@ -10,12 +10,14 @@ public final class CrashRestartMode {
     }
 
     public static void arm() {
-        Prefers.put(KEY, true);
+        // The crash library kills this process immediately after starting the restart activity.
+        // Persist synchronously so the new process cannot miss the one-shot marker.
+        Prefers.getPrefers().edit().putBoolean(KEY, true).commit();
     }
 
     public static boolean consume() {
         if (!Prefers.getBoolean(KEY)) return false;
-        Prefers.put(KEY, false);
+        Prefers.getPrefers().edit().remove(KEY).commit();
         return true;
     }
 }

@@ -43,6 +43,16 @@ public class CrashActivityDetailsTest {
         assertCrashModeBeforeConfig("app/src/leanback/java/com/fongmi/android/tv/ui/activity/HomeActivity.java");
     }
 
+    @Test
+    public void crashRestartMarkerIsCommittedBeforeTheProcessIsKilled() throws Exception {
+        String source = read("app/src/main/java/com/fongmi/android/tv/utils/CrashRestartMode.java");
+        int arm = source.indexOf("public static void arm()");
+        int put = source.indexOf("putBoolean(KEY, true)", arm);
+        int commit = source.indexOf(".commit()", put);
+        assertTrue("The one-shot marker must be committed synchronously before restart kills the process",
+                arm >= 0 && put > arm && commit > put);
+    }
+
     private static void assertCrashModeBeforeConfig(String file) throws Exception {
         String source = read(file);
         int consume = source.indexOf("CrashRestartMode.consume()");
