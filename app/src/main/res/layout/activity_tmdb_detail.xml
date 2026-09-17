@@ -1067,6 +1067,32 @@
 
         </LinearLayout>
 
+        <LinearLayout
+            android:id="@+id/playerLoading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:indeterminateTint="@android:color/white" />
+
+            <TextView
+                android:id="@+id/playerLoadingTraffic"
+                style="@style/Shadow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFeatureSettings="tnum"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
+
+        </LinearLayout>
+
         <TextView
             android:id="@+id/playerDisplayTraffic"
             style="@style/Shadow"

@@ -111,6 +111,7 @@ import com.fongmi.android.tv.playback.SubtitleRestoreCoordinator;
 import com.fongmi.android.tv.player.IntroSkipKinds;
 import com.fongmi.android.tv.player.IntroSkipPlayback;
 import com.fongmi.android.tv.player.PlaybackResourceClassifier;
+import com.fongmi.android.tv.player.PlaybackSpeedMeter;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.mpv.MpvConfigStore;
@@ -360,6 +361,15 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean useParse;
     private boolean inlineStarted;
     private boolean inlinePlaybackPending;
+    private final PlaybackSpeedMeter inlineLoadingSpeedMeter = new PlaybackSpeedMeter();
+    private final Runnable inlineLoadingSpeedRefresh = new Runnable() {
+        @Override
+        public void run() {
+            if (binding == null || binding.playerLoading.getVisibility() != View.VISIBLE) return;
+            updateInlineLoadingSpeed();
+            binding.playerLoading.postDelayed(this, 1000L);
+        }
+    };
     private boolean inlineHttpRefreshAttempted;
     private boolean detailPlayerActive;
     private boolean detailPlayerFullscreenPending;
@@ -7081,6 +7091,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void playInline(long resumePosition, String failedUrl, String failureMessage) {
         if (selectedFlag == null || selectedEpisode == null) return;
         inlinePlaybackPending = true;
+        updateInlineLoading();
         int generation = ++inlinePlaybackGeneration;
         String key = getKeyText();
         String flag = selectedFlag.getFlag();
@@ -7804,6 +7815,28 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         // 已废弃：统一使用 PlayerOsdController（OSD）系统
         // 原逻辑已迁移到 PlayerOsdController.render()
         // 保留此方法避免删除所有调用点时遗漏
+        updateInlineLoading();
+    }
+
+    private void updateInlineLoading() {
+        boolean loading = inlinePlaybackPending || (player() != null && player().isLoading());
+        binding.playerLoading.removeCallbacks(inlineLoadingSpeedRefresh);
+        binding.playerLoading.setVisibility(loading ? View.VISIBLE : View.GONE);
+        if (!loading) {
+            inlineLoadingSpeedMeter.reset();
+            binding.playerLoadingTraffic.setText("");
+            binding.playerLoadingTraffic.setVisibility(View.GONE);
+            return;
+        }
+        updateInlineLoadingSpeed();
+        binding.playerLoading.postDelayed(inlineLoadingSpeedRefresh, 1000L);
+    }
+
+    private void updateInlineLoadingSpeed() {
+        inlineLoadingSpeedMeter.sample(player());
+        String traffic = inlineLoadingSpeedMeter.getText();
+        binding.playerLoadingTraffic.setText(traffic);
+        binding.playerLoadingTraffic.setVisibility(TextUtils.isEmpty(traffic) ? View.GONE : View.VISIBLE);
     }
 
     private void setButtonEnabled(View button, boolean enabled) {
