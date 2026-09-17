@@ -52,7 +52,7 @@ final class ExoHlsAdblockDataSource implements DataSource {
             boolean legacyFallback = false;
             if (Setting.isAdblock()) {
                 rules = HlsRuleConfig.getRules();
-                legacyFallback = !rules.isEmpty();
+                legacyFallback = !rules.isEmpty() && HlsRuleConfig.isLegacyFallbackEnabled();
             }
             HlsAdblockPipeline.Outcome outcome = HlsAdblockPipeline.apply(
                     dataSpec.uri.toString(), text, rules, legacyFallback);
@@ -131,8 +131,9 @@ final class ExoHlsAdblockDataSource implements DataSource {
 
     private static void recordAndNotify(Uri uri, HlsAdblockPipeline.Outcome outcome) {
         if (!outcome.structured() && !outcome.legacy()) return;
-        long fallbackCount = outcome.legacy() ? 1 : 0;
-        AdBlockStatsStore.recordBlocks(uri.getHost(), "EXO", outcome.ruleCounts(), fallbackCount);
+        long fallbackCount = outcome.legacy() ? Math.max(1, outcome.removedSegments()) : 0;
+        AdBlockStatsStore.recordBlocks(uri.getHost(), "EXO", outcome.ruleCounts(), fallbackCount,
+                uri.getHost(), outcome.removedDurationSec(), outcome.removedSegmentDetails());
         if (!HlsAdblockNotice.shouldNotify(uri.toString(), System.currentTimeMillis())) return;
         String message = notice(outcome);
         App.post(() -> Notify.show(message));
