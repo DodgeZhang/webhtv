@@ -66,7 +66,16 @@ public final class PlaybackRuntime {
         return new SiteIdentity("", "未知站点", safe(fallbackDomain));
     }
 
+    public static PlaybackIdentity currentPlaybackIdentity() {
+        History history = currentHistory();
+        if (history == null) return new PlaybackIdentity("", "", "");
+        return new PlaybackIdentity(safe(history.getVodName()), safe(history.getVodFlag()),
+                safe(history.getVodRemarks()));
+    }
+
     public record SiteIdentity(String siteKey, String siteName, String siteDomain) {}
+
+    public record PlaybackIdentity(String vodName, String lineName, String episodeName) {}
 
     static synchronized String ensureSession(History history) {
         String signature = signature(history);

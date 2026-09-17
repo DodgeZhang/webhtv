@@ -2616,7 +2616,8 @@
     <string name="ad_log_blocked_at">拦截时间</string>
     <string name="ad_log_segment_start">切片开始时间</string>
     <string name="ad_log_segment_end">切片结束时间</string>
-    <string name="ad_log_segment_duration">广告切片总时长</string>
+    <string name="ad_log_segment_duration">切片时长</string>
+    <string name="ad_log_playback_context">剧名 / 线路名称 / 集数名称</string>
     <string name="ad_log_pipeline">播放链路</string>
     <string name="ad_log_unknown">未知</string>
     <string name="ad_site_overview">站点统计概览</string>

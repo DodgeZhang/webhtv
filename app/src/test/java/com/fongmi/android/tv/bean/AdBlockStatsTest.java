@@ -95,6 +95,18 @@ public class AdBlockStatsTest {
     }
 
     @Test
+    public void recordBlockLogsKeepsZeroDurationVisibleAsNumericData() {
+        AdBlockStats stats = new AdBlockStats();
+        java.util.Map<String, Long> ruleCounts = new java.util.LinkedHashMap<>();
+        ruleCounts.put("rule-a", 1L);
+
+        stats.recordBlockLogs(1000L, "site-a", "HLS", "ads.example.com", ruleCounts, 0.0);
+
+        assertEquals(1, stats.getBlockLogs().size());
+        assertEquals(0.0, stats.getBlockLogs().get(0).getSegmentDurationSeconds(), 0.001);
+    }
+
+    @Test
     public void blockLogStoresSegmentStartAndDuration() {
         AdBlockStats stats = new AdBlockStats();
         stats.recordBlockLog(1000L, "采集源A", "EXO", "ads.example.com", "rule-a", 12.5, 6.0);
