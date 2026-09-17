@@ -451,7 +451,7 @@
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/logRecycler"
-                        android:layout_width="1400dp"
+                        android:layout_width="1660dp"
                         android:layout_height="0dp"
                         android:layout_weight="1"
                         android:overScrollMode="never"
