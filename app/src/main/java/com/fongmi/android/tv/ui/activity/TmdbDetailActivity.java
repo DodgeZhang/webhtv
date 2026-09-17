@@ -111,7 +111,6 @@ import com.fongmi.android.tv.playback.SubtitleRestoreCoordinator;
 import com.fongmi.android.tv.player.IntroSkipKinds;
 import com.fongmi.android.tv.player.IntroSkipPlayback;
 import com.fongmi.android.tv.player.PlaybackResourceClassifier;
-import com.fongmi.android.tv.player.PlaybackSpeedMeter;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.mpv.MpvConfigStore;
@@ -361,7 +360,6 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean useParse;
     private boolean inlineStarted;
     private boolean inlinePlaybackPending;
-    private final PlaybackSpeedMeter inlineLoadingSpeedMeter = new PlaybackSpeedMeter();
     private final Runnable inlineLoadingSpeedRefresh = new Runnable() {
         @Override
         public void run() {
@@ -7823,7 +7821,6 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.playerLoading.removeCallbacks(inlineLoadingSpeedRefresh);
         binding.playerLoading.setVisibility(loading ? View.VISIBLE : View.GONE);
         if (!loading) {
-            inlineLoadingSpeedMeter.reset();
             binding.playerLoadingTraffic.setText("");
             binding.playerLoadingTraffic.setVisibility(View.GONE);
             return;
@@ -7833,8 +7830,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void updateInlineLoadingSpeed() {
-        inlineLoadingSpeedMeter.sample(player());
-        String traffic = inlineLoadingSpeedMeter.getText();
+        String traffic = inlineOsd == null ? "" : inlineOsd.sampleSpeedText();
         binding.playerLoadingTraffic.setText(traffic);
         binding.playerLoadingTraffic.setVisibility(TextUtils.isEmpty(traffic) ? View.GONE : View.VISIBLE);
     }
