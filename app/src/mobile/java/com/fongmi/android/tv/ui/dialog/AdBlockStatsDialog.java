@@ -502,7 +502,7 @@ public class AdBlockStatsDialog {
                     ? timeFormat.format(new Date(item.getBlockedAt())) : unknown);
             holder.binding.segmentStart.setText(item.hasSegmentTiming() ? seconds(item.getSegmentStartSeconds()) : unknown);
             holder.binding.segmentEnd.setText(item.hasSegmentTiming() ? seconds(item.getSegmentEndSeconds()) : unknown);
-            holder.binding.segmentDuration.setText(item.hasSegmentTiming() ? seconds(item.getSegmentDurationSeconds()) : unknown);
+            holder.binding.segmentDuration.setText(seconds(item.getSegmentDurationSeconds()));
             holder.binding.pipeline.setText(value(item.getPipelineName(), unknown));
         }
 
