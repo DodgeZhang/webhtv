@@ -97,6 +97,10 @@
         </provider>
 
         <activity
+            android:name=".ui.activity.AdBlockPreviewActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".ui.activity.CrashActivity"
             android:process=":error_activity"
             android:theme="@style/Theme.Crash" />

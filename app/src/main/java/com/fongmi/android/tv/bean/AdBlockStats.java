@@ -111,9 +111,18 @@ public class AdBlockStats {
     public void recordBlockLog(long blockedAt, String siteKey, String siteName, String siteDomain,
                                String pipelineName, String adDomain, String ruleId,
                                double segmentStartSeconds, double segmentDurationSeconds) {
+        recordBlockLog(blockedAt, siteKey, siteName, siteDomain, pipelineName, adDomain, ruleId,
+                segmentStartSeconds, segmentDurationSeconds, "");
+    }
+
+    public void recordBlockLog(long blockedAt, String siteKey, String siteName, String siteDomain,
+                               String pipelineName, String adDomain, String ruleId,
+                               double segmentStartSeconds, double segmentDurationSeconds,
+                               String segmentKey) {
         List<AdBlockLog> logs = getBlockLogs();
         AdBlockLog log = new AdBlockLog(blockedAt, siteKey, siteName, siteDomain, pipelineName,
                 adDomain, ruleId, segmentStartSeconds, segmentDurationSeconds);
+        log.setSegmentKey(segmentKey);
         PlaybackRuntime.PlaybackIdentity playback = PlaybackRuntime.currentPlaybackIdentity();
         log.setPlaybackContext(playback.vodName(), playback.lineName(), playback.episodeName());
         logs.add(0, log);

@@ -16,6 +16,7 @@ public class AdBlockLog {
     private String episodeName;
     private double segmentStartSeconds;
     private double segmentDurationSeconds;
+    private String segmentKey;
 
     public AdBlockLog() {
     }
@@ -111,6 +112,15 @@ public class AdBlockLog {
 
     public double getSegmentDurationSeconds() {
         return segmentDurationSeconds;
+    }
+
+    public String getSegmentKey() {
+        return empty(segmentKey) ? "" : segmentKey;
+    }
+
+    public AdBlockLog setSegmentKey(String segmentKey) {
+        this.segmentKey = segmentKey;
+        return this;
     }
 
     private static boolean empty(String value) {

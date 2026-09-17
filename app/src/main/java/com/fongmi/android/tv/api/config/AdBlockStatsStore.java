@@ -10,7 +10,11 @@ import com.fongmi.android.tv.bean.UserAdRule;
 import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.playback.PlaybackRuntime;
 import com.fongmi.android.tv.utils.HlsManifestCleaner;
+import com.fongmi.android.tv.utils.AdBlockPreviewStore;
+import com.fongmi.android.tv.utils.AdBlockSegmentKey;
+import com.fongmi.android.tv.utils.HlsPreviewManifest;
 import com.fongmi.android.tv.utils.RuleIdUtil;
+import com.fongmi.android.tv.utils.HlsPreviewManifestSource;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Prefers;
 
@@ -126,8 +130,14 @@ public class AdBlockStatsStore {
             long blockedAt = System.currentTimeMillis();
             if (removedSegments != null && !removedSegments.isEmpty()) {
                 for (HlsManifestCleaner.RemovedSegment segment : removedSegments) {
+                    String key = AdBlockSegmentKey.create(segment.playlistUrl(), segment.segmentUri(),
+                            segment.segmentIndex(), segment.startSeconds(), segment.durationSec());
                     stats.recordBlockLog(blockedAt, identity.siteKey(), identity.siteName(), identity.siteDomain(),
-                            pipeline, segment.adDomain(), segment.ruleId(), segment.startSeconds(), segment.durationSec());
+                            pipeline, segment.adDomain(), segment.ruleId(), segment.startSeconds(), segment.durationSec(), key);
+                    String preview = HlsPreviewManifest.create(segment.playlistUrl(),
+                            HlsPreviewManifestSource.current(segment.playlistUrl()), segment.segmentUri(),
+                            segment.startSeconds(), segment.durationSec());
+                    if (!preview.isEmpty()) AdBlockPreviewStore.register(key, preview);
                 }
             } else {
                 stats.recordBlockLogs(blockedAt, identity.siteKey(), identity.siteName(), identity.siteDomain(),

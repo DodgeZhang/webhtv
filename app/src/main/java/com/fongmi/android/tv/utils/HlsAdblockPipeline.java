@@ -52,7 +52,8 @@ public final class HlsAdblockPipeline {
                 continue;
             }
             removed.add(new HlsManifestCleaner.RemovedSegment(
-                    segment.host(), "hls.legacy-fallback", segment.startSeconds(), segment.durationSeconds()));
+                    segment.host(), "hls.legacy-fallback", segment.startSeconds(), segment.durationSeconds(),
+                    segment.uri(), source.indexOf(segment), baseUrl));
         }
         return removed;
     }

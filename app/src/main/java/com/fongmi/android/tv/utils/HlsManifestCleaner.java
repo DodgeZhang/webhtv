@@ -49,7 +49,8 @@ public final class HlsManifestCleaner {
                     ruleCounts.merge(matchedRule.id, 1L, Long::sum);
                     URI resolved = URI.create(baseUrl).resolve(segment.uri);
                     String host = resolved.getHost() == null ? "" : resolved.getHost();
-                    removedSegments.add(new RemovedSegment(host, matchedRule.id, mediaOffsetSec, segment.durationSec));
+                    removedSegments.add(new RemovedSegment(host, matchedRule.id, mediaOffsetSec, segment.durationSec,
+                            segment.uri, nodes.indexOf(segment), baseUrl));
                 }
                 mediaOffsetSec += segment.durationSec;
             }
@@ -257,7 +258,12 @@ public final class HlsManifestCleaner {
         }
     }
 
-    public record RemovedSegment(String adDomain, String ruleId, double startSeconds, double durationSec) {}
+    public record RemovedSegment(String adDomain, String ruleId, double startSeconds, double durationSec,
+                                 String segmentUri, int segmentIndex, String playlistUrl) {
+        public RemovedSegment(String adDomain, String ruleId, double startSeconds, double durationSec) {
+            this(adDomain, ruleId, startSeconds, durationSec, "", -1, "");
+        }
+    }
 
     public record Result(String manifest, boolean changed, boolean fallback, int removedSegments,
                          double removedDurationSec, Map<String, Long> ruleCounts,
