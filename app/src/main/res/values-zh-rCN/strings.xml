@@ -2616,7 +2616,8 @@
     <string name="ad_log_blocked_at">拦截时间</string>
     <string name="ad_log_segment_start">切片开始时间</string>
     <string name="ad_log_segment_end">切片结束时间</string>
-    <string name="ad_log_segment_duration">广告切片总时长</string>
+    <string name="ad_log_segment_duration">切片时长</string>
+    <string name="ad_log_playback_context">剧名 / 线路名称 / 集数名称</string>
     <string name="ad_log_pipeline">播放链路</string>
     <string name="ad_log_unknown">未知</string>
     <string name="ad_site_overview">站点统计概览</string>
@@ -2743,4 +2744,13 @@
     <string name="setting_ad_probe_revision">revision %1$d · %2$d 条规则</string>
     <string name="setting_ad_probe_never">尚未拉取</string>
     <string name="setting_ad_probe_url_invalid">规则源必须以 https:// 开头</string>
-    <string name="setting_ad_probe_source_disabled">请先填写社区规则源地址</string></resources>
+    <string name="setting_ad_probe_source_disabled">请先填写社区规则源地址</string>
+    <string name="dialog_tmdb_test_config">测试配置</string>
+    <string name="dialog_tmdb_test_result_title">配置测试结果</string>
+    <string name="dialog_tmdb_test_api_success">TMDB API：连接成功并返回有效数据（%1$d 毫秒）</string>
+    <string name="dialog_tmdb_test_api_failed">TMDB API：测试失败（%1$s，%2$d 毫秒）</string>
+    <string name="dialog_tmdb_test_image_success">图片域名：连接成功并返回有效图片（%1$d 毫秒）</string>
+    <string name="dialog_tmdb_test_image_failed">图片域名：测试失败（%1$s，%2$d 毫秒）</string>
+    <string name="dialog_tmdb_test_omdb_success">OMDb API：连接成功并返回有效数据（%1$d 毫秒）</string>
+    <string name="dialog_tmdb_test_omdb_failed">OMDb API：测试失败（%1$s，%2$d 毫秒）</string>
+</resources>

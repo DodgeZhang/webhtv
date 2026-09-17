@@ -494,6 +494,7 @@ public class AdBlockStatsDialog {
             String unknown = holder.itemView.getContext().getString(R.string.ad_log_unknown);
             holder.binding.siteName.setText(value(item.getSiteName(), unknown));
             holder.binding.siteDomain.setText(value(item.getSiteDomain(), unknown));
+            holder.binding.playbackContext.setText(playbackContext(item, unknown));
             String rule = AdBlockStatsStore.getRuleDisplayName(item.getRuleId());
             String domain = value(item.getAdDomain(), unknown);
             holder.binding.ruleDomain.setText(rule + "\n" + domain);
@@ -503,6 +504,13 @@ public class AdBlockStatsDialog {
             holder.binding.segmentEnd.setText(item.hasSegmentTiming() ? seconds(item.getSegmentEndSeconds()) : unknown);
             holder.binding.segmentDuration.setText(item.hasSegmentTiming() ? seconds(item.getSegmentDurationSeconds()) : unknown);
             holder.binding.pipeline.setText(value(item.getPipelineName(), unknown));
+        }
+
+        private static String playbackContext(AdBlockLog item, String unknown) {
+            String vod = value(item.getVodName(), unknown);
+            String line = value(item.getLineName(), unknown);
+            String episode = value(item.getEpisodeName(), unknown);
+            return vod + "\n" + line + " · " + episode;
         }
 
         private static String seconds(double value) {
