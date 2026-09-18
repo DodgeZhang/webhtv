@@ -2439,7 +2439,7 @@
     <string name="history_config_changed">點播設定已切換，請重新操作</string>
     <string name="dialog_delete_global_history">確定刪除所有點播設定的歷史記錄嗎？</string>
     <string name="setting_home_history">首頁最近觀看</string>
-    <string name="site_health_report_ad_blocked">廣告攔截 · %1$d 次</string>
+    <string name="site_health_report_ad_blocked">播放 %1$d 次 / 廣告攔截 %2$d 次</string>
     <string name="setting_custom_csp_sort">排序</string>
     <string name="setting_custom_csp_sort_done">完成</string>
     <string name="setting_custom_csp_sort_drag">拖拽排序</string>
@@ -2711,4 +2711,5 @@
     <string name="dialog_tmdb_test_image_failed">圖片網域：測試失敗（%1$s，%2$d 毫秒）</string>
     <string name="dialog_tmdb_test_omdb_success">OMDb API：連線成功並傳回有效資料（%1$d 毫秒）</string>
     <string name="dialog_tmdb_test_omdb_failed">OMDb API：測試失敗（%1$s，%2$d 毫秒）</string>
+    <string name="site_health_report_search_hint">按站點名稱搜尋</string>
 </resources>

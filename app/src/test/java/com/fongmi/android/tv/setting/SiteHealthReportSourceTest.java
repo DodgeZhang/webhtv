@@ -96,6 +96,10 @@ public class SiteHealthReportSourceTest {
         assertTrue(methodBody(reportSource, "private void confirmClearAll()").contains("binding.root.post(this::refreshReport)"));
         assertTrue(dialogLayout.contains("@+id/report"));
         assertTrue(dialogLayout.contains("@string/site_health_report_view"));
+        assertTrue(reportLayout.contains("@+id/search"));
+        assertTrue(reportLayout.contains("@string/site_health_report_search_hint"));
+        assertTrue(reportSource.contains("binding.search.addTextChangedListener"));
+        assertTrue(reportSource.contains("row.siteName.toLowerCase(Locale.ROOT).contains(query)"));
         assertTrue(reportLayout.contains("@+id/filterAll"));
         assertTrue(reportLayout.contains("@+id/filterBad"));
         assertTrue(reportLayout.contains("@+id/filterWarn"));
@@ -140,6 +144,8 @@ public class SiteHealthReportSourceTest {
         assertTrue(dialog.contains("R.string.ad_site_rank"));
         assertTrue(dialog.contains("R.string.ad_rule_rank"));
         assertTrue(dialog.contains("R.string.ad_pipeline_rank"));
+        assertTrue(dialog.contains("int playCount = row.play.sampleCount()"));
+        assertTrue(dialog.contains("site_health_report_ad_blocked, playCount, blocked"));
     }
 
     private static String methodBody(String source, String signature) {
