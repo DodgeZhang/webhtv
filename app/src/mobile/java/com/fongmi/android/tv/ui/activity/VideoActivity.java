@@ -3010,6 +3010,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     private void beginPlayHealth() {
         playHealthKey = getKey();
+        SiteHealthStore.recordPlayAttempt(playHealthKey);
         playHealthRecorded = false;
     }
 
@@ -7439,6 +7440,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     @Override
     protected void onReload(String msg) {
+        recordPlayHealth(false, msg);
         if (PlayerManager.RELOAD_LUT_WARMUP.equals(msg)) {
             if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-ui", "auto refresh after lut warmup playback failure key=%s episode=%s", getKey(), getEpisode() == null ? null : getEpisode().getName());
             onRefresh();
@@ -7454,6 +7456,11 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     }
 
     @Override
+    protected void onFirstFrameRendered() {
+        recordPlayHealth(true, "");
+    }
+
+    @Override
     protected void onStateChanged(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
@@ -7462,7 +7469,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
                 break;
             case Player.STATE_READY:
                 if (mPendingKaraokeResult == null) mKaraokeResultShown = false;
-                recordPlayHealth(true, "");
                 showPlaybackContent();
                 boolean pendingResumeSeekApplied = applyPendingResumeSeek();
                 checkControl();
