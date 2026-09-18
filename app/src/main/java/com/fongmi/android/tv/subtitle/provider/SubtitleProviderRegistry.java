@@ -2,6 +2,16 @@ package com.fongmi.android.tv.subtitle.provider;
 
 import android.util.Log;
 
+import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.subtitle.source.SubtitleScriptRuntimeFactory;
+import com.fongmi.android.tv.subtitle.source.SubtitleSourceManager;
+import com.github.catvod.utils.Asset;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 import com.fongmi.android.tv.subtitle.model.SubtitleAsset;
 import com.fongmi.android.tv.subtitle.model.SubtitleCandidate;
 import com.fongmi.android.tv.subtitle.model.SubtitleContext;
@@ -24,9 +34,11 @@ public final class SubtitleProviderRegistry {
     private static final int MAX_SEARCH_THREADS = 8;
 
     private final Map<String, SubtitleProvider> providers;
+    private SubtitleSourceManager builtinSourceManager;
 
     public SubtitleProviderRegistry() {
-        this(new AssrtSubtitleProvider(), new XunleiSubtitleProvider(), new ShooterSubtitleProvider());
+        this.providers = new LinkedHashMap<>();
+        if (!installBuiltinSources()) registerLegacyProviders();
     }
 
     SubtitleProviderRegistry(SubtitleProvider... providers) {
@@ -34,9 +46,55 @@ public final class SubtitleProviderRegistry {
         if (providers != null) for (SubtitleProvider provider : providers) register(provider);
     }
 
+    private boolean installBuiltinSources() {
+        if (App.get() == null) return false;
+        try {
+            JsonObject manifest = JsonParser.parseString(Asset.read("subtitle_sources/builtin/manifest.json")).getAsJsonObject();
+            JsonArray subtitles = manifest.has("subtitles") && manifest.get("subtitles").isJsonArray()
+                    ? manifest.getAsJsonArray("subtitles") : new JsonArray();
+            for (JsonElement element : subtitles) {
+                if (!element.isJsonObject()) continue;
+                JsonObject source = element.getAsJsonObject();
+                if (!"assrt".equals(source.has("key") ? source.get("key").getAsString() : "")) continue;
+                JsonObject params = source.has("params") && source.get("params").isJsonObject()
+                        ? source.getAsJsonObject("params") : new JsonObject();
+                params.addProperty("token", Setting.getSubtitleAssrtToken());
+                source.add("params", params);
+            }
+            builtinSourceManager = new SubtitleSourceManager(this, new SubtitleScriptRuntimeFactory());
+            return !builtinSourceManager.install("builtin", manifest.toString(), "assets://subtitle_sources/builtin/manifest.json").isEmpty();
+        } catch (Throwable error) {
+            try {
+                Log.w(TAG, "builtin subtitle sources unavailable; using legacy providers", error);
+            } catch (Throwable ignored) {
+            }
+            builtinSourceManager = null;
+            return false;
+        }
+    }
+
+    private void registerLegacyProviders() {
+        register(new AssrtSubtitleProvider());
+        register(new XunleiSubtitleProvider());
+        register(new ShooterSubtitleProvider());
+    }
+
+    public void destroy() {
+        if (builtinSourceManager != null) builtinSourceManager.destroy();
+    }
+
     public void register(SubtitleProvider provider) {
         if (provider == null || isEmpty(provider.getName())) return;
         providers.put(provider.getName(), provider);
+    }
+
+    public void unregister(String providerName) {
+        if (isEmpty(providerName)) return;
+        providers.remove(providerName);
+    }
+
+    public List<String> providerNames() {
+        return new ArrayList<>(providers.keySet());
     }
 
     public List<SubtitleProvider> enabledProviders() {
