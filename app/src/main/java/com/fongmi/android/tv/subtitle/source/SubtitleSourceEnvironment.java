@@ -6,12 +6,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class SubtitleSourceEnvironment {
-
-    private static final Pattern PLACEHOLDER = Pattern.compile("^\\$\\{([A-Z][A-Z0-9_]*)}$");
 
     private SubtitleSourceEnvironment() {
     }
@@ -25,12 +21,23 @@ public final class SubtitleSourceEnvironment {
         environment = environment == null ? new JsonObject() : environment;
         for (Map.Entry<String, JsonElement> entry : result.entrySet()) {
             if (!entry.getValue().isJsonPrimitive() || !entry.getValue().getAsJsonPrimitive().isString()) continue;
-            Matcher matcher = PLACEHOLDER.matcher(entry.getValue().getAsString());
-            if (!matcher.matches()) continue;
-            JsonElement value = environment.get(matcher.group(1));
+            String name = placeholderName(entry.getValue().getAsString());
+            if (name == null) continue;
+            JsonElement value = environment.get(name);
             entry.setValue(value == null || value.isJsonNull() ? new com.google.gson.JsonPrimitive("") : value.deepCopy());
         }
         return result;
+    }
+
+    private static String placeholderName(String value) {
+        if (value == null || value.length() < 4 || !value.startsWith("${") || !value.endsWith("}")) return null;
+        String name = value.substring(2, value.length() - 1);
+        if (name.isEmpty() || name.charAt(0) < 'A' || name.charAt(0) > 'Z') return null;
+        for (int i = 1; i < name.length(); i++) {
+            char valueChar = name.charAt(i);
+            if ((valueChar < 'A' || valueChar > 'Z') && (valueChar < '0' || valueChar > '9') && valueChar != '_') return null;
+        }
+        return name;
     }
 
     public static String resolveToken(String sourceKey, String name) {
