@@ -110,6 +110,16 @@ public class SiteHealthStore {
         }
     }
 
+    public static void recordPlayAttempt(String key) {
+        if (skip(key)) return;
+        synchronized (SiteHealthStore.class) {
+            Health health = get(key);
+            health.playAttempts++;
+            health.updatedAt = System.currentTimeMillis();
+            markDirty();
+        }
+    }
+
     public static void recordPlay(String key, boolean success, String error) {
         if (skip(key)) return;
         synchronized (SiteHealthStore.class) {
@@ -447,9 +457,10 @@ public class SiteHealthStore {
         public final Stage detail;
         public final Stage parse;
         public final Stage play;
+        public final int playAttempts;
         public final long updatedAt;
 
-        private Row(String siteKey, String siteName, Status status, Stage home, Stage category, Stage search, Stage detail, Stage parse, Stage play, long updatedAt) {
+        private Row(String siteKey, String siteName, Status status, Stage home, Stage category, Stage search, Stage detail, Stage parse, Stage play, int playAttempts, long updatedAt) {
             this.siteKey = siteKey;
             this.siteName = siteName;
             this.status = status;
@@ -459,6 +470,7 @@ public class SiteHealthStore {
             this.detail = detail;
             this.parse = parse;
             this.play = play;
+            this.playAttempts = playAttempts;
             this.updatedAt = updatedAt;
         }
 
@@ -471,6 +483,7 @@ public class SiteHealthStore {
                     new Stage("DETAIL", health.detailSuccess, health.detailFail, 0, health.lastDetailCost, health.lastDetailFailAt, health.lastDetailError, health.detailReasons),
                     new Stage("PARSE", health.parseSuccess, health.parseFail, 0, health.lastParseCost, health.lastParseFailAt, health.lastParseError, health.parseReasons),
                     new Stage("PLAY", health.playSuccess, health.playFail, 0, 0, health.lastPlayFailAt, health.lastPlayError, health.playReasons),
+                    health.playAttempts,
                     health.updatedAt);
         }
 
@@ -595,6 +608,7 @@ public class SiteHealthStore {
         private int parseFail;
         private int playSuccess;
         private int playFail;
+        private int playAttempts;
         private int lastHomeCount;
         private int lastCategoryCount;
         private int lastSearchCount;

@@ -3290,6 +3290,7 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
 
     private void beginPlayHealth() {
         playHealthKey = getKey();
+        SiteHealthStore.recordPlayAttempt(playHealthKey);
         playHealthRecorded = false;
     }
 

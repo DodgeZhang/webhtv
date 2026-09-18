@@ -304,7 +304,7 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
 
     private void addAdBlockStats(LinearLayoutCompat root, SiteHealthStore.Row row) {
         long blocked = AdBlockStatsStore.getSiteBlockedCount(row.siteKey);
-        int playCount = row.play.sampleCount();
+        int playCount = row.playAttempts;
         // 始终显示播放与广告拦截比值（即使为 0，让用户知道该功能在工作）
         int colorRes = blocked > 0 ? R.color.site_health_warn : R.color.black_80;
         MaterialTextView view = text(getString(R.string.site_health_report_ad_blocked, playCount, blocked), 13, colorRes, Typeface.NORMAL);

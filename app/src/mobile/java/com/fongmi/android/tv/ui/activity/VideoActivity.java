@@ -3010,6 +3010,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     private void beginPlayHealth() {
         playHealthKey = getKey();
+        SiteHealthStore.recordPlayAttempt(playHealthKey);
         playHealthRecorded = false;
     }
 

@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -153,7 +154,7 @@ public class SiteHealthReportSourceTest {
         assertTrue(dialog.contains("R.string.ad_site_rank"));
         assertTrue(dialog.contains("R.string.ad_rule_rank"));
         assertTrue(dialog.contains("R.string.ad_pipeline_rank"));
-        assertTrue(dialog.contains("int playCount = row.play.sampleCount()"));
+        assertTrue(dialog.contains("int playCount = row.playAttempts"));
         assertTrue(dialog.contains("site_health_report_ad_blocked, playCount, blocked"));
     }
 
@@ -201,6 +202,29 @@ public class SiteHealthReportSourceTest {
         int terminalCallback = onPlayerError.indexOf("callback.onError(getPlaybackErrorMessage(failure))", fallback);
         assertTrue("fallback handling is missing", fallback >= 0);
         assertTrue("terminal errors must reach the host after fallback exhaustion", terminalCallback > fallback);
+    }
+
+    @Test
+    public void playbackAttemptsUseIndependentCounterForAdBlockRatio() throws Exception {
+        String store = read(mainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "setting", "SiteHealthStore.java")));
+        String dialog = read(mainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "dialog", "SiteHealthReportDialog.java")));
+        String leanback = read(sourcePath("leanback", "java").resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java")));
+        String mobile = read(sourcePath("mobile", "java").resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java")));
+
+        assertTrue(store.contains("public static void recordPlayAttempt(String key)"));
+        assertTrue(store.contains("public final int playAttempts"));
+        assertTrue(dialog.contains("int playCount = row.playAttempts"));
+        for (String source : new String[] {leanback, mobile}) {
+            String begin = methodBody(source, "private void beginPlayHealth()");
+            assertTrue(begin.contains("SiteHealthStore.recordPlayAttempt(playHealthKey)"));
+            assertEquals(1, count(begin, "recordPlayAttempt("));
+        }
+    }
+
+    private static int count(String source, String needle) {
+        int count = 0;
+        for (int offset = 0; (offset = source.indexOf(needle, offset)) >= 0; offset += needle.length()) count++;
+        return count;
     }
 
     private static String methodBody(String source, String signature) {
