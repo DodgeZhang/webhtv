@@ -499,6 +499,8 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
     private int mPendingPlayerKernel = PlayerSetting.NONE;
     private MpvPlayer mDiscMenuPlayer;
     private final Runnable mDiscMenuStateListener = this::updateDiscMenuButton;
+    private MpvPlayer mCustomButtonPlayer;
+    private final Runnable mCustomButtonStateListener = this::updateCustomButtonStates;
 
     private final ActivityResultLauncher<Intent> mLutDir = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) return;
@@ -1724,16 +1726,13 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
             view.setMaxWidth(ResUtil.dp2px(144));
             view.setEllipsize(TextUtils.TruncateAt.END);
             view.setContentDescription(button.title);
+            view.setTag(button.id);
             view.setOnClickListener(item -> {
-                if (player().sendMpvCustomButton(button.id, false)) {
-                    toggleCustomButtonState(item);
-                }
+                player().sendMpvCustomButton(button.id, false);
                 setR1Callback();
             });
             view.setOnLongClickListener(item -> {
-                if (player().sendMpvCustomButton(button.id, true)) {
-                    toggleCustomButtonState(item);
-                }
+                player().sendMpvCustomButton(button.id, true);
                 setR1Callback();
                 return true;
             });
@@ -1747,8 +1746,17 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
         updateCustomButtonVisibility();
     }
 
-    private void toggleCustomButtonState(View view) {
-        view.setSelected(!view.isSelected());
+    private void updateCustomButtonStates() {
+        MpvPlayer mpv = service() != null && isOwner()
+                && player().getPlayer() instanceof MpvPlayer active ? active : null;
+        if (mCustomButtonPlayer != mpv) {
+            if (mCustomButtonPlayer != null) mCustomButtonPlayer.removeCustomButtonStateListener(mCustomButtonStateListener);
+            mCustomButtonPlayer = mpv;
+            if (mpv != null) mpv.addCustomButtonStateListener(mCustomButtonStateListener);
+        }
+        for (View view : mCustomActionViews) {
+            view.setSelected(mpv != null && mpv.isCustomButtonActive((String) view.getTag()));
+        }
     }
 
     private void ensureCustomButtonContainers() {
@@ -1769,6 +1777,7 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
     }
 
     private void updateCustomButtonVisibility() {
+        updateCustomButtonStates();
         boolean visible = service() != null && player().isMpv() && isVisible(mBinding.control.getRoot());
         if (mCustomPortraitButtons != null) mCustomPortraitButtons.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
@@ -1792,6 +1801,7 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
     }
 
     private void updateDiscMenuButton() {
+        updateCustomButtonStates();
         MpvPlayer mpv = service() != null && isOwner()
                 && player().getPlayer() instanceof MpvPlayer active ? active : null;
         if (mDiscMenuPlayer != mpv) {
@@ -8134,9 +8144,9 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
         cancelTvTouch();
         mIntroSkipPlayback.reset();
         cancelAiSeasonAnalysis(false);
-        if (mDiscMenuPlayer != null) {
-            mDiscMenuPlayer.removeDiscMenuStateListener(mDiscMenuStateListener);
-            mDiscMenuPlayer = null;
+        if (mCustomButtonPlayer != null) {
+            mCustomButtonPlayer.removeCustomButtonStateListener(mCustomButtonStateListener);
+            mCustomButtonPlayer = null;
         }
         if (mDiscMenuPlayer != null) {
             mDiscMenuPlayer.removeDiscMenuStateListener(mDiscMenuStateListener);
