@@ -179,6 +179,19 @@ public class SiteHealthReportSourceTest {
         }
     }
 
+    @Test
+    public void playbackHealthRecordsTerminalErrorsAndReloadFailures() throws Exception {
+        String leanback = read(sourcePath("leanback", "java").resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java")));
+        String mobile = read(sourcePath("mobile", "java").resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java")));
+
+        for (String source : new String[] {leanback, mobile}) {
+            String error = methodBody(source, "protected void onError(String msg)");
+            String reload = methodBody(source, "protected void onReload(String msg)");
+            assertTrue(error.contains("recordPlayHealth(false, msg)"));
+            assertTrue(reload.contains("recordPlayHealth(false, msg)"));
+        }
+    }
+
     private static String methodBody(String source, String signature) {
         int start = source.indexOf(signature);
         assertTrue(signature + " is missing", start >= 0);
