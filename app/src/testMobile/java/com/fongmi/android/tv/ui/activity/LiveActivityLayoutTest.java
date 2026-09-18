@@ -203,6 +203,30 @@ public class LiveActivityLayoutTest {
     }
 
     @Test
+    public void liveParseFailureUsesSourceFallbackForMobileAndLeanback() throws Exception {
+        assertLiveParseFailureUsesSourceFallback(findMobileJavaPath());
+        assertLiveParseFailureUsesSourceFallback(findLeanbackJavaPath());
+    }
+
+    private static void assertLiveParseFailureUsesSourceFallback(Path javaRoot) throws Exception {
+        Path sourcePath = javaRoot.resolve(Path.of(
+                "com", "fongmi", "android", "tv", "ui", "activity", "LiveActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        String renderLiveBody = section(source, "private void renderLive(Live live)", "private void setGroup(Live live)");
+
+        assertFalse(sourcePath + " is missing renderLive", renderLiveBody.isEmpty());
+        assertTrue("an empty parsed live source must enter fallback when source fallback is enabled",
+                renderLiveBody.contains("if (live == null || live.getGroups().isEmpty())")
+                        && renderLiveBody.contains("if (LiveSetting.isSourceFallback()) startFlow();"));
+        assertTrue("an empty parsed live source must stop before rendering groups",
+                renderLiveBody.indexOf("startFlow();") < renderLiveBody.indexOf("return;"));
+        assertTrue("a valid parsed live source must still render its groups",
+                renderLiveBody.contains("mViewModel.parseXml(live);")
+                        && renderLiveBody.contains("setGroup(live);")
+                        && renderLiveBody.contains("setWidth(live);"));
+    }
+
+    @Test
     public void sourceHttpErrorBypassesPlayerRetriesWhenFallbackIsEnabledForMobileAndLeanback() throws Exception {
         assertSourceHttpErrorBypassesPlayerRetries(findMobileJavaPath());
         assertSourceHttpErrorBypassesPlayerRetries(findLeanbackJavaPath());

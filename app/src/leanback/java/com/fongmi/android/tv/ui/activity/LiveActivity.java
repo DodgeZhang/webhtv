@@ -287,11 +287,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mViewModel.url().observeForever(mObserveUrl);
         mViewModel.xml().observe(this, this::setEpg);
         mViewModel.epg().observeForever(mObserveEpg);
-        mViewModel.live().observe(this, live -> {
-            mViewModel.parseXml(live);
-            setGroup(live);
-            setWidth(live);
-        });
+        mViewModel.live().observe(this, this::renderLive);
     }
 
     private void checkLive() {
@@ -319,6 +315,16 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     private void getLive() {
         mViewModel.parse(getHome());
         showProgress();
+    }
+
+    private void renderLive(Live live) {
+        if (live == null || live.getGroups().isEmpty()) {
+            if (LiveSetting.isSourceFallback()) startFlow();
+            return;
+        }
+        mViewModel.parseXml(live);
+        setGroup(live);
+        setWidth(live);
     }
 
     private void setGroup(Live live) {

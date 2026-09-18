@@ -496,7 +496,11 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void renderLive(Live live) {
-        if (live == null || live.getGroups().isEmpty() || liveMenuRendered) return;
+        if (live == null || live.getGroups().isEmpty()) {
+            if (LiveSetting.isSourceFallback()) startFlow();
+            return;
+        }
+        if (liveMenuRendered) return;
         liveMenuRendered = true;
         mViewModel.parseXml(live);
         setGroup(live);
