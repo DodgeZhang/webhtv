@@ -158,6 +158,15 @@ public class SiteHealthReportSourceTest {
     }
 
     @Test
+    public void playbackActivityBridgesExoFirstFrameToGenericFirstFrameHook() throws Exception {
+        String playback = read(mainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "PlaybackActivity.java")));
+        String exoFirstFrame = methodBody(playback, "public void onExoFirstFrame()");
+
+        assertTrue(exoFirstFrame.contains("PlaybackActivity.this.onExoFirstFrame()"));
+        assertTrue(exoFirstFrame.contains("PlaybackActivity.this.onFirstFrameRendered()"));
+    }
+
+    @Test
     public void playbackHealthCountsSuccessOnlyAfterFirstFrame() throws Exception {
         String leanback = read(sourcePath("leanback", "java").resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java")));
         String mobile = read(sourcePath("mobile", "java").resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java")));
