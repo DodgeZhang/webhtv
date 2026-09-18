@@ -1619,8 +1619,13 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
             nextLine(true);
             return;
         }
-        Live next = LiveSetting.isSourceFallback() ? LiveConfig.getNextHome() : null;
-        if (next != null) setLive(next);
+        if (!LiveSetting.isSourceFallback()) return;
+        Live next = LiveConfig.getNextHome();
+        if (next != null) {
+            setLive(next);
+            return;
+        }
+        if (mChannel != null && !mChannel.isOnly()) nextLine(true);
     }
 
     private boolean prevGroup() {
