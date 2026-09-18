@@ -187,7 +187,7 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
     private String adDimensionSummary() {
         return getString(R.string.site_health_report_ad_summary, report.adBlockedTotal, pipelineSummary(report.adBlockedByPipeline))
                 + "\n" + getString(R.string.ad_site_rank) + ": " + dimensionSummary(report.adBlockedBySite)
-                + "\n" + getString(R.string.ad_rule_rank) + ": " + dimensionSummary(report.adBlockedByRule)
+                + "\n" + getString(R.string.ad_rule_rank) + ": " + ruleDimensionSummary(report.adBlockedByRule)
                 + "\n" + getString(R.string.ad_pipeline_rank) + ": " + dimensionSummary(report.adBlockedByPipeline);
     }
 
@@ -197,6 +197,15 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .limit(5)
                 .map(entry -> entry.getKey() + " " + entry.getValue())
+                .collect(java.util.stream.Collectors.joining(" · "));
+    }
+
+    private String ruleDimensionSummary(java.util.Map<String, Long> values) {
+        if (values.isEmpty()) return getString(R.string.ad_stats_empty);
+        return values.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(5)
+                .map(entry -> AdBlockStatsStore.getRuleDisplayName(entry.getKey()) + " " + entry.getValue())
                 .collect(java.util.stream.Collectors.joining(" · "));
     }
 
