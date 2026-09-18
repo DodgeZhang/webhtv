@@ -46,6 +46,7 @@ import com.fongmi.android.tv.impl.LiveListener;
 import com.fongmi.android.tv.impl.PassListener;
 import com.fongmi.android.tv.model.LiveViewModel;
 import com.fongmi.android.tv.player.PlayerHelper;
+import com.fongmi.android.tv.player.LiveSourceFallbackPolicy;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.Source;
 import com.fongmi.android.tv.service.PlaybackService;
@@ -1009,17 +1010,16 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void startFlow() {
-        if (mChannel != null && LiveSetting.isChange() && !mChannel.isLast()) {
-            nextLine(true);
-            return;
-        }
-        if (!LiveSetting.isSourceFallback()) return;
-        Live next = LiveConfig.getNextHome();
-        if (next != null) {
-            setLive(next);
-            return;
-        }
-        if (mChannel != null && !mChannel.isOnly()) nextLine(true);
+        Live next = LiveSetting.isSourceFallback() ? LiveConfig.getNextHome() : null;
+        LiveSourceFallbackPolicy.Action action = LiveSourceFallbackPolicy.decide(
+                LiveSetting.isChange(),
+                LiveSetting.isSourceFallback(),
+                mChannel != null,
+                mChannel == null || mChannel.isLast(),
+                mChannel == null || mChannel.isOnly(),
+                next != null);
+        if (action == LiveSourceFallbackPolicy.Action.NEXT_LINE) nextLine(true);
+        else if (action == LiveSourceFallbackPolicy.Action.NEXT_SOURCE) setLive(next);
     }
 
     private void prevChannel() {
@@ -1235,7 +1235,8 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mClock.release();
         Source.get().exit();
         App.removeCallbacks(mR0, mR1, mR2, mR3, mR4);
-        App.removeCallbacks(mEndRetry, mBufferingTimeout);
+        App.removeCallbacks(mEndRetry);
+        App.removeCallbacks(mBufferingTimeout);
         if (mOsd != null) mOsd.release();
         mViewModel.url().removeObserver(mObserveUrl);
         mViewModel.epg().removeObserver(mObserveEpg);
