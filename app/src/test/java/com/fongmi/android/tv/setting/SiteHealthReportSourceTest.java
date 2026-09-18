@@ -110,6 +110,8 @@ public class SiteHealthReportSourceTest {
         assertTrue(reportSource.contains("row.siteName.toLowerCase(Locale.ROOT).contains(query)"));
         assertTrue(reportSource.contains("R.string.site_health_stage_home, row.home"));
         assertTrue(reportSource.contains("R.string.site_health_stage_category, row.category"));
+        assertTrue(reportSource.contains("row.home.lastFailAt"));
+        assertTrue(reportSource.contains("row.category.lastFailAt"));
         assertTrue(reportLayout.contains("@+id/filterAll"));
         assertTrue(reportLayout.contains("@+id/filterBad"));
         assertTrue(reportLayout.contains("@+id/filterWarn"));

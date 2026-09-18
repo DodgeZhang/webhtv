@@ -33,7 +33,7 @@
 - 站点健康报表尺寸改动范围集中，没有改变报表数据、筛选、排序或清理行为。
 - 尺寸计算使用现有 `ResUtil` 屏幕尺寸与 dp 转换能力，横竖屏策略明确。
 - `Math.max(1, ...)` 可避免异常环境下产生零或负尺寸。
-- 同步自 `beta` 的崩溃恢复改动仅恢复前台崩��溃的自定义恢复页面，并有对应测试约束。
+- 同步自 `beta` 的崩溃恢复改动仅恢复前台崩溃的自定义恢复页面，并有对应测试约束。
 - 未发现需要修改的问题。
 
 ### 验证
@@ -52,7 +52,7 @@
 
 ### 第二轮复评
 
-- 重新核对相对�� `origin/beta` 的完整任务差异，改动仍仅涉及站点健康报表窗口尺寸及其测试。
+- 重新核对相对 `origin/beta` 的完整任务差异，改动仍仅涉及站点健康报表窗口尺寸及其测试。
 - 测试覆盖当前任务和本次同步的崩溃恢复行为。
 - 未发现正确性、兼容性、性能或作用域问题。
 - 复评通过，可以提交并创建合入 `beta` 的拉取请求。
@@ -60,3 +60,29 @@
 ## 回滚方式
 
 如需回滚当前任务，可还原站点健康报表对话框原有比例尺寸，并删除本次新增的尺寸约束测试；从 `beta` 同步的提交不属于当前任务回滚范围。
+
+## 本轮同步复评补充（2026-09-18）
+
+### 同步结果
+
+- 已将 `origin/beta` 合入 `dev3`，合并提交为 `5791c9c713853ffdf1ff6550472468f0afd7faed`。
+- 合并过程由 `ort` 策略自动完成，没有未解决冲突。
+- `origin/beta` 已是当前 `HEAD` 的祖先。
+
+### 复评发现与修复
+
+1. 站点健康报表的“最近失败”排序只统计搜索、详情、解析和播放阶段，遗漏本轮新增的首页与分类阶段。现已把 `row.home.lastFailAt` 和 `row.category.lastFailAt` 纳入排序，并增加源码约束测试。
+2. HLS 兼容规则会缓存 `RuleConfig` 编译结果，但保存用户广告规则或切换默认规则启用状态时只失效 `RuleConfig`，没有同步失效 `HlsRuleConfig`。现已在 `UserAdRuleStore.save` 与 `DisabledDefaultRuleStore.save` 中同步调用 `HlsRuleConfig.invalidate()`，避免规则变更后继续使用旧的 HLS 编译缓存，并增加回归测试。
+
+### 最终验证
+
+- Mobile arm64-v8a 定向单元测试：`BUILD SUCCESSFUL`，87 个 Gradle actionable tasks，5 executed、82 up-to-date。
+- Leanback arm64-v8a 定向单元测试：`BUILD SUCCESSFUL`，87 个 Gradle actionable tasks，6 executed、81 up-to-date。
+- 覆盖测试：`SiteHealthReportSourceTest`、`SiteHealthReportDialogSourceTest`、`HlsRuleConfigTest`、`MpvHlsAdblockGateTest`、`ExoParserAdblockGateTest`、`M3u8LegacyFallbackTest`、`HlsAdblockPipelineTest`。
+- `git diff --check` 通过。
+- `task_guard.sh check` 通过。
+- 合并后的构建仅保留既有 deprecated API、unchecked operation 和 32 位原生库提示，没有新增编译或测试失败。
+
+### 复评结论
+
+同步内容与 `dev3` 当前站点健康统计、HLS 去广告兼容逻辑可以共存。本轮发现的两个缓存/排序遗漏均已修复并由 Mobile 与 Leanback 两个变体的定向测试覆盖，可以进入提交、推送及创建合入 `beta` 的拉取请求阶段。

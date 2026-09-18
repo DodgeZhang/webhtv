@@ -181,7 +181,8 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
     }
 
     private long lastFailAt(SiteHealthStore.Row row) {
-        return Math.max(Math.max(row.search.lastFailAt, row.detail.lastFailAt), Math.max(row.parse.lastFailAt, row.play.lastFailAt));
+        return Math.max(Math.max(row.home.lastFailAt, row.category.lastFailAt),
+                Math.max(Math.max(row.search.lastFailAt, row.detail.lastFailAt), Math.max(row.parse.lastFailAt, row.play.lastFailAt)));
     }
 
     private float successRate(SiteHealthStore.Row row) {
