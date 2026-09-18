@@ -221,6 +221,22 @@ public class SiteHealthReportSourceTest {
         }
     }
 
+    @Test
+    public void tmdbDetailInlinePlaybackRecordsAttemptsAndTerminalHealth() throws Exception {
+        String source = read(mainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java")));
+        String start = methodBody(source, "private void startInlinePlayer(Result result, long resumePosition)");
+        String firstFrame = methodBody(source, "protected void onFirstFrameRendered()");
+        String error = methodBody(source, "protected void onError(String msg)");
+        String recorder = methodBody(source, "private void recordInlinePlayHealth(boolean success, String error)");
+
+        assertTrue(start.contains("SiteHealthStore.recordPlayAttempt(inlinePlayHealthKey)"));
+        assertEquals(1, count(start, "recordPlayAttempt("));
+        assertTrue(firstFrame.contains("recordInlinePlayHealth(true, \"\")"));
+        assertTrue(error.contains("recordInlinePlayHealth(false, msg)"));
+        assertTrue(recorder.contains("if (inlinePlayHealthRecorded) return"));
+        assertTrue(recorder.contains("SiteHealthStore.recordPlay("));
+    }
+
     private static int count(String source, String needle) {
         int count = 0;
         for (int offset = 0; (offset = source.indexOf(needle, offset)) >= 0; offset += needle.length()) count++;
