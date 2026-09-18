@@ -203,6 +203,27 @@ public class LiveActivityLayoutTest {
     }
 
     @Test
+    public void sourceHttpErrorBypassesPlayerRetriesWhenFallbackIsEnabledForMobileAndLeanback() throws Exception {
+        assertSourceHttpErrorBypassesPlayerRetries(findMobileJavaPath());
+        assertSourceHttpErrorBypassesPlayerRetries(findLeanbackJavaPath());
+    }
+
+    private static void assertSourceHttpErrorBypassesPlayerRetries(Path javaRoot) throws Exception {
+        Path sourcePath = javaRoot.resolve(Path.of(
+                "com", "fongmi", "android", "tv", "ui", "activity", "LiveActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        String method = section(source, "protected boolean onSourceHttpError(int statusCode, String msg)", "protected void onError(String msg)");
+
+        assertFalse(sourcePath + " is missing onSourceHttpError", method.isEmpty());
+        assertTrue("disabled source fallback must preserve the normal player retry chain",
+                method.contains("if (!LiveSetting.isSourceFallback()) return false;"));
+        assertTrue("enabled source fallback must route the HTTP failure into the live fallback flow",
+                method.contains("onError(msg);") && method.contains("return true;"));
+        assertTrue("the failure must be handled before returning true",
+                method.indexOf("onError(msg);") < method.indexOf("return true;"));
+    }
+
+    @Test
     public void playbackErrorCancelsStaleBufferingFallbackForMobileAndLeanback() throws Exception {
         assertPlaybackErrorCancelsStaleBufferingFallback(findMobileJavaPath());
         assertPlaybackErrorCancelsStaleBufferingFallback(findLeanbackJavaPath());

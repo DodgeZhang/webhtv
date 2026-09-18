@@ -1442,6 +1442,13 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     @Override
+    protected boolean onSourceHttpError(int statusCode, String msg) {
+        if (!LiveSetting.isSourceFallback()) return false;
+        onError(msg);
+        return true;
+    }
+
+    @Override
     protected void onError(String msg) {
         App.removeCallbacks(mBufferingTimeout);
         Track.delete(player().getKey());
