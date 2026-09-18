@@ -2943,6 +2943,7 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
     }
 
     private void beginPlayerContentRequest(String key, String flag, String episode) {
+        if (mViewModel != null) mViewModel.cancelPlayerContent();
         mPendingPlayer = null;
         invalidatePlayerContent();
         playerContentKey = key;

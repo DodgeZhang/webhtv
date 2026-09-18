@@ -36,6 +36,14 @@ public class PreCachePolicyTest {
     }
 
     @Test
+    public void preloadWaitsForAStablePlayingWindow() {
+        assertFalse(PreCachePolicy.isPlaybackStableForPreload(4_999, 5_000, true, false));
+        assertFalse(PreCachePolicy.isPlaybackStableForPreload(5_000, 5_000, false, false));
+        assertFalse(PreCachePolicy.isPlaybackStableForPreload(5_000, 5_000, true, true));
+        assertTrue(PreCachePolicy.isPlaybackStableForPreload(5_001, 5_000, true, false));
+    }
+
+    @Test
     public void seekSuppressionRequiresReadyIdleAndSafeBuffer() {
         assertFalse(PreCache.shouldReleaseSeekPreloadSuppression(Player.STATE_BUFFERING, true, false, true));
         assertFalse(PreCache.shouldReleaseSeekPreloadSuppression(Player.STATE_READY, false, false, true));

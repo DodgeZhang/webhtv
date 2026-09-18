@@ -25,6 +25,8 @@ import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.player.AudioPlaybackDiagnostics;
 import com.fongmi.android.tv.player.PlaybackTrace;
 import com.fongmi.android.tv.player.PlaybackResourceClassifier;
+import com.fongmi.android.tv.player.audio.PlaybackMediaClock;
+import com.fongmi.android.tv.player.audio.PlaybackMediaSignalHub;
 import com.fongmi.android.tv.player.exo.ErrorMsgProvider;
 import com.fongmi.android.tv.player.exo.ExoDecoderRuntimeProfiles;
 import com.fongmi.android.tv.player.exo.ExoDecoderRuntimeSession;
@@ -63,6 +65,8 @@ public class ExoPlayerEngine implements PlayerEngine {
     private final ExoCompressedAudioDirectPolicy compressedAudioDirectPolicy;
     private final ExoDolbyVisionPlaybackState dolbyVisionPlaybackState;
     private final ExoFrameSchedulingSessionLock frameSchedulingSessionLock;
+    private final PlaybackMediaSignalHub mediaSignals;
+    private final PlaybackMediaClock mediaClock;
     private PlaySpec spec;
     private PlaySpec queuedSpec;
     private String queuedMediaId;
@@ -138,6 +142,16 @@ public class ExoPlayerEngine implements PlayerEngine {
     };
 
     public ExoPlayerEngine(int decode, Player.Listener listener) {
+        this(decode, listener, null, null);
+    }
+
+    public ExoPlayerEngine(
+            int decode,
+            Player.Listener listener,
+            PlaybackMediaSignalHub mediaSignals,
+            PlaybackMediaClock mediaClock) {
+        this.mediaSignals = mediaSignals;
+        this.mediaClock = mediaClock;
         this.decoderRuntimeSession = ExoDecoderRuntimeProfiles.process().newSession();
         this.compressedAudioDirectPolicy = new ExoCompressedAudioDirectPolicy(App.get());
         this.dolbyVisionPlaybackState = new ExoDolbyVisionPlaybackState();
@@ -161,7 +175,9 @@ public class ExoPlayerEngine implements PlayerEngine {
                     decoderRuntimeSession,
                     frameSchedulingSettings,
                     dolbyVisionPlaybackState,
-                    compressedAudioDirectPolicy);
+                    compressedAudioDirectPolicy,
+                    mediaSignals,
+                    mediaClock);
         } catch (RuntimeException | Error e) {
             MediaSourceFactory.releaseCacheSession();
             throw e;
@@ -228,7 +244,9 @@ public class ExoPlayerEngine implements PlayerEngine {
                 decoderRuntimeSession,
                 schedulingSettings,
                 dolbyVisionPlaybackState,
-                compressedAudioDirectPolicy);
+                compressedAudioDirectPolicy,
+                mediaSignals,
+                mediaClock);
         frameSchedulingSettings = schedulingSettings;
         frameSchedulingSessionLock.onRendererRebuilt(
                 schedulingSettings.decision());

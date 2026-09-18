@@ -5881,7 +5881,7 @@ public void resetTrack(int type) {
             case PlayerSetting.IJK -> new IjkPlayerEngine(decode, listener);
             case PlayerSetting.SYSTEM -> new SystemPlayerEngine(decode, listener);
             case PlayerSetting.MPV -> new MpvPlayerEngine(decode, lutAllowed, listener, this::onMpvVideoSizeProbed);
-            default -> new ExoPlayerEngine(decode, listener);
+            default -> new ExoPlayerEngine(decode, listener, mediaSignals, mediaClock);
         };
         return next;
     }
