@@ -16,6 +16,7 @@ public final class T3SubtitleProvider implements SubtitleProvider {
     private final SubtitleSourceConfig source;
     private final SubtitleScriptRuntime runtime;
     private final String runtimeKey;
+    private final com.google.gson.JsonObject templateParams;
 
     public T3SubtitleProvider(SubtitleSourceConfig source, SubtitleScriptRuntime runtime) {
         this(source, runtime, source == null ? "" : source.getKey());
@@ -27,6 +28,7 @@ public final class T3SubtitleProvider implements SubtitleProvider {
         this.source = source;
         this.runtime = runtime;
         this.runtimeKey = runtimeKey == null ? "" : runtimeKey;
+        this.templateParams = source.getParams() == null ? new com.google.gson.JsonObject() : source.getParams().deepCopy();
     }
 
     public void initialize(String scriptPath) throws Exception {
@@ -73,6 +75,6 @@ public final class T3SubtitleProvider implements SubtitleProvider {
     }
 
     private void refreshSensitiveParams() {
-        source.setParams(SubtitleSourceEnvironment.resolve(source.getKey(), source.getParams()));
+        source.setParams(SubtitleSourceEnvironment.resolve(source.getKey(), templateParams));
     }
 }
