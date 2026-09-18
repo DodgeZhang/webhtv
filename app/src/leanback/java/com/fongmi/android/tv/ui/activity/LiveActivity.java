@@ -83,6 +83,7 @@ import java.util.List;
 public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnClickListener, ChannelAdapter.OnClickListener, EpgDataAdapter.OnClickListener, CustomKeyDownLive.Listener, CustomLiveListView.Callback, TrackDialog.Listener, PassListener, ConfigListener, LiveListener {
 
     private static final long PLAYBACK_END_RETRY_DELAY = 500;
+    private static final long LIVE_BUFFERING_TIMEOUT = 15000;
 
     @Override
     protected boolean shouldAutoPlay() {
@@ -111,6 +112,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     private Runnable mR3;
     private Runnable mR4;
     private Runnable mEndRetry;
+    private Runnable mBufferingTimeout;
     private Clock mClock;
     private View mFocus2;
     private boolean playbackCatchup;
@@ -188,6 +190,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mR0 = this::setSelected;
         mR1 = this::hideControl;
         mR2 = this::setTraffic;
+        mBufferingTimeout = this::startFlow;
         mR3 = this::hideInfo;
         mR4 = this::hideUI;
         mEndRetry = this::checkNext;
@@ -614,6 +617,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     @Override
     protected void onPlayingChanged(boolean isPlaying) {
+        if (isPlaying) App.removeCallbacks(mBufferingTimeout);
         if (isPlaying || isPaused()) updatePlayControl(isPlaying);
     }
 
@@ -844,6 +848,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     private void fetch(EpgData item) {
         if (mChannel == null) return;
         App.removeCallbacks(mEndRetry);
+        App.post(mBufferingTimeout, LIVE_BUFFERING_TIMEOUT);
         playbackCatchup = true;
         mViewModel.getUrl(mChannel, item);
         player().clear();
@@ -854,6 +859,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     private void fetch() {
         if (mChannel == null) return;
         App.removeCallbacks(mEndRetry);
+        App.post(mBufferingTimeout, LIVE_BUFFERING_TIMEOUT);
         playbackCatchup = false;
         LiveConfig.get().setKeep(mChannel);
         mViewModel.getUrl(mChannel);
@@ -1003,8 +1009,12 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void startFlow() {
-        if (!LiveSetting.isChange()) return;
-        if (!mChannel.isLast()) nextLine(true);
+        if (mChannel != null && LiveSetting.isChange() && !mChannel.isLast()) {
+            nextLine(true);
+            return;
+        }
+        Live next = LiveSetting.isSourceFallback() ? LiveConfig.getNextHome() : null;
+        if (next != null) setLive(next);
     }
 
     private void prevChannel() {
@@ -1220,7 +1230,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mClock.release();
         Source.get().exit();
         App.removeCallbacks(mR0, mR1, mR2, mR3, mR4);
-        App.removeCallbacks(mEndRetry);
+        App.removeCallbacks(mEndRetry, mBufferingTimeout);
         if (mOsd != null) mOsd.release();
         mViewModel.url().removeObserver(mObserveUrl);
         mViewModel.epg().removeObserver(mObserveEpg);

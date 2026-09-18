@@ -113,6 +113,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private static final int LIVE_PIP_WIDTH = 16;
     private static final int LIVE_PIP_HEIGHT = 9;
     private static final long PLAYBACK_END_RETRY_DELAY = 500;
+    private static final long LIVE_BUFFERING_TIMEOUT = 15000;
     private static final String ORIENTATION_TAG = "LiveOrientation";
 
     private ActivityLiveBinding mBinding;
@@ -135,6 +136,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private Runnable mR2;
     private Runnable mR3;
     private Runnable mEndRetry;
+    private Runnable mBufferingTimeout;
     private boolean rotate;
     private int count;
     private PiP mPiP;
@@ -265,6 +267,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         mHides = new ArrayList<>();
         mR1 = this::hideControl;
         mR2 = this::setTraffic;
+        mBufferingTimeout = this::startFlow;
         mR3 = this::hideInfo;
         mEndRetry = this::checkNext;
         mPiP = new PiP();
@@ -1242,6 +1245,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private void fetch(EpgData item) {
         App.removeCallbacks(mEndRetry);
         if (mChannel == null) return;
+        App.post(mBufferingTimeout, LIVE_BUFFERING_TIMEOUT);
         playbackCatchup = true;
         mViewModel.getUrl(mChannel, item);
         if (service() != null) {
@@ -1254,6 +1258,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private void fetch() {
         App.removeCallbacks(mEndRetry);
         if (mChannel == null) return;
+        App.post(mBufferingTimeout, LIVE_BUFFERING_TIMEOUT);
         playbackCatchup = false;
         LiveConfig.get().setKeep(mChannel);
         mViewModel.getUrl(mChannel);
@@ -1500,6 +1505,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     @Override
     protected void onPlayingChanged(boolean isPlaying) {
+        if (isPlaying) App.removeCallbacks(mBufferingTimeout);
         if (isPlaying || isPaused()) updatePlayControl(isPlaying);
     }
 
@@ -1609,8 +1615,12 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void startFlow() {
-        if (mChannel == null || !LiveSetting.isChange()) return;
-        if (!mChannel.isLast()) nextLine(true);
+        if (mChannel != null && LiveSetting.isChange() && !mChannel.isLast()) {
+            nextLine(true);
+            return;
+        }
+        Live next = LiveSetting.isSourceFallback() ? LiveConfig.getNextHome() : null;
+        if (next != null) setLive(next);
     }
 
     private boolean prevGroup() {
@@ -2199,7 +2209,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         clearArtworkTarget();
         Source.get().exit();
         App.removeCallbacks(mR1, mR2, mR3);
-        App.removeCallbacks(mEndRetry);
+        App.removeCallbacks(mEndRetry, mBufferingTimeout);
         if (mOsd != null) mOsd.release();
         mViewModel.url().removeObserver(mObserveUrl);
         mViewModel.epg().removeObserver(mObserveEpg);
