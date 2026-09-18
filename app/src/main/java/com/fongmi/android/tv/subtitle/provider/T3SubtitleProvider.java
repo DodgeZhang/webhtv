@@ -4,10 +4,10 @@ import com.fongmi.android.tv.subtitle.model.SubtitleAsset;
 import com.fongmi.android.tv.subtitle.model.SubtitleCandidate;
 import com.fongmi.android.tv.subtitle.model.SubtitleContext;
 import com.fongmi.android.tv.subtitle.model.SubtitleQuery;
-import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.subtitle.source.SubtitleProtocolMapper;
 import com.fongmi.android.tv.subtitle.source.SubtitleScriptRuntime;
 import com.fongmi.android.tv.subtitle.source.SubtitleSourceConfig;
+import com.fongmi.android.tv.subtitle.source.SubtitleSourceEnvironment;
 
 import java.util.List;
 
@@ -68,6 +68,6 @@ public final class T3SubtitleProvider implements SubtitleProvider {
     }
 
     private void refreshSensitiveParams() {
-        if ("assrt".equals(source.getKey())) source.getParams().addProperty("token", Setting.getSubtitleAssrtToken());
+        source.setParams(SubtitleSourceEnvironment.resolve(source.getParams()));
     }
 }

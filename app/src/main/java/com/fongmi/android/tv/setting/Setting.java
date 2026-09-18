@@ -36,6 +36,7 @@ import com.github.catvod.crawler.DebugLogStore;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Trans;
 import com.github.catvod.utils.Prefers;
+import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
@@ -1441,12 +1442,21 @@ public class Setting {
             case null, default -> false;
         };
     }
-    public static String getSubtitleAssrtToken() {
-        return Prefers.getString("subtitle_assrt_token");
+    public static String getSubtitleSourceEnvironment() {
+        String environment = Prefers.getString("subtitle_source_environment");
+        if (!environment.isEmpty()) return environment;
+        String legacyToken = Prefers.getString("subtitle_assrt_token");
+        if (legacyToken.isEmpty()) return "";
+        JsonObject migrated = new JsonObject();
+        migrated.addProperty("ASSRT_TOKEN", legacyToken);
+        environment = migrated.toString();
+        Prefers.put("subtitle_source_environment", environment);
+        Prefers.put("subtitle_assrt_token", "");
+        return environment;
     }
 
-    public static void putSubtitleAssrtToken(String token) {
-        Prefers.put("subtitle_assrt_token", token);
+    public static void putSubtitleSourceEnvironment(String environment) {
+        Prefers.put("subtitle_source_environment", environment == null ? "" : environment.trim());
     }
 
     public static int getSubtitleAiMaxConcurrency() {

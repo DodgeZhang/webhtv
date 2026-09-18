@@ -3,7 +3,6 @@ package com.fongmi.android.tv.subtitle.provider;
 import android.util.Log;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.subtitle.source.SubtitleScriptRuntimeFactory;
 import com.fongmi.android.tv.subtitle.source.SubtitleSourceManager;
 import com.github.catvod.utils.Asset;
@@ -32,6 +31,7 @@ public final class SubtitleProviderRegistry {
 
     private static final String TAG = "SubtitleMatch";
     private static final int MAX_SEARCH_THREADS = 8;
+    private static final SubtitleProviderRegistry INSTANCE = new SubtitleProviderRegistry();
 
     private final Map<String, SubtitleProvider> providers;
     private SubtitleSourceManager builtinSourceManager;
@@ -39,6 +39,10 @@ public final class SubtitleProviderRegistry {
     public SubtitleProviderRegistry() {
         this.providers = new LinkedHashMap<>();
         if (!installBuiltinSources()) registerLegacyProviders();
+    }
+
+    public static SubtitleProviderRegistry get() {
+        return INSTANCE;
     }
 
     SubtitleProviderRegistry(SubtitleProvider... providers) {
@@ -52,15 +56,6 @@ public final class SubtitleProviderRegistry {
             JsonObject manifest = JsonParser.parseString(Asset.read("subtitle_sources/builtin/manifest.json")).getAsJsonObject();
             JsonArray subtitles = manifest.has("subtitles") && manifest.get("subtitles").isJsonArray()
                     ? manifest.getAsJsonArray("subtitles") : new JsonArray();
-            for (JsonElement element : subtitles) {
-                if (!element.isJsonObject()) continue;
-                JsonObject source = element.getAsJsonObject();
-                if (!"assrt".equals(source.has("key") ? source.get("key").getAsString() : "")) continue;
-                JsonObject params = source.has("params") && source.get("params").isJsonObject()
-                        ? source.getAsJsonObject("params") : new JsonObject();
-                params.addProperty("token", Setting.getSubtitleAssrtToken());
-                source.add("params", params);
-            }
             builtinSourceManager = new SubtitleSourceManager(this, new SubtitleScriptRuntimeFactory());
             return !builtinSourceManager.install("builtin", manifest.toString(), "assets://subtitle_sources/builtin/manifest.json").isEmpty();
         } catch (Throwable error) {

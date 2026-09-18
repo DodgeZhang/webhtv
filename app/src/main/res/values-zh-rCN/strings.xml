@@ -1325,7 +1325,11 @@
     <string name="player_osd">屏显设置</string>
     <string name="player_subtitle_auto_match">自动匹配字幕</string>
     <string name="player_subtitle_language">字幕偏好语言</string>
-    <string name="player_subtitle_assrt_token">射手网 Token</string>
+    <string name="player_subtitle_source_environment">环境变量（JSON）</string>
+    <string name="player_subtitle_source_environment_invalid">请输入有效的 JSON 对象</string>
+    <string name="player_subtitle_source">字幕源</string>
+    <string name="player_subtitle_source_count">已加载 %1$d 个</string>
+    <string name="player_subtitle_source_empty">暂无可用字幕源</string>
     <string name="player_subtitle_ai_max_concurrency">AI字幕最大并发数</string>
     <string name="player_subtitle_ai_chunk_count">AI字幕分块数量</string>
     <string name="subtitle_auto_match_hit">已自动匹配字幕：%1$s</string>
