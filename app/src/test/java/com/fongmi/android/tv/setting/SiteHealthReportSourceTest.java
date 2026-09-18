@@ -192,6 +192,17 @@ public class SiteHealthReportSourceTest {
         }
     }
 
+    @Test
+    public void terminalPlayerFailureReachesHostAfterFallbacksAreExhausted() throws Exception {
+        String player = read(mainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "player", "PlayerManager.java")));
+        String onPlayerError = methodBody(player, "public void onPlayerError(@NonNull PlaybackException e)");
+
+        int fallback = onPlayerError.indexOf("if (fallbackPlayback(e)) return;");
+        int terminalCallback = onPlayerError.indexOf("callback.onError(getPlaybackErrorMessage(failure))", fallback);
+        assertTrue("fallback handling is missing", fallback >= 0);
+        assertTrue("terminal errors must reach the host after fallback exhaustion", terminalCallback > fallback);
+    }
+
     private static String methodBody(String source, String signature) {
         int start = source.indexOf(signature);
         assertTrue(signature + " is missing", start >= 0);
