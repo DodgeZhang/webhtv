@@ -293,3 +293,11 @@
 4. 上游新增二进制/测试资产按目标版本覆盖并完成哈希/ELF/资产门禁；不把仅编译通过扩大为实机播放结论。
 5. 受影响 Mobile/Leanback Java 编译和定向测试通过；按风险执行双 ABI/native 资产验证。
 6. C4 文档、评估索引和 merge provenance 更新；原子提交并创建本地 annotated recovery tag，不推送。
+
+## 检查点 61：2026-09-18 dev4 合并后代码复审
+
+- 基线：`dev4@710e1bd520796f5be7466fe75b05903112c6df37`；目标：评审该 merge commit 相对 `origin/beta@ac39115dd99c43b861e0a255c7b7a407af2855b2` 的全部已提交未推送改动。
+- 第一轮评审发现 `app/build.gradle` 重复声明 `testInstrumentationRunner` 和 `testImplementation libs.junit`，并同时使用硬编码 `androidx.test:runner:1.7.0` 与版本目录中的 `1.6.2`。修复为单一 runner 声明、单一 JUnit test 依赖，并将版本目录统一为上游的 `1.7.0`。
+- 修复验证：`mobileArm64_v8aDebugAndroidTestRuntimeClasspath` 解析成功，`androidx.test:runner:1.7.0` 生效；Mobile/Leanback arm64-v8a Debug Java 编译 `BUILD SUCCESSFUL`；`git diff --check` 通过。
+- 第二轮评审：重新获取远端后，`origin/beta` 与 `upstream/main` 均仍为 HEAD 祖先；合并提交无冲突标记、无 staged/working-tree whitespace 错误，构建配置重复项已清除，未发现新的集成问题。
+- 下一动作：提交本轮构建配置修正，推送 `dev4`，创建至 `beta` 的 PR，并在完成后拉取远端最新状态。
