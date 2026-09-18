@@ -41,13 +41,32 @@ public final class SubtitleSettingsDialog {
         LightDialog.apply(dialog);
     }
 
-    public static void showSourceSummary(FragmentActivity activity, java.util.List<String> providerNames, Runnable onSaved) {
+    public static void showSourceSummary(FragmentActivity activity, java.util.List<com.fongmi.android.tv.subtitle.provider.SubtitleProvider> providers, Runnable onSaved) {
         if (activity == null) return;
-        String names = providerNames == null || providerNames.isEmpty() ? activity.getString(R.string.player_subtitle_source_empty) : TextUtils.join("\n", providerNames);
+        if (providers == null || providers.isEmpty()) {
+            AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog)
+                    .setTitle(R.string.player_subtitle_source)
+                    .setMessage(R.string.player_subtitle_source_empty)
+                    .setPositiveButton(R.string.dialog_positive, null)
+                    .show();
+            LightDialog.apply(dialog);
+            return;
+        }
+        String[] names = new String[providers.size()];
+        for (int i = 0; i < providers.size(); i++) names[i] = providers.get(i).getName();
+        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog)
+                .setTitle(R.string.player_subtitle_source)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setItems(names, (d, which) -> showSourceEnvironment(activity, providers.get(which), onSaved))
+                .show();
+        LightDialog.apply(dialog);
+    }
+
+    private static void showSourceEnvironment(FragmentActivity activity, com.fongmi.android.tv.subtitle.provider.SubtitleProvider provider, Runnable onSaved) {
         TextInputEditText input = new TextInputEditText(activity);
         input.setSingleLine(false);
         input.setMinLines(4);
-        input.setText(Setting.getSubtitleSourceEnvironment());
+        input.setText(Setting.getSubtitleSourceEnvironment(provider.getKey()));
         TextInputLayout layout = new TextInputLayout(activity);
         layout.setHint(activity.getString(R.string.player_subtitle_source_environment));
         layout.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);
@@ -56,13 +75,9 @@ public final class SubtitleSettingsDialog {
         container.setOrientation(LinearLayout.VERTICAL);
         int horizontal = dp(activity, 20);
         container.setPadding(horizontal, dp(activity, 8), horizontal, 0);
-        android.widget.TextView summary = new android.widget.TextView(activity);
-        summary.setText(names);
-        summary.setPadding(0, 0, 0, dp(activity, 12));
-        container.addView(summary);
         container.addView(layout);
         AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog)
-                .setTitle(R.string.player_subtitle_source)
+                .setTitle(provider.getName())
                 .setView(container)
                 .setNegativeButton(R.string.dialog_negative, null)
                 .setPositiveButton(R.string.dialog_positive, null)
@@ -75,7 +90,7 @@ public final class SubtitleSettingsDialog {
                 layout.setError(activity.getString(R.string.player_subtitle_source_environment_invalid));
                 return;
             }
-            Setting.putSubtitleSourceEnvironment(value);
+            Setting.putSubtitleSourceEnvironment(provider.getKey(), value);
             if (onSaved != null) onSaved.run();
             dialog.dismiss();
         });

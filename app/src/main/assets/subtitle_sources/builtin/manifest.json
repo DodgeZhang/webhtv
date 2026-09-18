@@ -12,7 +12,7 @@
       "enabled": 1,
       "priority": 30,
       "protocolVersion": 1,
-      "params": {"token": ""},
+      "params": {"token": "${ASSRT_TOKEN}"},
       "languages": ["zh", "en"],
       "formats": ["srt", "ass", "ssa", "vtt"]
     },

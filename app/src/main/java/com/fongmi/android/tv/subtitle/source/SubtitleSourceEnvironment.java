@@ -16,8 +16,8 @@ public final class SubtitleSourceEnvironment {
     private SubtitleSourceEnvironment() {
     }
 
-    public static JsonObject resolve(JsonObject params) {
-        return resolve(params, load());
+    public static JsonObject resolve(String sourceKey, JsonObject params) {
+        return resolve(params, load(sourceKey));
     }
 
     static JsonObject resolve(JsonObject params, JsonObject environment) {
@@ -33,13 +33,13 @@ public final class SubtitleSourceEnvironment {
         return result;
     }
 
-    public static String resolveToken(String name) {
-        JsonElement value = load().get(name);
+    public static String resolveToken(String sourceKey, String name) {
+        JsonElement value = load(sourceKey).get(name);
         return value == null || value.isJsonNull() ? "" : value.getAsString();
     }
 
-    private static JsonObject load() {
-        String json = Setting.getSubtitleSourceEnvironment();
+    private static JsonObject load(String sourceKey) {
+        String json = Setting.getSubtitleSourceEnvironment(sourceKey);
         if (json.isEmpty()) return new JsonObject();
         try {
             JsonElement element = JsonParser.parseString(json);

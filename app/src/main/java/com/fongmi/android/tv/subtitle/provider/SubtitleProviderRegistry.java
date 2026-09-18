@@ -88,6 +88,10 @@ public final class SubtitleProviderRegistry {
         providers.remove(providerName);
     }
 
+    public List<SubtitleProvider> providers() {
+        return new ArrayList<>(providers.values());
+    }
+
     public List<String> providerNames() {
         return new ArrayList<>(providers.keySet());
     }

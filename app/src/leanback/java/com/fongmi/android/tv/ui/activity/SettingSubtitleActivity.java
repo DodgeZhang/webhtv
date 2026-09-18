@@ -65,7 +65,7 @@ public class SettingSubtitleActivity extends BaseActivity {
     }
 
     private void onSubtitleSource(View view) {
-        SubtitleSettingsDialog.showSourceSummary(this, SubtitleProviderRegistry.get().providerNames(), () -> mBinding.subtitleAssrtTokenText.setText(getSubtitleSourceText()));
+        SubtitleSettingsDialog.showSourceSummary(this, SubtitleProviderRegistry.get().providers(), () -> mBinding.subtitleAssrtTokenText.setText(getSubtitleSourceText()));
     }
 
     private String getSubtitleLanguageText() {

@@ -65,7 +65,7 @@ public class SettingSubtitleFragment extends BaseFragment {
     }
 
     private void onSubtitleSource(View view) {
-        SubtitleSettingsDialog.showSourceSummary(requireActivity(), SubtitleProviderRegistry.get().providerNames(), () -> mBinding.subtitleAssrtTokenText.setText(getSubtitleSourceText()));
+        SubtitleSettingsDialog.showSourceSummary(requireActivity(), SubtitleProviderRegistry.get().providers(), () -> mBinding.subtitleAssrtTokenText.setText(getSubtitleSourceText()));
     }
 
     private String getSubtitleLanguageText() {

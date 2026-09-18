@@ -44,6 +44,11 @@ public final class T3SubtitleProvider implements SubtitleProvider {
     }
 
     @Override
+    public String getKey() {
+        return source.getKey();
+    }
+
+    @Override
     public boolean isEnabled() {
         return source.isEnabled();
     }
@@ -68,6 +73,6 @@ public final class T3SubtitleProvider implements SubtitleProvider {
     }
 
     private void refreshSensitiveParams() {
-        source.setParams(SubtitleSourceEnvironment.resolve(source.getParams()));
+        source.setParams(SubtitleSourceEnvironment.resolve(source.getKey(), source.getParams()));
     }
 }
