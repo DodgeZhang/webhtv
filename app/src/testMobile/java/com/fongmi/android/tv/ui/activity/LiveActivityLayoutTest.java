@@ -180,6 +180,29 @@ public class LiveActivityLayoutTest {
     }
 
     @Test
+    public void liveConfigInitializationUsesRuntimeStateForMobileAndLeanback() throws Exception {
+        assertLiveConfigInitializationUsesRuntimeState(findMobileJavaPath());
+        assertLiveConfigInitializationUsesRuntimeState(findLeanbackJavaPath());
+    }
+
+    private static void assertLiveConfigInitializationUsesRuntimeState(Path javaRoot) throws Exception {
+        Path sourcePath = javaRoot.resolve(Path.of(
+                "com", "fongmi", "android", "tv", "ui", "activity", "LiveActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        String checkLiveBody = section(source, "private void checkLive()", "private Callback getCallback()");
+
+        assertFalse(sourcePath + " is missing checkLive", checkLiveBody.isEmpty());
+        assertTrue("checkLive must inspect the current LiveConfig state before loading",
+                checkLiveBody.contains("if (LiveConfig.isEmpty())"));
+        assertFalse("checkLive must not trust the potentially stale launch Intent empty flag",
+                checkLiveBody.contains("if (isEmpty())"));
+        assertTrue("an uninitialized LiveConfig must be initialized and loaded",
+                checkLiveBody.contains("LiveConfig.get().init().load(getCallback());"));
+        assertTrue("an already-loaded LiveConfig must continue directly to playback",
+                checkLiveBody.contains("getLive();"));
+    }
+
+    @Test
     public void playbackErrorCancelsStaleBufferingFallbackForMobileAndLeanback() throws Exception {
         assertPlaybackErrorCancelsStaleBufferingFallback(findMobileJavaPath());
         assertPlaybackErrorCancelsStaleBufferingFallback(findLeanbackJavaPath());

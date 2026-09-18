@@ -468,7 +468,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void checkLive() {
-        if (isEmpty()) {
+        if (LiveConfig.isEmpty()) {
             LiveConfig.get().init().load(getCallback());
         } else {
             getLive();
