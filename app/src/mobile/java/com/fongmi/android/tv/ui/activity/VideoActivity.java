@@ -1447,7 +1447,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         mR3 = this::setOrient;
         mR4 = this::showEmpty;
         mSeekProgressFallback = this::hideSeekProgressIfReady;
-        checkDanmakuImg();
         setRecyclerView();
         setVideoView();
         setViewModel();
@@ -1523,7 +1522,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         mBinding.control.right.rotate.setOnClickListener(view -> onRotate());
         mBinding.control.right.pip.setOnClickListener(guarded(this::onPiP));
         mBinding.control.fullscreen.setOnClickListener(guarded(this::onFullscreen));
-        mBinding.control.danmaku.setOnClickListener(view -> onDanmakuShow());
         mBinding.control.action.text.setOnClickListener(guardedView(this::onTrack));
         mBinding.control.action.audio.setOnClickListener(guardedView(this::onTrack));
         mBinding.control.action.video.setOnClickListener(guardedView(this::onTrack));
@@ -4791,12 +4789,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         return isFullscreen();
     }
 
-    private void onDanmakuShow() {
-        DanmakuSetting.putShow(!DanmakuSetting.isShow());
-        checkDanmakuImg();
-        showDanmaku();
-    }
-
     private void onRepeat() {
         invalidateShortDramaQueue("repeat");
         player().setRepeatOne(!player().isRepeatOne());
@@ -5378,8 +5370,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         mBinding.control.action.danmaku.setVisibility(DanmakuSetting.isLoad() ? View.VISIBLE : View.GONE);
         mBinding.control.action.adFeedback.setVisibility(isAdFeedbackEnabled() ? View.VISIBLE : View.GONE);
         applyActionButtonVisibility();
-        // 顶部弹幕图标只根据锁定状态和弹幕可用性显示。
-        if (mBinding.control.getRoot().getVisibility() == View.VISIBLE) mBinding.control.danmaku.setVisibility(isLock() || !player().haveDanmaku() ? View.GONE : View.VISIBLE);
     }
 
     private void showControl() {
@@ -5394,8 +5384,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         boolean shortDrama = isShortDramaSession();
         boolean showPiP = canShowPiP(shortDrama);
         hideWidgetOverlay();
-        // 顶部弹幕图标只根据锁定状态和弹幕可用性显示。
-        mBinding.control.danmaku.setVisibility(isLock() || !player().haveDanmaku() ? View.GONE : View.VISIBLE);
         mBinding.control.setting.setVisibility(mHistory == null || (isFullscreen() && !shortDrama) ? View.GONE : View.VISIBLE);
         mBinding.control.right.getRoot().setVisibility(isFullscreen() || showPiP ? View.VISIBLE : View.GONE);
         mBinding.control.right.rotate.setVisibility(isFullscreen() && !isLock() ? View.VISIBLE : View.GONE);
@@ -5973,10 +5961,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     private void checkFullscreenImg() {
         mBinding.control.fullscreen.setImageResource(isFullscreen() ? R.drawable.ic_control_fullscreen_exit : R.drawable.ic_control_fullscreen);
-    }
-
-    private void checkDanmakuImg() {
-        mBinding.control.danmaku.setImageResource(DanmakuSetting.isShow() ? R.drawable.ic_control_danmaku_on : R.drawable.ic_control_danmaku_off);
     }
 
     private void createKeep() {
@@ -9190,7 +9174,6 @@ private void checkOrientation() {
      */
     private View[] getShortDramaControlViews() {
         return new View[]{
-                mBinding.control.danmaku,
                 mBinding.control.cast,
                 mBinding.control.keep,
                 mBinding.control.shortDramaChangeSource,
