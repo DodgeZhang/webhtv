@@ -7454,6 +7454,11 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     }
 
     @Override
+    protected void onFirstFrameRendered() {
+        recordPlayHealth(true, "");
+    }
+
+    @Override
     protected void onStateChanged(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
@@ -7462,7 +7467,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
                 break;
             case Player.STATE_READY:
                 if (mPendingKaraokeResult == null) mKaraokeResultShown = false;
-                recordPlayHealth(true, "");
                 showPlaybackContent();
                 boolean pendingResumeSeekApplied = applyPendingResumeSeek();
                 checkControl();

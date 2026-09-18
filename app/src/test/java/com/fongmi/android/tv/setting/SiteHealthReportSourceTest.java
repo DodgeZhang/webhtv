@@ -157,6 +157,19 @@ public class SiteHealthReportSourceTest {
         assertTrue(dialog.contains("site_health_report_ad_blocked, playCount, blocked"));
     }
 
+    @Test
+    public void playbackHealthCountsSuccessOnlyAfterFirstFrame() throws Exception {
+        String leanback = read(sourcePath("leanback", "java").resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java")));
+        String mobile = read(sourcePath("mobile", "java").resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java")));
+
+        for (String source : new String[] {leanback, mobile}) {
+            String firstFrame = methodBody(source, "protected void onFirstFrameRendered()");
+            String stateChanged = methodBody(source, "protected void onStateChanged(int state)");
+            assertTrue(firstFrame.contains("recordPlayHealth(true, \"\")"));
+            assertFalse(stateChanged.contains("recordPlayHealth(true, \"\")"));
+        }
+    }
+
     private static String methodBody(String source, String signature) {
         int start = source.indexOf(signature);
         assertTrue(signature + " is missing", start >= 0);

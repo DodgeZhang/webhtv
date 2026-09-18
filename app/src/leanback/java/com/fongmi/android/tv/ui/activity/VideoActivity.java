@@ -5635,6 +5635,11 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
     }
 
     @Override
+    protected void onFirstFrameRendered() {
+        recordPlayHealth(true, "");
+    }
+
+    @Override
     protected void onStateChanged(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
@@ -5642,7 +5647,6 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
                 break;
             case Player.STATE_READY:
                 mKaraokeResultShown = false;
-                recordPlayHealth(true, "");
                 showPlaybackContent();
                 boolean pendingResumeSeekApplied = applyPendingResumeSeek();
                 refreshLyrics();
