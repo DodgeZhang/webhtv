@@ -99,6 +99,12 @@ public class PreCachePolicyTest {
         assertEquals(0, PreCachePolicy.preloadResumeWatermarkMs(10_000, 20_000));
     }
 
+    @Test
+    public void completedRangesWaitBeforeStartingAnotherTask() {
+        assertEquals(5_000, PreCachePolicy.nextRangeDelayMs(true));
+        assertEquals(0, PreCachePolicy.nextRangeDelayMs(false));
+    }
+
     private static long target(boolean recovery, long remainingMs, double bitrateMbps, double capacityMib) {
         long bitrate = Math.round(bitrateMbps * 1_000_000);
         int capacity = (int) Math.round(capacityMib * 1024 * 1024);

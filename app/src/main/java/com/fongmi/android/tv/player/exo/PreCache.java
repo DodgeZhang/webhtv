@@ -114,6 +114,7 @@ public class PreCache implements Player.Listener {
     private boolean memoryPreloadPaused;
     private BufferGate bufferGate;
     private long preloadNotBeforeMs = C.TIME_UNSET;
+    private long nextRangeNotBeforeMs = C.TIME_UNSET;
     private AutoPreloadPolicy autoPolicy;
     private PlaybackAutoContext.SessionToken autoSession = PlaybackAutoContext.SessionToken.none();
     private AutoPreloadPolicy.Inputs lastAutoInputs;
@@ -195,6 +196,7 @@ public class PreCache implements Player.Listener {
         diskPreloadCircuitOpen = false;
         bufferGate = BufferGate.FIRST_FRAME;
         preloadNotBeforeMs = C.TIME_UNSET;
+        nextRangeNotBeforeMs = C.TIME_UNSET;
         this.player.addListener(this);
         PlaybackCacheMetrics.Snapshot cacheMetrics = PlaybackCacheMetrics.snapshot();
         logSession(lifecycle.beginSession(), "generation=%d %s configuredThreads=%d effectiveThreads=%d durationTargetMs=%d aheadTargetMs=%d pausePolicy=%d cacheCapacityBytes=%d cachedBytesRead=%d cacheSizeBytes=%d", generation, this.routeResolution.logSummary(), PreloadSetting.getPreloadThreads(PlayerSetting.EXO), threads, PreloadSetting.getPreloadDurationMs(PlayerSetting.EXO), PreloadSetting.getPreloadAheadDurationMs(PlayerSetting.EXO), PreloadSetting.getPausePreloadPolicy(PlayerSetting.EXO), MediaSourceFactory.getCacheCapacityBytes(), cacheMetrics.cachedBytesRead(), cacheMetrics.cacheSizeBytes());
@@ -256,6 +258,7 @@ public class PreCache implements Player.Listener {
         memoryPreloadPaused = false;
         bufferGate = BufferGate.FIRST_FRAME;
         preloadNotBeforeMs = C.TIME_UNSET;
+        nextRangeNotBeforeMs = C.TIME_UNSET;
     }
 
     public void release() {
@@ -356,6 +359,11 @@ public class PreCache implements Player.Listener {
             return;
         }
         cancel();
+        long nowMs = SystemClock.elapsedRealtime();
+        if (nextRangeNotBeforeMs != C.TIME_UNSET && nowMs < nextRangeNotBeforeMs) {
+            scheduleAt(expectedGeneration, nextRangeNotBeforeMs - nowMs);
+            return;
+        }
         if (update()) schedule(generation);
     }
 
@@ -560,9 +568,14 @@ public class PreCache implements Player.Listener {
     }
 
     private void schedule(long expectedGeneration) {
+        scheduleAt(expectedGeneration, TICK_MS);
+    }
+
+    private void scheduleAt(long expectedGeneration, long delayMs) {
         if (handler == null || expectedGeneration != generation) return;
+        cancel();
         scheduledTask = () -> check(expectedGeneration);
-        handler.postDelayed(scheduledTask, TICK_MS);
+        handler.postDelayed(scheduledTask, Math.max(0, delayMs));
     }
 
     private void cancel() {
@@ -1152,15 +1165,20 @@ public class PreCache implements Player.Listener {
         if (outcome == PreloadLifecycleTracker.TaskEvent.Outcome.COMPLETED) {
             preloadFailureStreak = 0;
             diskBufferStore.recordCompleted(mediaKey, event.startMs(), saturatedAdd(event.startMs(), event.lengthMs()));
+            nextRangeNotBeforeMs = saturatedAdd(
+                    SystemClock.elapsedRealtime(),
+                    PreCachePolicy.nextRangeDelayMs(true));
             requestImmediateCheck(event.generation());
         }
         return event;
     }
 
     private void requestImmediateCheck(long expectedGeneration) {
-        Handler currentHandler = handler;
-        if (currentHandler == null) return;
-        currentHandler.post(() -> check(expectedGeneration));
+        if (handler == null) return;
+        long delayMs = nextRangeNotBeforeMs == C.TIME_UNSET
+                ? 0
+                : Math.max(0, nextRangeNotBeforeMs - SystemClock.elapsedRealtime());
+        scheduleAt(expectedGeneration, delayMs);
     }
 
     private static long saturatedAdd(long value, long increment) {

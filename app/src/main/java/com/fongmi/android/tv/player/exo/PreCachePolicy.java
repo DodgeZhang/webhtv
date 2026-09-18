@@ -5,6 +5,7 @@ final class PreCachePolicy {
     static final long INITIAL_SAFE_BUFFER_MS = 5_000;
     static final long RECOVERY_SAFE_BUFFER_MS = 8_000;
     static final long PLAYBACK_STABILITY_GRACE_MS = 5_000;
+    static final long NEXT_RANGE_DELAY_MS = 5_000;
     private static final long INITIAL_IDLE_FLOOR_MS = 2_000;
     private static final long RECOVERY_IDLE_FLOOR_MS = 3_000;
     private static final int CAPACITY_HEADROOM_PERCENT = 80;
@@ -41,6 +42,10 @@ final class PreCachePolicy {
             boolean loading) {
         return playing && !loading && nowMs >= 0 && preloadNotBeforeMs >= 0
                 && nowMs >= preloadNotBeforeMs;
+    }
+
+    static long nextRangeDelayMs(boolean completed) {
+        return completed ? NEXT_RANGE_DELAY_MS : 0;
     }
 
     static long preloadLengthMs(long configuredLengthMs, long remainingMs, long bitrateBitsPerSecond, long cacheCapacityBytes) {
