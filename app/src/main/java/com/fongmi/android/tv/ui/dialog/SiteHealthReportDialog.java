@@ -257,6 +257,8 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
         header.addView(toggle, new LinearLayoutCompat.LayoutParams(dp(20), LinearLayoutCompat.LayoutParams.WRAP_CONTENT));
 
         root.addView(metaText(getString(R.string.site_health_report_row_meta, row.sampleCount(), row.failureCount())));
+        addStage(root, R.string.site_health_stage_home, row.home);
+        addStage(root, R.string.site_health_stage_category, row.category);
         addStage(root, R.string.site_health_stage_search, row.search);
         addStage(root, R.string.site_health_stage_detail, row.detail);
         addStage(root, R.string.site_health_stage_parse, row.parse);
@@ -328,6 +330,8 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
         LinearLayoutCompat.LayoutParams params = new LinearLayoutCompat.LayoutParams(LinearLayoutCompat.LayoutParams.MATCH_PARENT, LinearLayoutCompat.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, dp(8), 0, 0);
         block.setLayoutParams(params);
+        addRecentError(block, R.string.site_health_stage_home, row.home);
+        addRecentError(block, R.string.site_health_stage_category, row.category);
         addRecentError(block, R.string.site_health_stage_search, row.search);
         addRecentError(block, R.string.site_health_stage_detail, row.detail);
         addRecentError(block, R.string.site_health_stage_parse, row.parse);

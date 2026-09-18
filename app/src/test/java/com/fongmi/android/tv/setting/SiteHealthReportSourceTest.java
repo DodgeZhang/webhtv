@@ -15,6 +15,13 @@ public class SiteHealthReportSourceTest {
     public void siteHealthStoreExposesFourStageReportWithoutChangingSortScore() throws Exception {
         String source = read(mainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "setting", "SiteHealthStore.java")));
 
+        assertTrue(source.contains("public static void recordHome"));
+        assertTrue(source.contains("public static void recordCategory"));
+        String api = read(mainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "api", "SiteApi.java")));
+        assertTrue(api.contains("SiteHealthStore.recordHome(site, true"));
+        assertTrue(api.contains("SiteHealthStore.recordHome(site, false"));
+        assertTrue(api.contains("SiteHealthStore.recordCategory(key, true"));
+        assertTrue(api.contains("SiteHealthStore.recordCategory(key, false"));
         assertTrue(source.contains("public static void recordSearch"));
         assertTrue(source.contains("public static void recordDetail"));
         assertTrue(source.contains("public static void recordParse"));
@@ -100,6 +107,8 @@ public class SiteHealthReportSourceTest {
         assertTrue(reportLayout.contains("@string/site_health_report_search_hint"));
         assertTrue(reportSource.contains("binding.search.addTextChangedListener"));
         assertTrue(reportSource.contains("row.siteName.toLowerCase(Locale.ROOT).contains(query)"));
+        assertTrue(reportSource.contains("R.string.site_health_stage_home, row.home"));
+        assertTrue(reportSource.contains("R.string.site_health_stage_category, row.category"));
         assertTrue(reportLayout.contains("@+id/filterAll"));
         assertTrue(reportLayout.contains("@+id/filterBad"));
         assertTrue(reportLayout.contains("@+id/filterWarn"));
