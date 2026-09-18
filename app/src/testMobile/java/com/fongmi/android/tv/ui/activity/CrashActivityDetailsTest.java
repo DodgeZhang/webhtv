@@ -15,6 +15,14 @@ import javax.xml.parsers.DocumentBuilderFactory;
 public class CrashActivityDetailsTest {
 
     @Test
+    public void foregroundCrashAlwaysShowsTheCustomRecoveryScreen() throws Exception {
+        String source = read("app/src/main/java/com/fongmi/android/tv/Startup.java");
+        assertTrue("Foreground crashes must open CrashActivity instead of silently terminating",
+                source.contains("backgroundMode(CaocConfig.BACKGROUND_MODE_SHOW_CUSTOM)"));
+        assertTrue(source.contains("errorActivity(CrashActivity.class)"));
+    }
+
+    @Test
     public void errorDetailsUseTheFullBuildVersionShownByAbout() throws Exception {
         String source = read("app/src/main/java/com/fongmi/android/tv/ui/activity/CrashActivity.java");
         int message = source.indexOf(".setMessage(getString(R.string.crash_details_message");
