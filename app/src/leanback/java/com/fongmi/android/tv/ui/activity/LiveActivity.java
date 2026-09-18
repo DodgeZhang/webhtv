@@ -571,6 +571,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     @Override
     protected void onError(String msg) {
+        App.removeCallbacks(mBufferingTimeout);
         Track.delete(player().getKey());
         player().resetTrack();
         player().reset();

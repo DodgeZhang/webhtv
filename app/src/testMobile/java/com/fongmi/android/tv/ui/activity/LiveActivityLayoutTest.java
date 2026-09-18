@@ -180,6 +180,25 @@ public class LiveActivityLayoutTest {
     }
 
     @Test
+    public void playbackErrorCancelsStaleBufferingFallbackForMobileAndLeanback() throws Exception {
+        assertPlaybackErrorCancelsStaleBufferingFallback(findMobileJavaPath());
+        assertPlaybackErrorCancelsStaleBufferingFallback(findLeanbackJavaPath());
+    }
+
+    private static void assertPlaybackErrorCancelsStaleBufferingFallback(Path javaRoot) throws Exception {
+        Path sourcePath = javaRoot.resolve(Path.of(
+                "com", "fongmi", "android", "tv", "ui", "activity", "LiveActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        String onErrorBody = section(source, "protected void onError(String msg)", "protected void onReload(String msg)");
+
+        assertFalse(sourcePath + " is missing onError", onErrorBody.isEmpty());
+        assertTrue("a playback error must cancel the stale buffering timeout before fallback",
+                onErrorBody.contains("App.removeCallbacks(mBufferingTimeout);")
+                        && onErrorBody.indexOf("App.removeCallbacks(mBufferingTimeout);")
+                        < onErrorBody.indexOf("startFlow();"));
+    }
+
+    @Test
     public void playbackEndStaysOnCurrentChannelForMobileAndLeanback() throws Exception {
         assertPlaybackEndStaysOnCurrentChannel(findMobileJavaPath());
         assertPlaybackEndStaysOnCurrentChannel(findLeanbackJavaPath());

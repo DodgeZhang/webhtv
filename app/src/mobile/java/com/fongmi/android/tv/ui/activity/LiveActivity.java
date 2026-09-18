@@ -1443,6 +1443,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     @Override
     protected void onError(String msg) {
+        App.removeCallbacks(mBufferingTimeout);
         Track.delete(player().getKey());
         player().resetTrack();
         player().reset();
