@@ -57,18 +57,23 @@ public class FollowingSourceProbe {
 
     static Flag chooseFlag(Vod vod, String preferred) {
         if (vod == null || vod.getFlags() == null) return null;
+        Flag preferredFlag = null;
         Flag fallback = null;
         int fallbackCount = -1;
         for (Flag flag : vod.getFlags()) {
             if (flag == null) continue;
-            if (!TextUtils.isEmpty(preferred) && preferred.equals(flag.getFlag())) return flag;
+            if (!TextUtils.isEmpty(preferred) && preferred.equals(flag.getFlag())) {
+                preferredFlag = flag;
+                continue;
+            }
             int count = validCount(flag);
             if (count > fallbackCount) {
                 fallback = flag;
                 fallbackCount = count;
             }
         }
-        return fallback;
+        if (preferredFlag != null && validCount(preferredFlag) > 0) return preferredFlag;
+        return fallbackCount > 0 ? fallback : null;
     }
 
     private static int validCount(Flag flag) {
