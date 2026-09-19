@@ -491,8 +491,9 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void getLive() {
-        renderLive(getHome());
-        mViewModel.parse(getHome());
+        Live live = getHome();
+        if (!live.getGroups().isEmpty()) renderLive(live);
+        mViewModel.parse(live);
         showProgress();
     }
 
@@ -1570,7 +1571,6 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     @Override
     public void setLive(Live item) {
-        if (item.isSelected()) item.getGroups().clear();
         LiveConfig.get().setHome(item);
         player().reset();
         player().clear();

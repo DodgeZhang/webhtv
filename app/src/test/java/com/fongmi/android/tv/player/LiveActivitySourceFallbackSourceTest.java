@@ -46,6 +46,28 @@ public class LiveActivitySourceFallbackSourceTest {
         }
     }
 
+    @Test
+    public void mobileSelectionWaitsForAsyncParseBeforeDecidingFallback() throws Exception {
+        Path path = Path.of("src/mobile/java/com/fongmi/android/tv/ui/activity/LiveActivity.java");
+        String source = Files.readString(path, StandardCharsets.UTF_8);
+        String body = section(source, "private void getLive()", "private void renderLive(Live live)");
+
+        assertTrue(path.toString(), body.contains("Live live = getHome();"));
+        assertTrue(path.toString(), body.contains("if (!live.getGroups().isEmpty()) renderLive(live);"));
+        assertTrue(path.toString(), body.contains("mViewModel.parse(live);"));
+        assertFalse(path.toString(), body.contains("renderLive(getHome());"));
+    }
+
+    @Test
+    public void selectingCurrentSourceKeepsRenderedGroupsUntilParseCompletes() throws Exception {
+        for (Path path : List.of(
+                Path.of("src/leanback/java/com/fongmi/android/tv/ui/activity/LiveActivity.java"),
+                Path.of("src/mobile/java/com/fongmi/android/tv/ui/activity/LiveActivity.java"))) {
+            String source = Files.readString(path, StandardCharsets.UTF_8);
+            assertFalse(path.toString(), source.contains("if (item.isSelected()) item.getGroups().clear();"));
+        }
+    }
+
     private static void assertFetchTimeoutIsReplaced(Path path) throws Exception {
         String source = Files.readString(path, StandardCharsets.UTF_8);
         String expected = "App.removeCallbacks(mBufferingTimeout);\n"
@@ -61,5 +83,11 @@ public class LiveActivitySourceFallbackSourceTest {
             offset += target.length();
         }
         return count;
+    }
+
+    private static String section(String source, String start, String end) {
+        int from = source.indexOf(start);
+        int to = source.indexOf(end, from);
+        return from < 0 || to < 0 ? "" : source.substring(from, to);
     }
 }
