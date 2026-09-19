@@ -313,6 +313,6 @@
 - 冲突与处理：仅评估索引冲突；本地已清空旧任务队列，因此不恢复上游旧队列行，改把 E4 最新状态并入本地“新增产品需求”索引。代码、JNI 源码和产物按真实 merge 自动纳入。
 - 验证状态：已完成。`bash ./gradlew :app:assembleMobileArm64_v8aDebug :app:assembleMobileArm64_v8aDebugAndroidTest --console=plain` 在 1 分钟内 `BUILD SUCCESSFUL`；在 `V1923A` arm64 真机运行上游修复相关定向集，4 项 `AssVideoPolicyTest`、1 项 native HDR/SDR RGB 与暂停时间点重绘、1 项官方 blur/transform 共 6/6 通过。
 - 产物证据：仓库、APK、manifest 与 provenance 的 `libexo_ass.so` SHA-256 均为 `31e04a1d26c606dd2f5df0b0b81f2916ed0b29c13b3415515a77cff540e83cc2`；`exo_ass.cpp` 源哈希为 `b333e896881a9a13a8a618cc147a5472914b7570290264db732bda624f4f8470`，与 provenance 一致。2026-09-19 复检 `upstream/main` 仍为 `2623cb812ea842b676bc7d8db699c1a7e70b8e1e`。
-- 已知非本轮失败：同组 `AssPlaybackTest#testPauseDelaySurfaceFallbackSeekTracksAndRelease` 无法启动 debug Activity，因为测试硬编码 `com.fongmi.android.tv`，而本地 `dev3` 的 `applicationId` 为 `com.silent.android.webhtv`；本轮 diff 不含 `AssPlaybackTest.java` 或 `app/build.gradle`，因此归类为既有本地夹具契约不一致，不把它冒充上游修复回归，也不在本合并任务中扩围修改。
+- 已知非本轮失败：同组 `AssPlaybackTest#testPauseDelaySurfaceFallbackSeekTracksAndRelease` 无法启动 debug Activity，因为测试硬编码 `com.fongmi.android.tv`，而本地 `dev3` 的 `applicationId` 为 `com.silent.android.webhtv`；本轮 diff 不含 `AssPlaybackTest.java` 或 `app/build.gradle`，因此归类为既有本地夹具契约不一致，不把它冒充上游修复回归，也不在本合并任务中扩围修改。故 7 项设备用例中仅 6 项修复相关用例通过，不能记录为 7/7 全部通过。
 - 风险边界：本轮验证覆盖合并后的 Java/JNI 构建路径和修复相关的原生/策略断言，不声称 HDR/DV 原片逐像素或性能已重新量化；该边界与上游第 17.5 节一致。
-- 唯一下一步：由当前 `C4/upstream` guard 原子提交双亲 merge 和文档，并立即创建本地 annotated recovery tag；不推送。
+- 唯一下一步：由当前 `C4/upstream` guard 原子提交本轮复评文档并创建本地 annotated recovery tag；随后推送当前 `dev3` 分支及该 recovery tag，创建中文 PR 合入 `beta`，最后拉取远端最新代码。
