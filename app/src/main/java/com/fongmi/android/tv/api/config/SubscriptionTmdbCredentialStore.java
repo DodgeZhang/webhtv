@@ -70,8 +70,29 @@ public final class SubscriptionTmdbCredentialStore {
         }
     }
 
+    public static Snapshot snapshot(Scope scope) {
+        if (scope == null) return Snapshot.empty(currentScope().getEpoch());
+        return snapshot(scope.configId, scope.configUrl, scope.epoch);
+    }
+
+    public static boolean isCurrent(Scope scope) {
+        if (scope == null) return false;
+        String normalizedUrl = normalizeUrl(scope.configUrl);
+        synchronized (LOCK) {
+            return scope.available && hasScope && configId == scope.configId && configUrl.equals(normalizedUrl) && scopeEpoch == scope.epoch;
+        }
+    }
+
     public static void clear() {
         synchronized (LOCK) {
+            scopeEpoch++;
+            clearCredential();
+        }
+    }
+
+    public static void discardCredential() {
+        synchronized (LOCK) {
+            if (apiKey.isEmpty()) return;
             scopeEpoch++;
             clearCredential();
         }

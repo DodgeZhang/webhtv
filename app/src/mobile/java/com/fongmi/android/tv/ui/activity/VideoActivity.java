@@ -2385,7 +2385,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         item.checkContent(getTmdbVodContent());
         item.checkContent(getContent());
         applyIntentTmdbVodRemark(item);
-        TmdbConfig tmdbConfig = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+        TmdbConfig tmdbConfig = TmdbConfig.effectiveCurrent();
         TmdbSourcePayload sourcePayload = TmdbSourcePayloadParser.parse(item.getTmdb());
         TmdbBundle sourceBundle = TmdbSourceAdapter.toBundle(sourcePayload, item, tmdbConfig);
         TmdbSourceState sourceState = TmdbSourceAvailability.classify(item, sourcePayload, sourceBundle);
@@ -7837,8 +7837,9 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onConfigEvent(ConfigEvent event) {
-        if (isRedirect() || !event.isVod() || mParseAdapter == null) return;
-        mParseAdapter.reload();
+        if (isRedirect() || !event.isVod()) return;
+        if (mTmdbUIAdapter != null) mTmdbUIAdapter.invalidateSubscription();
+        if (mParseAdapter != null) mParseAdapter.reload();
     }
 
     /**

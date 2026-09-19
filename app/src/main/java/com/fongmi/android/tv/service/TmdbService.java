@@ -5,6 +5,7 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.api.config.SubscriptionTmdbCredentialStore;
 import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.bean.TmdbEpisode;
 import com.fongmi.android.tv.bean.TmdbItem;
@@ -593,12 +594,20 @@ public class TmdbService {
 
     private void ensureReady(TmdbConfig config) {
         if (!config.sanitize().isReady()) throw new IllegalStateException("请先配置 TMDB API Key");
+        ensureCredentialTransport(config);
     }
 
     private HttpUrl.Builder apiBuilder(String url, TmdbConfig config) {
+        ensureCredentialTransport(config);
         HttpUrl.Builder builder = HttpUrl.parse(url).newBuilder();
         if (TextUtils.isEmpty(config.getAccessToken())) builder.addQueryParameter("api_key", config.getApiKey());
         return builder;
+    }
+
+    private void ensureCredentialTransport(TmdbConfig config) {
+        if (config != null && config.isTransientSubscriptionCredential() && !TmdbConfig.isOfficialApiBase(config.getApiBase())) {
+            throw new IllegalStateException("TMDB 临时凭据仅允许访问官方 HTTPS API");
+        }
     }
 
     void throwIfAuthBlocked(TmdbConfig config) {
@@ -616,6 +625,7 @@ public class TmdbService {
 
     RuntimeException httpFailure(TmdbConfig config, int statusCode, String message) {
         if (statusCode == 401 || statusCode == 403) {
+            if (config != null && config.isTransientSubscriptionCredential()) SubscriptionTmdbCredentialStore.clear();
             AUTH_FAILURE_BLOCKS.put(authCircuitKey(config), System.currentTimeMillis() + AUTH_FAILURE_COOLDOWN);
             SpiderDebug.log("tmdb", "authentication circuit opened status=%d cooldown=%dms", statusCode, AUTH_FAILURE_COOLDOWN);
             return new AuthException(statusCode, message);

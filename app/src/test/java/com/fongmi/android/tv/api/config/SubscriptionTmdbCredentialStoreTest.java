@@ -26,6 +26,8 @@ public class SubscriptionTmdbCredentialStoreTest {
         SubscriptionTmdbCredentialStore.Scope scope = SubscriptionTmdbCredentialStore.beginSubscription(1, "https://source.a/config/", "test");
 
         assertTrue(SubscriptionTmdbCredentialStore.accept(KEY_A, 1, "https://source.a/config", scope.getEpoch(), "site-a", "vod-1"));
+        assertEquals(KEY_A, SubscriptionTmdbCredentialStore.snapshot(scope).getApiKey());
+        assertTrue(SubscriptionTmdbCredentialStore.isCurrent(scope));
         assertFalse(SubscriptionTmdbCredentialStore.accept(KEY_B, 2, "https://source.a/config", scope.getEpoch(), "site-b", "vod-2"));
         assertFalse(SubscriptionTmdbCredentialStore.accept(KEY_B, 1, "https://source.b/config", scope.getEpoch(), "site-b", "vod-2"));
         assertFalse(SubscriptionTmdbCredentialStore.accept(KEY_B, 1, "https://source.a/config", scope.getEpoch() + 1, "site-b", "vod-2"));
@@ -67,9 +69,23 @@ public class SubscriptionTmdbCredentialStoreTest {
         SubscriptionTmdbCredentialStore.Scope current = SubscriptionTmdbCredentialStore.currentScope();
 
         assertNotEquals(old.getEpoch(), current.getEpoch());
+        assertFalse(SubscriptionTmdbCredentialStore.isCurrent(old));
         assertFalse(SubscriptionTmdbCredentialStore.accept(KEY_B, 3, "https://source.c/config", old.getEpoch(), "site-c", "vod-2"));
         assertTrue(SubscriptionTmdbCredentialStore.accept(KEY_B, 3, "https://source.c/config", current.getEpoch(), "site-c", "vod-2"));
         assertEquals(KEY_B, SubscriptionTmdbCredentialStore.snapshot(3, "https://source.c/config", current.getEpoch()).getApiKey());
         assertFalse(SubscriptionTmdbCredentialStore.snapshot(3, "https://source.c/config", current.getEpoch()).getFingerprint().contains(KEY_B));
+    }
+
+    @Test
+    public void discardCredentialReleasesKeyWithoutRepeatedEpochChurn() {
+        SubscriptionTmdbCredentialStore.Scope scope = SubscriptionTmdbCredentialStore.beginSubscription(6, "https://source.d/config", "test");
+        assertTrue(SubscriptionTmdbCredentialStore.accept(KEY_A, 6, "https://source.d/config", scope.getEpoch(), "site-d", "vod-1"));
+
+        SubscriptionTmdbCredentialStore.discardCredential();
+        SubscriptionTmdbCredentialStore.Scope current = SubscriptionTmdbCredentialStore.currentScope();
+        SubscriptionTmdbCredentialStore.discardCredential();
+
+        assertTrue(SubscriptionTmdbCredentialStore.snapshot(current).isEmpty());
+        assertEquals(current.getEpoch(), SubscriptionTmdbCredentialStore.currentScope().getEpoch());
     }
 }

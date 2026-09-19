@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已按“详情响应最外层 `tmdb_api_key` + 当前订阅接口临时凭据作用域”实施阶段 1：根字段已在日志、解析和缓存前剥离，订阅身份/epoch 内存作用域、切换清空与不落盘测试已通过；阶段 2-5 待继续。T4 服务端仍需在其独立仓库按本文合同实施。
+> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已按“详情响应最外层 `tmdb_api_key` + 当前订阅接口临时凭据作用域”实施阶段 1-2：根字段已在日志、解析和缓存前剥离；订阅身份/epoch 内存作用域、切换清空、用户配置优先、官方 HTTPS Base 白名单和旧异步结果隔离已由定向单测与 Mobile/Leanback Java 编译验证；阶段 3-5 待继续。T4 服务端仍需在其独立仓库按本文合同实施。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1-6 已完成本仓库 APP 侧协议、解析、合并、详情接入、延迟能力和设备验收。第 19 节是新增临时源 Key 能力的设计评审，不授权生产代码实施。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节阶段 A-E 已完成纯策略、设置解耦、独立页、原生增强和交互收口；阶段 F 已在 `V1923A/Android 9` 的 `192.168.50.3:5559` 完成无 Key Mobile/Leanback 设备验收。第 19 节阶段 1 已实现并通过定向单测。
-- 下一动作：完成第 19 节阶段 1 的原子提交和 recovery tag，然后实施阶段 2 的有效配置、官方 Base 白名单与异步 epoch 隔离。
+- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节阶段 A-E 已完成纯策略、设置解耦、独立页、原生增强和交互收口；阶段 F 已在 `V1923A/Android 9` 的 `192.168.50.3:5559` 完成无 Key Mobile/Leanback 设备验收。第 19 节阶段 1 已提交并打 tag；阶段 2 已实现并通过定向单测与双 flavor Java 编译。
+- 下一动作：完成第 19 节阶段 2 的原子提交和 recovery tag，然后实施阶段 3 的详情、季集、视频与推荐能力收口。
 
 ## 1. 设计结论
 
@@ -1919,10 +1919,23 @@ T3 爬虫和 T4 服务端：
 
 #### 阶段 1：根级剥离、订阅作用域和不落盘
 
-- 状态：代码与定向验证已完成，提交及 recovery tag 在本阶段收口时创建。
+- 状态：已完成并收口。
 - `TmdbSourceCredentialIngress`：在 T3/T4 共用入口剥离根级 `tmdb_api_key`，只接受去首尾空白后的 16-256 位可打印 ASCII Key；缺失时原样保留旧 JSON，非法、重复、非字符串、控制字符和超长值只丢弃候选 Key。
 - `SubscriptionTmdbCredentialStore`：Key 只存在于进程内当前订阅作用域；身份使用 `configId + normalizedUrl`，接口切换和显式清理递增 epoch，同一接口重载保留，A→B→A 不恢复旧 Key。
 - `SiteApi`：原始详情在 `SpiderDebug`、`Result` 解析和 `VodDetailCache` 之前统一剥离；只有详情列表有效、当前 epoch 匹配且用户未配置 TMDB Key 时才写入订阅作用域。
 - `VodConfig.config(Config)`：所有启动、切换和 failover 的统一入口调用 `beginSubscription()`；`clear()` 不无条件清除凭据。
 - 验证：`git diff --check` 通过；`bash ./gradlew --console=plain :app:testMobileArm64_v8aDebugUnitTest --tests 'com.fongmi.android.tv.api.TmdbSourceCredentialIngressTest' --tests 'com.fongmi.android.tv.api.config.SubscriptionTmdbCredentialStoreTest' --tests 'com.fongmi.android.tv.api.TmdbSourceCredentialWiringTest'` 返回 `BUILD SUCCESSFUL in 9s`，12 项测试通过。
+- 提交：`a50de802a1c2c3491088fa0307c0484bc95e7f1e`；tag：`recovery/C16-19-stage1/20260919190829-a50de802a1c2`。
 - 回滚：撤销本阶段提交即可恢复未知根字段被忽略的旧行为；若发现 Key 泄漏，必须先轮换源 Key 并停止源端投递。
+
+#### 阶段 2：有效配置、接口内复用与切换竞态
+
+- 状态：代码与定向验证已完成，提交及 recovery tag 在本阶段收口时创建。
+- `TmdbConfig.effectiveCurrent()` / `effective()`：用户 `apiKey` 或 `accessToken` 始终优先；无用户配置时，当前订阅快照才生成 `TRANSIENT_SUBSCRIPTION` 配置，并固定使用 `https://api.tmdb.org/3`，保留语言和图片配置；临时配置的 `toJson()` 不包含源 Key。
+- 官方 Base 白名单：仅允许 HTTPS 的 `api.tmdb.org/3` 与 `api.themoviedb.org/3`，拒绝端口、用户信息、查询、附加路径、HTTP 和自定义镜像；`TmdbService` 在请求构造前再次防守。
+- `TmdbUIAdapter`：构造和每次 `prefetch/load/autoMatch/search` 入口重新读取有效配置；本页保留订阅身份与 epoch，旧 epoch 的详情、匹配、季集、视频和推荐回调都不能通过 `isCurrentGeneration()` 写回；`ConfigEvent` 调用 `invalidateSubscription()` 取消旧任务。
+- Mobile/Leanback：详情运行策略改用有效配置；订阅切换事件使 Adapter 进入失效状态，不再复用旧接口任务。
+- `TmdbDetailActivity`：初始化与源详情返回后刷新有效配置；订阅切换触发详情重新加载，旧 generation 结果被丢弃。
+- `TmdbService`：源 Key 命中 401/403 时清理当前订阅临时作用域；熔断键仍只使用不可逆摘要，不记录 Key。
+- 验证：定向 15 项单测通过，Mobile 与 Leanback `Arm64_v8aDebug` Java 编译均返回 `BUILD SUCCESSFUL`；`git diff --check` 通过。
+- 回滚：撤销本阶段提交即可恢复用户配置直连和页面内固定配置；阶段 1 的剥离与内存作用域保持独立。
