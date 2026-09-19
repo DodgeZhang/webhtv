@@ -41,7 +41,7 @@ public class TmdbDetailSourcePayloadTest {
     public void legacyMatchingPathStartsOnlyAfterSourcePayloadDecision() throws Exception {
         String body = loadContentBody();
         int sourcePayload = body.indexOf("if (sourceBundle != null)");
-        int legacyFuture = body.indexOf("Future<TmdbLoadResult> tmdbFuture = tmdbConfig.isReady() && tmdbAllowed");
+        int legacyFuture = body.indexOf("Future<TmdbLoadResult> tmdbFuture = decision.networkAllowed()");
 
         assertTrue("legacy title matching must not be scheduled before source/payload parsing", sourcePayload > 0 && legacyFuture > sourcePayload);
     }
