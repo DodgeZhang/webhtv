@@ -1735,6 +1735,8 @@ dc2e3d4096b85d359c3cf79c5d72b5a3cccba3d6  test(following): verify activity rende
 fb6b5042f42bba4b8c45418cfbcde7a2ec8c1c29  fix(following): preserve source fallback and gate leanback entry
 b85a58209f51b553be1b68c4d1d5f0d772936882  feat(following): complete list filters and leanback badge
 8994c01086c917d05ec7959e813cc1afa8d8000a  fix(following): enforce season bounds and verify scheduler
+e64abf8df4341a5dc5f860ac695577b191673856  docs(following): record debug size and package constraint
+78471f77fd4192092c8d1a692ee0f3abeb681f13  test(following): verify backup restore and merge on device
 ```
 
 每个原子提交均由 `task_guard.sh` 创建独立 `recovery/FOLLOW-1-*` annotated tag；完整标签可在仓库中用 `git tag -l 'recovery/FOLLOW-1*'` 查询。回滚时可以回退到对应提交，也可以仅关闭 `following_enabled`；独立 `following.db` 不需要随 APK 降级删除。
@@ -1744,7 +1746,8 @@ b85a58209f51b553be1b68c4d1d5f0d772936882  feat(following): complete list filters
 ```text
 objective:         FOLLOW-1 P0–P5 代码、备份/同步、双端入口和手动 alist 导入已实施
 authority:         用户已要求按设计实施；当前已提交多个可回滚原子单元
-status:            implementation + available targeted/device verification complete; design completion item 6 (API 33+/TV/Doze/multi-device) not available
-next_action:       如需发布，由具备 API 33+ 手机和 TV 真机的环境执行完成定义第 6 条；当前实现无需继续改代码才能通过模拟器可覆盖的验证
+status:            implementation + all simulator-available targeted/device verification complete; design completion item 6 (API 33+/TV/Doze/multi-device) not available
+                          Release/package-size build intentionally excluded by explicit user constraint
+next_action:       如需完成正式发布验收，由具备 API 33+ 手机和 TV 真机的环境执行完成定义第 6 条；当前 5561 上没有剩余可执行的代码级验证
 rollback_anchor:   following_enabled=false + FollowingScheduler.cancelAll；不修改 AppDatabase v45
 ```
