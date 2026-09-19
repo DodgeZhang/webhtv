@@ -2809,4 +2809,8 @@
     <string name="following_server_empty">没有可导入的订阅</string>
     <string name="following_server_preview_title">待导入订阅</string>
     <string name="following_server_result">已导入 %1$d 条，更新 %2$d 条</string>
+    <string name="following_filter_updates">只看更新</string>
+    <string name="following_filter_all">显示全部</string>
+    <string name="following_filter_empty">当前没有未看更新的追更内容。</string>
+    <string name="setting_following">追更更新</string>
 </resources>

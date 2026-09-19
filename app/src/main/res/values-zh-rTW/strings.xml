@@ -2763,4 +2763,8 @@
     <string name="following_server_empty">沒有可匯入的訂閱</string>
     <string name="following_server_preview_title">待匯入訂閱</string>
     <string name="following_server_result">已匯入 %1$d 條，更新 %2$d 條</string>
+    <string name="following_filter_updates">只看更新</string>
+    <string name="following_filter_all">顯示全部</string>
+    <string name="following_filter_empty">目前沒有未看更新的追更內容。</string>
+    <string name="setting_following">追更更新</string>
 </resources>

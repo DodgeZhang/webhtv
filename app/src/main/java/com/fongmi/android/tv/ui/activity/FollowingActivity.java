@@ -51,6 +51,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     private FollowingAdapter adapter;
     private String focusIdentity;
     private String pendingNotifyIdentity;
+    private boolean onlyUpdates;
     private final ActivityResultLauncher<String> notificationPermission = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(), granted -> {
                 if (pendingNotifyIdentity == null) return;
@@ -102,6 +103,11 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         binding.recycler.addItemDecoration(new SpaceItemDecoration(1, 8));
         binding.recycler.setAdapter(adapter = new FollowingAdapter(this));
         binding.check.setOnClickListener(view -> checkAll());
+        binding.filter.setOnClickListener(view -> {
+            onlyUpdates = !onlyUpdates;
+            binding.filter.setText(onlyUpdates ? R.string.following_filter_all : R.string.following_filter_updates);
+            load();
+        });
         binding.alistImport.setOnClickListener(view -> showServerImportDialog());
         load();
     }
@@ -123,7 +129,10 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         Task.execute(() -> {
             List<Following> following = FollowingStore.list();
             List<FollowingAdapter.Row> rows = new ArrayList<>();
-            for (Following item : following) rows.add(new FollowingAdapter.Row(item, FollowingStore.preferredSource(item.identityKey)));
+            for (Following item : following) {
+                if (onlyUpdates && item.unwatchedCount <= 0) continue;
+                rows.add(new FollowingAdapter.Row(item, FollowingStore.preferredSource(item.identityKey)));
+            }
             int unread = FollowingStore.unreadCount();
             App.post(() -> render(rows, unread));
         });
@@ -133,6 +142,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         if (isFinishing() || binding == null) return;
         binding.loading.setVisibility(View.GONE);
         binding.empty.setVisibility(rows.isEmpty() ? View.VISIBLE : View.GONE);
+        binding.emptyText.setText(onlyUpdates ? R.string.following_filter_empty : R.string.following_empty);
         binding.recycler.setVisibility(rows.isEmpty() ? View.GONE : View.VISIBLE);
         binding.summary.setText(getString(R.string.following_summary, rows.size(), unread));
         adapter.setItems(rows);

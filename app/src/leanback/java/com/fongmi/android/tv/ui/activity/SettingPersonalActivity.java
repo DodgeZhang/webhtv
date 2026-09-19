@@ -11,6 +11,8 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.HomeButton;
 import com.fongmi.android.tv.databinding.ActivitySettingPersonalBinding;
 import com.fongmi.android.tv.event.RefreshEvent;
+import com.fongmi.android.tv.following.FollowingScheduler;
+import com.fongmi.android.tv.following.FollowingSettings;
 import com.fongmi.android.tv.setting.AppBranding;
 import com.fongmi.android.tv.setting.AutoBackupPolicy;
 import com.fongmi.android.tv.setting.GroupRuleConfig;
@@ -63,6 +65,7 @@ public class SettingPersonalActivity extends BaseActivity {
     @Override
     protected void initEvent() {
         mBinding.homeVodAutoLoad.setOnClickListener(this::setHomeVodAutoLoad);
+        mBinding.following.setOnClickListener(this::setFollowing);
         mBinding.homeSiteLock.setOnClickListener(this::setHomeSiteLock);
         mBinding.autoBackup.setOnClickListener(this::setAutoBackup);
         mBinding.homeButtons.setOnClickListener(this::onHomeButtons);
@@ -93,6 +96,7 @@ public class SettingPersonalActivity extends BaseActivity {
 
     private void setText() {
         mBinding.homeVodAutoLoadText.setText(getSwitch(Setting.isHomeVodAutoLoad()));
+        mBinding.followingText.setText(getSwitch(FollowingSettings.isEnabled()));
         mBinding.homeSiteLockText.setText(getSwitch(Setting.isHomeSiteLock()));
         mBinding.autoBackupText.setText(getSwitch(isAutoBackupEnabled()));
         mBinding.homeButtonsText.setText(getString(R.string.home_buttons_selected, HomeButton.getButtons().size(), HomeButton.all().size()));
@@ -129,6 +133,19 @@ public class SettingPersonalActivity extends BaseActivity {
 
     private void setHomeVodAutoLoad(View view) {
         Setting.putHomeVodAutoLoad(!Setting.isHomeVodAutoLoad());
+        setText();
+    }
+
+    private void setFollowing(View view) {
+        boolean enabled = !FollowingSettings.isEnabled();
+        FollowingSettings.setEnabled(enabled);
+        if (enabled) {
+            FollowingScheduler.ensurePeriodic(this);
+            FollowingScheduler.enqueueDueNow(this);
+        } else {
+            FollowingScheduler.cancelAll(this);
+        }
+        RefreshEvent.home();
         setText();
     }
 

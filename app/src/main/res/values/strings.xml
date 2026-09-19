@@ -2814,4 +2814,8 @@
     <string name="following_server_empty">No importable subscriptions found</string>
     <string name="following_server_preview_title">Subscriptions to import</string>
     <string name="following_server_result">Imported %1$d, updated %2$d</string>
+    <string name="following_filter_updates">Updates only</string>
+    <string name="following_filter_all">Show all</string>
+    <string name="following_filter_empty">No followed shows have unwatched updates.</string>
+    <string name="setting_following">Following updates</string>
 </resources>

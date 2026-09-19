@@ -44,6 +44,24 @@ public class FollowingUiSourceTest {
         assertTrue(adapter.contains("following_unwatched"));
     }
 
+    @Test
+    public void followingHasUpdateFilterAndUserControlledSchedulerSwitch() throws Exception {
+        String activity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
+        String mobile = read("app/src/mobile/java/com/fongmi/android/tv/ui/fragment/SettingPersonalFragment.java");
+        String leanback = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/SettingPersonalActivity.java");
+        String mobileLayout = read("app/src/mobile/res/layout/fragment_setting_personal.xml");
+        String leanbackLayout = read("app/src/leanback/res/layout/activity_setting_personal.xml");
+
+        assertTrue(activity.contains("onlyUpdates"));
+        assertTrue(activity.contains("following_filter_empty"));
+        assertTrue(mobile.contains("FollowingScheduler.cancelAll(requireContext())"));
+        assertTrue(leanback.contains("FollowingScheduler.cancelAll(this)"));
+        assertTrue(mobileLayout.contains("@+id/following"));
+        assertTrue(mobileLayout.contains("@+id/followingText"));
+        assertTrue(leanbackLayout.contains("@+id/following"));
+        assertTrue(leanbackLayout.contains("@+id/followingText"));
+    }
+
     private static String read(String relative) throws Exception {
         Path path = Path.of(relative);
         if (!Files.exists(path) && relative.startsWith("app/")) path = Path.of(relative.substring(4));

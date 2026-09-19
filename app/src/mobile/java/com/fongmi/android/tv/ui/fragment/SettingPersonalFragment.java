@@ -11,6 +11,8 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.FragmentSettingPersonalBinding;
 import com.fongmi.android.tv.event.RefreshEvent;
+import com.fongmi.android.tv.following.FollowingScheduler;
+import com.fongmi.android.tv.following.FollowingSettings;
 import com.fongmi.android.tv.setting.AppBranding;
 import com.fongmi.android.tv.setting.AutoBackupPolicy;
 import com.fongmi.android.tv.setting.GroupRuleConfig;
@@ -59,6 +61,7 @@ public class SettingPersonalFragment extends BaseFragment {
     @Override
     protected void initEvent() {
         mBinding.searchThread.setOnClickListener(this::setSearchThread);
+        mBinding.following.setOnClickListener(this::setFollowing);
         mBinding.autoBackup.setOnClickListener(this::setAutoBackup);
         mBinding.playbackOverlay.setOnClickListener(this::setPlaybackOverlay);
         mBinding.playBackToDetail.setOnClickListener(this::setPlayBackToDetail);
@@ -78,6 +81,7 @@ public class SettingPersonalFragment extends BaseFragment {
 
     private void setText() {
         mBinding.searchThreadText.setText(String.valueOf(Setting.getSearchThread()));
+        mBinding.followingText.setText(getSwitch(FollowingSettings.isEnabled()));
         mBinding.autoBackupText.setText(getSwitch(isAutoBackupEnabled()));
         mBinding.playbackOverlayText.setText(getSwitch(Setting.isPlaybackOverlayEnabled()));
         mBinding.playBackToDetailText.setText(getSwitch(Setting.isPlayBackToDetail()));
@@ -112,6 +116,19 @@ public class SettingPersonalFragment extends BaseFragment {
             Setting.putSearchThread(value);
             setText();
         });
+    }
+
+    private void setFollowing(View view) {
+        boolean enabled = !FollowingSettings.isEnabled();
+        FollowingSettings.setEnabled(enabled);
+        if (enabled) {
+            FollowingScheduler.ensurePeriodic(requireContext());
+            FollowingScheduler.enqueueDueNow(requireContext());
+        } else {
+            FollowingScheduler.cancelAll(requireContext());
+        }
+        RefreshEvent.home();
+        setText();
     }
 
     private void setAutoBackup(View view) {
