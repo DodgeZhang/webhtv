@@ -1694,6 +1694,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 设备端 `FollowingActivityDeviceTest` 通过：预置两条记录后，真实活动显示“2 部/未读 1 部”；点击“只看更新”后卡片数从 2 降为 1。
 - 模拟器实际点击“只看更新”后按钮切换为“显示全部”，空态切换为筛选空态；个性化设置页可见“追更更新”开关，关闭/重新打开均即时更新。
 - 当官方快照出现更高季号时，旧季卡片显示“追新季 Sx”；点击后仅创建/跳转到新季 identity，不改变旧季观看进度和提醒水位。
+- 点击追更卡片打开详情操作面板，集中显示官方/来源/用户三类状态与错误，并提供继续播放、检查更新、标记已读、手动换源和取消追更。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

@@ -33,6 +33,7 @@ import com.fongmi.android.tv.following.FollowingSettings;
 import com.fongmi.android.tv.following.FollowingSource;
 import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.following.FollowingUpdateCoordinator;
+import com.fongmi.android.tv.following.FollowingUpdatePolicy;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.adapter.FollowingAdapter;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
@@ -266,6 +267,42 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    @Override
+    public void onOpenDetail(Following item, FollowingSource source) {
+        if (item == null) return;
+        StringBuilder message = new StringBuilder();
+        int released = FollowingUpdatePolicy.releasedEpisode(item);
+        message.append(released > 0 ? getString(R.string.following_official, released) : getString(R.string.following_official_unknown));
+        message.append('\n');
+        message.append(source != null && source.playableEpisode > 0
+                ? getString(R.string.following_source, source.playableEpisode)
+                : getString(R.string.following_source_unknown));
+        message.append('\n');
+        message.append(item.watchedEpisode > 0 ? getString(R.string.following_watched, item.watchedEpisode) : getString(R.string.following_source_unknown));
+        if (item.unwatchedCount > 0) message.append('\n').append(getString(R.string.following_unwatched, item.unwatchedCount));
+        else if (released > 0) message.append('\n').append(getString(R.string.following_unwatched_none));
+        if (item.lastError != null && !item.lastError.isBlank()) message.append('\n').append(item.lastError);
+        String[] actions = new String[]{
+                getString(R.string.following_continue),
+                getString(R.string.following_check),
+                getString(R.string.following_read),
+                getString(R.string.following_change_source),
+                getString(R.string.following_cancel)
+        };
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(item.vodName)
+                .setMessage(message)
+                .setNegativeButton(R.string.dialog_close, null)
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) onContinue(item, source);
+                    else if (which == 1) onCheck(item);
+                    else if (which == 2) onRead(item);
+                    else if (which == 3) onChangeSource(item);
+                    else if (which == 4) onDelete(item);
+                })
+                .show();
     }
 
     @Override

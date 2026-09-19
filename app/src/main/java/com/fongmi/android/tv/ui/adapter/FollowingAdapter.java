@@ -20,6 +20,8 @@ import java.util.List;
 public class FollowingAdapter extends RecyclerView.Adapter<FollowingAdapter.Holder> {
 
     public interface Listener {
+        void onOpenDetail(Following item, FollowingSource source);
+
         void onContinue(Following item, FollowingSource source);
 
         void onFollowNextSeason(Following item);
@@ -109,7 +111,7 @@ public class FollowingAdapter extends RecyclerView.Adapter<FollowingAdapter.Hold
             holder.binding.error.setText(item.lastError);
         }
         holder.binding.notify.setText(item.notifyEnabled ? R.string.following_notify_on : R.string.following_notify_off);
-        holder.itemView.setOnClickListener(view -> listener.onRead(item));
+        holder.itemView.setOnClickListener(view -> listener.onOpenDetail(item, source));
         if (item.latestReleasedSeason > item.trackedSeason) {
             holder.binding.nextSeason.setVisibility(View.VISIBLE);
             holder.binding.nextSeason.setText(holder.itemView.getContext().getString(R.string.following_next_season, item.latestReleasedSeason + 1));

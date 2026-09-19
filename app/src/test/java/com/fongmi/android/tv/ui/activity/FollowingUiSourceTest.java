@@ -75,6 +75,20 @@ public class FollowingUiSourceTest {
         assertTrue(layout.contains("@+id/nextSeason"));
     }
 
+    @Test
+    public void cardOpensDetailActionsForContinueCheckReadSourceAndCancel() throws Exception {
+        String activity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
+        String adapter = read("app/src/main/java/com/fongmi/android/tv/ui/adapter/FollowingAdapter.java");
+
+        assertTrue(adapter.contains("onOpenDetail"));
+        assertTrue(activity.contains("onOpenDetail"));
+        assertTrue(activity.contains("following_continue"));
+        assertTrue(activity.contains("following_check"));
+        assertTrue(activity.contains("following_read"));
+        assertTrue(activity.contains("following_change_source"));
+        assertTrue(activity.contains("following_cancel"));
+    }
+
     private static String read(String relative) throws Exception {
         Path path = Path.of(relative);
         if (!Files.exists(path) && relative.startsWith("app/")) path = Path.of(relative.substring(4));
