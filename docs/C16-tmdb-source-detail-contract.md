@@ -1994,3 +1994,4 @@ T3 爬虫和 T4 服务端：
 - 修复：`TmdbConfig` 的临时凭据快照携带 `subscriptionKey + scopeEpoch`；`TmdbService` 的 401/403 改为 `clearIfCurrent()`，只清除与失败请求相同订阅身份和 epoch 的 Key。旧任务失败不再影响新订阅。
 - 诊断日志：订阅配置接收路径新增低敏 `tmdb-credential` 日志，只记录候选是否存在、用户配置是否就绪、订阅 ID/URL 是否匹配、accept 结果和 epoch，不记录 Key 内容。
 - 测试：新增 JVM 与设备用例，构造 A→B 后由 A 的旧请求返回 401，断言 B 的 Key 保持不变；B 自身 403 仍会清除 B。
+- 提交：`9cd5c6399dac79411354c1be104d28a826e37127`；tag：`recovery/C16-config-key-runtime-diagnosis/20260919215433-9cd5c6399dac`。
