@@ -1712,13 +1712,30 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 
 - 本轮只具备手机 arm64 模拟器与双端编译证据；TV 真机、Doze/弱网、双设备同步和通知拒绝授权后的完整人工矩阵仍需后续执行。
 - JavaScript serverless relay 已通过 `node --check`；当前工作环境没有 Go/Rust 工具链，因此这两个 relay 只完成了源码级 `follow` 兼容检查和仓库单测，未执行各自编译。
+- 分配的 `5561` 设备是 API 28，因此设计完成定义第 6 条要求的 API 33+ 通知权限实测尚不能成立；不能把 API 28 上的权限代码路径冒充 API 33 验收。
 
-### 25.5 恢复锚点（当前）
+### 25.5 提交与回滚记录
 
 ```text
-objective:         已实施 FOLLOW-1 P0–P4 核心；继续完成 P5 同步兼容和 alist 可选导入
-authority:         用户已要求按设计实施；当前代码已进入设备验证
-status:            P0–P5 implemented and targeted-verified; final P5 commit pending
-next_action:       提交 P5 原子单元并记录 commit/tag
+bd4f15581ebc048cd3f10bb6ab4a5e4d11e9809d  feat(following): implement core following updates flow
+6a7b3a85bb310503a59f582314b1345f0a819e14  feat(following): add sync compatibility and alist import
+197b995e3cc2f8902aaf810cb152ea3a0c56d869  feat(following): add filter and feature switch
+a0787318670ee74771db137618e15822616e4f8b  feat(following): add next season action
+dc2e3d4096b85d359c3cf79c5d72b5a3cccba3d6  test(following): verify activity rendering on device
+4eb674d89dbd2f2e2e11bffb51b81ba2f1b7d6d4  feat(following): add detail action panel
+89a517ce0e79916f82bb57e5cb362befbaf090ee  fix(following): avoid first fetch notification
+189e622522aa7eabe06a525b9c2c53b7619791c7  fix(following): harden source probe fallback
+1496d617d74124fb258646f62b14541f9d6b948b  test(following): update leanback home button catalog
+```
+
+每个原子提交均由 `task_guard.sh` 创建独立 `recovery/FOLLOW-1-*` annotated tag；完整标签可在仓库中用 `git tag -l 'recovery/FOLLOW-1*'` 查询。回滚时可以回退到对应提交，也可以仅关闭 `following_enabled`；独立 `following.db` 不需要随 APK 降级删除。
+
+### 25.6 恢复锚点（当前）
+
+```text
+objective:         FOLLOW-1 P0–P5 代码、备份/同步、双端入口和手动 alist 导入已实施
+authority:         用户已要求按设计实施；当前已提交多个可回滚原子单元
+status:            implementation + available targeted/device verification complete; design completion item 6 (API 33+/TV/Doze/multi-device) not available
+next_action:       如需发布，由具备 API 33+ 手机和 TV 真机的环境执行完成定义第 6 条；当前实现无需继续改代码才能通过模拟器可覆盖的验证
 rollback_anchor:   following_enabled=false + FollowingScheduler.cancelAll；不修改 AppDatabase v45
 ```
