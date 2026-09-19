@@ -1658,11 +1658,14 @@
 
     <string-array name="select_ui_scale">
         <item>跟隨系統</item>
-        <item>標準</item>
-        <item>較緊湊</item>
-        <item>緊湊</item>
-        <item>更緊湊</item>
         <item>更小</item>
+        <item>緊湊</item>
+        <item>較緊湊</item>
+        <item>標準</item>
+        <item>稍大</item>
+        <item>較大</item>
+        <item>大</item>
+        <item>特大</item>
     </string-array>
 
     <string-array name="select_language">
