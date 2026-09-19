@@ -238,6 +238,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mBinding.control.action.player.setOnClickListener(view -> onPlayerKernel());
         mBinding.control.action.player.setOnLongClickListener(view -> onPlayerKernelLong());
         mBinding.control.action.decode.setOnClickListener(view -> onDecode());
+        mBinding.control.action.playParams.setOnClickListener(view -> onPlayParams());
         mBinding.control.action.speed.setOnLongClickListener(view -> onSpeedLong());
         mBinding.video.setOnTouchListener((view, event) -> mKeyDown.onTouchEvent(event));
         mBinding.group.addOnChildViewHolderSelectedListener(new OnChildViewHolderSelectedListener() {
@@ -700,6 +701,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void showControl(View view) {
+        setPlayParamsState();
         mBinding.control.getRoot().setVisibility(View.VISIBLE);
         // 控制栏显示时统一由 PlayerOsdController 显示标题、分辨率和时间，避免旧栏重影
         mBinding.widget.top.setVisibility(View.GONE);
@@ -714,6 +716,19 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mBinding.widget.top.setVisibility(View.GONE);
         if (mOsd != null) mOsd.setControlsVisible(false);
         App.removeCallbacks(mR1);
+    }
+
+    private void onPlayParams() {
+        if (mOsd == null) return;
+        boolean visible = !mOsd.isDiagnosticsVisible();
+        PlayerSetting.putOsdDiagnostics(visible);
+        mOsd.setDiagnosticsVisible(visible);
+        setPlayParamsState();
+        hideControl();
+    }
+
+    private void setPlayParamsState() {
+        mBinding.control.action.playParams.setSelected(mOsd != null && mOsd.isDiagnosticsVisible());
     }
 
     private void hideCenter() {
@@ -1221,6 +1236,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
             mOsd.setDiagnosticsVisible(PlayerSetting.isOsdDiagnostics());
             mOsd.start();
         }
+        setPlayParamsState();
     }
 
     @Override
