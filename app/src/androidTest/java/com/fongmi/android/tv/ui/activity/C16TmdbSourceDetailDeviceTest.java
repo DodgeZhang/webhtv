@@ -14,8 +14,10 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.setting.Setting;
 
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,6 +30,7 @@ public class C16TmdbSourceDetailDeviceTest {
 
     @Before
     public void loadFixtureSource() {
+        Assume.assumeTrue("C16 fixture source is not configured", isFixtureConfigured());
         VodConfig.get().ensureLoaded();
         long deadline = SystemClock.uptimeMillis() + 15_000L;
         while (SystemClock.uptimeMillis() < deadline) {
@@ -35,6 +38,10 @@ public class C16TmdbSourceDetailDeviceTest {
             SystemClock.sleep(250L);
         }
         assertTrue("fixture VOD config did not load", !VodConfig.get().getSite("c16_t4_complete").isEmpty());
+    }
+
+    private static boolean isFixtureConfigured() {
+        return "http://127.0.0.1:18080/config.json".equals(Config.vod().getUrl());
     }
 
     @Test

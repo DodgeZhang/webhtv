@@ -626,7 +626,7 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 
 ### 阶段 6：设备验收
 
-- 测试入口：新增 `app/src/androidTest/java/com/fongmi/android/tv/ui/activity/C16TmdbSourceDetailDeviceTest.java`。测试通过 `ActivityScenario` 启动未导出的 `TmdbDetailActivity`，等待真实 View 文本后断言字段渲染；夹具使用 `adb reverse` 暴露本机 T4/T3 源。
+- 测试入口：新增 `app/src/androidTest/java/com/fongmi/android/tv/ui/activity/C16TmdbSourceDetailDeviceTest.java`。测试通过 `ActivityScenario` 启动未导出的 `TmdbDetailActivity`，等待真实 View 文本后断言字段渲染；夹具使用 `adb reverse` 暴露本机 T4/T3 源。测试仅在 `Config.vod()` 指向 C16 夹具时执行，普通设备保持 JUnit skip，不影响既有 AndroidTest。
 - 设备：`192.168.50.3:5561`，`HD1910`，Android 9，`x86_64 + arm64` 兼容层，1920×1080/280 dpi。所有数据改动在测试前备份，验收后已恢复 `com.silent.android.webhtv_preferences.xml` 和 `databases/tv`；测试 APK 已卸载，reverse 已移除。
 - Mobile APK：SHA-256 `17e0ec2c403a9185134cbc609fb80867a65a54094b5ccc1f6166ba2c79256dbe`。Leanback APK：SHA-256 `563a222b1773ad8df7beeddb765d49cf6e6e39701a2fbe1622c63785ce873887`。AndroidTest APK：SHA-256 `4a659334f8c617b45e5bcb53c5867a52b5c7250c74b15684864e266a86367ed8`。
 - Mobile 结果：完整 T4、部分 T4、无扩展旧源、完整 T3 各 1 项仪器测试通过。
