@@ -40,6 +40,7 @@ public class FollowingSourceProbe {
         int count = 0;
         for (Episode episode : flag.getEpisodes()) {
             if (episode == null || TextUtils.isEmpty(episode.getUrl())) continue;
+            if (!matchesSeason(episode, item.trackedSeason)) continue;
             if (!urls.add(episode.getUrl())) continue;
             int number = episodeNumber(episode);
             if (number <= 0) continue;
@@ -86,6 +87,11 @@ public class FollowingSourceProbe {
         TmdbEpisode tmdb = episode == null ? null : episode.getTmdbEpisode();
         if (tmdb != null && tmdb.getNumber() > 0) return tmdb.getNumber();
         return episode == null ? 0 : episode.getNumber();
+    }
+
+    static boolean matchesSeason(Episode episode, int trackedSeason) {
+        TmdbEpisode tmdb = episode == null ? null : episode.getTmdbEpisode();
+        return tmdb == null || tmdb.getSeasonNumber() < 0 || tmdb.getSeasonNumber() == trackedSeason;
     }
 
     public static FollowingMetadataSnapshot metadata(Following item, FollowingSource source, long now) {

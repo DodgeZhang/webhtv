@@ -9,7 +9,9 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class FollowingSourceProbeTest {
 
@@ -43,6 +45,16 @@ public class FollowingSourceProbeTest {
         episode.setTmdbEpisode(new com.fongmi.android.tv.bean.TmdbEpisode(3, "", "", "", "", 0, 0));
 
         assertEquals(3, FollowingSourceProbe.episodeNumber(episode));
+    }
+
+    @Test
+    public void seasonMappedEpisodesMustMatchTrackedSeason() {
+        Episode seasonTwo = Episode.create("第1集", "url");
+        seasonTwo.setTmdbEpisode(new com.fongmi.android.tv.bean.TmdbEpisode(1, "", "", "", "", 0, 0, 1, 2));
+
+        assertTrue(FollowingSourceProbe.matchesSeason(seasonTwo, 2));
+        assertFalse(FollowingSourceProbe.matchesSeason(seasonTwo, 1));
+        assertTrue(FollowingSourceProbe.matchesSeason(Episode.create("第1集", "url"), 1));
     }
 
     private static Vod vod(Flag... flags) {
