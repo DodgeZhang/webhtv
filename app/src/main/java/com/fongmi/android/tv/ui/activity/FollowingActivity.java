@@ -9,6 +9,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 
 import androidx.annotation.Nullable;
 import androidx.activity.result.ActivityResultLauncher;
@@ -22,6 +24,7 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.TmdbItem;
 import com.fongmi.android.tv.databinding.ActivityFollowingBinding;
+import com.fongmi.android.tv.following.AlistSubscriptionImporter;
 import com.fongmi.android.tv.following.Following;
 import com.fongmi.android.tv.following.FollowingNotifier;
 import com.fongmi.android.tv.following.FollowingScheduler;
@@ -99,6 +102,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         binding.recycler.addItemDecoration(new SpaceItemDecoration(1, 8));
         binding.recycler.setAdapter(adapter = new FollowingAdapter(this));
         binding.check.setOnClickListener(view -> checkAll());
+        binding.alistImport.setOnClickListener(view -> showServerImportDialog());
         load();
     }
 
@@ -159,6 +163,98 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
                 load();
             });
         });
+    }
+
+    private void showServerImportDialog() {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        int horizontal = dp(20);
+        form.setPadding(horizontal, dp(8), horizontal, 0);
+        EditText url = field(R.string.following_server_url);
+        EditText token = field(R.string.following_server_token);
+        token.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        form.addView(url, new LinearLayout.LayoutParams(-1, -2));
+        form.addView(token, new LinearLayout.LayoutParams(-1, -2));
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.following_server_import)
+                .setView(form)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setNeutralButton(R.string.following_server_preview, (dialog, which) -> startServerImport(url, token, true))
+                .setPositiveButton(R.string.following_server_import_action, (dialog, which) -> startServerImport(url, token, false))
+                .show();
+    }
+
+    private EditText field(int hint) {
+        EditText field = new EditText(this);
+        field.setHint(hint);
+        field.setSingleLine(true);
+        return field;
+    }
+
+    private void startServerImport(EditText urlView, EditText tokenView, boolean preview) {
+        String url = urlView.getText().toString().trim();
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            Notify.show(R.string.following_server_invalid);
+            return;
+        }
+        String token = tokenView.getText().toString();
+        FollowingSettings.setServerImportEnabled(true);
+        binding.loading.setVisibility(View.VISIBLE);
+        Task.execute(() -> {
+            try {
+                List<AlistSubscriptionImporter.Candidate> candidates = AlistSubscriptionImporter.fetch(url, token);
+                if (preview) {
+                    App.post(() -> {
+                        if (binding == null) return;
+                        binding.loading.setVisibility(View.GONE);
+                        showServerPreview(candidates);
+                    });
+                    return;
+                }
+                AlistSubscriptionImporter.ImportResult result = AlistSubscriptionImporter.importCandidates(candidates);
+                App.post(() -> {
+                    if (binding == null) return;
+                    binding.loading.setVisibility(View.GONE);
+                    Notify.show(getString(R.string.following_server_result, result.created, result.updated));
+                    load();
+                });
+            } catch (Throwable error) {
+                App.post(() -> {
+                    if (binding != null) binding.loading.setVisibility(View.GONE);
+                    Notify.show(error.getMessage());
+                });
+            }
+        });
+    }
+
+    private void showServerPreview(List<AlistSubscriptionImporter.Candidate> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            Notify.show(R.string.following_server_empty);
+            return;
+        }
+        StringBuilder message = new StringBuilder();
+        int limit = Math.min(20, candidates.size());
+        for (int i = 0; i < limit; i++) {
+            AlistSubscriptionImporter.Candidate candidate = candidates.get(i);
+            if (i > 0) message.append('\n');
+            message.append(candidate.title).append(" · S").append(candidate.season + 1);
+            if (candidate.currentEpisodes > 0) message.append(" · E").append(candidate.currentEpisodes);
+        }
+        if (candidates.size() > limit) message.append("\n… +").append(candidates.size() - limit);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.following_server_preview_title)
+                .setMessage(message)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setPositiveButton(R.string.following_server_import_action, (dialog, which) -> {
+                    AlistSubscriptionImporter.ImportResult result = AlistSubscriptionImporter.importCandidates(candidates);
+                    Notify.show(getString(R.string.following_server_result, result.created, result.updated));
+                    load();
+                })
+                .show();
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     @Override

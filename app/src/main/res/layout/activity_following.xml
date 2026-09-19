@@ -40,6 +40,16 @@
                 android:textColor="@color/following_accent"
                 app:backgroundTint="#E8F0FE" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/alistImport"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:text="@string/following_server_import"
+                android:textColor="@color/following_accent"
+                app:backgroundTint="#E8F0FE" />
+
             <TextView
                 android:id="@+id/summary"
                 android:layout_width="0dp"

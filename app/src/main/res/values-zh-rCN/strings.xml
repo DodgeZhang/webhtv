@@ -2800,4 +2800,13 @@
     <string name="following_new_count">新 %1$d 集</string>
     <string name="following_enabled_hint">追更功能当前已关闭。</string>
     <string name="following_notification_permission_hint">未获得通知权限；站内角标和手动检查仍可使用。</string>
+    <string name="following_server_import">导入订阅</string>
+    <string name="following_server_url">服务端地址（http/https）</string>
+    <string name="following_server_token">Token（不会保存）</string>
+    <string name="following_server_preview">预览</string>
+    <string name="following_server_import_action">导入</string>
+    <string name="following_server_invalid">请输入有效的 http/https 服务端地址</string>
+    <string name="following_server_empty">没有可导入的订阅</string>
+    <string name="following_server_preview_title">待导入订阅</string>
+    <string name="following_server_result">已导入 %1$d 条，更新 %2$d 条</string>
 </resources>

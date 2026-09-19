@@ -1693,18 +1693,25 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 设备端 `FollowingDatabaseTest` 通过；WorkManager 的 `SystemJobService` 作业已出现在 `dumpsys jobscheduler`。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
-### 25.3 尚未完成
+### 25.3 P5 同步与 alist 导入
 
-- P5 的 alist-tvbox 手动订阅导入和独立设置入口尚未实现；该能力在设计中标记为可选、可延后。
-- serverless 五种同步实现尚未规范化 `SyncOptions.follow`，因此跨服务端同步时会丢追更选项；应作为独立 P5 兼容提交处理，避免混入当前 P0–P4 原子单元。
+- `SyncOptions.follow` 默认关闭；mobile/leanback 共用的一键同步对话框已增加“追更”选项。
+- Rust、Deno、Cloudflare、Vercel、Go 五种 serverless relay 的 `normalizeSyncOptions` 均显式保留 `follow=false` 默认值，避免远端规范化时丢选项。
+- 追更页新增“导入订阅”手动入口：地址和 token 只在本次对话框输入，token 不落盘；先预览后导入，也可直接导入。
+- `AlistSubscriptionImporter` 读取 `/api/media-subscriptions`，支持直接数组、`data[]` 和 `data.list[]`；按 TMDB ID 或“标题+季”匹配现有记录，没有本地记录时建立 TMDB/alist 身份记录并把 `currentEpisodes` 写入来源可播快照。
+- 导入能力默认关闭，只有用户在追更页明确提交地址后才设置启用并访问网络；不调用服务端挂载、转存、磁力或自动换源动作。
+
+### 25.4 尚未完成的验证
+
 - 本轮只具备手机 arm64 模拟器与双端编译证据；TV 真机、Doze/弱网、双设备同步和通知拒绝授权后的完整人工矩阵仍需后续执行。
+- JavaScript serverless relay 已通过 `node --check`；当前工作环境没有 Go/Rust 工具链，因此这两个 relay 只完成了源码级 `follow` 兼容检查和仓库单测，未执行各自编译。
 
-### 25.4 恢复锚点（当前）
+### 25.5 恢复锚点（当前）
 
 ```text
 objective:         已实施 FOLLOW-1 P0–P4 核心；继续完成 P5 同步兼容和 alist 可选导入
 authority:         用户已要求按设计实施；当前代码已进入设备验证
-status:            P0–P4 implemented and targeted-verified; P5 pending
-next_action:       为 P5 新建独立 task guard 会话，增加 serverless follow 兼容和 alist 手动导入
+status:            P0–P5 implemented and targeted-verified; final P5 commit pending
+next_action:       提交 P5 原子单元并记录 commit/tag
 rollback_anchor:   following_enabled=false + FollowingScheduler.cancelAll；不修改 AppDatabase v45
 ```
