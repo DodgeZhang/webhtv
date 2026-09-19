@@ -20,6 +20,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -648,7 +649,18 @@ public class TmdbService {
         throwIfAuthBlocked(config);
         Request.Builder builder = new Request.Builder().url(url);
         if (!TextUtils.isEmpty(config.getAccessToken())) builder.header("Authorization", "Bearer " + config.getAccessToken());
-        return com.github.catvod.net.OkHttp.client().newCall(builder.build()).execute();
+        try {
+            return com.github.catvod.net.OkHttp.client().newCall(builder.build()).execute();
+        } catch (Exception e) {
+            throw new IOException(redactMessage(e.getMessage()));
+        }
+    }
+
+    public static String redactMessage(String message) {
+        if (TextUtils.isEmpty(message) || message.trim().isEmpty()) return "TMDB request failed";
+        String redacted = message.replaceAll("(?i)([?&](?:api_key|apikey|key|token|access_token)=)[^&\\s]+", "$1<redacted>");
+        redacted = redacted.replaceAll("(?i)(Bearer\\s+)[A-Za-z0-9._~+/-]+=*", "$1<redacted>");
+        return redacted;
     }
 
     private JsonObject requestVideoJson(String url, TmdbConfig config, String cacheKey) throws Exception {

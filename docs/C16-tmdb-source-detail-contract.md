@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已按“详情响应最外层 `tmdb_api_key` + 当前订阅接口临时凭据作用域”实施阶段 1-3：根字段剥离、订阅 epoch、用户优先、官方 HTTPS 白名单、旧异步隔离，以及 source-first/fill-only 的详情、季集、视频、推荐接线均已通过定向单测和 Mobile/Leanback Java 编译；阶段 4-5 待继续。T4 服务端仍需在其独立仓库按本文合同实施。
+> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已按“详情响应最外层 `tmdb_api_key` + 当前订阅接口临时凭据作用域”实施阶段 1-4：根字段剥离、订阅 epoch、用户优先、官方 HTTPS 白名单、旧异步隔离、source-first/fill-only 接线、T3/T4 同合同和泄漏回归均已通过定向单测和 Mobile/Leanback Java 编译；阶段 5 设备验收待继续。T4 服务端仍需在其独立仓库按本文合同实施。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1-6 已完成本仓库 APP 侧协议、解析、合并、详情接入、延迟能力和设备验收。第 19 节是新增临时源 Key 能力的设计评审，不授权生产代码实施。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节阶段 A-E 已完成纯策略、设置解耦、独立页、原生增强和交互收口；阶段 F 已在 `V1923A/Android 9` 的 `192.168.50.3:5559` 完成无 Key Mobile/Leanback 设备验收。第 19 节阶段 1-2 已提交并打 tag；阶段 3 已完成 source-first/fill-only 扩展并通过定向单测与双 flavor Java 编译。
-- 下一动作：完成第 19 节阶段 3 的原子提交和 recovery tag，然后实施阶段 4 的泄漏扫描与 T3/T4 同合同回归测试。
+- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节阶段 A-E 已完成纯策略、设置解耦、独立页、原生增强和交互收口；阶段 F 已在 `V1923A/Android 9` 的 `192.168.50.3:5559` 完成无 Key Mobile/Leanback 设备验收。第 19 节阶段 1-3 已提交并打 tag；阶段 4 已完成泄漏扫描、错误脱敏和 T3/T4 合同回归。
+- 下一动作：完成第 19 节阶段 4 的原子提交和 recovery tag，然后实施阶段 5 的 Mobile/Leanback 设备验收；若无可审计的测试 Key，真实第三方 401 场景必须明确标记未验证。
 
 ## 1. 设计结论
 
@@ -1943,11 +1943,22 @@ T3 爬虫和 T4 服务端：
 
 #### 阶段 3：详情、季集、视频和推荐能力收口
 
-- 状态：代码与定向验证已完成，提交及 recovery tag 在本阶段收口时创建。
+- 状态：已完成并收口。
 - `VideoActivity` 的 Mobile/Leanback 路径改为：只要 C16 source 状态为 `RENDERABLE` 就优先调用 `loadSource()`；没有可用 Key 时保持完全离线，有有效 Key 时仅按 planner 补齐首屏缺口。
 - `TmdbUIAdapter.loadSource()` 先把 source bundle 直接上屏，再计算首屏 `core/credits/images` 缺口；完整 source 不发起请求，部分 source 使用 `detailForSource(missing)`，结果通过 `TmdbSourceMerger.fillOnly()` 合并，源字段不被覆盖。
 - 季集缓存继续从 source bundle 预填；无 Key 的 `sourceOnly` 路径在缓存未命中时直接返回空列表，不再尝试 TMDB 网络。
 - 视频打开前先用 `TmdbSourceCapabilityPlanner.isAvailable()` 检查 `videos`、`season_videos` 或 `episode_videos`；完整源组本地读取，缺失组才使用当前订阅有效配置。
 - `PersonalRecommendationService`、Mobile/Leanback 单集详情、人物详情页与人物弹窗的请求入口改用 `TmdbConfig.effectiveCurrent()`，当前订阅临时 Key 在当前页面链路内复用。
 - 验证：6 个定向测试类共 19 项通过，覆盖 planner、merger、source-only、source-first 接线、运行模式与有效凭据入口；Mobile 与 Leanback `Arm64_v8aDebug` Java 编译均返回 `BUILD SUCCESSFUL`；`git diff --check` 通过。
+- 提交：`73abd0350b9808c5da727763deff3764e590d970`；tag：`recovery/C16-19-stage3/20260919192119-73abd0350b98`。
 - 回滚：撤销本阶段提交即可恢复仅无 Key 时使用 source、普通网络路径仍按用户配置匹配的旧行为；阶段 1-2 的凭据作用域不受影响。
+
+#### 阶段 4：泄漏扫描与回归
+
+- 状态：代码与定向验证已完成，提交及 recovery tag 在本阶段收口时创建。
+- `TmdbService.execute()`：OkHttp 异常重新包装前先调用 `redactMessage()`，查询参数 `api_key/apikey/key/token/access_token` 和 Bearer 值不会进入异常文本、`SpiderDebug` 或上层日志。
+- T3/T4 合同回归：同一 `tmdb` 对象经过根字段剥离后使用相同模型，序列化、详情缓存和两个详情入口的结果不包含源 Key；`Vod`、`Result`、`TmdbSourcePayload`、`VodDetailCache` 源码中没有根字段。
+- 生命周期回归：测试覆盖合法 Key 注入、同一订阅复用、不同接口清空、A→B→A 不复用、403 清理、用户配置优先和 `toJson()` 不写临时 Key。
+- 泄漏面核对：日志/异常经脱敏；详情缓存只接收 sanitized JSON；TMDB 缓存文件名使用 MD5；临时 Key 不进入 Preference、Room、Backup、Intent、Bundle 或 Parcel 模型；诊断文本走已有敏感字段过滤。
+- 验证：C16 定向回归共 57 项通过；Mobile 与 Leanback `Arm64_v8aDebug` Java 编译均返回 `BUILD SUCCESSFUL`；`git diff --check` 通过。
+- 回滚：撤销本阶段提交即可恢复未脱敏的底层网络异常文本和旧合同测试；凭据生命周期实现不受影响。已暴露在旧版本日志中的 Key 必须轮换，不能用代码回滚补救。
