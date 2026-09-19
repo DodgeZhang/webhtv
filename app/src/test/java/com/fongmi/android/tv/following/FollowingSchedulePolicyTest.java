@@ -1,0 +1,27 @@
+package com.fongmi.android.tv.following;
+
+import org.junit.Test;
+
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+public class FollowingSchedulePolicyTest {
+
+    @Test
+    public void nextAirUsesBoundedOneShotInsteadOfExactAlarm() {
+        long now = 1_000_000;
+        long nextAir = now + TimeUnit.HOURS.toMillis(3);
+        long check = FollowingSchedulePolicy.nextCheckAt(now, FollowingMetadataSnapshot.RETURNING, nextAir);
+        assertEquals(now + FollowingSchedulePolicy.PERIODIC_INTERVAL, check);
+    }
+
+    @Test
+    public void failureBackoffGrowsAndCapsAtOneDay() {
+        assertEquals(TimeUnit.MINUTES.toMillis(15), FollowingSchedulePolicy.backoffAt(0, 1));
+        assertEquals(TimeUnit.MINUTES.toMillis(30), FollowingSchedulePolicy.backoffAt(0, 2));
+        assertEquals(TimeUnit.HOURS.toMillis(1), FollowingSchedulePolicy.backoffAt(0, 3));
+        assertTrue(FollowingSchedulePolicy.backoffAt(0, 99) >= TimeUnit.DAYS.toMillis(1));
+    }
+}

@@ -5,6 +5,7 @@ import android.text.TextUtils;
 import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.TmdbSeasonProgress;
 import com.fongmi.android.tv.db.AppDatabase;
+import com.fongmi.android.tv.following.FollowingStore;
 
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -43,6 +44,7 @@ public final class TmdbSeasonProgressStore {
         TmdbSeasonProgress existing = find(progress.cid, progress.mediaType, progress.tmdbId, progress.seasonNumber);
         if (!shouldWrite(existing, progress)) return false;
         AppDatabase.get().getTmdbSeasonProgressDao().insertOrUpdate(progress);
+        FollowingStore.project(history);
         return true;
     }
 

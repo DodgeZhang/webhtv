@@ -46,6 +46,7 @@ import com.fongmi.android.tv.event.CastEvent;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.event.ServerEvent;
+import com.fongmi.android.tv.following.FollowingScheduler;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.impl.ConfigListener;
 import com.fongmi.android.tv.model.SiteViewModel;
@@ -948,6 +949,7 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
             }
         } else if (item.getResId() == R.string.home_live) LiveActivity.start(this);
         else if (item.getResId() == R.string.home_keep) KeepActivity.start(this);
+        else if (item.getResId() == R.string.home_following) FollowingActivity.start(this, null);
         else if (item.getResId() == R.string.home_push) PushActivity.start(this);
         else if (item.getResId() == R.string.home_search) SearchActivity.start(this);
         else if (item.getResId() == R.string.home_setting) SettingActivity.start(this);
@@ -1241,6 +1243,8 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         mClock.start();
         syncHomeSiteLock();
         if (mWeb != null) mWeb.onResume();
+        FollowingScheduler.ensurePeriodic(this);
+        FollowingScheduler.enqueueDueNow(this);
         setFunc();
         syncTypeItems();
         resumeTypeSwitch();

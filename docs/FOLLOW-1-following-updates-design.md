@@ -1671,3 +1671,40 @@ upstream_refs:      atv-player@5867e5f16c8bdb8a320d3ea6bb7f242afd2f02a0
 next_action:       等待用户评审本文；如批准，按 P0 冻结接口后从 P1 数据层开始
 rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务；保留 following.db
 ```
+
+## 25. 实施记录（2026-09-19）
+
+> 本节记录当前代码状态，不改变上方设计决策。任务 ID 仍为 `FOLLOW-1`。
+
+### 25.1 已实施
+
+- P1：新增独立 Room v1 数据库 `following`，实体、DAO、identity key、备份 codec 和 schema 已落盘；`AppDatabase.VERSION` 保持 45。
+- P2：新增 TMDB 专用强制刷新入口、官方/来源可播 snapshot、来源线路探测、更新水位、去重策略和播放进度 best-effort 投影。
+- P3：新增 WorkManager 6 小时周期任务、one-shot 任务、失败退避、通知 channel、通知权限检查；首页恢复时排队一次 due check。
+- P4：手机底栏和 Leanback 首页一级入口已接入；两端共用追更列表，支持继续播放、手动检查、已读、通知开关、换源入口和取消追更；TMDB 详情页暴露“加入追更/已追更”。
+- 备份/恢复已加入 following 字段和 schema version；旧备份缺少 following 字段时不删除本机追更数据。
+
+### 25.2 验证证据
+
+- `:app:testMobileArm64_v8aDebugUnitTest` 与 `:app:testLeanbackArm64_v8aDebugUnitTest` 的 FOLLOW-1 定向测试通过。
+- `:app:assembleMobileArm64_v8aDebug` 通过。
+- 模拟器 `HD1910 - 9`（ADB `192.168.50.3:5561`）安装成功；从手机首页点击追更入口打开 `FollowingActivity`，并确认界面显示检查更新、追更数量与空状态。
+- 设备上实际创建独立 `following` 数据库；`following`、`following_source`、`room_master_table` 表存在。
+- 设备端 `FollowingDatabaseTest` 通过；WorkManager 的 `SystemJobService` 作业已出现在 `dumpsys jobscheduler`。
+- schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
+
+### 25.3 尚未完成
+
+- P5 的 alist-tvbox 手动订阅导入和独立设置入口尚未实现；该能力在设计中标记为可选、可延后。
+- serverless 五种同步实现尚未规范化 `SyncOptions.follow`，因此跨服务端同步时会丢追更选项；应作为独立 P5 兼容提交处理，避免混入当前 P0–P4 原子单元。
+- 本轮只具备手机 arm64 模拟器与双端编译证据；TV 真机、Doze/弱网、双设备同步和通知拒绝授权后的完整人工矩阵仍需后续执行。
+
+### 25.4 恢复锚点（当前）
+
+```text
+objective:         已实施 FOLLOW-1 P0–P4 核心；继续完成 P5 同步兼容和 alist 可选导入
+authority:         用户已要求按设计实施；当前代码已进入设备验证
+status:            P0–P4 implemented and targeted-verified; P5 pending
+next_action:       为 P5 新建独立 task guard 会话，增加 serverless follow 兼容和 alist 手动导入
+rollback_anchor:   following_enabled=false + FollowingScheduler.cancelAll；不修改 AppDatabase v45
+```
