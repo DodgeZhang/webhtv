@@ -10748,8 +10748,25 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     @Override
     protected void onResume() {
         super.onResume();
+        refreshSelectionAfterExternalPlayback();
         if (vod != null && binding.loading.getVisibility() != View.VISIBLE) revealDefaultPlaybackLoadingPage();
         scheduleBackdropSlide(BACKDROP_SLIDE_DELAY_MS);
+    }
+
+    private void refreshSelectionAfterExternalPlayback() {
+        if (vod == null || vod.getFlags() == null || vod.getFlags().isEmpty()) return;
+        try {
+            history = History.findPlayback(getHistoryKey(), List.of(vod.getName(), getNameText()),
+                    vod.getFlags(), null, sourceTitleSeasonNumber());
+            if (history == null) return;
+            selectedFlag = TmdbUIAdapter.selectPlaybackFlag(vod.getFlags(),
+                    history.getSourceBindingKey(), history.getEpisodeUrl(), history.getVodFlag());
+            if (selectedFlag == null) return;
+            selectedEpisode = findEpisodeByUrl(history.getEpisodeUrl(), selectedFlag.getEpisodes());
+            renderFlagSelection();
+            renderEpisodes();
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
