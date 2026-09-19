@@ -3,7 +3,10 @@ package com.fongmi.android.tv.bean;
 import org.junit.Test;
 
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -41,5 +44,21 @@ public class AdBlockLogFilterTest {
 
         filters.put(AdBlockLogFilter.Column.VOD_NAME, "missing");
         assertTrue(AdBlockLogFilter.filter(List.of(log), filters).isEmpty());
+    }
+
+    @Test
+    public void deduplicatedSelectionsUseOrWithinAColumnAndAndAcrossColumns() {
+        AdBlockLog first = new AdBlockLog().setPlaybackContext("剧一", "线路 A", "第一集");
+        AdBlockLog second = new AdBlockLog().setPlaybackContext("剧二", "线路 A", "第二集");
+        AdBlockLog third = new AdBlockLog().setPlaybackContext("剧三", "线路 B", "第三集");
+        EnumMap<AdBlockLogFilter.Column, Set<String>> selections =
+                new EnumMap<>(AdBlockLogFilter.Column.class);
+        selections.put(AdBlockLogFilter.Column.VOD_NAME,
+                new LinkedHashSet<>(List.of("剧一", "剧二")));
+        selections.put(AdBlockLogFilter.Column.LINE_NAME,
+                new LinkedHashSet<>(List.of("线路 A")));
+
+        assertEquals(List.of(first, second), AdBlockLogFilter.filter(
+                List.of(first, second, third), Map.of(), selections, AdBlockLogFilter::values));
     }
 }

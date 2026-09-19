@@ -2636,6 +2636,13 @@
     <string name="ad_log_pipeline">播放链路</string>
     <string name="ad_log_unknown">未知</string>
     <string name="ad_log_filter_hint">筛选</string>
+    <string name="ad_log_filter_search_hint">输入关键词查找</string>
+    <string name="ad_log_filter_all">全选</string>
+    <string name="ad_log_filter_clear">清除选择</string>
+    <string name="ad_log_filter_apply">应用</string>
+    <string name="ad_log_filter_cancel">取消</string>
+    <string name="ad_log_filter_options_empty">暂无可选值</string>
+    <string name="ad_log_filter_selected">已选 %d 项</string>
     <string name="ad_site_overview">站点统计概览</string>
     <string name="ad_site_count">涉及站点数</string>
     <string name="ad_top_site">拦截最多站点</string>

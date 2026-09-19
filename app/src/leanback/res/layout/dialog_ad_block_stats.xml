@@ -361,21 +361,25 @@
                     android:textColor="@color/dialog_outlined_button_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
-                <androidx.appcompat.widget.AppCompatEditText
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/siteFilter"
+                    style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
-                    android:background="@drawable/selector_dialog_input"
-                    android:hint="@string/ad_log_filter_hint"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
                     android:maxLines="1"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:singleLine="true"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    android:textColorHint="#80868B"
-                    android:textSize="12sp" />
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/ad_log_filter_hint"
+                    android:textSize="12sp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    app:cornerRadius="4dp" />
             </androidx.appcompat.widget.LinearLayoutCompat>
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="150dp"
@@ -393,21 +397,25 @@
                     android:textColor="@color/dialog_outlined_button_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
-                <androidx.appcompat.widget.AppCompatEditText
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/siteDomainFilter"
+                    style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
-                    android:background="@drawable/selector_dialog_input"
-                    android:hint="@string/ad_log_filter_hint"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
                     android:maxLines="1"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:singleLine="true"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    android:textColorHint="#80868B"
-                    android:textSize="12sp" />
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/ad_log_filter_hint"
+                    android:textSize="12sp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    app:cornerRadius="4dp" />
             </androidx.appcompat.widget.LinearLayoutCompat>
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="170dp"
@@ -425,21 +433,25 @@
                     android:textColor="@color/dialog_outlined_button_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
-                <androidx.appcompat.widget.AppCompatEditText
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/vodFilter"
+                    style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
-                    android:background="@drawable/selector_dialog_input"
-                    android:hint="@string/ad_log_filter_hint"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
                     android:maxLines="1"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:singleLine="true"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    android:textColorHint="#80868B"
-                    android:textSize="12sp" />
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/ad_log_filter_hint"
+                    android:textSize="12sp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    app:cornerRadius="4dp" />
             </androidx.appcompat.widget.LinearLayoutCompat>
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="130dp"
@@ -457,21 +469,25 @@
                     android:textColor="@color/dialog_outlined_button_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
-                <androidx.appcompat.widget.AppCompatEditText
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/lineFilter"
+                    style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
-                    android:background="@drawable/selector_dialog_input"
-                    android:hint="@string/ad_log_filter_hint"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
                     android:maxLines="1"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:singleLine="true"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    android:textColorHint="#80868B"
-                    android:textSize="12sp" />
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/ad_log_filter_hint"
+                    android:textSize="12sp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    app:cornerRadius="4dp" />
             </androidx.appcompat.widget.LinearLayoutCompat>
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="170dp"
@@ -489,21 +505,25 @@
                     android:textColor="@color/dialog_outlined_button_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
-                <androidx.appcompat.widget.AppCompatEditText
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/episodeFilter"
+                    style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
-                    android:background="@drawable/selector_dialog_input"
-                    android:hint="@string/ad_log_filter_hint"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
                     android:maxLines="1"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:singleLine="true"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    android:textColorHint="#80868B"
-                    android:textSize="12sp" />
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/ad_log_filter_hint"
+                    android:textSize="12sp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    app:cornerRadius="4dp" />
             </androidx.appcompat.widget.LinearLayoutCompat>
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="170dp"
@@ -521,21 +541,25 @@
                     android:textColor="@color/dialog_outlined_button_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
-                <androidx.appcompat.widget.AppCompatEditText
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/ruleFilter"
+                    style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
-                    android:background="@drawable/selector_dialog_input"
-                    android:hint="@string/ad_log_filter_hint"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
                     android:maxLines="1"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:singleLine="true"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    android:textColorHint="#80868B"
-                    android:textSize="12sp" />
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/ad_log_filter_hint"
+                    android:textSize="12sp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    app:cornerRadius="4dp" />
             </androidx.appcompat.widget.LinearLayoutCompat>
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="170dp"
@@ -553,21 +577,25 @@
                     android:textColor="@color/dialog_outlined_button_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
-                <androidx.appcompat.widget.AppCompatEditText
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/adDomainFilter"
+                    style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
-                    android:background="@drawable/selector_dialog_input"
-                    android:hint="@string/ad_log_filter_hint"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
                     android:maxLines="1"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:singleLine="true"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    android:textColorHint="#80868B"
-                    android:textSize="12sp" />
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/ad_log_filter_hint"
+                    android:textSize="12sp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    app:cornerRadius="4dp" />
             </androidx.appcompat.widget.LinearLayoutCompat>
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="160dp"
@@ -713,21 +741,25 @@
                     android:textColor="@color/dialog_outlined_button_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
-                <androidx.appcompat.widget.AppCompatEditText
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/pipelineFilter"
+                    style="@style/Widget.WebHTV.LightDialog.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
-                    android:background="@drawable/selector_dialog_input"
-                    android:hint="@string/ad_log_filter_hint"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
                     android:maxLines="1"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:singleLine="true"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    android:textColorHint="#80868B"
-                    android:textSize="12sp" />
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/ad_log_filter_hint"
+                    android:textSize="12sp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    app:cornerRadius="4dp" />
             </androidx.appcompat.widget.LinearLayoutCompat>
         </androidx.appcompat.widget.LinearLayoutCompat>
 

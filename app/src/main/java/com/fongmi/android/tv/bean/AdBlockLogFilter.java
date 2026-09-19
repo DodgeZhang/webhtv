@@ -5,6 +5,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 广告拦截日志的列筛选工具。
@@ -64,16 +65,48 @@ public final class AdBlockLogFilter {
     public static List<AdBlockLog> filter(List<AdBlockLog> logs,
                                           Map<Column, String> filters,
                                           ValueProvider provider) {
+        return filter(logs, filters, Map.of(), provider);
+    }
+
+    /**
+     * 使用文本条件和去重多选条件筛选日志。
+     * 同一列的多选值采用 OR，不同列之间与文本条件采用 AND。
+     */
+    public static List<AdBlockLog> filter(List<AdBlockLog> logs,
+                                          Map<Column, String> filters,
+                                          Map<Column, ? extends Set<String>> selections,
+                                          ValueProvider provider) {
         List<AdBlockLog> result = new ArrayList<>();
         if (logs == null || logs.isEmpty()) return result;
         ValueProvider valueProvider = provider == null ? AdBlockLogFilter::values : provider;
         for (AdBlockLog log : logs) {
-            if (matches(valueProvider.values(log), filters)) result.add(log);
+            if (matches(valueProvider.values(log), filters, selections)) result.add(log);
         }
         return result;
     }
 
     public static boolean matches(Map<Column, String> values, Map<Column, String> filters) {
+        return matches(values, filters, Map.of());
+    }
+
+    public static boolean matches(Map<Column, String> values,
+                                  Map<Column, String> filters,
+                                  Map<Column, ? extends Set<String>> selections) {
+        if (selections != null) {
+            for (Map.Entry<Column, ? extends Set<String>> entry : selections.entrySet()) {
+                Set<String> selected = entry.getValue();
+                if (selected == null || selected.isEmpty()) continue;
+                String value = values == null ? "" : normalize(values.get(entry.getKey()));
+                boolean selectedValue = false;
+                for (String candidate : selected) {
+                    if (value.equals(normalize(candidate))) {
+                        selectedValue = true;
+                        break;
+                    }
+                }
+                if (!selectedValue) return false;
+            }
+        }
         if (filters == null || filters.isEmpty()) return true;
         for (Map.Entry<Column, String> entry : filters.entrySet()) {
             String query = normalize(entry.getValue());

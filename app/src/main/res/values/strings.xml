@@ -2304,6 +2304,13 @@
     <string name="ad_log_pipeline">Pipeline</string>
     <string name="ad_log_unknown">Unknown</string>
     <string name="ad_log_filter_hint">Filter</string>
+    <string name="ad_log_filter_search_hint">Search filter values</string>
+    <string name="ad_log_filter_all">Select all</string>
+    <string name="ad_log_filter_clear">Clear selection</string>
+    <string name="ad_log_filter_apply">Apply</string>
+    <string name="ad_log_filter_cancel">Cancel</string>
+    <string name="ad_log_filter_options_empty">No filter values</string>
+    <string name="ad_log_filter_selected">%d selected</string>
     <string name="ad_site_overview">Site overview</string>
     <string name="ad_site_count">Sites involved</string>
     <string name="ad_top_site">Most blocked site</string>
