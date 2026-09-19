@@ -193,7 +193,7 @@ public class EpisodeDetailDialog {
         if (movieDetail == null) return;
         Task.execute(() -> {
             try {
-                TmdbConfig config = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+                TmdbConfig config = TmdbConfig.effectiveCurrent();
                 if (config == null || !config.isReady()) return;
                 TmdbService service = new TmdbService();
                 List<String> photos = service.photos(movieDetail, config);
@@ -317,7 +317,7 @@ public class EpisodeDetailDialog {
         if (episode.getTmdbId() == 0) return;
         Task.execute(() -> {
             try {
-                TmdbConfig config = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+                TmdbConfig config = TmdbConfig.effectiveCurrent();
                 if (config == null || !config.isReady()) return;
                 TmdbService service = new TmdbService();
                 JsonObject episodeJson = service.episode(episode.getTmdbId(), episode.getSeasonNumber(), episode.getNumber(), config);

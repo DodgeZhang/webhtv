@@ -32,11 +32,12 @@ public class VideoActivityRuntimeModeWiringTest {
     @Test
     public void detailLoadUsesRuntimePolicyAndLoadsSourceWithoutNetwork() throws Exception {
         String adapter = Files.readString(root().resolve(Path.of("app", "src", "main", "java", "com", "fongmi", "android", "tv", "ui", "helper", "TmdbUIAdapter.java")), StandardCharsets.UTF_8);
-        String loadSource = method(adapter, "public void loadSource(TmdbBundle bundle", "private static String seasonEpisodeKey");
+        String loadSource = method(adapter, "public void loadSource(TmdbBundle bundle", "private void applySourceBundle");
+        String applySource = method(adapter, "private void applySourceBundle", "private void fillInitialSourceGaps");
 
         assertTrue(loadSource.contains("resetLoadState();"));
-        assertTrue(loadSource.contains("sourceOnly = true;"));
-        assertTrue(loadSource.contains("enrichVod(sourceVod, tmdbItem, tmdbDetail);"));
+        assertTrue(loadSource.contains("sourceOnly = !tmdbConfig.isReady();"));
+        assertTrue(applySource.contains("enrichVod(sourceVod, tmdbItem, tmdbDetail);"));
         assertTrue(loadSource.contains("notifyVodChanged(sourceVod, generation, RefreshEvent.Type.VOD_CORE);"));
         assertFalse("source-only load must not call the network service", loadSource.contains("tmdbService."));
 
@@ -48,6 +49,7 @@ public class VideoActivityRuntimeModeWiringTest {
                     setDetail.contains("DetailRuntimeModePolicy.resolve(new DetailRuntimeModePolicy.Input("));
             assertTrue(setDetail.contains("runtimeSourceOnly = decision.sourceOnly();"));
             assertTrue(setDetail.contains("mTmdbUIAdapter.loadSource(sourceBundle, item, sourcePayload);"));
+            assertTrue(setDetail.contains("sourceState == TmdbSourceState.RENDERABLE && sourceBundle != null"));
         }
     }
 

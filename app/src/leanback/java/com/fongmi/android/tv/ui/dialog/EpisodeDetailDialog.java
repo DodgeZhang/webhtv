@@ -352,7 +352,7 @@ public class EpisodeDetailDialog {
             try {
                 // 调用TMDB API获取剧集图片
                 TmdbService service = new TmdbService();
-                TmdbConfig config = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+                TmdbConfig config = TmdbConfig.effectiveCurrent();
 
                 android.util.Log.d("EpisodeDetail", "开始请求TMDB API...");
 

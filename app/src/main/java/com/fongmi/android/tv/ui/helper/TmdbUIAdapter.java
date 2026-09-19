@@ -122,6 +122,8 @@ public class TmdbUIAdapter {
     private String relatedVideoContextKey = "";
     private boolean loaded;
     private boolean sourceOnly;
+    private TmdbBundle activeSourceBundle;
+    private TmdbSourcePayload activeSourcePayload;
     private volatile boolean episodeMetadataLoaded;
 
     private volatile int loadGeneration;
@@ -580,19 +582,34 @@ public class TmdbUIAdapter {
         backgroundTasks.submit(() -> loadDetailSync(vod, cached.getItem(), cached.getDetail(), cached.getCast(), generation));
     }
 
-    /** Applies a validated C16 source bundle without any TMDB request or match-cache write. */
+    /**
+     * Applies a validated C16 source bundle first. If an effective credential exists, only planner-reported
+     * initial gaps are filled from TMDB; complete source data stays offline and lazy capabilities remain on demand.
+     */
     public void loadSource(TmdbBundle bundle, Vod sourceVod, TmdbSourcePayload payload) {
         if (bundle == null || bundle.item() == null || bundle.detail() == null || sourceVod == null) return;
         refreshRuntimeConfig();
         String sourceTitle = sourceCacheTitle;
         int generation = resetLoadState();
-        sourceOnly = true;
+        sourceOnly = !tmdbConfig.isReady();
         captureSourceSeason(sourceVod, sourceTitle);
         if (requestSeasonNumber < 0 && payload != null && payload.getSeasonNumber() >= 0) requestSeasonNumber = payload.getSeasonNumber();
         cancelActivePrefetch();
         detailPrefetch.cancel();
+        applySourceBundle(bundle, sourceVod, payload);
+        TmdbSourceCapabilityPlanner.Plan plan = TmdbSourceCapabilityPlanner.plan(bundle, payload, TmdbSourceCapabilityPlanner.UiState.initialScreen());
+        boolean fillInitial = !sourceOnly && plan.hasInitialNetworkGaps();
+        SpiderDebug.log("tmdb", "source loaded title=%s media=%s id=%d seasons=%d sourceOnly=%s fill=%s missing=%s",
+                tmdbItem.getTitle(), tmdbItem.getMediaType(), tmdbItem.getTmdbId(), seasonOptions.size(), sourceOnly, fillInitial, plan.missing());
+        notifyVodChanged(sourceVod, generation, RefreshEvent.Type.VOD_CORE);
+        notifyLoadComplete(sourceVod, generation);
+        if (fillInitial) backgroundTasks.submit(() -> fillInitialSourceGaps(bundle, sourceVod, payload, plan, generation));
+    }
 
+    private void applySourceBundle(TmdbBundle bundle, Vod sourceVod, TmdbSourcePayload payload) {
         vod = sourceVod;
+        activeSourceBundle = bundle;
+        activeSourcePayload = payload;
         tmdbItem = bundle.item();
         tmdbDetail = bundle.detail();
         tmdbCast = new ArrayList<>(bundle.cast());
@@ -645,9 +662,28 @@ public class TmdbUIAdapter {
         loaded = true;
         episodeMetadataLoaded = true;
         enrichVod(sourceVod, tmdbItem, tmdbDetail);
-        SpiderDebug.log("tmdb", "source-only loaded title=%s media=%s id=%d seasons=%d", tmdbItem.getTitle(), tmdbItem.getMediaType(), tmdbItem.getTmdbId(), seasonOptions.size());
-        notifyVodChanged(sourceVod, generation, RefreshEvent.Type.VOD_CORE);
-        notifyLoadComplete(sourceVod, generation);
+    }
+
+    private void fillInitialSourceGaps(TmdbBundle sourceBundle, Vod sourceVod, TmdbSourcePayload payload,
+                                       TmdbSourceCapabilityPlanner.Plan plan, int generation) {
+        long start = System.currentTimeMillis();
+        TmdbConfig requestConfig = tmdbConfig;
+        try {
+            JsonObject detail = tmdbService.detailForSource(sourceBundle.item(), payload == null ? 0 : payload.getSeasonNumber(), requestConfig, plan.missing());
+            if (!isCurrentGeneration(generation)) return;
+            TmdbBundle networkBundle = TmdbSourceAdapter.fromNetwork(sourceBundle.item(), detail, requestConfig);
+            TmdbBundle merged = TmdbSourceMerger.fillOnly(sourceBundle, payload, networkBundle);
+            SpiderDebug.log("tmdb", "source fill finish cost=%dms missing=%s", System.currentTimeMillis() - start, plan.missing());
+            if (activity == null) return;
+            activity.runOnUiThread(() -> {
+                if (!isCurrentGeneration(generation)) return;
+                applySourceBundle(merged, sourceVod, payload);
+                notifyVodChanged(sourceVod, generation, RefreshEvent.Type.VOD_CORE);
+                notifyLoadComplete(sourceVod, generation);
+            });
+        } catch (Throwable e) {
+            SpiderDebug.log("tmdb", "source fill failed cost=%dms missing=%s error=%s", System.currentTimeMillis() - start, plan.missing(), e.getMessage());
+        }
     }
 
     private static String seasonEpisodeKey(TmdbItem item, int seasonNumber) {
@@ -868,6 +904,8 @@ public class TmdbUIAdapter {
         relatedVideoGeneration++;
         loaded = false;
         sourceOnly = false;
+        activeSourceBundle = null;
+        activeSourcePayload = null;
         episodeMetadataLoaded = false;
         pendingVodRefreshVod = null;
         pendingVodRefreshGeneration = generation;
@@ -1669,6 +1707,7 @@ public class TmdbUIAdapter {
             SpiderDebug.log("tmdb", "season episodes source=memory season=%d count=%d", seasonNumber, cached.size());
             return cached;
         }
+        if (sourceOnly) return List.of();
         JsonObject season = tmdbService.season(item, seasonNumber, tmdbConfig);
         if (season == null) return List.of();
         List<TmdbEpisode> episodes = tmdbService.episodes(season, tmdbConfig, item.getTmdbId(), seasonNumber);
@@ -2330,6 +2369,7 @@ public class TmdbUIAdapter {
             return;
         }
         String contextKey = item.getMediaType() + ":" + item.getTmdbId() + ":" + seasonNumber + ":" + episodeNumber + ":" + tmdbConfig.getLanguage();
+        if (applySourceVideosIfAvailable(item, seasonNumber, episodeNumber, contextKey)) return;
         if (sourceOnly) {
             relatedVideoGeneration++;
             relatedVideoLoading = false;
@@ -2369,6 +2409,30 @@ public class TmdbUIAdapter {
                 notifyVodChanged(currentVod, generation, RefreshEvent.Type.VOD_RELATED_VIDEOS);
             });
         });
+    }
+
+    private boolean applySourceVideosIfAvailable(TmdbItem item, int seasonNumber, int episodeNumber, String contextKey) {
+        String group;
+        if (item.isMovie()) {
+            group = TmdbSourceCapabilityPlanner.VIDEOS;
+        } else if (episodeNumber > 0 && seasonNumber >= 0) {
+            group = TmdbSourceCapabilityPlanner.episodeVideos(seasonNumber, episodeNumber);
+        } else if (seasonNumber >= 0) {
+            group = TmdbSourceCapabilityPlanner.seasonVideos(seasonNumber);
+        } else {
+            group = TmdbSourceCapabilityPlanner.VIDEOS;
+        }
+        if (!TmdbSourceCapabilityPlanner.isAvailable(activeSourceBundle, activeSourcePayload, group, seasonNumber, episodeNumber)) return false;
+        relatedVideoGeneration++;
+        relatedVideoLoading = false;
+        relatedVideoContextKey = contextKey;
+        relatedVideos = new ArrayList<>(TmdbSourceAdapter.videos(
+                tmdbDetail,
+                item.getMediaType(),
+                seasonNumber,
+                episodeNumber,
+                tmdbConfig.getLanguage()));
+        return true;
     }
 
     public boolean hasMoreRecommendations() {

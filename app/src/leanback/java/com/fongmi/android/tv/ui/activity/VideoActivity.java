@@ -2623,8 +2623,8 @@ private boolean runtimeSourceOnly;
         // TMDB 增强：自动匹配并增强 Vod
         if (mTmdbUIAdapter != null && (mTmdbUIAdapter.isReady() || runtimeSourceOnly)) {
             mTmdbUIAdapter.setActiveFlag(getFlag());
-            if (runtimeSourceOnly && sourceBundle != null) {
-                SpiderDebug.log("tmdb-tv", "source-only load vodTitle=%s tmdbId=%d media=%s", item.getName(), sourceBundle.item().getTmdbId(), sourceBundle.item().getMediaType());
+            if (sourceState == TmdbSourceState.RENDERABLE && sourceBundle != null) {
+                SpiderDebug.log("tmdb-tv", "source-first load vodTitle=%s tmdbId=%d media=%s sourceOnly=%s", item.getName(), sourceBundle.item().getTmdbId(), sourceBundle.item().getMediaType(), runtimeSourceOnly);
                 mTmdbUIAdapter.loadSource(sourceBundle, item, sourcePayload);
             } else {
                 com.fongmi.android.tv.bean.TmdbItem tmdbItem = getTmdbItem();
