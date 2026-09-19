@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：设计完成，补充评估 `power721/alist-tvbox` 与 `power721/atv-player` 后待用户评审；本轮只交付设计，不授权修改运行代码。
+> 状态：实现规格完成，待用户批准后实施；本轮只交付文档，不修改运行代码。
 
 ## Recovery anchor
 
@@ -9,7 +9,7 @@
 - 范围：`assessment`；仅本文档与总评估索引，不修改 APP、T3/T4 运行代码、爬虫 ABI、依赖或构建产物。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 下一动作：等待用户评审；明确批准后，从协议模型和纯逻辑测试开始实施。
+- 下一动作：等待用户批准；批准后严格按第 16 节的阶段和文件清单实施。
 
 ## 1. 设计结论
 
@@ -319,3 +319,250 @@ T4 内部若有持久化元数据，建议按 `provider=tmdb、metaId=id、seaso
 ## 14. 最终建议
 
 **建议实施** `Vod.tmdb` 可选对象、TMDB 原生字段形状、能力组完整声明及 fill-only 合并；增加 `season_number` 上下文和 `id + media_type + season_number + language` 缓存键。吸收 alist-tvbox 的服务端按季快照、状态/TTL、失败不覆盖和图片/凭据隔离，吸收 atv-player 的字段级合并、外部 ID 直达、季级 provider ID、空结果短 TTL 和异步隔离。不要增加独立 T3/T4 元数据接口，不要在数据完整时连接 TMDB，也不要让源控制 APP 的 TMDB 地址或凭据。
+
+## 15. 实现合同
+
+本节是实现的唯一执行依据。若本节与前文概念描述冲突，以本节为准；未列入本节的 TMDB 字段不得成为首版的必需字段。
+
+### 15.1 WebHTV 修改文件清单
+
+首版客户端实现限定在以下路径：
+
+| 文件 | 必须改动 |
+| --- | --- |
+| `app/src/main/java/com/fongmi/android/tv/bean/Vod.java` | 增加可选 `TmdbSourcePayload tmdb`，Gson 解析、getter/setter、Parcelable、`isSameContent` 参与内容比较 |
+| `app/src/main/java/com/fongmi/android/tv/bean/TmdbSourcePayload.java` | 新增协议容器、校验、能力组、来源标记和深拷贝 |
+| `app/src/main/java/com/fongmi/android/tv/bean/TmdbSourceDetail.java` | 新增 TMDB 原始详情包装；内部 `JsonObject` 以 JSON 字符串保存，不直接放进 Parcelable |
+| `app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbSourcePayloadParser.java` | 新增大小限制、身份校验、字段类型校验和图片 URL 规范化 |
+| `app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbSourceCapabilityPlanner.java` | 新增能力组判定和缺口计划，必须是无 Android UI 副作用的纯逻辑 |
+| `app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbSourceMerger.java` | 新增 source/cache/network 的字段级 fill-only 合并 |
+| `app/src/main/java/com/fongmi/android/tv/api/SiteApi.java` | 不改变 T3/T4 请求；仅确保解析后的 `Vod.tmdb` 随 Result 缓存返回 |
+| `app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java` | 重排 `loadContent` 为先取源详情、再决定 TMDB 请求；增加 payload 到现有 `TmdbBundle` 的适配 |
+| `app/src/main/java/com/fongmi/android/tv/service/TmdbService.java` | 仅补充缺口请求入口/缓存键；保留现有请求 URL 和认证策略 |
+| `app/src/main/java/com/fongmi/android/tv/utils/VodDetailCache.java` | 不改变源详情键；如新增 TMDB 合并缓存，单独使用带季和语言的键，不把网络合并结果写回源内容缓存 |
+
+不允许在首版修改 `catvod/`、`quickjs/`、`chaquo/` 的爬虫 ABI，也不允许新增 TMDB 独立 HTTP 接口。
+
+### 15.2 Java 模型字段
+
+`TmdbSourcePayload` 固定字段如下：
+
+| 字段 | Java 类型 | JSON | 规则 |
+| --- | --- | --- | --- |
+| `schema` | `int` | `schema` | 仅接受 `1` |
+| `tmdbId` | `int` | `id` | `> 0` |
+| `mediaType` | `String` | `media_type` | 仅 `movie`/`tv`，统一小写 |
+| `seasonNumber` | `int` | `season_number` | `tv` 可为 `0` 或正数；`movie` 必须为 `0` |
+| `language` | `String` | `language` | 空值规范为 `""` |
+| `fetchedAt` | `String` | `fetched_at` | 仅校验长度和 ISO-8601 形状，不参与身份 |
+| `complete` | `Set<String>` | `complete` | 未知组丢弃；保留合法组并去重 |
+| `detailJson` | `String` | `detail` | 保存 TMDB snake_case JSON；默认 `{}` |
+| `sourceKind` | `String` | 不出现在协议 | `source_tmdb` / `cache_tmdb` / `remote_tmdb`，仅 APP 内部使用 |
+
+`Vod` 中的字段声明为 `@SerializedName("tmdb") private TmdbSourcePayload tmdb;`，不添加 Simple XML `@Element`，因此 XML 详情自然忽略该扩展。旧 JSON、旧缓存和没有 `tmdb` 的源必须得到 `null`。
+
+`TmdbSourceDetail` 不把所有 TMDB v3 字段复制成 Java 成员；保留 `JsonObject` 字符串并提供以下白名单读取器：`id`、标题、简介、海报、背景图、日期、评分、类型、地区、时长、`images`、`credits`、`aggregate_credits`、`external_ids`、`videos`、`recommendations`、`similar`、`seasons`、`episodes`、`translations`、`content_ratings`、`release_dates`。读取器遇到类型错误返回空值，不抛出到详情页。
+
+### 15.3 JSON 规范与完整示例
+
+T3/T4 只能在详情 `list[0]` 中返回 `tmdb`。搜索列表不返回该字段，播放接口也不返回该字段。`detail` 必须是 JSON object；不能是字符串、数组或 TMDB API 响应外层包装。
+
+电影完整示例：
+
+```json
+{
+  "list": [{
+    "vod_id": "movie-1",
+    "vod_name": "示例电影",
+    "vod_pic": "https://source.example/poster.jpg",
+    "vod_content": "源详情简介",
+    "vod_play_from": "线路一",
+    "vod_play_url": "正片$https://source.example/movie.m3u8",
+    "tmdb": {
+      "schema": 1,
+      "id": 550,
+      "media_type": "movie",
+      "season_number": 0,
+      "language": "zh-CN",
+      "complete": ["core", "credits", "images", "external_ids", "videos", "recommendations", "similar"],
+      "detail": {
+        "id": 550,
+        "title": "Fight Club",
+        "original_title": "Fight Club",
+        "overview": "...",
+        "poster_path": "/poster.jpg",
+        "backdrop_path": "/backdrop.jpg",
+        "release_date": "1999-10-15",
+        "vote_average": 8.4,
+        "vote_count": 28000,
+        "genres": [],
+        "credits": {"cast": [], "crew": []},
+        "external_ids": {"imdb_id": "tt0137523"},
+        "videos": {"results": []},
+        "recommendations": {"page": 1, "results": []},
+        "similar": {"page": 1, "results": []}
+      }
+    }
+  }]
+}
+```
+
+电视剧选中季示例：
+
+```json
+{
+  "list": [{
+    "vod_id": "show-1",
+    "vod_name": "示例剧集",
+    "vod_play_url": "S01E01$https://source.example/1.m3u8",
+    "tmdb": {
+      "schema": 1,
+      "id": 1399,
+      "media_type": "tv",
+      "season_number": 1,
+      "language": "zh-CN",
+      "complete": ["core", "credits", "images", "external_ids", "season:1"],
+      "detail": {
+        "id": 1399,
+        "name": "Game of Thrones",
+        "original_name": "Game of Thrones",
+        "overview": "...",
+        "first_air_date": "2011-04-17",
+        "vote_average": 8.4,
+        "number_of_seasons": 8,
+        "number_of_episodes": 73,
+        "seasons": [{"season_number": 1, "episode_count": 10, "episodes": []}],
+        "aggregate_credits": {"cast": [], "crew": []},
+        "external_ids": {"imdb_id": "tt0944947"}
+      }
+    }
+  }]
+}
+```
+
+`season:1` 的完整语义是 `seasons[]` 中第 1 季对象、`episodes` 数组和该季需要的 `images/credits` 均已由生产者确认；如果只返回季摘要而没有集列表，不能声明 `season:1`，只能返回 `core`。
+
+### 15.4 能力组到字段和请求映射
+
+| 能力组 | 最低字段/条件 | APP 现有请求 | 首屏还是延迟 |
+| --- | --- | --- | --- |
+| `core` | `id`、标题、简介、日期、`vote_average`、`genres`；TV 还需 `number_of_seasons`/`number_of_episodes`（若 TMDB 有值） | `TmdbService.detail(item, config, false)` | 首屏 |
+| `credits` | `credits` 或 TV 的 `aggregate_credits`，cast/crew 均可为空但必须声明完整 | 同上 | 首屏 |
+| `images` | `poster_path`、`backdrop_path` 和 `images` 已覆盖当前页面需要的语言候选 | 同上 | 首屏 |
+| `external_ids` | `external_ids` object（无 ID 也必须能声明空） | 同上 | 首屏 |
+| `videos` | 详情级 `videos.results` | `TmdbService.videos` 或现有相关视频入口 | 延迟 |
+| `recommendations` | `recommendations.page=1` 和 `results` | `TmdbService.recommendations(item, config, 1)` | 首屏/延迟加载 |
+| `similar` | `similar.page=1` 和 `results` | `TmdbService.similar(item, config, 1)` | 首屏/延迟加载 |
+| `season:N` | 季摘要、`episodes`、季图和季演职员 | `TmdbService.season(item, N, config, detail)` | 选季时 |
+| `season_videos:N` | 当前季视频 results | `TmdbService.seasonVideos(...)` | 打开视频时 |
+| `episode:N:E` | 单集字段和当前集详情字段 | `TmdbService.episode(item, N, E, config, detail)` | 打开单集时 |
+| `episode_videos:N:E` | 单集视频 results | `TmdbService.episodeVideos(...)` | 打开视频时 |
+
+规划器规则：首屏只要求 `core`、`credits`、`images`；`external_ids` 只在当前 UI 显示 IMDb/外部 ID 或需要身份确认时要求。`recommendations`、`similar`、`videos` 不得因为缺少而阻塞首屏。TV 选季后才要求对应 `season:N`；不能用 `season:1` 满足 `season:2`。
+
+### 15.5 详情页精确调用顺序
+
+修改 `TmdbDetailActivity.loadContent()`（当前 `:2312`）为以下顺序，禁止在源详情完成前提交 `loadTmdbResult()`：
+
+```text
+generation = ++loadGeneration
+detailTasks.cancelAll()
+sourceResult = SiteApi.detailContent(key, id)
+loadedVod = sourceResult.getVod()
+payload = TmdbSourcePayloadParser.parse(loadedVod.getTmdb())
+sourceBundle = TmdbSourceAdapter.toBundle(payload, loadedVod, config)
+plan = TmdbSourceCapabilityPlanner.plan(sourceBundle, payload, currentUiState)
+applyLoaded(loadedVod, sourceBundle, ...)
+
+if plan.hasInitialNetworkGaps() and tmdbConfig.isReady() and siteAllowsTmdb:
+    networkBundle = loadTmdbMissing(plan, payload.identity())
+    mergedBundle = TmdbSourceMerger.fillOnly(sourceBundle, networkBundle)
+    applyLoadedIfGenerationCurrent(loadedVod, mergedBundle)
+```
+
+具体分支：
+
+1. payload 合法且首屏能力完整：不创建 `TmdbLoadResult`，不调用搜索、`loadTmdbBundle` 或 `TmdbService.detail`。
+2. payload 合法但缺 `core`：用 payload 的 ID 构造 `TmdbItem`，直接调用详情接口；禁止标题搜索。
+3. payload 合法但缺 `credits/images`：直接按 ID 请求完整详情并只合并缺口。
+4. payload 只有 ID 且 `detail` 为空：直接按 ID 请求；只有 payload 无效或 ID 缺失时才进入原有 `searchResolvedTmdbMatch()`。
+5. payload 冲突（外层 ID、`detail.id`、媒体类型不一致）：丢弃 payload，保留普通源详情，并执行现有匹配流程。
+6. `reusableBundle` 非空时仍先合并合法 source payload；复用对象只作为低优先级网络缓存，不得覆盖源字段。
+7. 每个后台结果回 UI 前检查 `generation`、`identity`、`season_number` 和 `mediaType`，任一不符直接丢弃。
+
+`TmdbSourceAdapter.toBundle()` 必须填充现有内部 record：
+
+| `TmdbBundle` 成员 | 来源 |
+| --- | --- |
+| `item` | payload 身份和 detail 标题/简介/图片/评分构造 `TmdbItem` |
+| `detail` | `detailJson` 解析后的 `JsonObject` |
+| `cast`/`creators` | `credits.cast/crew` 或 `aggregate_credits` 经现有转换器 |
+| `photos` | `images.backdrops/posters` 与 detail 主图去重 |
+| `related` | `recommendations.results` + `similar.results` 去重 |
+| `seasons`/`seasonCounts` | `detail.seasons` |
+| `seasonEpisodes` | 当前 `season_number` 对应季的 `episodes` |
+| `seasonCast`/`seasonPhotos` | 对应季对象的 `credits`/`images` |
+
+适配器不得调用网络；缺字段返回空集合，交给 planner 决定是否补齐。
+
+### 15.6 合并、来源和缓存实现
+
+`TmdbSourceMerger` 保存三层对象：`sourcePayload`、`networkPayload`、`effectiveBundle`，不把网络结果写回 `Vod.tmdb`。字段来源以能力组记录：`SOURCE`、`LOCAL_CACHE`、`REMOTE_TMDB`、`VOD_FALLBACK`。
+
+缓存键固定为：
+
+```text
+tmdb-detail:{mediaType}:{tmdbId}:season={seasonNumber}:lang={language}:include={capabilityMask}
+```
+
+能力 mask 必须排序后生成，不能以 Java Set 的迭代顺序直接拼接。详情源缓存仍使用现有 `VodDetailCache` 的 `source + NUL + id` 键；不要改变其 TTL 或把合并结果存入该缓存。TMDB 网络缓存可沿用 `TmdbService` 现有 cache，但新季键必须追加 `seasonNumber`。
+
+fill-only 的字段规则：字符串空白、数值未定义、对象缺失、未声明 complete 的空数组都允许由低优先级填充；源字段非空或其能力组明确声明空数组后，低优先级不得覆盖。`detail.id` 和身份字段永不由低优先级修改。
+
+`Vod` Parcelable 只传 `tmdb` 的协议字段和 `detailJson` 字符串；传输前执行 256 KiB 单对象限制。超过限制不走 Parcelable，继续通过 `VodDetailCache.put()` 传递 key；绝不把 `JsonObject` 或完整图片/推荐对象直接写入 Binder。
+
+### 15.7 T3/T4 服务端实现边界
+
+T3 只需在现有 `detailContent(ids)` 返回的 `list[0]` 增加 `tmdb`，不新增函数、不改变 `ids` 语义；JS/Python/Java 爬虫桥接均把它当作普通 JSON。
+
+T4 只需改造其 `ac=detail&ids=` 响应的 `MovieDetail`/Vod 序列化层；若使用 alist-tvbox 的实现，内部可将 `MediaMetadata(provider, metaId, season, status, payload, fetchTime)` 映射为 C16 对象，但不能把 `vod_*` 平铺字段当作替代合同。T4 必须：
+
+- 没有合法快照时省略 `tmdb`，不能返回空 ID 对象。
+- 读取快照失败时返回普通详情，不让整个 `ac=detail` 失败。
+- 按 `provider=tmdb + metaId + season` 读写，网络失败不覆盖旧 payload。
+- 图片只返回相对 TMDB path 或受信任的 HTTPS 图片 URL，不能返回 API key、Authorization、API base 或任意请求头。
+- 服务端响应保持 JSON；XML 类型站点不承担 `tmdb` 合同，APP 仅从 JSON 读取该字段。
+
+T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端读取 `tmdb`，同一 `ids` 在无快照、完整快照、部分快照和坏快照四种状态下均有确定响应。
+
+### 15.8 测试文件和通过条件
+
+首版必须新增或扩展以下测试：
+
+| 测试 | 必须证明 |
+| --- | --- |
+| `TmdbSourcePayloadTest` | Gson 解析、schema/media/id/season 校验、未知组和坏类型处理 |
+| `TmdbSourceCapabilityPlannerTest` | 每个能力组缺口、季/集隔离、完整空数组不联网 |
+| `TmdbSourceMergerTest` | source > cache > network > Vod fallback，源值不被覆盖 |
+| `TmdbSourceAdapterTest` | payload 无网络转成现有 `TmdbBundle` 所需的所有集合 |
+| `VodTmdbParcelableTest` | Parcelable 往返、旧对象兼容、256 KiB 超限走 cache key |
+| `SiteApiT3TmdbDetailTest` | type 3 JSON 详情保留 tmdb 且缓存往返不丢失 |
+| `SiteApiT4TmdbDetailTest` | type 4 JSON 详情保留 tmdb，普通字段不变 |
+| `TmdbDetailSourcePayloadTest` | 完整 payload 不调用 TMDB；部分 payload 只按 ID 补齐 |
+| `TmdbDetailGenerationTest` | 切源、切季、退出后旧任务不能更新页面 |
+| `TmdbServiceCacheKeyTest` | media/id/season/language/capability 不串缓存 |
+
+“零 TMDB 请求”必须通过可注入的 fake `TmdbService` 或请求计数器断言，不能仅通过 UI 截图推断。每个测试失败都必须保留实际请求 URL/能力组，便于确认没有误触发标题搜索或整包详情请求。
+
+## 16. 实施顺序与提交边界
+
+实施必须按以下顺序，每阶段独立编译/测试并保持可回滚：
+
+1. **协议模型**：新增 payload/detail/parser，扩展 `Vod` Gson、Parcelable、copy/diff；运行模型和解析测试。
+2. **纯逻辑**：实现 adapter/planner/merger，运行字段、能力、季集、来源优先级测试。
+3. **源接入**：确认 T3/T4 JSON 详情和 `VodDetailCache` 往返，运行 SiteApi 测试。
+4. **详情页接入**：重排 `loadContent` 的先源后网状态机，接入 `TmdbBundle`，运行零请求、缺口补齐和 generation 测试。
+5. **延迟能力**：接入季、集、视频、推荐分页，运行季集和视频回归。
+6. **设备验收**：移动端、Leanback 各验证完整 T3、部分 T4、无扩展旧源；记录网络请求计数和页面结果。
+
+每阶段只允许修改对应任务文档声明的客户端文件；T4 服务端应使用独立任务文档和独立提交，不与 APP 提交混合。任何新增字段、接口、依赖或跨仓库变更都必须先更新本实现合同并重新评审。
