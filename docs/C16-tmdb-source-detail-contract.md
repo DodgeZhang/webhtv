@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已按“详情响应最外层 `tmdb_api_key` + 当前订阅接口临时凭据作用域”实施阶段 1-4：根字段剥离、订阅 epoch、用户优先、官方 HTTPS 白名单、旧异步隔离、source-first/fill-only 接线、T3/T4 同合同和泄漏回归均已通过定向单测和 Mobile/Leanback Java 编译；阶段 5 设备验收待继续。T4 服务端仍需在其独立仓库按本文合同实施。
+> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节客户端阶段 1-5 已实现：根字段剥离、订阅 epoch、用户优先、官方 HTTPS 白名单、旧异步隔离、source-first/fill-only 接线、T3/T4 同合同、泄漏回归和双端设备验收均已完成。未提供真实第三方 TMDB Key，因此真实网络补齐成功及真实 401/403 仍为未验证；T4 服务端仍需在其独立仓库按本文合同实施。不得据此宣称“发布完成”。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1-6 已完成本仓库 APP 侧协议、解析、合并、详情接入、延迟能力和设备验收。第 19 节是新增临时源 Key 能力的设计评审，不授权生产代码实施。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节阶段 A-E 已完成纯策略、设置解耦、独立页、原生增强和交互收口；阶段 F 已在 `V1923A/Android 9` 的 `192.168.50.3:5559` 完成无 Key Mobile/Leanback 设备验收。第 19 节阶段 1-3 已提交并打 tag；阶段 4 已完成泄漏扫描、错误脱敏和 T3/T4 合同回归。
-- 下一动作：完成第 19 节阶段 4 的原子提交和 recovery tag，然后实施阶段 5 的 Mobile/Leanback 设备验收；若无可审计的测试 Key，真实第三方 401 场景必须明确标记未验证。
+- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节阶段 A-E 已完成纯策略、设置解耦、独立页、原生增强和交互收口；阶段 F 已在无 Key Mobile/Leanback 设备完成验收。第 19 节阶段 1-4 已提交并打 tag；阶段 5 已在分配设备 `SM-N9700/Android 9` 的 `192.168.50.3:5557` 完成双端设备矩阵、私有目录与 logcat 泄漏扫描。
+- 下一动作：完成第 19 节阶段 5 的原子提交和 recovery tag，并以独立文档收口提交记录最终 commit/tag；T4 生产服务的版本门控、Key 轮换与真实 Key 验证需在独立仓库继续。
 
 ## 1. 设计结论
 
@@ -1955,10 +1955,26 @@ T3 爬虫和 T4 服务端：
 
 #### 阶段 4：泄漏扫描与回归
 
-- 状态：代码与定向验证已完成，提交及 recovery tag 在本阶段收口时创建。
+- 状态：已完成并收口。
 - `TmdbService.execute()`：OkHttp 异常重新包装前先调用 `redactMessage()`，查询参数 `api_key/apikey/key/token/access_token` 和 Bearer 值不会进入异常文本、`SpiderDebug` 或上层日志。
 - T3/T4 合同回归：同一 `tmdb` 对象经过根字段剥离后使用相同模型，序列化、详情缓存和两个详情入口的结果不包含源 Key；`Vod`、`Result`、`TmdbSourcePayload`、`VodDetailCache` 源码中没有根字段。
 - 生命周期回归：测试覆盖合法 Key 注入、同一订阅复用、不同接口清空、A→B→A 不复用、403 清理、用户配置优先和 `toJson()` 不写临时 Key。
 - 泄漏面核对：日志/异常经脱敏；详情缓存只接收 sanitized JSON；TMDB 缓存文件名使用 MD5；临时 Key 不进入 Preference、Room、Backup、Intent、Bundle 或 Parcel 模型；诊断文本走已有敏感字段过滤。
 - 验证：C16 定向回归共 57 项通过；Mobile 与 Leanback `Arm64_v8aDebug` Java 编译均返回 `BUILD SUCCESSFUL`；`git diff --check` 通过。
+- 提交：`d2136e463391a6c34a4bf042d85cc001982cd001`；tag：`recovery/C16-19-stage4/20260919192800-d2136e463391`。
 - 回滚：撤销本阶段提交即可恢复未脱敏的底层网络异常文本和旧合同测试；凭据生命周期实现不受影响。已暴露在旧版本日志中的 Key 必须轮换，不能用代码回滚补救。
+
+#### 阶段 5：Mobile/Leanback 设备验收
+
+- 状态：代码与设备验证已完成，提交及 recovery tag 在本阶段收口时创建。
+- 设备与夹具：分配设备 `SM-N9700`、Android 9、`192.168.50.3:5557`；使用 `/tmp/c16_subscription_fixture.py`、`/tmp/c16_keyless_fixture.py` 和 `adb reverse tcp:18080/18081`。测试结束后已停止本地夹具并移除 5557 的反向端口。
+- 凭据矩阵：Mobile 和 Leanback 各 5/5 通过，覆盖根字段接收与 source UI、部分 source 回退、同一订阅复用、A→B→A 不恢复、用户配置优先、非法 Key 不写入。
+- 无 Key 回归：Mobile 和 Leanback 各 3/3 通过，覆盖独立详情页、原生增强详情和无扩展旧源回退，无 Key 提示。
+- 泄漏扫描：设备测试 `@After` 在包仍安装时递归读取 app data 和 external files，测试 Key 未出现在持久化文件、偏好、数据库或缓存；5557 `logcat -d` 也未命中测试 Key。
+- Artifact SHA-256：
+  - Mobile APK：`859bb322889735e00e937e70ac763d037ef6228da942d3e68018b2bdfaeb1bdd`
+  - Leanback APK：`7d709944aa81e8eb20109b4957e0df66d019c1ad5ebe537da6c8252dea3000dc`
+  - Mobile androidTest APK：`f5bcd7f154140820d755641b713b4ef3501226ccfefb3435c332badfd474bf11`
+  - Leanback androidTest APK：`4922f7ef7ae72986657fd3b41acb686bf9dbbdb240a68a782a738528a4beb177`
+- 未验证：工作区未提供真实第三方 TMDB Key；设备矩阵验证了无效 Key 不得误写、用户优先、source 回退与清空路径，但真实有效 Key 的网络补齐成功、真实 401/403 和源端版本门控/轮换仍未验证。确定性 401 状态处理仍由 JVM 单测覆盖，不能用 stub 结果替代真实 Key 结论。
+- 回滚：撤销本阶段测试提交即可恢复原有无 Key 三场景设备测试；生产实现及阶段 1-4 锚点保持不变。
