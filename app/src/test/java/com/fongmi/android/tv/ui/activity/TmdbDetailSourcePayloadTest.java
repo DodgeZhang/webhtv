@@ -46,6 +46,21 @@ public class TmdbDetailSourcePayloadTest {
         assertTrue("legacy title matching must not be scheduled before source/payload parsing", sourcePayload > 0 && legacyFuture > sourcePayload);
     }
 
+    @Test
+    public void delayedCapabilitiesReuseCompleteEmbeddedSourceData() throws Exception {
+        String source = loadActivitySource();
+
+        assertTrue("complete season groups must suppress season fetches",
+                source.contains("if (!refresh && hasCompleteSourceSeason(seasonNumber)) return;")
+                        && source.contains("|| hasCompleteSourceSeason(firstSeason)) return;"));
+        assertTrue("complete episode groups must suppress episode detail requests",
+                source.contains("if (hasCompleteSourceEpisode(detailSeasonNumber, detailEpisodeNumber))"));
+        assertTrue("complete video groups must use the embedded resolver instead of the network service",
+                source.contains("boolean sourceComplete = hasCompleteSourceVideos(item, requestSeasonNumber, requestEpisodeNumber);")
+                        && source.contains("? TmdbSourceAdapter.videos(sourceDetail, item.getMediaType(), requestSeasonNumber, requestEpisodeNumber, tmdbConfig.getLanguage())")
+                        && source.contains(": tmdbService.relatedVideos(item, requestSeasonNumber, requestEpisodeNumber, tmdbConfig);"));
+    }
+
     private static String loadContentBody() throws Exception {
         Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = Files.readString(sourcePath, StandardCharsets.UTF_8);
@@ -53,6 +68,13 @@ public class TmdbDetailSourcePayloadTest {
         int end = source.indexOf("private boolean shouldLoadInitialStandaloneTmdbDetailInSinglePass", start);
         assertTrue(sourcePath + " is missing the loadContent method", start >= 0 && end > start);
         return source.substring(start, end);
+    }
+
+    private static String loadActivitySource() throws Exception {
+        Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String source = Files.readString(sourcePath, StandardCharsets.UTF_8);
+        assertTrue(sourcePath + " is missing the activity source", !source.isBlank());
+        return source;
     }
 
     private static Path findMainJavaPath() {

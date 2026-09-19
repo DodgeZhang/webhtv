@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：用户已批准按阶段实施。阶段 1-4 已实现并通过定向测试；阶段 5 延迟能力待实施。
+> 状态：用户已批准按阶段实施。阶段 1-5 已实现并通过定向测试；阶段 6 设备验收待执行。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1 已落地 APP 协议模型与解析器，后续仍按第 16 节逐阶段提交。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1-3 已完成协议、纯逻辑和源缓存合同；阶段 4 已接入详情页 source-first 状态机和按身份补缺口。
-- 下一动作：实施阶段 5，接入季、集、视频和推荐分页的延迟能力及回归测试。
+- 当前进展：阶段 1-4 已完成协议、纯逻辑、源缓存和 source-first 详情接入；阶段 5 已接入季、集和视频的完整组短路。
+- 下一动作：执行阶段 6 设备验收；移动端和电视端分别覆盖完整 T3、部分 T4、无扩展旧源，并记录请求数与页面结果。
 
 ## 1. 设计结论
 
@@ -602,6 +602,7 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 
 ### 阶段 4：详情页接入
 
+- 提交：`7de6bed8886ab34e429f4e66295d12e946815393`；恢复标签 `recovery/C16-stage4/20260919111304-7de6bed8886a`。
 - `TmdbDetailActivity.loadContent` 已改为先完成 `SiteApi.detailContent`、解析并应用 `Vod.tmdb`，再决定是否创建旧 TMDB 匹配任务；旧源路径仍在源详情完成后串行执行。
 - 合法 payload 先按 identity 构造 `TmdbBundle`，再计算 `TmdbSourceCapabilityPlanner` 首屏缺口；`core/credits/images` 完整时直接返回，不调用来源详情 TMDB 请求。
 - 部分 payload 使用 `TmdbService.detailForSource()` 按 TMDB ID 请求，合并后通过 `TmdbSourceMerger.fillOnly()` 仅填缺口；不再为有效身份执行标题搜索。
@@ -611,3 +612,14 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 - 同步调整旧 standalone 源码测试：仍保留单次首屏绑定和季预加载，但断言顺序改为 source detail -> payload plan -> TMDB wait。
 - 定向验证：`TmdbDetailSourcePayloadTest`、`TmdbDetailGenerationTest`、`TmdbServiceCacheKeyTest`、`TmdbSourceAdapterTest`、`TmdbDetailActivityLayoutTest`、`TmdbUIAdapterTest` 共 75 项通过；Leanback Arm64 Debug Java 编译通过，Gradle 返回 `BUILD SUCCESSFUL`。
 - 未验证项：真实网站 T3/T4 网络请求计数、移动端/电视端字段渲染和真实退出/切源竞态，留待阶段 6 设备验收。
+
+### 阶段 5：延迟能力
+
+- 新增活动级 source payload 身份状态；仅当当前 TMDB 身份仍与源 payload 一致时，季、集和视频的完整组短路生效。
+- `fetchSeasonIfNeeded` 对已由 `season:N` 完整声明的季直接返回；内部 stale split 探针也跳过已完整声明的季。用户显式 refresh 仍保留原刷新语义。
+- 长按单集时，`episode:N:E` 完整声明直接使用已绑定的 TMDB 分集元数据打开详情，不再请求单集接口；缺失该组时继续走原补齐路径。
+- 新增 `TmdbSourceAdapter.videos()`：无网络从 detail、season 和 episode 对象解析 `TmdbVideo`，保持 title/season/episode scope，并按现有规则去重排序。
+- 视频区仅在当前上下文需要的 `videos`、`season_videos:N`、`episode_videos:N:E` 全部声明完整时使用内嵌视频；否则保持现有网络聚合，避免只补一部分造成上下文缺口。
+- 推荐和相似内容继续使用阶段 2 的内嵌首批 `related`；加载更多和个性化推荐仍走现有分页/服务流程。
+- 定向验证：`TmdbSourceAdapterTest` 新增三 scope 视频解析；`TmdbDetailSourcePayloadTest` 新增季、集、视频短路断言；连同 generation、缓存键、布局和 UI 接线测试共 203 项通过；Leanback Arm64 Debug Java 编译通过。
+- 未验证项：真实设备上选择缺失季、长按缺失集、打开视频区的请求数与 UI 结果，留待阶段 6。

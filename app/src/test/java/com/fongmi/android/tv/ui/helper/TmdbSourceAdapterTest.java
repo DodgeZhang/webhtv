@@ -92,4 +92,20 @@ public class TmdbSourceAdapterTest {
         assertEquals(1, bundle.cast().size());
         assertEquals(2, bundle.photos().size());
     }
+
+    @Test
+    public void embeddedVideoResolverKeepsTitleSeasonAndEpisodeScopes() {
+        var detail = JsonParser.parseString("""
+                {"videos":{"results":[{"id":"title-video","key":"title_key","site":"YouTube","type":"Trailer","name":"Title","official":true,"iso_639_1":"zh-CN"}]},
+                 "seasons":[{"season_number":1,"videos":{"results":[{"id":"season-video","key":"season_key","site":"YouTube","type":"Teaser","name":"Season","official":true,"iso_639_1":"zh-CN"}]},
+                   "episodes":[{"episode_number":1,"videos":{"results":[{"id":"episode-video","key":"episode_key","site":"YouTube","type":"Clip","name":"Episode","official":true,"iso_639_1":"zh-CN"}]}}]}]}
+                """).getAsJsonObject();
+
+        var videos = TmdbSourceAdapter.videos(detail, "tv", 1, 1, "zh-CN");
+
+        assertEquals(3, videos.size());
+        assertTrue(videos.stream().anyMatch(video -> video.getScope() == com.fongmi.android.tv.bean.TmdbVideo.Scope.EPISODE && "episode_key".equals(video.getKey())));
+        assertTrue(videos.stream().anyMatch(video -> video.getScope() == com.fongmi.android.tv.bean.TmdbVideo.Scope.SEASON && "season_key".equals(video.getKey())));
+        assertTrue(videos.stream().anyMatch(video -> video.getScope() == com.fongmi.android.tv.bean.TmdbVideo.Scope.TITLE && "title_key".equals(video.getKey())));
+    }
 }

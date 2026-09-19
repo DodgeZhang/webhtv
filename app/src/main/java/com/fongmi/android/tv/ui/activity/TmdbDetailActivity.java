@@ -336,6 +336,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private History mHistory;
     private TmdbConfig tmdbConfig;
     private TmdbBundle activeTmdbBundle;
+    private TmdbSourcePayload activeSourcePayload;
+    private TmdbItem activeSourceItem;
     private TmdbItem initialTmdbItem;
     private TmdbItem matchedTmdbItem;
     private JsonObject matchedTmdbDetail;
@@ -737,6 +739,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         pendingInlineResult = null;
         currentInlineResult = null;
         activeTmdbBundle = null;
+        activeSourcePayload = null;
+        activeSourceItem = null;
         useParse = false;
         detailTmdbPhotos.clear();
         detailTmdbPosters.clear();
@@ -2364,6 +2368,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 TmdbBundle initialBundle = sourceBundle;
                 runOnAliveUi(() -> {
                     if (generation != loadGeneration) return;
+                    activeSourcePayload = sourcePayload;
+                    activeSourceItem = initialBundle.item();
                     applyLoaded(finalVod, initialBundle, new ArrayList<>(), finalError, false);
                 });
                 if (!tmdbAllowed || !tmdbConfig.isReady()) return;
@@ -2597,6 +2603,23 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         if (first == second) return true;
         if (first == null || second == null) return false;
         return first.getTmdbId() == second.getTmdbId() && TextUtils.equals(first.getMediaType(), second.getMediaType());
+    }
+
+    private boolean hasCompleteSourceSeason(int seasonNumber) {
+        return activeSourcePayload != null && activeSourcePayload.hasCapability(TmdbSourceCapabilityPlanner.season(seasonNumber));
+    }
+
+    private boolean hasCompleteSourceEpisode(int seasonNumber, int episodeNumber) {
+        return activeSourcePayload != null && activeSourcePayload.hasCapability(TmdbSourceCapabilityPlanner.episode(seasonNumber, episodeNumber));
+    }
+
+    private boolean hasCompleteSourceVideos(@Nullable TmdbItem item, int seasonNumber, int episodeNumber) {
+        if (activeSourcePayload == null || item == null) return false;
+        if (item.isMovie()) return activeSourcePayload.hasCapability(TmdbSourceCapabilityPlanner.VIDEOS);
+        if (!item.isTv() || !activeSourcePayload.hasCapability(TmdbSourceCapabilityPlanner.VIDEOS)) return false;
+        if (seasonNumber < 0) return true;
+        if (!activeSourcePayload.hasCapability(TmdbSourceCapabilityPlanner.seasonVideos(seasonNumber))) return false;
+        return episodeNumber <= 0 || activeSourcePayload.hasCapability(TmdbSourceCapabilityPlanner.episodeVideos(seasonNumber, episodeNumber));
     }
 
     private boolean isInlinePlaybackRequestCurrent(int generation, String key, String flag, String episodeUrl) {
@@ -2936,6 +2959,10 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void applyTmdbBundle(TmdbBundle bundle) {
+        if (bundle == null || !isSameTmdbItem(bundle.item(), activeSourceItem)) {
+            activeSourcePayload = null;
+            activeSourceItem = null;
+        }
         activeTmdbBundle = bundle;
         matchedTmdbItem = bundle == null ? null : bundle.item();
         matchedTmdbDetail = bundle == null ? null : bundle.detail();
@@ -5613,6 +5640,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void fetchSeasonIfNeeded(int seasonNumber, boolean refresh) {
         if (seasonNumber < 0 || (!refresh && tmdbSeasonEpisodes.containsKey(seasonNumber)) || loadingSeasons.contains(seasonNumber) || matchedTmdbItem == null || !"tv".equalsIgnoreCase(matchedTmdbItem.getMediaType()) || !canMatchTmdb()) return;
+        if (!refresh && hasCompleteSourceSeason(seasonNumber)) return;
         int generation = loadGeneration;
         TmdbItem item = matchedTmdbItem;
         JsonObject detail = matchedTmdbDetail;
@@ -5655,7 +5683,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void refreshFirstSeasonIfStaleSplit(List<Episode> sourceEpisodes) {
         if (sourceEpisodes == null || sourceEpisodes.isEmpty() || hasExplicitSeasonNumbers(sourceEpisodes)) return;
         int firstSeason = firstSeasonNumber(matchedTmdbDetail);
-        if (firstSeason < 0 || refreshedSingleSeasonProbes.contains(firstSeason) || loadingSeasons.contains(firstSeason)) return;
+        if (firstSeason < 0 || refreshedSingleSeasonProbes.contains(firstSeason) || loadingSeasons.contains(firstSeason) || hasCompleteSourceSeason(firstSeason)) return;
         int expectedCount = Math.max(0, seasonEpisodeCounts.getOrDefault(firstSeason, 0));
         List<TmdbEpisode> cachedEpisodes = tmdbSeasonEpisodes.get(firstSeason);
         int cachedCount = cachedEpisodes == null ? 0 : cachedEpisodes.size();
@@ -5946,16 +5974,20 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         int generation = loadGeneration;
         int videoGeneration = ++relatedVideoGeneration;
         TmdbItem item = matchedTmdbItem;
+        JsonObject sourceDetail = matchedTmdbDetail;
         final int requestSeasonNumber = seasonNumber;
         final int requestEpisodeNumber = episodeNumber;
         relatedVideoContextKey = contextKey;
         relatedVideoLoading = true;
         relatedVideoItems.clear();
         bindTmdbSection();
+        boolean sourceComplete = hasCompleteSourceVideos(item, requestSeasonNumber, requestEpisodeNumber);
         detailTasks.submit(() -> {
             List<TmdbVideo> loaded = new ArrayList<>();
             try {
-                loaded = tmdbService.relatedVideos(item, requestSeasonNumber, requestEpisodeNumber, tmdbConfig);
+                loaded = sourceComplete
+                        ? TmdbSourceAdapter.videos(sourceDetail, item.getMediaType(), requestSeasonNumber, requestEpisodeNumber, tmdbConfig.getLanguage())
+                        : tmdbService.relatedVideos(item, requestSeasonNumber, requestEpisodeNumber, tmdbConfig);
             } catch (Throwable e) {
                 SpiderDebug.log("tmdb-video", "standalone related failed media=%s id=%d season=%d episode=%d error=%s", item.getMediaType(), item.getTmdbId(), requestSeasonNumber, requestEpisodeNumber, e.getMessage());
             }
@@ -6246,6 +6278,10 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             return;
         }
         if (matchedTmdbItem == null || !"tv".equalsIgnoreCase(matchedTmdbItem.getMediaType()) || detailSeasonNumber < 0 || detailEpisodeNumber <= 0 || !canMatchTmdb()) {
+            com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, getSite(), null, null, dismissListener);
+            return;
+        }
+        if (hasCompleteSourceEpisode(detailSeasonNumber, detailEpisodeNumber)) {
             com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, getSite(), null, null, dismissListener);
             return;
         }

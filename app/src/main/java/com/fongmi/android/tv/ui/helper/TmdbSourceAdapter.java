@@ -8,6 +8,7 @@ import com.fongmi.android.tv.bean.TmdbItem;
 import com.fongmi.android.tv.bean.TmdbPerson;
 import com.fongmi.android.tv.bean.TmdbSourceDetail;
 import com.fongmi.android.tv.bean.TmdbSourcePayload;
+import com.fongmi.android.tv.bean.TmdbVideo;
 import com.fongmi.android.tv.bean.Vod;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -61,6 +62,22 @@ public final class TmdbSourceAdapter {
         List<TmdbItem> related = related(mediaType, detail, effectiveConfig);
         SeasonData seasons = seasons(sourceItem.getTmdbId(), 0, detail, effectiveConfig);
         return new TmdbBundle(item, detail, cast, creators, photos, related, seasons.numbers, seasons.counts, seasons.episodes, seasons.cast, seasons.photos);
+    }
+
+    public static List<TmdbVideo> videos(@Nullable JsonObject detail, @Nullable String mediaType, int seasonNumber, int episodeNumber, @Nullable String language) {
+        List<TmdbVideo> result = new ArrayList<>();
+        if (detail == null) return result;
+        String normalized = normalizeMediaType(mediaType);
+        JsonObject season = findSeason(detail, seasonNumber);
+        JsonObject episode = findEpisode(season, episodeNumber);
+        if ("movie".equals(normalized) || seasonNumber < 0) {
+            addVideos(result, object(detail, "videos"), TmdbVideo.Scope.TITLE, -1, -1);
+        } else {
+            addVideos(result, object(season, "videos"), TmdbVideo.Scope.SEASON, seasonNumber, -1);
+            addVideos(result, object(episode, "videos"), TmdbVideo.Scope.EPISODE, seasonNumber, episodeNumber);
+            addVideos(result, object(detail, "videos"), TmdbVideo.Scope.TITLE, -1, -1);
+        }
+        return TmdbVideo.mergeAndRank(result, language == null ? "" : language, 12);
     }
 
     private static TmdbItem item(int tmdbId, String mediaType, JsonObject detail, @Nullable Vod vod, TmdbConfig config, boolean coreComplete) {
@@ -331,6 +348,34 @@ public final class TmdbSourceAdapter {
 
     private static List<String> limit(List<String> values, int max) {
         return values.size() <= max ? values : new ArrayList<>(values.subList(0, max));
+    }
+
+    private static void addVideos(List<TmdbVideo> target, JsonObject videos, TmdbVideo.Scope scope, int seasonNumber, int episodeNumber) {
+        for (JsonElement element : array(videos, "results")) {
+            if (!element.isJsonObject()) continue;
+            TmdbVideo video = TmdbVideo.from(element.getAsJsonObject(), scope, seasonNumber, episodeNumber);
+            if (video != null) target.add(video);
+        }
+    }
+
+    private static JsonObject findSeason(JsonObject detail, int seasonNumber) {
+        if (seasonNumber < 0) return new JsonObject();
+        for (JsonElement element : array(detail, "seasons")) {
+            if (!element.isJsonObject()) continue;
+            JsonObject season = element.getAsJsonObject();
+            if (integer(season, "season_number", -1) == seasonNumber) return season;
+        }
+        return new JsonObject();
+    }
+
+    private static JsonObject findEpisode(JsonObject season, int episodeNumber) {
+        if (season == null || episodeNumber <= 0) return new JsonObject();
+        for (JsonElement element : array(season, "episodes")) {
+            if (!element.isJsonObject()) continue;
+            JsonObject episode = element.getAsJsonObject();
+            if (integer(episode, "episode_number", -1) == episodeNumber) return episode;
+        }
+        return new JsonObject();
     }
 
     private static String imageUrl(String base, String path) {
