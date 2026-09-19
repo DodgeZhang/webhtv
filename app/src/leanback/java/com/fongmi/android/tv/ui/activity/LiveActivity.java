@@ -118,6 +118,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     private View mFocus2;
     private boolean playbackCatchup;
     private int count;
+    private boolean mFailedThisSession;
 
     public static void start(Context context) {
         context.startActivity(new Intent(context, LiveActivity.class).putExtra("empty", LiveConfig.isEmpty()));
@@ -589,8 +590,11 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         player().resetTrack();
         player().reset();
         player().stop();
-        showError(msg);
-        startFlow();
+        if (!mFailedThisSession) {
+            mFailedThisSession = true;
+            showError(msg);
+            startFlow();
+        }
     }
 
     @Override
@@ -617,11 +621,13 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     protected void onStateChanged(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
+                mFailedThisSession = false;
                 showProgress();
                 break;
             case Player.STATE_READY:
                 hideProgress();
                 player().reset();
+                mFailedThisSession = false;
                 break;
             case Player.STATE_ENDED:
                 checkEnded();
@@ -863,6 +869,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     private void fetch(EpgData item) {
         if (mChannel == null) return;
         App.removeCallbacks(mEndRetry);
+        App.removeCallbacks(mBufferingTimeout);
         App.post(mBufferingTimeout, LIVE_BUFFERING_TIMEOUT);
         playbackCatchup = true;
         mViewModel.getUrl(mChannel, item);
@@ -874,6 +881,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     private void fetch() {
         if (mChannel == null) return;
         App.removeCallbacks(mEndRetry);
+        App.removeCallbacks(mBufferingTimeout);
         App.post(mBufferingTimeout, LIVE_BUFFERING_TIMEOUT);
         playbackCatchup = false;
         LiveConfig.get().setKeep(mChannel);

@@ -140,6 +140,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private Runnable mBufferingTimeout;
     private boolean rotate;
     private int count;
+    private boolean mFailedThisSession;
     private PiP mPiP;
     private boolean mKeepPlaybackAfterPipExit;
     private OneShotPreDrawListener pipEntryListener;
@@ -1250,6 +1251,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private void fetch(EpgData item) {
         App.removeCallbacks(mEndRetry);
         if (mChannel == null) return;
+        App.removeCallbacks(mBufferingTimeout);
         App.post(mBufferingTimeout, LIVE_BUFFERING_TIMEOUT);
         playbackCatchup = true;
         mViewModel.getUrl(mChannel, item);
@@ -1263,6 +1265,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private void fetch() {
         App.removeCallbacks(mEndRetry);
         if (mChannel == null) return;
+        App.removeCallbacks(mBufferingTimeout);
         App.post(mBufferingTimeout, LIVE_BUFFERING_TIMEOUT);
         playbackCatchup = false;
         LiveConfig.get().setKeep(mChannel);
@@ -1459,8 +1462,11 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         player().resetTrack();
         player().reset();
         player().stop();
-        showError(msg);
-        startFlow();
+        if (!mFailedThisSession) {
+            mFailedThisSession = true;
+            showError(msg);
+            startFlow();
+        }
     }
 
     @Override
@@ -1487,12 +1493,14 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     protected void onStateChanged(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
+                mFailedThisSession = false;
                 showProgress();
                 break;
             case Player.STATE_READY:
                 hideProgress();
                 checkControl();
                 player().reset();
+                mFailedThisSession = false;
                 break;
             case Player.STATE_ENDED:
                 checkEnded();
