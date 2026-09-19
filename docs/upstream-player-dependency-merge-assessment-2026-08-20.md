@@ -33,6 +33,7 @@
 | 任务 ID | 类别 | 功能/能力 | 状态 | 唯一文档 |
 | --- | --- | --- | --- | --- |
 | `C16` | common / 详情数据协议 | 参考 OmniBox，让 T3/T4 详情直接携带 TMDB 数据，APP 优先采用并仅补齐缺省部分 | **设计完成，待用户评审，仅文档**；不修改运行代码、爬虫 ABI 或依赖，实施待用户批准 | [C16-tmdb-source-detail-contract.md](C16-tmdb-source-detail-contract.md) |
+| `C17` | common / beta 同步复评 | 将 beta 最新播放器与 Leanback 修复合入 dev4，复评全部未推送 C16 改动并完成交付 | **两轮复评与定向验证通过，待提交推送**：基线 `c4fd5acd747e1a26c5dfc54273967fa0d01038de`；目标 beta `da00b7a1f20815fd49921d415c315c21fd6d8bb1` | [C17-beta-sync-review-dev4-20260919.md](C17-beta-sync-review-dev4-20260919.md) |
 | `E-SP8` | Exo 性能/播放行为 | 基于现有短剧源设置的单实例队列连播、下一集预解析与受控预加载 | **代码实施及 beta 合并后复评通过**：`2b22c5240d52a8c2054299326f44fee6743ab26f` / `recovery/E-SP8/20260911201514-2b22c5240d52`；实验默认策略不变，连续切集双端设备验收与正式放量尚未完成；不变更依赖 | [E-SP8-exo-short-drama-queue.md](E-SP8-exo-short-drama-queue.md) |
 
 `C1` 是跨播放器真实输入验收维度，不单独形成代码任务或文档；它写入对应的 E/P 任务文档。`E-SP3` 已在 `fongmi-sync` 完成 App/Media3 合并，保留既有 `E4-J1`/`E6-1`/`E7-1`/`E7-2 + C3` 能力；`E9-3` 与已完成的 `P1` 现已共同进入集成树，后续按既定顺序处理 P2 阶段。
