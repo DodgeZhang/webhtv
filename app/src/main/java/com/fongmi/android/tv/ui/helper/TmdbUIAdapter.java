@@ -575,7 +575,7 @@ public class TmdbUIAdapter {
         int generation = resetLoadState();
         sourceOnly = true;
         captureSourceSeason(sourceVod, sourceTitle);
-        if (payload != null && payload.getSeasonNumber() >= 0) requestSeasonNumber = payload.getSeasonNumber();
+        if (requestSeasonNumber < 0 && payload != null && payload.getSeasonNumber() >= 0) requestSeasonNumber = payload.getSeasonNumber();
         cancelActivePrefetch();
         detailPrefetch.cancel();
 
@@ -1560,6 +1560,7 @@ public class TmdbUIAdapter {
     }
 
     private void loadPersonalAiRecommendationsAsync(Vod vod, TmdbItem item, int generation) {
+        if (sourceOnly) return;
         if (vod == null || !Setting.isPersonalRecommendation() || personalAiLoading) return;
         personalAiLoading = true;
         backgroundTasks.submit(() -> {
@@ -2303,12 +2304,28 @@ public class TmdbUIAdapter {
     public void loadRelatedVideosAsync(int seasonNumber, int episodeNumber) {
         TmdbItem item = tmdbItem;
         Vod currentVod = vod;
-        if (!loaded || item == null || !isReady()) {
+        if (!loaded || item == null) {
+            relatedVideos = new ArrayList<>();
+            return;
+        }
+        String contextKey = item.getMediaType() + ":" + item.getTmdbId() + ":" + seasonNumber + ":" + episodeNumber + ":" + tmdbConfig.getLanguage();
+        if (sourceOnly) {
+            relatedVideoGeneration++;
+            relatedVideoLoading = false;
+            relatedVideoContextKey = contextKey;
+            relatedVideos = new ArrayList<>(TmdbSourceAdapter.videos(
+                    tmdbDetail,
+                    item.getMediaType(),
+                    seasonNumber,
+                    episodeNumber,
+                    tmdbConfig.getLanguage()));
+            return;
+        }
+        if (!isReady()) {
             relatedVideos = new ArrayList<>();
             return;
         }
         int generation = loadGeneration;
-        String contextKey = item.getMediaType() + ":" + item.getTmdbId() + ":" + seasonNumber + ":" + episodeNumber + ":" + tmdbConfig.getLanguage();
         if (contextKey.equals(relatedVideoContextKey) && (relatedVideoLoading || relatedVideos != null)) return;
         int videoGeneration = ++relatedVideoGeneration;
         relatedVideoContextKey = contextKey;
@@ -2350,6 +2367,10 @@ public class TmdbUIAdapter {
     }
 
     public void loadMoreRecommendations(LoadMoreCallback callback) {
+        if (sourceOnly) {
+            if (callback != null) callback.onLoaded(false);
+            return;
+        }
         if (recommendationLoading || !recommendationHasMore || tmdbItem == null || tmdbDetail == null) {
             if (callback != null) callback.onLoaded(false);
             return;
@@ -2396,6 +2417,10 @@ public class TmdbUIAdapter {
     }
 
     public void refreshPersonalRecommendations(LoadMoreCallback callback) {
+        if (sourceOnly) {
+            if (callback != null) callback.onLoaded(false);
+            return;
+        }
         if (personalRefreshLoading || tmdbDetail == null) {
             if (callback != null) callback.onLoaded(false);
             return;
@@ -2442,6 +2467,10 @@ public class TmdbUIAdapter {
     }
 
     private void loadMorePersonalRecommendations(boolean tmdb, LoadMoreCallback callback) {
+        if (sourceOnly) {
+            if (callback != null) callback.onLoaded(false);
+            return;
+        }
         PersonalRecommendationService.RecommendationPage page = tmdb ? personalTmdbPage : personalDoubanPage;
         if (page == null || !page.hasMore() || (tmdb ? personalTmdbLoading : personalDoubanLoading)) {
             if (callback != null) callback.onLoaded(false);

@@ -47,7 +47,10 @@ public class TmdbDetailSourceOnlyWiringTest {
         assertTrue(source.contains("if (bundle != null && isTmdbNetworkAllowed()) saveTmdbMatch(bundle.item());"));
         assertTrue(source.contains("if (isTmdbNetworkAllowed()) loadTmdbMediaBlocks(bundle);"));
         assertTrue(source.contains("if (!isTmdbNetworkAllowed()) return;"));
-        assertTrue(source.contains("if (!isTmdbNetworkAllowed() || matchedTmdbItem == null"));
+        String relatedVideos = method(source, "private void loadRelatedVideosForCurrentContext", "private void bindTmdbSection");
+        assertTrue(relatedVideos.contains("if (isTmdbSourceOnly()) {"));
+        assertTrue(relatedVideos.contains("TmdbSourceAdapter.videos("));
+        assertTrue(relatedVideos.contains("if (!isTmdbNetworkAllowed() || !tmdbConfig.isReady()) return;"));
         assertTrue(source.contains("if (isTmdbNetworkAllowed()) {") || source.contains("if (!isTmdbNetworkAllowed()) {"));
     }
 

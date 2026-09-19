@@ -61,6 +61,19 @@ public class TmdbDetailSourcePayloadTest {
                         && source.contains(": tmdbService.relatedVideos(item, requestSeasonNumber, requestEpisodeNumber, tmdbConfig);"));
     }
 
+    @Test
+    public void sourceOnlyUsesEmbeddedVideosWithoutStartingNetworkAggregation() throws Exception {
+        String source = loadActivitySource();
+        int start = source.indexOf("private void loadRelatedVideosForCurrentContext()");
+        int end = source.indexOf("private void bindTmdbSection()", start);
+        assertTrue("missing source-only related video path", start >= 0 && end > start);
+
+        String method = source.substring(start, end);
+        assertTrue(method.contains("if (isTmdbSourceOnly()) {"));
+        assertTrue(method.contains("TmdbSourceAdapter.videos("));
+        assertTrue(method.indexOf("TmdbSourceAdapter.videos(") < method.indexOf("tmdbService.relatedVideos("));
+    }
+
     private static String loadContentBody() throws Exception {
         Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = Files.readString(sourcePath, StandardCharsets.UTF_8);

@@ -6037,7 +6037,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void loadRelatedVideosForCurrentContext() {
-        if (!isTmdbNetworkAllowed() || matchedTmdbItem == null || tmdbConfig == null || !tmdbConfig.isReady() || !isTmdbAllowedForCurrentSite()) return;
+        if (matchedTmdbItem == null || tmdbConfig == null || !isTmdbAllowedForCurrentSite()) return;
         int seasonNumber = -1;
         int episodeNumber = -1;
         if (matchedTmdbItem.isTv()) {
@@ -6046,6 +6046,21 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             episodeNumber = tmdbEpisode != null && tmdbEpisode.getNumber() > 0 ? tmdbEpisode.getNumber() : sourceEpisodeNumber(selectedEpisode);
         }
         String contextKey = matchedTmdbItem.getMediaType() + ":" + matchedTmdbItem.getTmdbId() + ":" + seasonNumber + ":" + episodeNumber + ":" + tmdbConfig.getLanguage();
+        if (isTmdbSourceOnly()) {
+            relatedVideoGeneration++;
+            relatedVideoLoading = false;
+            relatedVideoContextKey = contextKey;
+            relatedVideoItems.clear();
+            relatedVideoItems.addAll(TmdbSourceAdapter.videos(
+                    matchedTmdbDetail,
+                    matchedTmdbItem.getMediaType(),
+                    seasonNumber,
+                    episodeNumber,
+                    tmdbConfig.getLanguage()));
+            bindTmdbSection();
+            return;
+        }
+        if (!isTmdbNetworkAllowed() || !tmdbConfig.isReady()) return;
         if (contextKey.equals(relatedVideoContextKey)) return;
         int generation = loadGeneration;
         int videoGeneration = ++relatedVideoGeneration;
