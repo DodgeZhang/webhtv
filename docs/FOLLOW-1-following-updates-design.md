@@ -1706,6 +1706,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 修复 TMDB 详情页打开时的 `RoomDatabase.assertNotMainThread` 崩溃：详情页不再在主线程调用 `FollowingStore.findByTmdb/findBySource`，查库、建库记录都通过 `FollowingPlaybackBridge` 在后台执行并回主线程更新按钮。
 - 手机播放页原生动作区、手机 TMDB 详情头部和电视播放页动作行均新增“加入追更/已追更”入口；入口只读取当前 `History`，实际 Room 读写全部异步。
 - 设备端 `FollowingDetailDeviceTest` 已验证：从主线程调用桥接查询不会触发 Room 主线程异常，回调回到主线程。
+- 修复手机横屏/平板布局启动 `VideoActivity` 时 `mBinding.following` 为空导致的 NPE：`layout`、`layout-land`、`layout-sw600dp`、`layout-sw600dp-land` 四个 `activity_video.xml` 变体均加入追更按钮，代码同时保留空值保护。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

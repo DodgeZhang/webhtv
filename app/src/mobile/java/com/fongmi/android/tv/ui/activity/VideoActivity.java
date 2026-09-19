@@ -1575,7 +1575,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         mBinding.name.setOnClickListener(view -> onName());
         mBinding.more.setOnClickListener(view -> onMore());
         mBinding.shortDisplay.setOnClickListener(view -> onShortDisplay());
-        mBinding.following.setOnClickListener(view -> onFollowing());
+        if (mBinding.following != null) mBinding.following.setOnClickListener(view -> onFollowing());
         mBinding.search.setOnClickListener(view -> onSearch());
         mBinding.castAction.setOnClickListener(guarded(this::onCast));
         mBinding.settingAction.setOnClickListener(view -> onSetting());

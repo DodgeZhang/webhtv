@@ -100,7 +100,10 @@ public class FollowingUiSourceTest {
     public void detailAndPlaybackScreensWireFollowingActionsOffTheMainThread() throws Exception {
         String detail = read("app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java");
         String header = read("app/src/main/res/layout/view_tmdb_header.xml");
-        String mobile = read("app/src/mobile/res/layout/activity_video.xml");
+        String mobile = read("app/src/mobile/res/layout/activity_video.xml")
+                + read("app/src/mobile/res/layout-land/activity_video.xml")
+                + read("app/src/mobile/res/layout-sw600dp/activity_video.xml")
+                + read("app/src/mobile/res/layout-sw600dp-land/activity_video.xml");
         String leanback = read("app/src/leanback/res/layout/activity_video.xml");
         String mobileActivity = read("app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
         String leanbackActivity = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
