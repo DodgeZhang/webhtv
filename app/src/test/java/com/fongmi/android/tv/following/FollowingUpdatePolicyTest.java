@@ -9,7 +9,7 @@ import static org.junit.Assert.assertTrue;
 public class FollowingUpdatePolicyTest {
 
     @Test
-    public void firstAddDoesNotNotifyButLaterEpisodeDoes() {
+    public void firstMetadataFetchEstablishesBaselineWithoutNotify() {
         Following item = following(0);
         FollowingUpdatePolicy.initializeNew(item, 0, 100);
         assertFalse(FollowingUpdatePolicy.shouldNotify(item));
@@ -17,6 +17,11 @@ public class FollowingUpdatePolicyTest {
         FollowingMetadataSnapshot snapshot = snapshot(1, 1);
         item.notifyEnabled = true;
         assertTrue(FollowingUpdatePolicy.applyMetadata(item, snapshot, 200));
+        assertFalse(FollowingUpdatePolicy.shouldNotify(item));
+        assertEquals(1, item.readWatermarkEpisode);
+        assertEquals(1, item.lastNotifiedEpisode);
+
+        assertTrue(FollowingUpdatePolicy.applyMetadata(item, snapshot(1, 2), 300));
         assertTrue(FollowingUpdatePolicy.shouldNotify(item));
     }
 

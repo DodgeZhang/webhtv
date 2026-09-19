@@ -25,6 +25,9 @@ public final class FollowingUpdatePolicy {
 
     public static boolean applyMetadata(Following item, FollowingMetadataSnapshot snapshot, long now) {
         if (item == null || snapshot == null) return false;
+        boolean firstMetadata = item.metadataUpdatedAt <= 0
+                && item.readWatermarkEpisode <= 0
+                && item.lastNotifiedEpisode <= 0;
         int before = releasedEpisode(item);
         item.officialStatus = FollowingMetadataSnapshot.normalizeStatus(snapshot.status);
         item.latestReleasedSeason = Math.max(0, snapshot.latestReleasedSeason);
@@ -40,6 +43,11 @@ public final class FollowingUpdatePolicy {
         item.failureCount = 0;
         item.lastError = "";
         item.lastCheckedAt = now;
+        if (firstMetadata) {
+            item.readWatermarkEpisode = Math.max(item.readWatermarkEpisode, releasedEpisode(item));
+            item.lastNotifiedEpisode = Math.max(item.lastNotifiedEpisode, releasedEpisode(item));
+            item.lastNotifiedAt = now;
+        }
         item.updatedAt = now;
         refreshDerived(item, now);
         return releasedEpisode(item) > before;
