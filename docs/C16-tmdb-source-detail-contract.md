@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：用户已批准按阶段实施。阶段 1 协议模型已实现并通过定向测试；阶段 2 纯逻辑待实施。
+> 状态：用户已批准按阶段实施。阶段 1 协议模型和阶段 2 纯逻辑已实现并通过定向测试；阶段 3 源接入待实施。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1 已落地 APP 协议模型与解析器，后续仍按第 16 节逐阶段提交。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1 已新增 `TmdbSourcePayload`、`TmdbSourceDetail`、解析器，并完成 `Vod` 的 Gson、Parcelable、内容比较接线。
-- 下一动作：实施阶段 2 的 adapter、capability planner、merger 及其纯逻辑测试。
+- 当前进展：阶段 1 已新增协议模型和解析器；阶段 2 已完成 adapter、capability planner、merger，并暴露修复了数组元素校验问题。
+- 下一动作：实施阶段 3，确认 T3/T4 JSON 详情与 `VodDetailCache` 往返并补 SiteApi 测试。
 
 ## 1. 设计结论
 
@@ -572,9 +572,20 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 
 ### 阶段 1：协议模型
 
+- 提交：`4865bd7ad08cfd1dd12fba60a202b346e71336a0`；恢复标签 `recovery/C16-stage1/20260919104302-4865bd7ad08c`。
 - 已实现 `TmdbSourcePayload` 的固定协议字段、内部来源标记、深拷贝、身份合法性判断、确定性能力组集合和 Binder 大小判断。
 - 已实现 `TmdbSourceDetail` 的 `JsonObject` 字符串保存及白名单读取器；读取器遇到缺失或类型错误返回空值，不向详情页抛出异常。
 - 已实现 `TmdbSourcePayloadParser`：校验 `schema/id/media_type/season_number/detail.id/detail.season_number`，清理未知能力组和坏类型字段，规范化图片 URL，并执行 2 MiB、500 项、64 KiB 限制。
 - 已扩展 `Vod`：`tmdb` 参与 Gson、Parcelable 和 `isSameContent`；超过 256 KiB 时不把 `detailJson` 放入 Binder，而是通过现有 `VodDetailCache.put()` 生成 key。
 - 定向验证：`TmdbSourcePayloadTest`、`VodTmdbParcelableTest` 共 7 项通过；同一 Gradle 调用完成 Mobile Arm64 单测和 Leanback Arm64 Debug Java 编译，结果 `BUILD SUCCESSFUL`。
 - 未验证项：真实 Android Binder 往返、设备详情页消费和 T3/T4 源接入，按第 16 节后续阶段继续处理。
+
+### 阶段 2：纯逻辑
+
+- 将原活动内私有 `TmdbBundle` 提升为 `ui.helper.TmdbBundle`，保持现有字段和详情页调用不变，供纯逻辑和后续源接入共用。
+- 新增 `TmdbSourceAdapter`：从已校验 payload 无网络构造 `TmdbItem`、详情 JSON、演职员、图片、相关推荐、季集、季演职员和季图片；绝对 HTTPS 图片保持原样，相对路径使用当前 APP 图片基址。
+- 新增 `TmdbSourceCapabilityPlanner`：按首屏、季、集和视频场景计算 required/available/missing，完整空组视为已满足，季与集严格隔离。
+- 新增 `TmdbSourceMerger`：按 source > local cache > remote TMDB 的 fill-only 规则合并 item、detail、集合和季映射，并记录字段来源；源声明完整的空值不会被覆盖。
+- 修复 `TmdbSourcePayloadParser` 对数组元素递归校验时误用父数组字段类型、导致 cast/images/seasons 等数组被清空的问题；新增 adapter/planner/merger 测试覆盖。
+- 定向验证：`TmdbSourceAdapterTest`、`TmdbSourceCapabilityPlannerTest`、`TmdbSourceMergerTest` 共 10 项通过；同一 Gradle 调用完成 Leanback Arm64 Debug Java 编译，结果 `BUILD SUCCESSFUL`。
+- 未验证项：真实网络补齐请求、Activity 状态机接线、真实设备 UI 和源详情缓存往返，按阶段 3-6 继续处理。

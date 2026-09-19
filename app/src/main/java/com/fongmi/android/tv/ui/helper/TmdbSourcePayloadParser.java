@@ -188,7 +188,7 @@ public final class TmdbSourcePayloadParser {
             if (array.size() > MAX_ARRAY_ITEMS) return null;
             JsonArray result = new JsonArray();
             for (JsonElement item : array) {
-                JsonElement sanitized = sanitize(item, field);
+                JsonElement sanitized = sanitize(item, "");
                 if (sanitized != null) result.add(sanitized);
             }
             return result;
