@@ -178,7 +178,7 @@ public class VodConfig extends BaseConfig {
         TmdbSourceCredentialIngress.Ingress ingress = TmdbSourceCredentialIngress.extractRootAndStrip(json);
         checkJson(config, CatSource.normalize(url, Json.parse(ingress.getSanitizedJson())));
         if (!isLoaded()) throw new Exception("VOD sites is empty");
-        acceptSubscriptionCredential(ingress.getCandidateKey(), getConfig());
+        acceptSubscriptionCredential(ingress.getCandidateKey(), config);
     }
 
     private static void acceptSubscriptionCredential(String candidateApiKey, Config config) {
@@ -196,6 +196,10 @@ public class VodConfig extends BaseConfig {
             return;
         }
         if (!scope.isAvailable() || scope.getConfigId() != config.getId() || !scope.getConfigUrl().equals(normalizeConfigUrl(config.getUrl()))) return;
+        if (TmdbConfig.objectFrom(Setting.getTmdbConfig()).isReady()) {
+            SubscriptionTmdbCredentialStore.discardCredential();
+            return;
+        }
         boolean accepted = SubscriptionTmdbCredentialStore.accept(candidateApiKey, scope.getConfigId(), scope.getConfigUrl(),
                 scope.getEpoch(), "subscription-config", config.getUrl());
         SpiderDebug.log("tmdb-credential", "config-candidate accept=%s epoch=%d", accepted, scope.getEpoch());

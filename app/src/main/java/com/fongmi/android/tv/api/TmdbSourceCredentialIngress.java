@@ -34,8 +34,8 @@ public final class TmdbSourceCredentialIngress {
                     : "";
             if (countRootFieldOccurrences(rawJson) != 1) candidate = "";
             return new Ingress(GSON.toJson(root), candidate);
-        } catch (Throwable ignored) {
-            return new Ingress(rawJson, "");
+        } catch (Exception ignored) {
+            return new Ingress(sanitizeMalformedJson(rawJson), "");
         }
     }
 
@@ -60,9 +60,16 @@ public final class TmdbSourceCredentialIngress {
             }
             reader.endObject();
             return count;
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             return -1;
         }
+    }
+
+    private static String sanitizeMalformedJson(String rawJson) {
+        if (rawJson == null || !rawJson.contains("\"" + ROOT_FIELD + "\"")) return rawJson;
+        // The malformed document is already unusable. Returning an empty object prevents callers from
+        // logging, caching, or parsing the raw credential-bearing text when structural parsing failed.
+        return "{}";
     }
 
     public static final class Ingress {

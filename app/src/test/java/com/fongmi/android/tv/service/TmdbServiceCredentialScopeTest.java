@@ -35,6 +35,18 @@ public class TmdbServiceCredentialScopeTest {
     }
 
     @Test
+    public void staleTransientCredentialIsRejectedAfterSubscriptionSwitch() {
+        SubscriptionTmdbCredentialStore.Scope first = SubscriptionTmdbCredentialStore.beginSubscription(9, "https://source.first/config", "first");
+        assertTrue(SubscriptionTmdbCredentialStore.accept(SOURCE_KEY, 9, "https://source.first/config", first.getEpoch(), "site", "vod"));
+        TmdbConfig staleConfig = TmdbConfig.effective(TmdbConfig.objectFrom("{}"), SubscriptionTmdbCredentialStore.snapshot(first));
+
+        SubscriptionTmdbCredentialStore.beginSubscription(10, "https://source.second/config", "second");
+        TmdbService service = new TmdbService();
+
+        assertThrows(IllegalStateException.class, () -> service.searchRaw("query", staleConfig));
+    }
+
+    @Test
     public void transientCredentialIsClearedAfterUnauthorizedResponse() {
         SubscriptionTmdbCredentialStore.Scope scope = SubscriptionTmdbCredentialStore.beginSubscription(4, "https://source.example/config", "test");
         assertTrue(SubscriptionTmdbCredentialStore.accept(SOURCE_KEY, 4, "https://source.example/config", scope.getEpoch(), "site", "vod"));

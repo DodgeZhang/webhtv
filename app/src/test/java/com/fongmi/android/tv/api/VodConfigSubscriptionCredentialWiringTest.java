@@ -17,7 +17,7 @@ public class VodConfigSubscriptionCredentialWiringTest {
         int load = config.indexOf("protected void load(Config config)");
         int ingress = config.indexOf("TmdbSourceCredentialIngress.extractRootAndStrip", load);
         int normalized = config.indexOf("CatSource.normalize(url, Json.parse(ingress.getSanitizedJson()))", ingress);
-        int accepted = config.indexOf("acceptSubscriptionCredential(ingress.getCandidateKey(), getConfig())", normalized);
+        int accepted = config.indexOf("acceptSubscriptionCredential(ingress.getCandidateKey(), config)", normalized);
 
         assertTrue(ingress > load);
         assertTrue(normalized > ingress);

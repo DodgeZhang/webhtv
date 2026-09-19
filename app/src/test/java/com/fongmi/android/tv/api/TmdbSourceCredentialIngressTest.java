@@ -93,6 +93,17 @@ public class TmdbSourceCredentialIngressTest {
     }
 
     @Test
+    public void malformedJsonContainingRootKeyIsNeverEchoedToCallers() {
+        String raw = "{\"tmdb_api_key\":\"" + KEY + "\",\"list\":[";
+
+        TmdbSourceCredentialIngress.Ingress ingress = TmdbSourceCredentialIngress.extractRootAndStrip(raw);
+
+        assertEquals("", ingress.getCandidateKey());
+        assertEquals("{}", ingress.getSanitizedJson());
+        assertFalse(ingress.getSanitizedJson().contains(KEY));
+    }
+
+    @Test
     public void sanitizedResultAndStringNeverContainKey() {
         Result result = GSON.fromJson(TmdbSourceCredentialIngress.extractRootAndStrip(
                 "{\"tmdb_api_key\":\"" + KEY + "\",\"list\":[{\"vod_id\":\"1\",\"vod_name\":\"Example\"}]}").getSanitizedJson(), Result.class);

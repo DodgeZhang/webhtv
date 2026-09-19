@@ -606,9 +606,11 @@ public class TmdbService {
     }
 
     private void ensureCredentialTransport(TmdbConfig config) {
-        if (config != null && config.isTransientSubscriptionCredential() && !TmdbConfig.isOfficialApiBase(config.getApiBase())) {
-            throw new IllegalStateException("TMDB 临时凭据仅允许访问官方 HTTPS API");
+        if (config == null || !config.isTransientSubscriptionCredential()) return;
+        if (!SubscriptionTmdbCredentialStore.isCurrent(config.getCredentialSubscriptionKey(), config.getCredentialScopeEpoch())) {
+            throw new IllegalStateException("TMDB 临时凭据已失效");
         }
+        if (!TmdbConfig.isOfficialApiBase(config.getApiBase())) throw new IllegalStateException("TMDB 临时凭据仅允许访问官方 HTTPS API");
     }
 
     void throwIfAuthBlocked(TmdbConfig config) {

@@ -33,7 +33,7 @@ public class TmdbSourceCredentialWiringTest {
         int load = source.indexOf("protected void load(Config config)");
         int ingress = source.indexOf("TmdbSourceCredentialIngress.extractRootAndStrip", load);
         int loaded = source.indexOf("if (!isLoaded()) throw new Exception", ingress);
-        int accept = source.indexOf("acceptSubscriptionCredential(ingress.getCandidateKey(), getConfig())", loaded);
+        int accept = source.indexOf("acceptSubscriptionCredential(ingress.getCandidateKey(), config)", loaded);
         int normalize = source.indexOf("CatSource.normalize(url, Json.parse(ingress.getSanitizedJson()))", ingress);
 
         assertTrue(begin > config);

@@ -17,6 +17,16 @@ public class TmdbRuntimeCredentialWiringTest {
         assertTrue(adapter.contains("SubscriptionTmdbCredentialStore.isCurrent(subscriptionScope)"));
         assertTrue(adapter.contains("public void invalidateSubscription()"));
         assertTrue(adapter.indexOf("refreshRuntimeConfig();", adapter.indexOf("public void autoMatch")) > 0);
+        int invalidate = adapter.indexOf("public void invalidateSubscription()");
+        int refresh = adapter.indexOf("refreshRuntimeConfig();", invalidate);
+        int scope = adapter.indexOf("subscriptionScope =", invalidate);
+        assertTrue("subscription invalidation must refresh effective credentials before capturing the new scope",
+                refresh > invalidate && scope > refresh);
+        int cachedLoad = adapter.indexOf("public void load(TmdbItem item, Vod vod, TmdbDetailCache.Entry cached)");
+        int cachedRefresh = adapter.indexOf("refreshRuntimeConfig();", cachedLoad);
+        int cachedReset = adapter.indexOf("resetLoadState();", cachedLoad);
+        assertTrue("cached detail loading must refresh the effective credential before resetting state",
+                cachedRefresh > cachedLoad && cachedReset > cachedRefresh);
     }
 
     @Test

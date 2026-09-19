@@ -77,6 +77,21 @@ public class SubscriptionTmdbCredentialStoreTest {
     }
 
     @Test
+    public void replacingCredentialInsideSameSubscriptionAdvancesEpoch() {
+        SubscriptionTmdbCredentialStore.Scope first = SubscriptionTmdbCredentialStore.beginSubscription(8, "https://source.rotate/config", "first");
+        assertTrue(SubscriptionTmdbCredentialStore.accept(KEY_A, 8, "https://source.rotate/config", first.getEpoch(), "site", "vod-a"));
+
+        SubscriptionTmdbCredentialStore.Scope current = SubscriptionTmdbCredentialStore.currentScope();
+        assertTrue(SubscriptionTmdbCredentialStore.accept(KEY_B, 8, "https://source.rotate/config", current.getEpoch(), "site", "vod-b"));
+        SubscriptionTmdbCredentialStore.Scope rotated = SubscriptionTmdbCredentialStore.currentScope();
+
+        assertNotEquals(current.getEpoch(), rotated.getEpoch());
+        assertFalse(SubscriptionTmdbCredentialStore.isCurrent(current));
+        assertEquals(KEY_B, SubscriptionTmdbCredentialStore.snapshot(rotated).getApiKey());
+        assertFalse(SubscriptionTmdbCredentialStore.accept(KEY_A, 8, "https://source.rotate/config", current.getEpoch(), "site", "vod-a"));
+    }
+
+    @Test
     public void discardCredentialReleasesKeyWithoutRepeatedEpochChurn() {
         SubscriptionTmdbCredentialStore.Scope scope = SubscriptionTmdbCredentialStore.beginSubscription(6, "https://source.d/config", "test");
         assertTrue(SubscriptionTmdbCredentialStore.accept(KEY_A, 6, "https://source.d/config", scope.getEpoch(), "site-d", "vod-1"));

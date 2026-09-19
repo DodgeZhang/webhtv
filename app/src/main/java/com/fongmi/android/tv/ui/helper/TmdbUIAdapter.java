@@ -390,6 +390,7 @@ public class TmdbUIAdapter {
     }
 
     public void invalidateSubscription() {
+        refreshRuntimeConfig();
         subscriptionScope = SubscriptionTmdbCredentialStore.currentScope();
         loadGeneration++;
         backgroundTasks.cancelAll();
@@ -572,6 +573,7 @@ public class TmdbUIAdapter {
             load(item, vod);
             return;
         }
+        refreshRuntimeConfig();
         String sourceTitle = sourceCacheTitle;
         int generation = resetLoadState();
         captureSourceSeason(vod, sourceTitle);

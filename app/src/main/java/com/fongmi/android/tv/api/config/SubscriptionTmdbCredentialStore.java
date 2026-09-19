@@ -50,6 +50,7 @@ public final class SubscriptionTmdbCredentialStore {
         if (normalizedKey.isEmpty()) return false;
         synchronized (LOCK) {
             if (!hasScope || configId != expectedConfigId || !configUrl.equals(normalizedUrl) || scopeEpoch != expectedEpoch) return false;
+            if (!apiKey.isEmpty() && !apiKey.equals(normalizedKey)) scopeEpoch++;
             apiKey = normalizedKey;
             fingerprint = fingerprint(normalizedKey);
             receivedAt = System.currentTimeMillis();
@@ -76,10 +77,22 @@ public final class SubscriptionTmdbCredentialStore {
     }
 
     public static boolean isCurrent(Scope scope) {
-        if (scope == null) return false;
-        String normalizedUrl = normalizeUrl(scope.configUrl);
+        if (scope == null || !scope.available) return false;
+        return isCurrent(scope.configId, scope.configUrl, scope.epoch);
+    }
+
+    public static boolean isCurrent(int expectedConfigId, String expectedConfigUrl, long expectedEpoch) {
+        String normalizedUrl = normalizeUrl(expectedConfigUrl);
         synchronized (LOCK) {
-            return scope.available && hasScope && configId == scope.configId && configUrl.equals(normalizedUrl) && scopeEpoch == scope.epoch;
+            return hasScope && configId == expectedConfigId && configUrl.equals(normalizedUrl) && scopeEpoch == expectedEpoch;
+        }
+    }
+
+    public static boolean isCurrent(String expectedSubscriptionKey, long expectedEpoch) {
+        if (expectedSubscriptionKey == null || expectedSubscriptionKey.isEmpty()) return false;
+        synchronized (LOCK) {
+            return hasScope && scopeEpoch == expectedEpoch
+                    && expectedSubscriptionKey.equals(subscriptionKey(configId, configUrl));
         }
     }
 

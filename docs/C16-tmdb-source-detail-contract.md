@@ -1995,3 +1995,11 @@ T3 爬虫和 T4 服务端：
 - 诊断日志：订阅配置接收路径新增低敏 `tmdb-credential` 日志，只记录候选是否存在、用户配置是否就绪、订阅 ID/URL 是否匹配、accept 结果和 epoch，不记录 Key 内容。
 - 测试：新增 JVM 与设备用例，构造 A→B 后由 A 的旧请求返回 401，断言 B 的 Key 保持不变；B 自身 403 仍会清除 B。
 - 提交：`9cd5c6399dac79411354c1be104d28a826e37127`；tag：`recovery/C16-config-key-runtime-diagnosis/20260919215433-9cd5c6399dac`。
+
+#### 远端 beta 合并后的凭据边界硬化（2026-09-19）
+
+- 订阅配置加载的凭据接收以实际加载参数 `Config` 为准，而不是全局 `getConfig()`；迟到的旧订阅响应无法再把 Key 写入新订阅作用域。
+- 同一订阅内检测到 Key 替换时推进 `scopeEpoch`；`TmdbService` 在每次请求前验证临时凭据快照仍属于当前订阅，失效快照直接拒绝。
+- 畸形 JSON 的 ingress 在结构性解析失败且检测到根字段时返回空对象，不再把可能含 Key 的原文本交给日志、缓存或后续解析。
+- `TmdbUIAdapter` 的订阅失效路径和 Leanback 缓存详情入口先刷新有效凭据再开始新任务，避免切换后继续使用旧配置。
+- 验证：17 个定向 JVM 测试类共 248 项通过，Leanback `Arm64_v8aDebug` Java 编译通过；详细合并与 PR 记录见 `docs/beta-sync-review-dev2-20260919.md`。

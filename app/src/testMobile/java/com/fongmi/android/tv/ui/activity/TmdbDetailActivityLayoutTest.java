@@ -3498,6 +3498,7 @@ public class TmdbDetailActivityLayoutTest {
         assertTrue("unmapped cards and API failures must still open a source detail dialog",
                 detail.contains("if (boundTmdbEpisode == null)")
                         && detail.contains("EpisodeDetailDialog.show(this, episode, getSite(), null, null, dismissListener);")
+                        && detail.contains("EpisodeDetailDialog.show(this, episode, boundTmdbEpisode, getSite(), null, null, dismissListener);")
                         && detail.contains("if (!isTmdbEpisodeDetailSeasonCurrent(displaySeasonNumber)) return;"));
     }
 
