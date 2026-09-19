@@ -1116,6 +1116,7 @@ private boolean runtimeSourceOnly;
                 ? getString(R.string.detail_episode_season_context, season)
                 : getString(R.string.detail_episode));
         boolean selectable = isTmdbSourceEnabled()
+                && !runtimeSourceOnly
                 && mTmdbUIAdapter != null
                 && mTmdbUIAdapter.getTmdbItem() != null
                 && mTmdbUIAdapter.getTmdbItem().isTv()
@@ -2601,7 +2602,7 @@ private boolean runtimeSourceOnly;
         setOriginalEnhancedActionVisibility(loadTmdbDetail && (isRuntimeOriginalEnhancedMode() || isIntentTmdbPlayback()));
         if (isIntentTmdbPlayback()) com.fongmi.android.tv.utils.TmdbEpisodeSorter.sort(item);
         applyTmdbEpisodeTitles(item);
-        setTmdbRematchVisible(loadTmdbDetail);
+        setTmdbRematchVisible(loadTmdbDetail && !runtimeSourceOnly);
         // 非 TMDB：立即揭开，全部内容一次性出现；TMDB：继续停在 loading，等富集完成再揭开
         if (!loadTmdbDetail) mBinding.progressLayout.showContent();
         mBinding.name.setText(item.getName());
@@ -6570,6 +6571,10 @@ private boolean runtimeSourceOnly;
             hideTmdbRatingChips(label, container);
             return;
         }
+        if (runtimeSourceOnly) {
+            renderTmdbRatingChips(label, container, buildTmdbRatingChips());
+            return;
+        }
 
         TmdbItem ratingItem = mTmdbUIAdapter.getTmdbItem();
         String ratingContextKey = ratingItem == null ? "" : ratingItem.getMediaType() + "|" + ratingItem.getTmdbId();
@@ -6650,6 +6655,7 @@ private boolean runtimeSourceOnly;
     }
 
     private void showManualTmdbSeasonDialog() {
+        if (runtimeSourceOnly) return;
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isLoaded() || mTmdbUIAdapter.getTmdbItem() == null || !mTmdbUIAdapter.getTmdbItem().isTv()) {
             Notify.show(R.string.detail_tmdb_empty);
             return;
@@ -6805,6 +6811,7 @@ private boolean runtimeSourceOnly;
         }
     }
     private void showManualTmdbMatchDialog() {
+        if (runtimeSourceOnly) return;
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isReady()) {
             Notify.show(R.string.detail_tmdb_need_key);
             return;
@@ -6847,6 +6854,7 @@ private boolean runtimeSourceOnly;
     }
 
     private void searchTmdb(String keyword, TmdbSearchDialog dialog) {
+        if (runtimeSourceOnly) return;
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isReady()) return;
         dialog.loading();
         int generation = ++mTmdbDialogGeneration;
@@ -6868,6 +6876,7 @@ private boolean runtimeSourceOnly;
     }
 
     private void applyManualTmdb(TmdbItem item) {
+        if (runtimeSourceOnly) return;
         if (mTmdbUIAdapter == null || mVod == null || item == null) return;
         mTmdbDialogGeneration++;
         // 手动重新匹配是从已揭示的详情页触发的，细粒度事件（VOD_CORE/推荐/个性/集数标题）

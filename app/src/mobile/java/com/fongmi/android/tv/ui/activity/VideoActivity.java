@@ -1085,6 +1085,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
                 ? getString(R.string.detail_episode_season_context, season)
                 : getString(R.string.detail_episode));
         boolean selectable = isTmdbSourceEnabled()
+                && !runtimeSourceOnly
                 && mTmdbUIAdapter != null
                 && mTmdbUIAdapter.getTmdbItem() != null
                 && mTmdbUIAdapter.getTmdbItem().isTv()
@@ -1208,6 +1209,16 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     private boolean isRuntimeDirectMode() {
         return runtimeDetailMode() == Setting.DETAIL_OPEN_DIRECT;
+    }
+
+    private void applySourceOnlyActionVisibility() {
+        if (!runtimeSourceOnly || mTmdbHeaderView == null || mTmdbHeaderView.getHeaderRoot() == null) return;
+        View rematch = mTmdbHeaderView.getHeaderRoot().findViewById(R.id.tmdbRematch);
+        if (rematch != null) {
+            rematch.setVisibility(View.GONE);
+            rematch.setClickable(false);
+            rematch.setFocusable(false);
+        }
     }
 
     private boolean isTmdbSourceEnabled() {
@@ -2386,6 +2397,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         ));
         applyRuntimeDetailMode(decision.runtimeMode());
         runtimeSourceOnly = decision.sourceOnly();
+        applySourceOnlyActionVisibility();
         boolean tmdbMode = shouldLoadTmdbDetail();
         mTmdbFallbackToNative = false;
         mTmdbContentLoaded = false;
@@ -8751,6 +8763,7 @@ private void checkOrientation() {
     }
 
     private void showManualTmdbSeasonDialog() {
+        if (runtimeSourceOnly) return;
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isLoaded() || mTmdbUIAdapter.getTmdbItem() == null || !mTmdbUIAdapter.getTmdbItem().isTv()) {
             Notify.show(R.string.detail_tmdb_empty);
             return;
@@ -8906,6 +8919,7 @@ private void checkOrientation() {
         }
     }
     private void showManualTmdbMatchDialog() {
+        if (runtimeSourceOnly) return;
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isReady()) {
             Notify.show(R.string.detail_tmdb_need_key);
             return;
@@ -8948,6 +8962,7 @@ private void checkOrientation() {
     }
 
     private void searchTmdb(String keyword, TmdbSearchDialog dialog) {
+        if (runtimeSourceOnly) return;
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isReady()) return;
         dialog.loading();
         int generation = ++mTmdbDialogGeneration;
@@ -8969,6 +8984,7 @@ private void checkOrientation() {
     }
 
     private void applyManualTmdb(TmdbItem item) {
+        if (runtimeSourceOnly) return;
         if (mTmdbUIAdapter == null || mVod == null || item == null) return;
         mTmdbDialogGeneration++;
         mTmdbFallbackToNative = false;

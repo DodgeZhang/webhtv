@@ -2693,6 +2693,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         initHistory();
         if (history == null) return;
         bindPage();
+        applySourceOnlyActionVisibility();
         focusInlinePlayerPanel();
         maybeAutoPlayInline();
         if (bundle != null) {
@@ -2716,6 +2717,16 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private boolean isTmdbSourceOnly() {
         return activeRuntimeDecision != null && activeRuntimeDecision.sourceOnly();
+    }
+
+    private void applySourceOnlyActionVisibility() {
+        if (!isTmdbSourceOnly()) return;
+        binding.rematch.setVisibility(View.GONE);
+        binding.rematchTop.setVisibility(View.GONE);
+        binding.rematchFusion.setVisibility(View.GONE);
+        binding.episodeTitle.setVisibility(View.GONE);
+        binding.episodeTitle.setClickable(false);
+        binding.episodeTitle.setFocusable(false);
     }
 
     private TmdbLoadResult loadTmdbResult() {
@@ -4231,8 +4242,10 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         String tmdb = tmdbRatingValue();
         if (!TextUtils.isEmpty(tmdb)) addRatingChip(key, "TMDB", tmdb + "/10", 0xFF21D07A);
         addBoxOfficeChip(key);
-        fetchDoubanRating(key);
-        fetchOmdbRating(key);
+        if (!isTmdbSourceOnly()) {
+            fetchDoubanRating(key);
+            fetchOmdbRating(key);
+        }
         bindExternalLinks();
     }
 
@@ -4407,6 +4420,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void fetchDoubanRating(String key) {
+        if (isTmdbSourceOnly()) return;
         String title = ratingTitle();
         if (TextUtils.isEmpty(title)) return;
         String mediaType = matchedTmdbItem == null ? "" : matchedTmdbItem.getMediaType();
@@ -4423,6 +4437,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void fetchOmdbRating(String key) {
+        if (isTmdbSourceOnly()) return;
         String imdb = string(object(matchedTmdbDetail, "external_ids"), "imdb_id");
         String omdbApiKey = tmdbConfig == null ? "" : tmdbConfig.getOmdbApiKey();
         if (TextUtils.isEmpty(imdb) || TextUtils.isEmpty(omdbApiKey)) return;
@@ -6079,7 +6094,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         boolean hasPersonalDouban = !personalDoubanItems.isEmpty();
         boolean hasPersonalAi = !personalAiItems.isEmpty();
         boolean hasExternalLinks = binding.externalLinksContainer.getChildCount() > 0;
-        binding.tmdbSection.setVisibility(hasPhotos || hasPosters || hasCast || hasCreators || hasRelated || hasRelatedVideos || hasPersonalTmdb || hasPersonalDouban || hasPersonalAi || hasExternalLinks || matchedTmdbDetail != null || canMatchTmdb() ? View.VISIBLE : View.GONE);
+        boolean tmdbSectionData = hasPhotos || hasPosters || hasCast || hasCreators || hasRelated || hasRelatedVideos || hasPersonalTmdb || hasPersonalDouban || hasPersonalAi || hasExternalLinks;
+        binding.tmdbSection.setVisibility(tmdbSectionData || canMatchTmdb() || (!isTmdbSourceOnly() && matchedTmdbDetail != null) ? View.VISIBLE : View.GONE);
 
         binding.episodePhotoTitle.setVisibility(hasPhotos ? View.VISIBLE : View.GONE);
         binding.episodePhotoList.setVisibility(hasPhotos ? View.VISIBLE : View.GONE);
