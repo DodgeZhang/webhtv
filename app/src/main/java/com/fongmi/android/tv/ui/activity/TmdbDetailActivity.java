@@ -6372,11 +6372,11 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             return;
         }
         if (matchedTmdbItem == null || !"tv".equalsIgnoreCase(matchedTmdbItem.getMediaType()) || detailSeasonNumber < 0 || detailEpisodeNumber <= 0 || !canMatchTmdb()) {
-            com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, getSite(), null, null, dismissListener);
+            com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, boundTmdbEpisode, getSite(), null, null, dismissListener);
             return;
         }
         if (hasCompleteSourceEpisode(detailSeasonNumber, detailEpisodeNumber)) {
-            com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, getSite(), null, null, dismissListener);
+            com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, boundTmdbEpisode, getSite(), null, null, dismissListener);
             return;
         }
         binding.loading.setVisibility(View.VISIBLE);
@@ -6402,7 +6402,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                     binding.loading.setVisibility(View.GONE);
                     if (!isTmdbEpisodeDetailSeasonCurrent(displaySeasonNumber)) return;
                     // 复用 EpisodeDetailDialog，传入已拉取的 photos/guests 避免重复 API 请求
-                    com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, getSite(), photos, guests, dismissListener);
+                    com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, boundTmdbEpisode, getSite(), photos, guests, dismissListener);
                 });
             } catch (Throwable e) {
                 runOnAliveUi(() -> {
@@ -6414,7 +6414,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                     binding.loading.setVisibility(View.GONE);
                     if (!isTmdbEpisodeDetailSeasonCurrent(displaySeasonNumber)) return;
                     // API 失败也保留详情弹窗，至少让用户看到源集名称，而不是把长按吞掉。
-                    com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, getSite(), null, null, dismissListener);
+                    com.fongmi.android.tv.ui.dialog.EpisodeDetailDialog.show(this, episode, boundTmdbEpisode, getSite(), null, null, dismissListener);
                 });
             }
         });
