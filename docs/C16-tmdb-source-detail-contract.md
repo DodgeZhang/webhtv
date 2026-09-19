@@ -1,15 +1,16 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：实现规格完成，待用户批准后实施；本轮只交付文档，不修改运行代码。
+> 状态：用户已批准按阶段实施。阶段 1 协议模型已实现并通过定向测试；阶段 2 纯逻辑待实施。
 
 ## Recovery anchor
 
 - 目标：扩展现有详情返回协议，使 T3 客户端爬虫和 T4 服务端接口可在 `detailContent` 结果中直接携带 TMDB 数据；APP 优先采用身份匹配的源数据，仅为缺失能力按需访问 TMDB。
 - 基线：WebHTV `dev4@32a52698e5dab09fe18e49d18849a947057ca717`；OmniBox `main@d57b3e6672337febd46feca0d8ad59c6a2b507c3`；alist-tvbox `master@8a222f69a80291e836db702c34daf1ed5bdd5630`；atv-player `master@09feed1d5e5102f13bf91c9fbb76ea92808cb76d`。
-- 范围：`assessment`；仅本文档与总评估索引，不修改 APP、T3/T4 运行代码、爬虫 ABI、依赖或构建产物。
+- 范围：实现合同；阶段 1 已落地 APP 协议模型与解析器，后续仍按第 16 节逐阶段提交。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 下一动作：等待用户批准；批准后严格按第 16 节的阶段和文件清单实施。
+- 当前进展：阶段 1 已新增 `TmdbSourcePayload`、`TmdbSourceDetail`、解析器，并完成 `Vod` 的 Gson、Parcelable、内容比较接线。
+- 下一动作：实施阶段 2 的 adapter、capability planner、merger 及其纯逻辑测试。
 
 ## 1. 设计结论
 
@@ -566,3 +567,14 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 6. **设备验收**：移动端、Leanback 各验证完整 T3、部分 T4、无扩展旧源；记录网络请求计数和页面结果。
 
 每阶段只允许修改对应任务文档声明的客户端文件；T4 服务端应使用独立任务文档和独立提交，不与 APP 提交混合。任何新增字段、接口、依赖或跨仓库变更都必须先更新本实现合同并重新评审。
+
+## 17. 实施记录
+
+### 阶段 1：协议模型
+
+- 已实现 `TmdbSourcePayload` 的固定协议字段、内部来源标记、深拷贝、身份合法性判断、确定性能力组集合和 Binder 大小判断。
+- 已实现 `TmdbSourceDetail` 的 `JsonObject` 字符串保存及白名单读取器；读取器遇到缺失或类型错误返回空值，不向详情页抛出异常。
+- 已实现 `TmdbSourcePayloadParser`：校验 `schema/id/media_type/season_number/detail.id/detail.season_number`，清理未知能力组和坏类型字段，规范化图片 URL，并执行 2 MiB、500 项、64 KiB 限制。
+- 已扩展 `Vod`：`tmdb` 参与 Gson、Parcelable 和 `isSameContent`；超过 256 KiB 时不把 `detailJson` 放入 Binder，而是通过现有 `VodDetailCache.put()` 生成 key。
+- 定向验证：`TmdbSourcePayloadTest`、`VodTmdbParcelableTest` 共 7 项通过；同一 Gradle 调用完成 Mobile Arm64 单测和 Leanback Arm64 Debug Java 编译，结果 `BUILD SUCCESSFUL`。
+- 未验证项：真实 Android Binder 往返、设备详情页消费和 T3/T4 源接入，按第 16 节后续阶段继续处理。
