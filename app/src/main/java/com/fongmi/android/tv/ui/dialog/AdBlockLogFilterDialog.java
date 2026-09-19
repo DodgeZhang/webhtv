@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Activity;
+import android.content.res.Configuration;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -265,8 +266,10 @@ public final class AdBlockLogFilterDialog {
             checkBox.setGravity(Gravity.CENTER_VERTICAL);
             checkBox.setPadding(dp(activity, 8), 0, dp(activity, 8), 0);
             checkBox.setTextColor(0xFF202124);
-            checkBox.setFocusable(true);
-            checkBox.setFocusableInTouchMode(true);
+            boolean touchDevice = activity.getResources().getConfiguration().touchscreen
+                    != Configuration.TOUCHSCREEN_NOTOUCH;
+            checkBox.setFocusable(!touchDevice);
+            checkBox.setFocusableInTouchMode(!touchDevice);
             return new Holder(checkBox);
         }
 
