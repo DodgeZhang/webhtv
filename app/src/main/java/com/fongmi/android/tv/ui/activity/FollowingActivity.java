@@ -28,6 +28,7 @@ import com.fongmi.android.tv.following.AlistSubscriptionImporter;
 import com.fongmi.android.tv.following.Following;
 import com.fongmi.android.tv.following.FollowingNotifier;
 import com.fongmi.android.tv.following.FollowingIdentity;
+import com.fongmi.android.tv.following.FollowingMetadataSnapshot;
 import com.fongmi.android.tv.following.FollowingScheduler;
 import com.fongmi.android.tv.following.FollowingSettings;
 import com.fongmi.android.tv.following.FollowingSource;
@@ -44,16 +45,29 @@ import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class FollowingActivity extends AppCompatActivity implements FollowingAdapter.Listener {
 
     public static final String EXTRA_IDENTITY_KEY = "following_identity_key";
+    private static final int FILTER_ALL = 0;
+    private static final int FILTER_UPDATES = 1;
+    private static final int FILTER_UNWATCHED = 2;
+    private static final int FILTER_ENDED = 3;
+    private static final int FILTER_FAILED = 4;
+    private static final int FILTER_COUNT = 5;
+    private static final Comparator<Following> LIST_ORDER = Comparator
+            .comparing((Following item) -> !item.hasUpdate)
+            .thenComparing(Comparator.comparingInt((Following item) -> item.unwatchedCount).reversed())
+            .thenComparing(Comparator.comparingLong((Following item) -> item.updatedAt).reversed())
+            .thenComparing(Comparator.comparingLong((Following item) -> item.metadataUpdatedAt).reversed())
+            .thenComparing(Comparator.comparingLong((Following item) -> item.createdAt).reversed());
     private ActivityFollowingBinding binding;
     private FollowingAdapter adapter;
     private String focusIdentity;
     private String pendingNotifyIdentity;
-    private boolean onlyUpdates;
+    private int filterIndex = FILTER_ALL;
     private final ActivityResultLauncher<String> notificationPermission = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(), granted -> {
                 if (pendingNotifyIdentity == null) return;
@@ -106,8 +120,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         binding.recycler.setAdapter(adapter = new FollowingAdapter(this));
         binding.check.setOnClickListener(view -> checkAll());
         binding.filter.setOnClickListener(view -> {
-            onlyUpdates = !onlyUpdates;
-            binding.filter.setText(onlyUpdates ? R.string.following_filter_all : R.string.following_filter_updates);
+            filterIndex = (filterIndex + 1) % FILTER_COUNT;
             load();
         });
         binding.alistImport.setOnClickListener(view -> showServerImportDialog());
@@ -132,9 +145,10 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
             List<Following> following = FollowingStore.list();
             List<FollowingAdapter.Row> rows = new ArrayList<>();
             for (Following item : following) {
-                if (onlyUpdates && item.unwatchedCount <= 0) continue;
+                if (!matchesFilter(item)) continue;
                 rows.add(new FollowingAdapter.Row(item, FollowingStore.preferredSource(item.identityKey)));
             }
+            rows.sort((left, right) -> LIST_ORDER.compare(left.following, right.following));
             int unread = FollowingStore.unreadCount();
             App.post(() -> render(rows, unread));
         });
@@ -144,7 +158,8 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         if (isFinishing() || binding == null) return;
         binding.loading.setVisibility(View.GONE);
         binding.empty.setVisibility(rows.isEmpty() ? View.VISIBLE : View.GONE);
-        binding.emptyText.setText(onlyUpdates ? R.string.following_filter_empty : R.string.following_empty);
+        binding.filter.setText(filterLabel());
+        binding.emptyText.setText(filterIndex == FILTER_ALL ? R.string.following_empty : R.string.following_filter_empty);
         binding.recycler.setVisibility(rows.isEmpty() ? View.GONE : View.VISIBLE);
         binding.summary.setText(getString(R.string.following_summary, rows.size(), unread));
         adapter.setItems(rows);
@@ -155,6 +170,27 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
                 focusIdentity = null;
             });
         }
+    }
+
+    private boolean matchesFilter(Following item) {
+        return switch (filterIndex) {
+            case FILTER_UPDATES -> item.hasUpdate || item.unwatchedCount > 0;
+            case FILTER_UNWATCHED -> item.unwatchedCount > 0;
+            case FILTER_ENDED -> FollowingMetadataSnapshot.ENDED.equals(item.officialStatus)
+                    || FollowingMetadataSnapshot.CANCELED.equals(item.officialStatus);
+            case FILTER_FAILED -> item.lastError != null && !item.lastError.isBlank();
+            default -> true;
+        };
+    }
+
+    private int filterLabel() {
+        return switch (filterIndex) {
+            case FILTER_UPDATES -> R.string.following_filter_updates;
+            case FILTER_UNWATCHED -> R.string.following_filter_unwatched;
+            case FILTER_ENDED -> R.string.following_filter_ended;
+            case FILTER_FAILED -> R.string.following_filter_failed;
+            default -> R.string.following_filter_all;
+        };
     }
 
     private void checkAll() {

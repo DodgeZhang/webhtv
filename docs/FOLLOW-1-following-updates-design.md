@@ -1699,6 +1699,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 来源探测优先使用已绑定线路；若该线路没有有效集，则回退到覆盖集数最多的线路，全部无效时不伪装成可播。
 - Leanback 首页按钮全量顺序包含追更 id `8`，并继续保留站点注入 id `9`，两者互不替代。
 - TMDB 主 provider 失败但绑定来源探测成功时，保留上一次官方快照，仅更新来源可播状态，并把本轮视为成功；不会因 TMDB 暂时不可用而丢弃可用来源结果。关闭 `following_enabled` 后 Leanback 首页不显示追更按钮。
+- 追更列表支持“全部/有更新/未看完/已完结/检查失败”五类筛选，并按更新、未看数量、最近观看/修改、官方更新时间和创建时间排序；Leanback 首页追更按钮显示本地未读后缀，不触发网络请求。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

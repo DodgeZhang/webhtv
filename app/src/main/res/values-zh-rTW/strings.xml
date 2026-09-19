@@ -2766,6 +2766,9 @@
     <string name="following_filter_updates">只看更新</string>
     <string name="following_filter_all">顯示全部</string>
     <string name="following_filter_empty">目前沒有未看更新的追更內容。</string>
+    <string name="following_filter_unwatched">未看完</string>
+    <string name="following_filter_ended">已完結</string>
+    <string name="following_filter_failed">檢查失敗</string>
     <string name="setting_following">追更更新</string>
     <string name="following_next_season">追新季 S%1$d</string>
 </resources>

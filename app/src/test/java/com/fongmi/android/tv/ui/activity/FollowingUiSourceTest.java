@@ -51,8 +51,12 @@ public class FollowingUiSourceTest {
         String leanback = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/SettingPersonalActivity.java");
         String mobileLayout = read("app/src/mobile/res/layout/fragment_setting_personal.xml");
         String leanbackLayout = read("app/src/leanback/res/layout/activity_setting_personal.xml");
+        String func = read("app/src/leanback/java/com/fongmi/android/tv/bean/Func.java");
 
-        assertTrue(activity.contains("onlyUpdates"));
+        assertTrue(activity.contains("FILTER_UPDATES"));
+        assertTrue(activity.contains("FILTER_UNWATCHED"));
+        assertTrue(activity.contains("FILTER_ENDED"));
+        assertTrue(activity.contains("FILTER_FAILED"));
         assertTrue(activity.contains("following_filter_empty"));
         assertTrue(mobile.contains("FollowingScheduler.cancelAll(requireContext())"));
         assertTrue(leanback.contains("FollowingScheduler.cancelAll(this)"));
@@ -60,6 +64,8 @@ public class FollowingUiSourceTest {
         assertTrue(mobileLayout.contains("@+id/followingText"));
         assertTrue(leanbackLayout.contains("@+id/following"));
         assertTrue(leanbackLayout.contains("@+id/followingText"));
+        assertTrue(func.contains("FollowingStore.unreadCount()"));
+        assertTrue(func.contains(" + \" · \" + unread"));
     }
 
     @Test

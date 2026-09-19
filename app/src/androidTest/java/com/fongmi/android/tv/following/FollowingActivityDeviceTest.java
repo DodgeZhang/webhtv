@@ -104,7 +104,7 @@ public class FollowingActivityDeviceTest {
             assertTrue(await(scenario, activity -> {
                 TextView filter = activity.findViewById(R.id.filter);
                 RecyclerView recycler = activity.findViewById(R.id.recycler);
-                return filter != null && "显示全部".contentEquals(filter.getText())
+                return filter != null && "只看更新".contentEquals(filter.getText())
                         && recycler != null && recycler.getAdapter() != null
                         && recycler.getAdapter().getItemCount() == 1;
             }));

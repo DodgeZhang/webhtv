@@ -2817,6 +2817,9 @@
     <string name="following_filter_updates">Updates only</string>
     <string name="following_filter_all">Show all</string>
     <string name="following_filter_empty">No followed shows have unwatched updates.</string>
+    <string name="following_filter_unwatched">Unfinished</string>
+    <string name="following_filter_ended">Ended</string>
+    <string name="following_filter_failed">Check failed</string>
     <string name="setting_following">Following updates</string>
     <string name="following_next_season">Follow new season S%1$d</string>
 </resources>

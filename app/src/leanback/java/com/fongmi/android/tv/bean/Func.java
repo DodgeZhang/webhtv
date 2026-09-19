@@ -4,6 +4,7 @@ import androidx.annotation.Nullable;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.impl.Diffable;
+import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.setting.CustomCspSetting;
 import com.fongmi.android.tv.utils.ResUtil;
 
@@ -49,6 +50,11 @@ public class Func implements Diffable<Func> {
     }
 
     private static String resolveText(int resId) {
+        if (resId == R.string.home_following) {
+            int unread = FollowingStore.unreadCount();
+            String text = ResUtil.getString(resId);
+            return unread > 0 ? text + " · " + unread : text;
+        }
         if (resId != R.string.home_custom_csp) return ResUtil.getString(resId);
         CustomCspSetting.Status status = CustomCspSetting.status();
         if (!status.available()) return ResUtil.getString(resId);
