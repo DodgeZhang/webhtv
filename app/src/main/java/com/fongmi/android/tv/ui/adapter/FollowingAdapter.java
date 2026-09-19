@@ -22,6 +22,8 @@ public class FollowingAdapter extends RecyclerView.Adapter<FollowingAdapter.Hold
     public interface Listener {
         void onContinue(Following item, FollowingSource source);
 
+        void onFollowNextSeason(Following item);
+
         void onCheck(Following item);
 
         void onRead(Following item);
@@ -108,6 +110,13 @@ public class FollowingAdapter extends RecyclerView.Adapter<FollowingAdapter.Hold
         }
         holder.binding.notify.setText(item.notifyEnabled ? R.string.following_notify_on : R.string.following_notify_off);
         holder.itemView.setOnClickListener(view -> listener.onRead(item));
+        if (item.latestReleasedSeason > item.trackedSeason) {
+            holder.binding.nextSeason.setVisibility(View.VISIBLE);
+            holder.binding.nextSeason.setText(holder.itemView.getContext().getString(R.string.following_next_season, item.latestReleasedSeason + 1));
+        } else {
+            holder.binding.nextSeason.setVisibility(View.GONE);
+        }
+        holder.binding.nextSeason.setOnClickListener(view -> listener.onFollowNextSeason(item));
         holder.binding.continuePlay.setOnClickListener(view -> listener.onContinue(item, source));
         holder.binding.check.setOnClickListener(view -> listener.onCheck(item));
         holder.binding.read.setOnClickListener(view -> listener.onRead(item));

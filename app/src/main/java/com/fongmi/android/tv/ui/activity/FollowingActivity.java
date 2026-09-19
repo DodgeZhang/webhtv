@@ -27,6 +27,7 @@ import com.fongmi.android.tv.databinding.ActivityFollowingBinding;
 import com.fongmi.android.tv.following.AlistSubscriptionImporter;
 import com.fongmi.android.tv.following.Following;
 import com.fongmi.android.tv.following.FollowingNotifier;
+import com.fongmi.android.tv.following.FollowingIdentity;
 import com.fongmi.android.tv.following.FollowingScheduler;
 import com.fongmi.android.tv.following.FollowingSettings;
 import com.fongmi.android.tv.following.FollowingSource;
@@ -283,6 +284,71 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         TmdbItem tmdb = item.tmdbId > 0 ? new TmdbItem(item.tmdbId, item.mediaType, item.vodName,
                 "", "", item.vodPic, "", "", 0.0) : null;
         TmdbDetailActivity.start(this, target.siteKey, target.vodId, item.vodName, item.vodPic, "", tmdb, Setting.getDetailOpenMode());
+    }
+
+    @Override
+    public void onFollowNextSeason(Following item) {
+        if (item == null || item.latestReleasedSeason <= item.trackedSeason || TextUtils.isEmpty(item.seriesKey)) return;
+        String identityKey = FollowingIdentity.identityKey(item.seriesKey, item.latestReleasedSeason);
+        if (FollowingStore.find(identityKey) != null) {
+            FollowingActivity.start(this, identityKey);
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Following next = item.copy();
+        next.identityKey = identityKey;
+        next.trackedSeason = item.latestReleasedSeason;
+        next.trackedEpisode = 0;
+        next.watchedSeason = item.latestReleasedSeason;
+        next.watchedEpisode = 0;
+        next.position = 0;
+        next.duration = 0;
+        next.latestReleasedSeason = item.latestReleasedSeason;
+        next.latestReleasedEpisode = 0;
+        next.seasonTotalEpisodes = 0;
+        next.seasonReleasedEpisodes = 0;
+        next.nextAirSeason = item.nextAirSeason == next.trackedSeason ? item.nextAirSeason : 0;
+        next.nextAirEpisode = item.nextAirSeason == next.trackedSeason ? item.nextAirEpisode : 0;
+        next.nextAirAt = item.nextAirSeason == next.trackedSeason ? item.nextAirAt : 0;
+        next.readWatermarkEpisode = 0;
+        next.lastNotifiedEpisode = 0;
+        next.lastNotifiedAt = 0;
+        next.lastObservedEpisode = 0;
+        next.hasUpdate = false;
+        next.unwatchedCount = 0;
+        next.failureCount = 0;
+        next.lastError = "";
+        next.createdAt = now;
+        next.updatedAt = now;
+        next.nextCheckAt = now;
+        FollowingSource source = FollowingStore.preferredSource(item.identityKey);
+        if (source != null) {
+            source = source.copy();
+            source.followingKey = identityKey;
+            source.playableSeason = next.trackedSeason;
+            source.playableEpisode = 0;
+            source.playableCount = 0;
+            source.lastProbeAt = 0;
+            source.lastError = "";
+        }
+        if (source == null) {
+            source = new FollowingSource();
+            source.followingKey = identityKey;
+            source.cid = next.cid;
+            source.siteKey = next.siteKey;
+            source.vodId = next.vodId;
+            source.vodName = next.vodName;
+            source.vodPic = next.vodPic;
+            source.preferred = true;
+        }
+        try {
+            FollowingStore.saveNew(next, source);
+            FollowingScheduler.enqueueDueNow(this);
+            Notify.show(R.string.following_added);
+            load();
+        } catch (Throwable error) {
+            Notify.show(error.getMessage());
+        }
     }
 
     @Override

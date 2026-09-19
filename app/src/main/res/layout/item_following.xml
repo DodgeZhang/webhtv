@@ -123,10 +123,21 @@
                     android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
+                        android:id="@+id/nextSeason"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="38dp"
+                        android:minWidth="72dp"
+                        android:text="@string/following_next_season"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/continuePlay"
                         style="@style/Widget.Material3.Button.TonalButton"
                         android:layout_width="wrap_content"
                         android:layout_height="38dp"
+                        android:layout_marginStart="6dp"
                         android:minWidth="70dp"
                         android:text="@string/following_continue"
                         android:textSize="12sp" />

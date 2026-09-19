@@ -62,6 +62,19 @@ public class FollowingUiSourceTest {
         assertTrue(leanbackLayout.contains("@+id/followingText"));
     }
 
+    @Test
+    public void newSeasonCreatesOnlyANewSeasonIdentity() throws Exception {
+        String activity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
+        String adapter = read("app/src/main/java/com/fongmi/android/tv/ui/adapter/FollowingAdapter.java");
+        String layout = read("app/src/main/res/layout/item_following.xml");
+
+        assertTrue(activity.contains("onFollowNextSeason"));
+        assertTrue(activity.contains("FollowingIdentity.identityKey(item.seriesKey, item.latestReleasedSeason)"));
+        assertTrue(activity.contains("next.trackedSeason = item.latestReleasedSeason"));
+        assertTrue(adapter.contains("onFollowNextSeason"));
+        assertTrue(layout.contains("@+id/nextSeason"));
+    }
+
     private static String read(String relative) throws Exception {
         Path path = Path.of(relative);
         if (!Files.exists(path) && relative.startsWith("app/")) path = Path.of(relative.substring(4));
