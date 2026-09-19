@@ -341,6 +341,7 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
     private static final String EXTRA_RESUME_HISTORY_CID = "resume_history_cid";
     private static final String EXTRA_RESUME_HISTORY_KEY = "resume_history_key";
     private static final String EXTRA_TMDB_VOD_CACHE_KEY = "tmdb_vod_cache_key";
+    private static final String EXTRA_DETAIL_RUNTIME_MODE = "detail_runtime_mode";
     private static final String EXTRA_IMMERSIVE_AUDIO_CACHE_KEY = "immersive_audio_cache_key";
     private static final String EXTRA_SEARCH_KEYWORD = "search_keyword";
     private static final java.util.concurrent.ConcurrentHashMap<String, AudioPlaybackResolver.Resolved> IMMERSIVE_AUDIO_LAUNCHES = new java.util.concurrent.ConcurrentHashMap<>();
@@ -621,7 +622,25 @@ private long mInitialPlaybackPosition = C.TIME_UNSET;
 
     private static boolean shouldOpenLegacyTmdbDetail(String key, String id, boolean cast) {
         int mode = Setting.getDetailOpenMode();
-        return canOpenLegacyTmdbDetail(key, id, cast) && Setting.isTmdbDetailPage() && Setting.isStandaloneTmdbDetailMode(mode);
+        return canOpenLegacyTmdbDetail(key, id, cast) && Setting.isTmdbDetailModeConfigured() && Setting.isStandaloneTmdbDetailMode(mode);
+    }
+
+    public static void startDirectResolved(Activity activity, Vod vod) {
+        if (activity == null || vod == null) return;
+        Intent intent = new Intent(activity, VideoActivity.class);
+        intent.putExtra("detail_mode", Setting.DETAIL_OPEN_DIRECT);
+        intent.putExtra(EXTRA_DETAIL_RUNTIME_MODE, Setting.DETAIL_OPEN_DIRECT);
+        intent.putExtra("scan", false);
+        intent.putExtra("collect", false);
+        intent.putExtra("cast", false);
+        intent.putExtra("key", vod.getSiteKey());
+        intent.putExtra("id", vod.getId());
+        intent.putExtra("name", vod.getName());
+        intent.putExtra("pic", vod.getPic());
+        intent.putExtra("mark", vod.getRemarks());
+        intent.putExtra("content", vod.getContent());
+        putDetailVodCache(intent, vod);
+        activity.startActivity(intent);
     }
 
     public static void start(Activity activity, String url) {
