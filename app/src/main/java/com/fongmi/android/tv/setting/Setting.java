@@ -1154,6 +1154,10 @@ public class Setting {
         return isTmdbMode(getDetailOpenMode()) && getTmdbModel() == TMDB_MODEL_NATIVE && TmdbConfig.objectFrom(getTmdbConfig()).isReady();
     }
 
+    public static boolean isTmdbDetailModeConfigured() {
+        return isTmdbMode(getDetailOpenMode()) && getTmdbModel() == TMDB_MODEL_NATIVE;
+    }
+
     public static int getDetailOpenMode() {
         int mode;
         if (Prefers.getPrefers().contains("detail_open_mode")) {
@@ -1175,7 +1179,7 @@ public class Setting {
             mode = isTmdbEnabled() ? DETAIL_OPEN_ORIGINAL_ENHANCED : DETAIL_OPEN_DIRECT;
             migrateCurrentDetailTheme(mode);
         }
-        return isTmdbMode(mode) && !isTmdbReady() ? DETAIL_OPEN_DIRECT : mode;
+        return mode;
     }
 
     public static void putDetailOpenMode(int mode) {
