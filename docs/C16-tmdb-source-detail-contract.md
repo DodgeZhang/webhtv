@@ -1,10 +1,10 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已按“详情响应最外层 `tmdb_api_key` + 进程内临时全局凭据池”重新设计，用户未配置时可在本次 App 进程中全局使用且不持久化；待用户批准后再编码。T4 服务端仍需在其独立仓库按本文合同实施。
+> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已按“详情响应最外层 `tmdb_api_key` + 进程内临时全局凭据池”重新设计，用户未配置时可在本次 App 进程存活期间全局使用且不持久化，不设时间过期；待用户批准后再编码。T4 服务端仍需在其独立仓库按本文合同实施。
 
 ## Recovery anchor
 
-- 目标：扩展现有详情返回协议，使 T3 客户端爬虫和 T4 服务端接口可在 `detailContent` 结果中直接携带 TMDB 数据；APP 优先采用身份匹配的源数据，仅为缺失能力按需访问 TMDB；没有 App 配置的 TMDB Key 时，可把详情响应最外层的 `tmdb_api_key` 放入进程内临时全局凭据池供后续 TMDB 请求使用，但该 Key 不得落盘、进入缓存/Parcel/日志或覆盖用户配置；没有可用数据的详情仍按影视原始模式打开。
+- 目标：扩展现有详情返回协议，使 T3 客户端爬虫和 T4 服务端接口可在 `detailContent` 结果中直接携带 TMDB 数据；APP 优先采用身份匹配的源数据，仅为缺失能力按需访问 TMDB；没有 App 配置的 TMDB Key 时，可把详情响应最外层的 `tmdb_api_key` 放入进程内临时全局凭据池，在 App 进程存活期间跨页面、跨源和切换订阅接口持续使用，但该 Key 不得落盘、进入缓存/Parcel/日志或覆盖用户配置；没有可用数据的详情仍按影视原始模式打开。
 - 基线：WebHTV `dev4@32a52698e5dab09fe18e49d18849a947057ca717`；OmniBox `main@d57b3e6672337febd46feca0d8ad59c6a2b507c3`；alist-tvbox `master@8a222f69a80291e836db702c34daf1ed5bdd5630`；atv-player `master@09feed1d5e5102f13bf91c9fbb76ea92808cb76d`。
 - 范围：实现合同；阶段 1-6 已完成本仓库 APP 侧协议、解析、合并、详情接入、延迟能力和设备验收。第 19 节是新增临时源 Key 能力的设计评审，不授权生产代码实施。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
@@ -1377,7 +1377,7 @@ tmdbReady && no blocks
 3. 用户未配置时，源 Key 可以进入 `TransientTmdbCredentialStore`，在该 App 进程内临时全局可用，并允许后续同类 `TmdbConfig` 请求使用。
 4. 临时全局只表示“内存中的进程级作用域”，不表示持久化、跨进程、跨重启或可备份。Key 不得写入偏好、数据库、文件、备份、Parcel、Intent、Binder、日志、崩溃信息、详情缓存或诊断包。
 5. 源 Key 只允许向官方 HTTPS TMDB API 主机发送；用户自定义 API Base、HTTP、局域网和代理地址一律忽略该 Key。
-6. 临时全局池默认从最近一次有效源响应起保留 30 分钟；每次收到新的有效 Key 刷新到期时间。到期、401/403、用户配置出现、显式清理或进程结束时必须移除。
+6. 临时全局池不设时间 TTL，保持到 App 进程结束、用户配置出现、收到新的有效 Key、认证失效或显式清理。Activity 重建、切换页面、切换源、切换条目和切换订阅接口都不应清除它。
 7. 源 Key 失效、网络失败或能力不支持时，无提示回退到已有源内嵌数据或影视原始详情，不弹 Key 配置提示，不循环重试。
 
 该能力的产品价值是：源详情最外层只返回一次 TMDB API Key，用户无需把共享 Key 写入 App 设置，随后本次 App 进程中的详情、搜索、季集、视频、推荐等既有 TMDB 请求都可按同一套“有效配置”逻辑临时使用它。
@@ -1393,7 +1393,7 @@ tmdbReady && no blocks
 | 既有源内嵌 TMDB 数据完整 | 仍先展示源数据，完整能力不因有 Key 而额外联网 |
 | 既有源内嵌 TMDB 数据缺失 | 按现有 C16 能力规划只补缺失部分 |
 | Key 无效、超时或限流 | 保留源数据或公开缓存，缺失区域隐藏，回退不阻塞详情 |
-| 切到另一个源或条目 | 若用户未配置 Key，临时全局池仍可在本进程内使用，直至过期/替换/清除 |
+| 切到另一个源、条目或订阅接口 | 若用户未配置 Key，临时全局池仍在整个 App 进程内存中可用，不因切换而清除 |
 | App 进程重启 | 临时 Key 不存在，必须再次访问源详情重新获取 |
 
 用户不应看到源 Key、Key 来源或“正在使用临时源凭据”等技术信息。设置页中的“TMDB Key 是否已配置”仍只表示用户配置，不因临时池有值而改变。
@@ -1469,16 +1469,13 @@ tmdbReady && no blocks
 
 ```java
 public final class TransientTmdbCredentialStore {
-    public static final long DEFAULT_TTL_MS = 30 * 60 * 1000L;
-
     public static synchronized void accept(
             String apiKey,
             String sourceKey,
-            String sourceRevision,
-            long now
+            String sourceRevision
     );
 
-    public static synchronized Snapshot snapshot(long now);
+    public static synchronized Snapshot snapshot();
 
     public static synchronized void clear();
 
@@ -1486,15 +1483,15 @@ public final class TransientTmdbCredentialStore {
 }
 ```
 
-`Snapshot` 至少包含 `apiKey`、`sourceKey`、`receivedAt`、`expiresAt` 和不可逆指纹。不得包含可序列化为 JSON/Parcel 的公共 `String` 字段供业务对象复用。
+`Snapshot` 至少包含 `apiKey`、`sourceKey`、`receivedAt` 和不可逆指纹，不包含 `expiresAt`。不得包含可序列化为 JSON/Parcel 的公共 `String` 字段供业务对象复用。
 
 #### 19.6.2 优先级
 
 | 用户配置 | 临时全局池 | 有效配置 | 行为 |
 | --- | --- | --- | --- |
 | 有 `accessToken` 或 `apiKey` | 有/无 | 用户配置 | 源 Key 必须丢弃，不能覆盖或旁路用户错误 |
-| 无用户配置 | 有且未过期 | 临时源 Key | 在官方 HTTPS API 主机上作为 `api_key` 使用 |
-| 无用户配置 | 无或已过期 | 无 | 保持第 18 节 source-only/原始详情 |
+| 无用户配置 | 有 | 临时源 Key | 在官方 HTTPS API 主机上作为 `api_key` 使用 |
+| 无用户配置 | 无 | 无 | 保持第 18 节 source-only/原始详情 |
 | 有用户配置但认证失败 | 有 | 用户配置 | 不自动回退源 Key；只按用户配置错误处理 |
 | 无用户配置 | 有但 API Base 非官方 | 无 | 不发送源 Key |
 
@@ -1502,11 +1499,12 @@ public final class TransientTmdbCredentialStore {
 
 1. **接收**：`SiteApi` 在 raw JSON 字符串进入日志前提取根级 `tmdb_api_key`。
 2. **验证响应**：sanitized JSON 解析为 `Result` 且存在有效详情结果后，才允许调用 `accept()`。
-3. **写入**：有效 Key 覆盖旧临时 Key，并刷新 30 分钟 TTL；写入动作只发生在内存。
+3. **写入**：有效 Key 覆盖旧临时 Key，并持续到进程结束或被下一次明确清理；写入动作只发生在内存。
 4. **使用**：请求线程在发起前取不可变快照；请求过程中不把 Key 写入 `Vod`、`Result`、Intent 或 Bundle。
 5. **失效**：401/403 用不可逆指纹清除对应临时 Key；429/网络失败不扩大回退范围。
-6. **释放**：TTL 到期、用户配置出现、显式清空或进程结束即释放引用。
-7. **重建**：Activity/进程重建后如果 Key 不在池中，必须重新从源详情响应获得；不允许用详情缓存恢复 Key。
+6. **释放**：用户配置出现、显式清空或进程结束即释放引用；401/403 时清除该临时 Key。
+7. **跨页面与切换**：Activity 生命周期变化、切换详情、切换源和切换订阅接口都不清除；只要 App 主进程没有被系统销毁，临时全局配置继续可用。
+8. **重建**：Activity 配置变更或普通 `onDestroy()` 不丢失 Key；只有整个 App 进程被重建后池才为空，此时必须重新从源详情响应获得，不允许用详情缓存恢复 Key。
 
 Java `String` 无法可靠擦除底层字节，因此“不落盘”的准确含义是不进入持久化/序列化/日志路径，并在生命周期结束时清除引用；不能宣称内存字节被物理清零。
 
@@ -1584,7 +1582,7 @@ record Ingress(String sanitizedJson, String candidateKey) {}
 
 1. 根字段只允许字符串；解析错误移除字段并继续普通解析。
 2. `extractRootAndStrip()` 对 T3/T4 使用同一实现；不能在两个分支各写一套。
-3. `VodDetailCache` 命中时没有 raw 响应，不刷新 Key；若池为空或过期，按无 Key 路径处理。
+3. `VodDetailCache` 命中时没有 raw 响应，不刷新 Key；若池为空，按无 Key 路径处理。
 4. 认证失败、无效形式、超长输入和异常只影响候选 Key，不影响 `list` 详情和播放线路。
 
 #### 19.8.2 有效配置
@@ -1599,7 +1597,7 @@ TmdbConfig effective = TmdbConfig.effective(configured);
 规则：
 
 1. `configured.isReady()` 为 true：返回用户配置副本，并清空临时池。
-2. 用户未配置且临时池未过期：返回临时 `apiKey` 配置，来源标记为 `TRANSIENT_SOURCE_GLOBAL`。
+2. 用户未配置且临时池有值：返回临时 `apiKey` 配置，来源标记为 `TRANSIENT_SOURCE_GLOBAL`。
 3. 无有效来源：返回无凭据配置，保持第 18 节路径。
 4. 临时配置必须保留官方 `apiBase`、语言和图片配置；不得继承用户自定义 Base 后再注入源 Key。
 
@@ -1615,7 +1613,7 @@ TmdbConfig effective = TmdbConfig.effective(configured);
 1. `TmdbUIAdapter` 不再永久持有构造时的用户配置；每次加载或每个网络任务开始时调用 `TmdbConfig.effective()` 获取快照。
 2. 已有 `TmdbMatcher`、详情、季集、视频、推荐、个人推荐等调用继续接收 `TmdbConfig`，因此临时全局池可以透明生效。
 3. 所有网络任务在完成时校验当前 generation 和 TMDB identity，防止旧响应污染新页面。
-4. `release()`、Activity `onDestroy()`、换源和显式刷新只清除当前任务的引用，不无条件清空全局池；全局池只按 TTL、401/403、用户配置变化或进程结束清理。
+4. `release()`、Activity `onDestroy()`、换源和显式刷新只清除当前任务的引用，不无条件清空全局池；全局池只在用户配置变化、401/403、显式重置或进程结束时清理。
 5. 若产品决定限制搜索和个人推荐，则在对应入口检查 `origin == TRANSIENT_SOURCE_GLOBAL` 后短路；不能依赖 UI 隐藏来保证安全。
 
 ### 19.9 缓存、并发和失败策略
@@ -1646,7 +1644,7 @@ TmdbConfig effective = TmdbConfig.effective(configured);
 | 401/403 | 清除临时池，保留已有源数据或公开缓存 |
 | 429/超时/网络失败 | 保留源数据，不循环重试；是否保留池由 4xx/5xx 分类决定 |
 | 源数据完整 | 即使池有 Key，也不因 Key 产生新的首屏请求 |
-| Key 过期 | 视为无临时配置，回退 source-only/原始详情 |
+| Key 被服务端判定失效 | 清除临时配置，回退 source-only/原始详情 |
 
 ### 19.10 生产者实施合同
 
@@ -1666,14 +1664,14 @@ T3 爬虫和 T4 服务端：
 | --- | --- |
 | `app/src/main/java/com/fongmi/android/tv/api/SiteApi.java` | T3/T4 入口先执行根级剥离；日志使用 sanitized JSON；有效结果写入临时池；缓存 sanitized 内容 |
 | 新增 `TmdbSourceCredentialIngress.java` | 根字段解析、类型/长度/字符校验、sanitized JSON 生成和无异常降级 |
-| 新增 `TransientTmdbCredentialStore.java` | 进程内池、TTL、最后有效值替换、401/403 清理、快照读取 |
+| 新增 `TransientTmdbCredentialStore.java` | 进程内池、最后有效值替换、401/403 清理、进程结束释放、快照读取 |
 | `app/src/main/java/com/fongmi/android/tv/bean/TmdbConfig.java` | `effective()`、临时来源标记、官方 host 校验；不改用户持久配置 |
 | `app/src/main/java/com/fongmi/android/tv/service/TmdbService.java` | 认证/URL 脱敏、临时凭据指纹熔断、保证缓存不保存 Key |
 | `app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbUIAdapter.java` | 每次请求读取有效配置，保留 generation/identity 校验和释放语义 |
 | `app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java` | 无用户 Key 时按有效配置决定网络补齐；无有效配置回退第 18 节 |
 | `app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java` | 原生增强路径使用有效配置，不把 Key放到 `Vod` |
 | `app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java` | 与 Mobile 等价接线和生命周期验证 |
-| 测试目录 | 根字段、全局优先级、TTL、401、缓存、日志、Parcel、进程重启和双端设备测试 |
+| 测试目录 | 根字段、全局优先级、进程生命周期、401、缓存、日志、Parcel、进程重启和双端设备测试 |
 
 不得修改 `TmdbSourcePayload.SCHEMA_VERSION`，不得新增 `Vod.tmdb.key`，不得让 `Result` 或 `Vod` 携带 Key。
 
@@ -1687,7 +1685,7 @@ T3 爬虫和 T4 服务端：
 
 - 新增 `TmdbSourceCredentialIngress` 和 `TransientTmdbCredentialStore`；
 - `SiteApi` 在日志/解析/缓存前剥离根级 `tmdb_api_key`；
-- 有效结果写入 30 分钟 TTL 池；
+- 有效结果写入进程生命周期池；
 - 锁定 `Result`、`Vod`、`TmdbSourcePayload`、Parcel 和详情缓存的不可见性。
 
 验收：
@@ -1709,7 +1707,7 @@ T3 爬虫和 T4 服务端：
 
 - 用户配置优先，源 Key 不覆盖用户；
 - 多条目、多源、跨 Activity 在同一进程内可读取同一有效临时配置；
-- 自定义 Base、HTTP、非白名单 host、401/403、TTL 过期均不会继续发送。
+- 自定义 Base、HTTP、非白名单 host、401/403 均不会继续发送。
 
 #### 阶段 3：详情、季集、视频、推荐能力收口
 
@@ -1738,7 +1736,7 @@ T3 爬虫和 T4 服务端：
 
 - 自动化与设备日志均找不到测试 Key；
 - 用户配置 Key、无 Key 第 18 节路径、临时全局路径互不回归；
-- 临时池在 TTL、401/403、用户配置和进程重启场景行为正确。
+- 临时池在跨页面、跨源、切换订阅接口、401/403、用户配置和进程重启场景行为正确。
 
 #### 阶段 5：Mobile/Leanback 设备验收
 
@@ -1746,7 +1744,7 @@ T3 爬虫和 T4 服务端：
 
 - 无用户 Key、根字段合法、源 payload 完整/部分/仅身份；
 - 用户已配置 Key 且源同时返回 Key；
-- 临时池跨条目/跨源使用、TTL 过期、401/403、重启和切源；
+- 临时池跨条目、跨源和切换订阅接口持续使用，401/403、重启和切源边界；
 - Mobile 与 Leanback 各至少 3 组核心场景。
 
 验收：
@@ -1763,26 +1761,26 @@ T3 爬虫和 T4 服务端：
 | 19-A3 | 用户无配置，合法根字段 + 完整 payload | 源数据上屏；首屏 TMDB 请求数为 0 |
 | 19-A4 | 用户无配置，合法根字段 + 部分 payload | 按有效配置只补缺失能力，源字段不被覆盖 |
 | 19-A5 | 用户无配置，合法根字段 + 仅身份 | 可用有效配置加载详情；失败回退原始详情 |
-| 19-A6 | 临时池跨条目/跨源 | 进程内全局可用到 TTL；用户配置出现立即失效 |
+| 19-A6 | 临时池跨条目、跨源、切换订阅接口 | 整个进程生命周期内持续可用；用户配置出现立即失效 |
 | 19-A7 | 根字段非法/重复/超长 | 不写池、不崩溃、普通详情正常 |
 | 19-A8 | 自定义 API Base | 不发源 Key，按无有效配置处理 |
 | 19-A9 | HTTP/非白名单 host | 不发源 Key |
 | 19-A10 | 站点被 TMDB 策略排除 | 不新建临时请求，保持普通详情 |
 | 19-A11 | 401/403 | 清除临时池，保留源数据/公开缓存，无循环重试 |
 | 19-A12 | 429/超时 | 不无限重试，按失败策略回退 |
-| 19-A13 | TTL 到期 | 临时配置消失，重新进入详情后可再次接收 |
+| 19-A13 | 切换订阅接口后继续使用 | 临时配置不清除；新源返回新 Key 时替换 |
 | 19-A14 | 进程重启 | 池为空；公开缓存不能恢复 Key |
 | 19-A15 | `Result.toString()`、Parcel、详情缓存、Room、偏好 | 均不包含/不恢复 Key |
 | 19-A16 | 日志、崩溃、URL、诊断、备份 | 扫描不到 Key |
-| 19-A17 | T3/T4 同 JSON | 剥离、优先级、TTL 和请求计划一致 |
+| 19-A17 | T3/T4 同 JSON | 剥离、优先级、进程生命周期和请求计划一致 |
 
 ### 19.14 验证证据要求
 
 1. 单元测试覆盖根字段合法、缺失、重复、非字符串、超长、控制字符、无 `list` 和无 `tmdb` 上下文。
 2. 序列化测试证明 `Result.toString()`、`Vod.toString()`、`TmdbSourcePayload.ProtocolAdapter` 和 Parcelable 不包含 Key。
 3. 缓存测试证明 raw 带 Key JSON 不进入 `VodDetailCache`，sanitized JSON 保持现有缓存行为。
-4. 配置测试证明用户 Key 优先、全局池读取、30 分钟 TTL、官方 Base 白名单、非官方 Base 禁用、401/403 清理和用户配置覆盖。
-5. 生命周期测试证明跨 Activity、进程重建、切源、刷新、取消和 Activity 销毁不会把 Key 写入磁盘或跨进程。
+4. 配置测试证明用户 Key 优先、全局池读取、进程生命周期持续有效、官方 Base 白名单、非官方 Base 禁用、401/403 清理和用户配置覆盖。
+5. 生命周期测试证明跨 Activity、切源、切换订阅接口、刷新、取消和 Activity 销毁不会清除内存池，也不会把 Key 写入磁盘或跨进程；只有进程重建才丢失。
 6. 请求测试记录端点、次数、身份和认证来源；日志、异常和缓存文件扫描不到测试 Key。
 7. 最终至少执行 `git diff --check`、定向单测、双 flavor Java 编译和可用设备场景；构建成功不能替代安全验证。
 
@@ -1790,7 +1788,7 @@ T3 爬虫和 T4 服务端：
 
 | 风险 | 等级 | 控制 |
 | --- | --- | --- |
-| 全局池导致跨源使用共享 Key | 中高 | 明确进程级/30 分钟/TTL；用户配置优先；官方 host 白名单；不持久化 |
+| 全局池导致跨源使用共享 Key | 中高 | 明确仅进程级生命周期；用户配置优先；官方 host 白名单；不持久化；失效即清除 |
 | 旧客户端记录 raw root field | 高 | 服务端版本/能力门控；无法门控则不投放共享 Key |
 | 自定义 Base 截获 Key | 高 | 仅官方 HTTPS host，其他配置直接忽略 |
 | 日志、缓存、Parcel、备份泄漏 | 高 | 入口剥离、sanitized 缓存、transient 池和全路径测试 |
@@ -1817,9 +1815,9 @@ T3 爬虫和 T4 服务端：
 
 ### 19.16 实施完成定义
 
-- **设计完成**：本节的根字段、临时全局池、优先级、30 分钟 TTL、文件清单、验证矩阵和回滚通过用户确认。
+- **设计完成**：本节的根字段、临时全局池、优先级、进程生命周期、文件清单、验证矩阵和回滚通过用户确认。
 - **阶段 1 完成**：剥离、sanitized 日志/缓存、池写入和不落盘测试通过。
-- **阶段 2 完成**：用户优先、全局读取、官方 Base、TTL、401/403 和跨 Activity 行为通过。
+- **阶段 2 完成**：用户优先、全局读取、官方 Base、进程生命周期、401/403 和跨 Activity 行为通过。
 - **阶段 3 完成**：详情/季集/视频/推荐复用现有能力，完整数据零新增请求。
 - **阶段 4 完成**：日志、缓存、偏好、Room、备份、Parcel、Intent、进程重启扫描通过。
 - **发布完成**：源端有版本门控和 Key 轮换方案，双端设备矩阵、Artifact SHA-256、提交和 recovery tag 已记录。
@@ -1831,7 +1829,7 @@ T3 爬虫和 T4 服务端：
 | 声明 | 来源 | 等级 | WebHTV 适用性 | 决策影响 |
 | --- | --- | --- | --- | --- |
 | TMDB v3 使用 query `api_key` 或 Bearer；官方示例使用 `https://api.themoviedb.org/3` | [TMDB Application Authentication](https://developer.themoviedb.org/docs/authentication-application)，页面 `updated_at=2025-10-27`，访问于 2026-09-19 | A（官方文档） | 现有 `TmdbService` 已支持两种认证；本节只新增 v3 `api_key` | 根字段只解释为 v3 API Key |
-| TMDB 仍有限流和 429 要求，约每秒 40 次级别 | [TMDB Rate Limiting](https://developer.themoviedb.org/docs/rate-limiting)，页面 `updated_at=2025-10-20`，访问于 2026-09-19 | A（官方文档） | 全局池会扩大共享 Key 的使用面 | 控制 TTL、保留 source-first、禁止无限重试并尊重 429 |
+| TMDB 仍有限流和 429 要求，约每秒 40 次级别 | [TMDB Rate Limiting](https://developer.themoviedb.org/docs/rate-limiting)，页面 `updated_at=2025-10-20`，访问于 2026-09-19 | A（官方文档） | 全局池会扩大共享 Key 的使用面 | 保留 source-first、禁止无限重试、限制并发并尊重 429 |
 | TMDB API 免费用于非商业项目、要求 attribution，官方强烈建议 SSL；商业用途需许可 | [TMDB FAQ](https://developer.themoviedb.org/docs/faq)，页面 `updated_at=2025-10-07`，访问于 2026-09-19 | A（官方文档） | 源 Key 共享不改变产品性质，但 HTTP/泄漏影响凭据安全 | 生产要求 HTTPS、归属展示和源端许可评估 |
 | `api.tmdb.org` 与 `api.themoviedb.org` 当前均为官方 TLS 域名，未带 Key 请求返回 401 | 2026-09-19 `openssl s_client` 和 HTTPS 探测 | A（可复现实测） | 默认 API Base 为 `api.tmdb.org/3` | 临时池只允许这两个官方 HTTPS host |
 | 当前 `SiteApi` 先记录 raw detail，再解析 `Result`，`VodDetailCache` 缓存 `Result.toString()` | `api/SiteApi.java:174-183,211-227` | A（当前源码） | 根级字段必须最先剥离，不能依靠 `Vod` 事后清理 | 新增入口 ingress 与 sanitized JSON 管线 |
@@ -1846,6 +1844,6 @@ T3 爬虫和 T4 服务端：
 - 根字段在日志、缓存、Gson、Parcel、`Vod`、Room 和备份中不可见；
 - 无根字段旧响应与第 18 节完全一致；
 - 用户已配置 Key 时源 Key 不写入临时池、不产生任何请求；
-- 无用户配置时，临时池按进程、30 分钟 TTL、官方 HTTPS host 运行，401/403 后能清理并回退。
+- 无用户配置时，临时池按进程生命周期、官方 HTTPS host 运行，跨页面/跨源/切换订阅接口持续可用，401/403 后能清理并回退。
 
 阶段 1 通过后再进行阶段 2。由于“全局”会把共享 Key 暴露给现有所有 TMDB 请求路径，若用户希望只用于当前详情或某些能力，应在批准前明确收窄；否则本文按临时全局配置设计。
