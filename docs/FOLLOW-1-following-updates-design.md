@@ -321,7 +321,7 @@ released > 0 时：
 | F-07 | 手动检查失败保留旧快照 | 异常单测 + 数据库 DAO 测试 |
 | F-08 | 后台周期检查不依赖精确闹钟 | Scheduler 单测 + WorkManager 测试 |
 | F-09 | 通知去重到集号 | 通知 fake 单测 |
-| F-10 | 手机端/电视端都能打开追更列表 | 两端源测试 + 真机 |
+| F-10 | 手机端底部导航、电视端首页按钮均提供与点播/直播/设置同级的一级入口，并能打开追更列表 | 入口源结构测试 + 两端真机 |
 | F-11 | 备份恢复保留追更 | Backup 单测 + 恢复测试 |
 | F-12 | 同步不会用旧数据覆盖新数据 | merge 单测 |
 | F-13 | 关闭开关停止后台检查 | Scheduler 单测 |
@@ -933,19 +933,44 @@ channelId: webhtv.following.updates
 
 ## 12. UI/UX 设计
 
-### 12.1 入口
+### 12.1 入口层级与位置
 
-Mobile：
+入口已确认采用**一级入口**，不做成设置页二级项，也不只放在“更多”菜单中。手机端与电视端的“追更”均和“点播、直播、设置”处于同一主导航层级；详情页另保留上下文操作。
 
-- 首页菜单或更多菜单增加“我的追更”。
-- 详情页顶部操作增加“加入追更/已追更”。
-- 历史卡片可提供“追更”快捷动作，但不自动把历史变成追更。
+| 端 | 入口层级 | 建议位置 | 打开方式 |
+|---|---|---|---|
+| Android Mobile | 底部导航一级项 | `点播 / 直播 / 追更 / 设置`；实验室显示时为 `点播 / 直播 / 追更 / 实验室 / 设置` | 点击底部“追更”打开 `FollowingActivity` |
+| Android TV/Leanback | 首页功能按钮一级项 | `点播 / 直播 / 搜索 / 收藏 / 追更 / 推送 / 投屏 / 历史 / 设置 / 站点注入` | 点击首页“追更”打开 `FollowingActivity` |
+| 详情页 | 上下文操作 | 顶部主操作区，显示“加入追更/已追更” | 当前作品没有记录时加入，有记录时打开追更详情 |
+| 通知 | 深链入口 | 系统通知点击 | 打开 `FollowingActivity` 并定位对应记录 |
 
-Leanback：
+一级入口的验收标准是：用户不需要先进入设置、收藏、历史或更多菜单，在主页一次点击即可到达“我的追更”。
 
-- Home 菜单增加“我的追更”。
-- 详情页操作行增加“追更”按钮，遵循现有 D-pad 焦点顺序。
-- 追更列表采用与 `KeepActivity` 类似的网格卡片。
+#### Mobile 精确接入点
+
+1. 在 `app/src/mobile/res/menu/menu_nav.xml` 增加 `R.id.following`，位置放在 `R.id.live` 与 `R.id.setting` 之间。
+2. 新增 `nav_following` 和追更图标；底部导航当前为无文字图标模式，图标必须有明确 content description。
+3. 在 `HomeActivity.setNavigation()` 中按 `following_enabled` 控制 `R.id.following` 可见性。
+4. 在 `HomeActivity.onNavigationItemSelected()` 中处理 `R.id.following`，调用 `FollowingActivity.start(this)`；首版沿用 `LiveActivity` 这种“底部导航项打开独立 Activity”的既有模式，不强行改成 `Fragment`。
+5. 返回主页时保持当前 `Vod`/`Setting` 选中态稳定，不能因为曾点击“追更”而让底部选中态错位。
+6. 使用 `BottomNavigationView` 的 badge 能力在 `R.id.following` 上显示未读新集数；0 时移除 badge，超过 99 显示 `99+`。
+
+#### Leanback 精确接入点
+
+1. 在 `HomeButton.all()` 使用尚未占用的稳定 id `8`，添加 `new HomeButton(8, R.string.home_following)`，排在 `home_keep` 与 `home_push` 之间。
+2. 将 `8` 加入 `HomeButton.ALL` 和 `getDefaultButtons()`，保证新安装默认可见、老用户升级后缺失项可以补入排序。
+3. 在 `Func.setDrawable()` 中为 `R.string.home_following` 映射独立图标；需要动态未读数时可像 `home_custom_csp` 一样只改变显示文本，不改变稳定 id。
+4. 在 `HomeActivity.onItemClick(Func)` 中处理 `R.string.home_following`，调用 `FollowingActivity.start(this)`。
+5. 保留“首页按钮”配置，用户可以隐藏或调整追更位置；这只改变显示顺序，不改变 id。
+6. `select_home_menu_key` 是遥控器快捷键动作表，首版不修改其 1–9 映射；“追更”先作为首页一级按钮提供，避免改变既有快捷键语义。
+7. 追更列表沿用 `KeepActivity` 类似的网格卡片与 D-pad 焦点规则。
+
+#### 入口角标
+
+- Mobile：底部“追更”显示未读新集数 badge；进入追更页并处理已读后清除。
+- Leanback：首页“追更”卡片显示 `追更 · 3` 这类文本后缀或等价角标；焦点移动时数字不得闪烁。
+- 两端角标只读 `following.db`，首页加载不得为追更角标发起 TMDB 或站点网络请求。
+- 详情页顶部“加入追更/已追更”继续保留；历史卡片可提供追更快捷动作，但不自动把历史变成追更。
 
 ### 12.2 列表筛选
 
@@ -1226,7 +1251,13 @@ FollowingBackupCodecTest
 移动端和电视端分别检查：
 
 - 详情页按钮只在 TV/连续内容显示。
-- 追更入口能启动 `FollowingActivity`。
+- Mobile `menu_nav.xml` 存在 `R.id.following`，且位于 `live` 与 `setting` 之间。
+- Mobile `HomeActivity.setNavigation()` 按 feature flag 控制追更项，`onNavigationItemSelected()` 能启动 `FollowingActivity`。
+- Mobile 追更 badge 能显示、更新和清除，且不会在首页触发网络请求。
+- Leanback `HomeButton.all()`、`ALL`、`getDefaultButtons()` 都包含 id `8`，顺序在收藏与推送之间。
+- Leanback `Func` 能映射追更图标，`HomeActivity.onItemClick()` 能启动 `FollowingActivity`。
+- Leanback 首页按钮配置允许隐藏或移动追更，不改变 id `8` 和其他按钮语义。
+- 两端一级入口都能打开 `FollowingActivity`。
 - 列表卡片读取官方、来源、用户三类状态。
 - D-pad 焦点不丢失。
 - 点击继续播放使用现有历史和 TMDB 进度入口。
@@ -1371,15 +1402,23 @@ git diff --check
 
 ### Phase P4：手机端和电视端 UI
 
-新增：
+新增/修改：
 
-- mobile/leanback `FollowingActivity`
-- `FollowingAdapter`
-- 详情页追更动作
+- `app/src/mobile/res/menu/menu_nav.xml`：增加 `R.id.following`，位于“直播”和“设置”之间
+- mobile `HomeActivity.java`：显示一级导航项、处理独立 Activity 跳转和 badge
+- mobile `FollowingActivity.java`：追更一级页面
+- leanback `HomeButton.java`：使用 id `8`，加入 `all()`、`ALL` 和默认按钮顺序
+- leanback `Func.java`：追更图标与状态文本
+- leanback `HomeActivity.java`：处理 `home_following` 一级按钮跳转
+- leanback `FollowingActivity.java`：追更一级页面
+- mobile/leanback `FollowingAdapter`
+- 详情页“加入追更/已追更”动作
 - 继续播放、检查更新、已读、忽略、换源入口
+- default/zh-rCN/zh-rTW 的 `nav_following`、`home_following` 和追更图标资源
 
 退出标准：
 
+- 手机端底部导航和电视端首页按钮均可一次点击进入追更，与点播/直播/设置同级。
 - 两端可添加、查看、继续播放、取消追更。
 - 两端 D-pad/触摸互不回归。
 - 现有收藏、历史、详情布局测试通过。
@@ -1502,7 +1541,7 @@ following_notifications = user_opt_in
 | F-07 失败保留快照 | 9.5、10.6 | `FollowingUpdateCoordinator` | 异常单测 |
 | F-08 后台调度 | 10.1–10.4 | `FollowingScheduler`、Worker | WorkManager 测试 |
 | F-09 通知去重 | 11.3–11.4 | `FollowingNotifierPolicy` | 通知 fake |
-| F-10 双端入口 | 12.1、12.5 | mobile/leanback Activity | 源测试、真机 |
+| F-10 双端一级入口 | 12.1、12.5 | mobile `menu_nav`/HomeActivity、leanback HomeButton/Func/HomeActivity | 源测试、真机 |
 | F-11 备份恢复 | 13.1 | `FollowingBackupCodec` | `FollowingBackupTest` |
 | F-12 同步合并 | 13.2 | `FollowingMergePolicy` | merge 单测 |
 | F-13 开关停止 | 17.2 | `FollowingScheduler` | scheduler 单测 |
@@ -1578,6 +1617,7 @@ following_notifications = user_opt_in
 | 默认同步 | `follow=false` |
 | 进度投影 | best-effort，后台 reconcile 修复 |
 | 电影/直播 | 不纳入首版 |
+| 入口层级 | Mobile 底部导航一级项，与点播/直播/设置同级；Leanback 首页按钮一级项，位于收藏与推送之间 |
 
 任何改变以下内容的决定都必须重新评审：
 
@@ -1598,6 +1638,7 @@ following_notifications = user_opt_in
 - [ ] 已确认 WorkManager 版本和 APK 体积预算。
 - [ ] 已确认首版不自动换源、不自动转存。
 - [ ] 已确认 alist 导入默认关闭。
+- [ ] 已确认 Mobile 追更为底部导航一级项，Leanback 追更为首页按钮一级项，不做隐藏二级入口。
 - [ ] 已确认 TMDB 不可用时使用原站详情兜底。
 - [ ] 已确认现有 `Keep`、`History`、`TmdbSeasonProgress` 不改变语义。
 - [ ] 已确认旧备份缺少 following 字段时保留本机数据。
