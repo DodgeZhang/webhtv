@@ -1697,6 +1697,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 点击追更卡片打开详情操作面板，集中显示官方/来源/用户三类状态与错误，并提供继续播放、检查更新、标记已读、手动换源和取消追更。
 - 首次添加时若尚无官方缓存，第一次成功拉取只建立提醒基线，不发送“从第 1 集开始”的历史集通知；后续集数才触发提醒。
 - 来源探测优先使用已绑定线路；若该线路没有有效集，则回退到覆盖集数最多的线路，全部无效时不伪装成可播。
+- Leanback 首页按钮全量顺序包含追更 id `8`，并继续保留站点注入 id `9`，两者互不替代。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入
