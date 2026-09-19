@@ -1,10 +1,10 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已给出“源随详情临时返回 TMDB Key，用户未配置时仅在当前详情会话内使用且不持久化”的完整设计和实施边界，待用户批准后再编码。T4 服务端仍需在其独立仓库按本文合同实施。
+> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。第 19 节已按“详情响应最外层 `tmdb_api_key` + 进程内临时全局凭据池”重新设计，用户未配置时可在本次 App 进程中全局使用且不持久化；待用户批准后再编码。T4 服务端仍需在其独立仓库按本文合同实施。
 
 ## Recovery anchor
 
-- 目标：扩展现有详情返回协议，使 T3 客户端爬虫和 T4 服务端接口可在 `detailContent` 结果中直接携带 TMDB 数据；APP 优先采用身份匹配的源数据，仅为缺失能力按需访问 TMDB；没有 App 配置的 TMDB Key 时，可在当前详情会话内使用源随详情返回的临时 Key，但该 Key 不得落盘、进入缓存/Parcel/日志或覆盖用户配置；没有可用数据的详情仍按影视原始模式打开。
+- 目标：扩展现有详情返回协议，使 T3 客户端爬虫和 T4 服务端接口可在 `detailContent` 结果中直接携带 TMDB 数据；APP 优先采用身份匹配的源数据，仅为缺失能力按需访问 TMDB；没有 App 配置的 TMDB Key 时，可把详情响应最外层的 `tmdb_api_key` 放入进程内临时全局凭据池供后续 TMDB 请求使用，但该 Key 不得落盘、进入缓存/Parcel/日志或覆盖用户配置；没有可用数据的详情仍按影视原始模式打开。
 - 基线：WebHTV `dev4@32a52698e5dab09fe18e49d18849a947057ca717`；OmniBox `main@d57b3e6672337febd46feca0d8ad59c6a2b507c3`；alist-tvbox `master@8a222f69a80291e836db702c34daf1ed5bdd5630`；atv-player `master@09feed1d5e5102f13bf91c9fbb76ea92808cb76d`。
 - 范围：实现合同；阶段 1-6 已完成本仓库 APP 侧协议、解析、合并、详情接入、延迟能力和设备验收。第 19 节是新增临时源 Key 能力的设计评审，不授权生产代码实施。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
@@ -1362,70 +1362,74 @@ tmdbReady && no blocks
 - 阶段 F APK SHA-256：Mobile `ffd6ebfdb7d509f68ec4ced17c0bed37326307d00d71f77f32f69440768e805e`；Leanback `c603991d937850a3c705835ae44d912d42f878f8c4617eed5ee225f9a3e0d750`；Mobile AndroidTest `ac46e38fc5a241e25c7837d93071633463b9a7bdb085b4c8971dc2ec02c8dafe`；Leanback AndroidTest `55ce93d5b93f1f0e4108b3630a8a70d84879a0dd93e4d4a7289d9651cb7890f1`。阶段 F 自身的提交与 recovery tag 由本次收口命令创建。
 - 未在本仓库验证：真实 T4 服务端生产数据、真实弱网切源和发布包签名分发；这些不改变客户端第 18 节合同完成状态，但接入生产 T4 前必须由服务端仓库按第 4-9 节完成请求计数和恢复测试。
 
-## 19. 源随详情临时返回 TMDB Key 的设计
+## 19. 最外层 `tmdb_api_key` 与进程内临时全局凭据池设计
 
-> 状态：设计评审已完成，建议“有条件实施”，本文节本身不授权修改代码。实施前先由用户明确批准第 19.12 节的阶段 A。
+> 状态：设计评审已完成，建议“有条件实施”，本文节本身不授权修改代码。实施前先由用户明确批准第 19.12 节阶段 1。
 
-### 19.1 结论
+### 19.1 设计修正与结论
 
-建议支持 `detailContent` 的 T3 爬虫和 T4 服务端在现有 `tmdb` 对象中额外返回一个可选的 TMDB v3 `key`，但必须满足以下硬约束：
+此前的详情项内 Key 方案已经废止。用户希望源在 `detailContent` 响应最外层返回 TMDB API Key，新客户端剥离后把它作为**当前 App 进程内的临时全局 TMDB 凭据**，供后续 TMDB 请求使用，但不保存到 App。
 
-1. App 已配置的 `accessToken` 或 `apiKey` 永远优先，源 Key 只能在其没有任何有效配置时使用。
-2. 源 Key 只在当前源条目、当前详情会话、当前 App 进程内存中存在；不能写入偏好、数据库、文件、备份、Parcel、Intent、Binder、日志、崩溃信息或原始详情缓存。
-3. 源 Key 不能与用户自定义的 `apiBase` 组合使用。只有官方 HTTPS TMDB API 主机允许接收源 Key，避免源内容把用户环境变成任意凭据外发通道。
-4. 源 Key 只用于已经由源数据确认身份的 TMDB 直查，不用于标题搜索、自动匹配、手动重匹配、个人推荐、AI 推荐、OMDb 等超出该源条目身份的范围。
-5. 没有源 Key、源 Key 无效、站点被 TMDB 策略排除或网络失败时，必须无提示地回退到第 18 节的 source-only/影视原始路径，不能出现重复 Key 提示或空壳页面。
+修正后的硬约束：
 
-该能力的主要价值是让没有在 App 配置 TMDB 的用户，仍能在源已经给出 TMDB 身份但只带回部分元数据时补齐详情、季集、视频和推荐；它不是把源 Key 变成 App 的长期配置。
+1. 源字段固定为响应根对象的 `tmdb_api_key`，不是 `list[].tmdb.key`，也不进入 `Vod`、`Result`、`TmdbSourcePayload` 或任何详情项。
+2. App 已配置的 `accessToken` 或 `apiKey` 永远优先；存在用户配置时，源 Key 必须被丢弃，不进入临时全局池。
+3. 用户未配置时，源 Key 可以进入 `TransientTmdbCredentialStore`，在该 App 进程内临时全局可用，并允许后续同类 `TmdbConfig` 请求使用。
+4. 临时全局只表示“内存中的进程级作用域”，不表示持久化、跨进程、跨重启或可备份。Key 不得写入偏好、数据库、文件、备份、Parcel、Intent、Binder、日志、崩溃信息、详情缓存或诊断包。
+5. 源 Key 只允许向官方 HTTPS TMDB API 主机发送；用户自定义 API Base、HTTP、局域网和代理地址一律忽略该 Key。
+6. 临时全局池默认从最近一次有效源响应起保留 30 分钟；每次收到新的有效 Key 刷新到期时间。到期、401/403、用户配置出现、显式清理或进程结束时必须移除。
+7. 源 Key 失效、网络失败或能力不支持时，无提示回退到已有源内嵌数据或影视原始详情，不弹 Key 配置提示，不循环重试。
 
-### 19.2 用户可见能力
+该能力的产品价值是：源详情最外层只返回一次 TMDB API Key，用户无需把共享 Key 写入 App 设置，随后本次 App 进程中的详情、搜索、季集、视频、推荐等既有 TMDB 请求都可按同一套“有效配置”逻辑临时使用它。
+
+### 19.2 用户可见行为
 
 在用户未配置 TMDB Key 的前提下：
 
-| 源返回内容 | App 行为 |
+| 源详情响应 | App 行为 |
 | --- | --- |
-| 无有效 `tmdb` | 保持现有 C16 行为，不请求 TMDB |
-| 有 `tmdb` 身份和完整首屏数据 | 直接展示源内嵌数据，零 TMDB 请求 |
-| 有 `tmdb` 身份、部分数据和有效 `key` | 先用源数据上屏，再仅补缺失能力 |
-| 只有 `tmdb` 身份和有效 `key` | 可按 ID 获取首屏详情，成功后进入 TMDB 详情模式 |
-| 有源数据但 `key` 无效或无网络 | 保留源数据，缺少的 TMDB 区域隐藏，不弹 Key 配置页 |
-| 只有 `key`、没有有效身份 | 忽略 Key，按普通详情处理 |
+| 无 `tmdb_api_key` | 完全保持第 18 节行为，不新增 TMDB 请求 |
+| 有合法 `tmdb_api_key` | 剥离并写入进程内临时全局池；后续 TMDB 请求可使用 |
+| 既有源内嵌 TMDB 数据完整 | 仍先展示源数据，完整能力不因有 Key 而额外联网 |
+| 既有源内嵌 TMDB 数据缺失 | 按现有 C16 能力规划只补缺失部分 |
+| Key 无效、超时或限流 | 保留源数据或公开缓存，缺失区域隐藏，回退不阻塞详情 |
+| 切到另一个源或条目 | 若用户未配置 Key，临时全局池仍可在本进程内使用，直至过期/替换/清除 |
+| App 进程重启 | 临时 Key 不存在，必须再次访问源详情重新获取 |
 
-用户不应看到源 Key、Key 的来源或“已使用源 Key”的错误提示；设置页仍按“用户是否配置了 TMDB Key”显示原有状态。
+用户不应看到源 Key、Key 来源或“正在使用临时源凭据”等技术信息。设置页中的“TMDB Key 是否已配置”仍只表示用户配置，不因临时池有值而改变。
 
 ### 19.3 当前实现与缺口
 
-| 位置 | 当前行为 | 新增需求带来的影响 |
+| 位置 | 当前行为 | 修正设计的影响 |
 | --- | --- | --- |
-| `SiteApi.detailContent()` | T3/T4 原始详情在 `174-183` 行解析前被完整写入 `SpiderDebug`，结果再由 `Result` 统一处理 | 若原样透传 `tmdb.key`，Key 会先进入日志，必须在解析和日志前剥离 |
-| `VodDetailCache.putContent()` | `225-227` 行缓存 `Result.toString()`，默认保留 5 分钟 | 若 Key 成为 `Vod` 或 `Result` 的可序列化字段，会被缓存；源 Key 必须只存在于非序列化运行时字段 |
-| `Result` / `Vod` | `Vod.tmdb` 已有 Parcelable、复制和比较合同 | 不能把源 Key 直接放入 `TmdbSourcePayload`；否则会被 Parcel、来源缓存或后续复制路径带走 |
-| `TmdbConfig` | `apiKey` / `accessToken` 来自用户设置；`isReady()` 只表达用户配置 | 需要一个不修改 `Setting` 的“当前请求有效配置”对象，并显式标记凭据来源 |
-| `TmdbService` | `apiBuilder()` 根据配置选择 query `api_key` 或 Bearer，认证熔断使用凭据哈希，响应缓存包含凭据指纹 | 可以复用请求和缓存逻辑，但禁止记录原始 URL、原始配置和 Key；源凭据请求的作用域要受身份与站点约束 |
-| `TmdbSourcePayloadParser` | 校验 `tmdb.id/media_type/season_number/detail/complete` | 源 Key 不进入该模型的持久数据；在更早的详情入口剥离，解析器继续按 C16 schema 1 工作 |
-| `TmdbSourceAvailability` / `DetailRuntimeModePolicy` | 无用户 Key 时只按源内嵌数据决定 source-only 或回退 | 需要把“用户配置就绪”和“当前详情有效凭据就绪”分开，不能用源 Key 改变全局设置语义 |
-| `TmdbUIAdapter` | 构造时固定读取用户 `TmdbConfig`，后续详情、季集和补齐都持有该实例 | 增加当前详情会话的有效凭据绑定和释放；换源、换条目和 Activity 销毁时必须清空 |
-| `TmdbDetailActivity` | 加载源详情后决定 source-only 或网络补齐 | 从当前 `Result` 取出一次性源凭据，只在当前 `vodId` 身份上使用 |
-| Mobile/Leanback `VideoActivity` | 原生增强路径直接读取 `item.getTmdb()` 并调用 `loadSource()` | 需从同一个 `Result` 传递凭据，不得把 Key 塞回 `Vod` 或再次访问网络时从 `Vod` 取 Key |
+| `SiteApi.detailContent()` | T3/T4 原始详情在 `174-183` 行解析前被完整写入 `SpiderDebug` | 必须在第一处日志前提取根级 `tmdb_api_key` 并生成 sanitized JSON |
+| `Result.fromJson()/fromType()` | 只关心现有 `list/code/...` 字段 | 根级字段由 ingress 剥离，`Result` 不需新增 transient Key 字段 |
+| `VodDetailCache.putContent()` | `225-227` 行缓存 `Result.toString()` | 缓存 sanitized Result，因此可以继续使用；绝不缓存原始带 Key JSON |
+| `TmdbConfig` | `apiKey/accessToken` 只来自用户配置，`isReady()` 表示用户配置就绪 | 新增进程级临时凭据快照与 `effectiveConfig()`，不修改 `Setting` |
+| `TmdbService` | 已有 api_key/Bearer 请求、认证熔断和响应缓存 | 继续接收 `TmdbConfig`；临时 Key 必须通过有效配置进入，不直接写日志或缓存键 |
+| `TmdbUIAdapter` | 构造时固定用户配置 | 每次请求前取有效配置，或绑定当前进程内有效凭据快照 |
+| `TmdbDetailActivity` / 两个 `VideoActivity` | 无用户 Key 时只运行第 18 节 source-only/原始详情 | 可选择使用进程内临时全局配置；仍保留 source-only 与站点策略 |
+| 旧客户端 | 在解析前记录完整源详情 | 新客户端无法保护旧客户端；生产源必须做客户端版本/能力门控 |
 
-因此，新增能力不应改写 C16 的元数据模型，而应增加一条单独的“源详情入口凭据管线”。
+关键设计变化是：**不再把凭据附着到某条 `Result` 或 `Vod`，而是在入口剥离后放入独立的进程内凭据池。**
 
 ### 19.4 方案比较
 
-| 方案 | 优点 | 主要问题 | 决定 |
+| 方案 | 优点 | 缺点 | 决定 |
 | --- | --- | --- | --- |
-| 不变更，用户必须自行配置 Key | 零新风险、改动最小 | 不满足源已返回 Key 时自动补齐的产品目标 | 只作为回退/紧急关闭方案，不作为目标 |
-| 把 `key` 放入 `Vod.tmdb` 并让现有模型保存 | 接线最少 | 会进入 `Result.toString()`、`VodDetailCache`、Parcel 和可能的详情缓存；后续修改很容易把 Key 永久化 | 拒绝 |
-| 把 `key` 加密后放入 `Vod.tmdb` | 表面上降低明文风险 | 静态解密密钥仍在 APK，旧客户端仍可能记录原文；没有实质安全收益 | 拒绝 |
-| 在 `SiteApi` 入口先剥离 `tmdb.key`，以非序列化的一次性上下文传到 UI | 与现有 C16 解析器解耦；能精确控制日志、缓存、Parcel 和生命周期；不改变旧源 | 推荐 |
-| 新增独立凭据接口 | 不把 Key 放进详情响应，边界更清晰 | 增加额外请求，违背“详情直接返回”的目标，并扩大服务端合同 | 暂不采用；未来若需密钥轮换/短期令牌可另立任务 |
+| 不变更，用户必须自己配置 Key | 零新增风险 | 不满足源直接提供 Key 的目标 | 仅作为关闭开关 |
+| 放入每条 `Vod.tmdb.key`，详情级使用 | 身份绑定清晰 | 与“临时全局”目标不符，且容易进入详情模型/缓存 | 拒绝 |
+| 响应根级 `tmdb_api_key` + 进程内临时全局池 | 符合最外层字段；一次获取可在本进程后续 TMDB 请求使用；不落盘 | 共享 Key 影响范围较大，旧客户端可能泄漏 | 推荐，但必须安全门控 |
+| 响应根级 Key + 仅当前详情使用 | 风险较小 | 切页后失效，不符合临时全局目标 | 不作为目标 |
+| 源端代理 TMDB，App 完全拿不到 Key | 安全最好 | 需要源端实现和额外数据合同，不能满足“App 直接使用 Key” | 长期首选替代方案 |
 
 ### 19.5 数据合同
 
-源在现有 C16 `tmdb` 对象中增加可选字符串字段：
+`detailContent` 返回示例：
 
 ```json
 {
+  "tmdb_api_key": "<TMDB v3 API Key>",
   "list": [
     {
       "vod_id": "source-item-id",
@@ -1435,7 +1439,6 @@ tmdbReady && no blocks
         "id": 550,
         "media_type": "movie",
         "season_number": 0,
-        "key": "<TMDB v3 API Key>",
         "complete": ["core", "images"],
         "detail": {
           "id": 550,
@@ -1450,412 +1453,399 @@ tmdbReady && no blocks
 
 字段规则：
 
-1. `key` 为可选字段，只接受 JSON 字符串；不提供、空字符串、非字符串或超限时按没有源凭据处理。
-2. 本节只定义 TMDB v3 `api_key`。不支持把源字段当作 Bearer/access token；未来若要支持 v4，必须新增独立类型字段和独立测试，不能根据字符串形状猜测。
-3. `key` 只在 `tmdb.id`、`tmdb.media_type` 合法且通过 C16 身份校验后有效。没有 ID 时不做标题搜索，也不使用 Key。
-4. `schema` 继续使用 `1`。`key` 是可选新增字段，不提升 schema，不改变旧源和旧客户端对无 Key 响应的解析。
-5. 新客户端在详情入口移除 `key` 后再进入现有 `Result`/`Vod` 解析；因此 `TmdbSourcePayload` 的 JSON、Parcelable、copy、equals、缓存和 Binder 合同不包含 Key。
-6. `key` 不能放在 `detail` 内，也不能放进 `vod_*` 平铺字段、图片 URL、播放 URL 或 HTTP 响应头；生产者必须使用上面的固定位置。
-7. 规范化值为去除首尾空白后的 16 至 256 个可打印 ASCII 字符，且不得含空白、控制字符或换行。TMDB 服务端仍是对 Key 真实有效性的最终权威。
+1. `tmdb_api_key` 是根对象可选字符串字段；仅作为 TMDB v3 `api_key`，不是 Bearer Token，不是 v4 Access Token。
+2. 不提供、空字符串、非字符串、含控制字符、超长或 JSON 类型异常时，按“没有源 Key”处理；错误不能破坏普通详情解析。
+3. 规范化值为去除首尾空白后的 16 至 256 个可打印 ASCII 字符；不接受空白、换行和控制字符。
+4. `schema` 仍为 `1`，`list[].tmdb`、`Vod`、`Result` 和旧响应结构不变。
+5. 根字段在 `SiteApi` 记录日志、写入详情缓存和调用 Gson `Result` 解析之前剥离。sanitized JSON 可以正常缓存，但 Key 只进入独立的进程内池。
+6. 不允许放在 HTTP header、播放 URL、图片 URL、`vod_*`、`tmdb.detail`、`ext` 或配置文件；生产者必须使用固定根字段。
+7. 根字段没有身份信息也没关系，因为它是进程级临时配置；但只有同一响应同时给出合法 `tmdb.id/media_type` 或至少存在可用 TMDB 上下文时，才允许把它用于该次详情增强。其他后续请求按全局有效配置正常使用。
 
-### 19.6 凭据优先级与生命周期
+### 19.6 临时全局凭据池
 
-#### 19.6.1 解析优先级
+#### 19.6.1 数据结构
 
-| 用户配置 | 源 `tmdb.key` | 当前详情有效凭据 | 结果 |
+建议新增进程内单例：
+
+```java
+public final class TransientTmdbCredentialStore {
+    public static final long DEFAULT_TTL_MS = 30 * 60 * 1000L;
+
+    public static synchronized void accept(
+            String apiKey,
+            String sourceKey,
+            String sourceRevision,
+            long now
+    );
+
+    public static synchronized Snapshot snapshot(long now);
+
+    public static synchronized void clear();
+
+    public static synchronized void clearIfMatching(String apiKey);
+}
+```
+
+`Snapshot` 至少包含 `apiKey`、`sourceKey`、`receivedAt`、`expiresAt` 和不可逆指纹。不得包含可序列化为 JSON/Parcel 的公共 `String` 字段供业务对象复用。
+
+#### 19.6.2 优先级
+
+| 用户配置 | 临时全局池 | 有效配置 | 行为 |
 | --- | --- | --- | --- |
-| 有 `accessToken` 或 `apiKey` | 有/无 | 用户凭据 | 源 Key 必须忽略并从内存引用中清除 |
-| 无任何用户凭据 | 有且合法 | 源临时凭据 | 仅在当前详情会话使用 |
-| 无任何用户凭据 | 无/非法 | 无 | 保持第 18 节 source-only 或原始详情 |
-| 有用户凭据但认证失败 | 有 | 用户凭据 | 不回退到源 Key；避免绕过用户明确配置 |
-| 无用户凭据 | 有，但 API Base 非官方 | 无 | 不使用源 Key，按 source-only/原始详情处理 |
-| 无用户凭据 | 有，但站点被 `TmdbSitePolicy` 排除 | 无 | 不请求 TMDB，保持既有站点策略 |
+| 有 `accessToken` 或 `apiKey` | 有/无 | 用户配置 | 源 Key 必须丢弃，不能覆盖或旁路用户错误 |
+| 无用户配置 | 有且未过期 | 临时源 Key | 在官方 HTTPS API 主机上作为 `api_key` 使用 |
+| 无用户配置 | 无或已过期 | 无 | 保持第 18 节 source-only/原始详情 |
+| 有用户配置但认证失败 | 有 | 用户配置 | 不自动回退源 Key；只按用户配置错误处理 |
+| 无用户配置 | 有但 API Base 非官方 | 无 | 不发送源 Key |
 
-优先级必须由“有效配置”对象决定，不能通过修改 `Setting.getTmdbConfig()`、保存偏好或覆盖用户输入实现。
+#### 19.6.3 生命周期
 
-#### 19.6.2 生命周期
+1. **接收**：`SiteApi` 在 raw JSON 字符串进入日志前提取根级 `tmdb_api_key`。
+2. **验证响应**：sanitized JSON 解析为 `Result` 且存在有效详情结果后，才允许调用 `accept()`。
+3. **写入**：有效 Key 覆盖旧临时 Key，并刷新 30 分钟 TTL；写入动作只发生在内存。
+4. **使用**：请求线程在发起前取不可变快照；请求过程中不把 Key 写入 `Vod`、`Result`、Intent 或 Bundle。
+5. **失效**：401/403 用不可逆指纹清除对应临时 Key；429/网络失败不扩大回退范围。
+6. **释放**：TTL 到期、用户配置出现、显式清空或进程结束即释放引用。
+7. **重建**：Activity/进程重建后如果 Key 不在池中，必须重新从源详情响应获得；不允许用详情缓存恢复 Key。
 
-推荐把源凭据建模为一个 `SourceTmdbCredential` 值对象，并遵循以下生命周期：
-
-1. **接收**：`SiteApi` 从原始 T3/T4 JSON 中提取 `list[0].tmdb.key`，同时生成剔除了该字段的 sanitized JSON。
-2. **短暂附着**：sanitized JSON 解析成 `Result` 后，Key 只附着为 `Result` 的 `transient` 运行时字段，不进入 `Vod`。
-3. **一次性交付**：UI 通过 `Result.takeTmdbCredential()` 取得并清空该字段；同一凭据不能被第二次读取。
-4. **会话绑定**：有效配置只在当前详情加载 generation、当前 `siteKey + vodId + tmdb.id/media_type` 上生效。
-5. **释放**：换源、切换详情、重新加载、Activity `onDestroy()`、adapter `release()` 或网络任务取消时，释放内存引用。
-6. **进程结束**：进程死亡即丢失；重新进入详情必须重新请求源并再次获得 Key，不允许从缓存恢复 Key。
-7. **跨 Activity**：默认不允许把原始 Key 写入 Intent/Bundle。确有播放页继续请求同一 TMDB 身份的需求时，只能在进程内凭据存储中使用一次性随机 handle，接收方 `take` 后立即移除；handle 不得写入磁盘、日志或 Room。
-
-Java `String` 不提供可靠的内存擦除保证，因此“未保存”定义为“不进入任何持久化/序列化/日志路径，引用在生命周期结束时清除”，不能承诺进程内存中的字节被物理清零。
+Java `String` 无法可靠擦除底层字节，因此“不落盘”的准确含义是不进入持久化/序列化/日志路径，并在生命周期结束时清除引用；不能宣称内存字节被物理清零。
 
 ### 19.7 安全边界
 
-#### 19.7.1 官方 API 主机和网络边界
+#### 19.7.1 网络白名单
 
-源 Key 只能发送到以下 HTTPS 官方主机的 TMDB API 路径：
+源 Key 只允许发送到：
 
-- `api.tmdb.org`
-- `api.themoviedb.org`
+- `https://api.tmdb.org/3`
+- `https://api.themoviedb.org/3`
 
-实现必须解析规范化后的 `TmdbConfig.getApiBase()`，校验 scheme 为 `https` 且 host 精确命中上述白名单。任何用户自定义、局域网、镜像、代理、HTTP 或含用户名/端口的 API Base 都不能获得源 Key。
+校验必须基于规范化后的 `apiBase`：HTTPS、精确 host 匹配、无用户名密码、无非标准端口。任何自定义域名、IP、镜像、代理、HTTP 或含附加路径的 Base 都不能注入源 Key。
 
-这样做的原因是：源内容不是可信凭据保管者；如果用户配置了自定义 API Base 而 App 仍把源 Key 发过去，恶意或失控的代理即可获得凭据。官方主机限制不会影响普通图片 CDN，因为 TMDB 图片请求不需要 Key。
+#### 19.7.2 禁止泄漏面
 
-#### 19.7.2 禁止泄漏的表面
-
-| 泄漏面 | 必须的行为 |
+| 泄漏面 | 必须行为 |
 | --- | --- |
-| `SpiderDebug` / logcat | 记录 raw detail 前删除 `tmdb.key`；任何异常和 URL 日志都要对 `api_key`、`key` 和 Bearer 样式值脱敏 |
-| `VodDetailCache` | 收到带源凭据的详情时不得写入原始详情内容缓存；缓存绝不能成为下次“恢复 Key”的来源 |
-| `Result.toString()` / Gson | Key 放在 `Result` 的 `transient` 字段，不参与 JSON 序列化；更不能放进 `Vod.tmdb` |
-| `TmdbSourcePayload` | 不新增持久 `key` 字段，不进入 copy、Parcel、Bundle、Binder 或详情缓存 |
-| Intent / saved state | 默认不传 Key；跨页只允许进程内一次性 handle |
-| SharedPreferences / Room / file / backup | 不写入任何 Key，也不把 Key 写入备份、导入导出、诊断包或崩溃报告 |
-| TMDB 响应缓存 | 只保存公开元数据；缓存命名可以使用不可逆指纹，但不得保存可还原的 Key 或完整认证 URL |
-| 认证熔断 | 继续使用不可逆摘要区分凭据；不能把原始 Key 作为 map key 或日志字段 |
-| UI / 通知 / 截图 | 不显示、不朗读、不放入 accessibility 文本或通知 |
+| `SpiderDebug` / raw detail | 先剥离根字段再记录；异常路径只记录长度、站点和解析状态 |
+| URL / HTTP 异常 | `api_key`、`key`、Bearer 和查询参数全部脱敏 |
+| `VodDetailCache` | 只缓存 sanitized JSON；带原始 Key 的字符串不得进入缓存 |
+| `Result` / `Vod` / `TmdbSourcePayload` | 不新增 Key 字段；Gson、Parcel、copy、equals、toString 均不可见 |
+| Intent / Bundle / Binder | 不传 Key 明文；界面之间使用进程内单例读取 |
+| SharedPreferences / Room / 文件 / 备份 | 不写 Key；导入导出和诊断包扫描不到 Key |
+| TMDB 响应缓存 | 只保存公开响应；不得保存可还原的认证 URL 或明文 Key |
+| UI / 通知 / 截图 / accessibility | 不显示、不朗读、不设置文本 |
+| 崩溃与性能日志 | 异常和指标不得包含 Root field、认证 header 或完整请求 URL |
 
-需要明确：旧版 App 在收到包含 `key` 的详情时会把完整原始字符串交给已有日志路径，新客户端无法修复旧客户端的泄漏。因此生产源启用前必须增加客户端版本/能力门控；无法门控时不得把共享 Key 直接投递给旧客户端。
+旧客户端的限制必须单独写清：旧版本会在 `SiteApi` 解析前记录完整源响应。新客户端无法阻止旧客户端泄漏，因此生产源必须使用客户端版本/能力门控；无法门控时不得把共享 API Key 直接返回给所有客户端。
 
-#### 19.7.3 权限边界
+#### 19.7.3 权限与范围
 
-源临时凭据只能执行当前源条目的身份直查，不能提升为 App 全局 TMDB 凭据。建议的能力边界：
+由于临时池是进程全局的，源 Key 一旦接受，后续应用内已有的 `TmdbConfig` 请求可像用户未配置时的“临时配置”一样使用它。必须满足：
 
-| 能力 | 源临时凭据 | 用户配置凭据 |
-| --- | --- | --- |
-| 按 `tmdb.id + media_type` 读取首屏详情 | 允许 | 允许 |
-| 按同一 TMDB ID 读取季、集、视频 | 允许 | 允许 |
-| 按同一 TMDB ID 读取推荐/相似内容 | 允许，沿用现有分页和去重 | 允许 |
-| 标题搜索、自动匹配、手动换 TMDB 条目 | 不允许 | 允许 |
-| 个人 TMDB/豆瓣/AI 推荐、OMDb 辅助评分 | 不允许 | 保持现有设置条件 |
-| 写入手动匹配、季度绑定等用户配置 | 不允许 | 保持现有用户动作 |
-| 显示“TMDB Key 已配置” | 不允许 | 允许 |
+- 只允许官方 TMDB API；
+- 只允许现有 TMDB 请求方法，不新增面向任意 URL 的凭据转发；
+- 用户设置和用户操作仍以用户配置为准；
+- 不把临时 Key 写入设置、匹配绑定、历史、备份或跨进程共享；
+- 不把源字段解释为 Bearer Token；
+- 不允许通过自定义 API Base、代理或第三方域名使用；
+- 用户配置出现后立即丢弃临时 Key，当前进程后续请求全部改用用户配置。
 
-上述“不允许”是源凭据的作用域限制，不改变用户配置凭据的现有行为。若未来产品决定允许源凭据搜索，必须单独评估共享 Key 的配额、滥用和来源身份风险。
+如果产品希望只允许详情补齐、不允许自动匹配或个人推荐使用临时 Key，应在批准阶段 2 时明确收窄；本文默认按“临时全局 `TmdbConfig` 等价能力”设计，以符合用户提出的全局使用目标。
 
 ### 19.8 运行时架构
 
-#### 19.8.1 入口剥离
-
-在 `SiteApi.detailContent()` 的 T3 和 T4 分支增加统一入口：
+#### 19.8.1 入口管线
 
 ```text
 raw detail JSON
-  -> TmdbSourceCredentialIngress.extractAndStrip()
-       -> sanitized detail JSON
-       -> SourceTmdbCredential or null
+  -> TmdbSourceCredentialIngress.extractRootAndStrip()
+       -> sanitized JSON
+       -> candidate apiKey / sourceKey / revision
   -> sanitized JSON 记录日志
-  -> Result.fromJson()/fromType()
-  -> Result.attachTmdbCredential()
-  -> 按第 19.9 节决定是否写详情内容缓存
+  -> Result.fromJson() / Result.fromType()
+  -> 有效结果时将 candidate 写入 TransientTmdbCredentialStore
+  -> 业务层只读取有效配置
 ```
 
-推荐的接口形状（名称可在实施时等价调整，但语义不可改变）：
+推荐接口：
 
 ```java
-public final class SourceTmdbCredential {
-    public String value();
-    public void clear();
-}
-
-public record Ingress(String sanitizedJson, SourceTmdbCredential credential) {}
-
 public final class TmdbSourceCredentialIngress {
-    public static Ingress extractAndStrip(String rawJson);
+    public static Ingress extractRootAndStrip(
+            String rawJson,
+            String sourceKey,
+            String sourceRevision
+    );
 }
 
-public final class Result {
-    private transient SourceTmdbCredential tmdbCredential;
-    public void attachTmdbCredential(SourceTmdbCredential credential);
-    public SourceTmdbCredential takeTmdbCredential();
-}
+record Ingress(String sanitizedJson, String candidateKey) {}
 ```
 
-入口策略：
+核心要求：
 
-1. 仅在 JSON 根对象、`list[0]` 和 `tmdb` 均为对象时提取；其他形状原样交给现有解析器并回退。
-2. 解析失败、字段类型异常、字段过长或包含控制字符时，移除 Key 字段并当作无源凭据处理，不能因为 Key 出错而破坏原有详情。
-3. 对 T3 和 T4 使用同一条入口管线；不按站点类型复制逻辑。
-4. raw detail 若因异常无法安全解析，日志只能记录长度、站点和结果状态，不能记录原始字符串。
+1. 根字段只允许字符串；解析错误移除字段并继续普通解析。
+2. `extractRootAndStrip()` 对 T3/T4 使用同一实现；不能在两个分支各写一套。
+3. `VodDetailCache` 命中时没有 raw 响应，不刷新 Key；若池为空或过期，按无 Key 路径处理。
+4. 认证失败、无效形式、超长输入和异常只影响候选 Key，不影响 `list` 详情和播放线路。
 
 #### 19.8.2 有效配置
 
-UI 在决定详情运行时模式前，按以下顺序构造“当前请求有效配置”：
+新增只读工厂方法，不改变用户 `Setting`：
 
 ```java
 TmdbConfig configured = TmdbConfig.objectFrom(Setting.getTmdbConfig());
-SourceTmdbCredential source = result.takeTmdbCredential();
-TmdbConfig effective = TmdbConfig.effectiveForSource(configured, source);
+TmdbConfig effective = TmdbConfig.effective(configured);
 ```
 
-`effectiveForSource()` 的规则：
+规则：
 
-1. `configured.isReady()` 为 true 时直接返回配置副本，并清除源凭据；不读取源 Key。
-2. 无用户凭据且源凭据合法、API Base 为官方 HTTPS host、站点策略允许时，返回内存配置副本，设置 `apiKey` 为源值并把凭据来源标为 `SOURCE_TRANSIENT`。
-3. 其他情况返回无凭据配置，源凭据立即清除。
+1. `configured.isReady()` 为 true：返回用户配置副本，并清空临时池。
+2. 用户未配置且临时池未过期：返回临时 `apiKey` 配置，来源标记为 `TRANSIENT_SOURCE_GLOBAL`。
+3. 无有效来源：返回无凭据配置，保持第 18 节路径。
+4. 临时配置必须保留官方 `apiBase`、语言和图片配置；不得继承用户自定义 Base 后再注入源 Key。
 
-需要区分以下两个就绪概念：
+需要区分：
 
-- `configuredReady`：用户是否在 App 配置了 Key；设置页、全局选项和“Key 未配置”提示继续使用它。
-- `effectiveReady`：当前详情是否有用户配置或有效的源临时凭据；只用于当前详情的请求规划。
+- `configuredReady`：用户是否在设置中配置了 Key；
+- `effectiveReady`：当前进程是否有用户配置或合法临时 Key 可用于 TMDB 请求。
 
-不得把 `effectiveReady` 写回 `Setting`，也不得让源凭据改变下一次打开详情的默认行为。
+设置页、Key 状态、备份和用户偏好继续使用 `configuredReady`；请求规划使用 `effectiveReady`。
 
-#### 19.8.3 Adapter 与 UI 接线
+#### 19.8.3 Adapter 接线
 
-建议新增一个不持久化的 `TmdbAccessContext`，至少包含：
-
-```java
-enum TmdbCredentialOrigin { NONE, CONFIGURED, SOURCE_TRANSIENT }
-
-record TmdbAccessContext(
-        TmdbConfig effectiveConfig,
-        TmdbCredentialOrigin origin,
-        String sourceSiteKey,
-        String sourceVodId,
-        String tmdbIdentityKey
-) {}
-```
-
-接线顺序：
-
-1. `SiteViewModel` 原样把带 transient credential 的 `Result` 交给详情 UI，不额外缓存领域对象。
-2. `TmdbDetailActivity` 和 Mobile/Leanback `VideoActivity` 在同一个详情加载 generation 内 `take` 一次凭据。
-3. `TmdbUIAdapter` 增加 `bindAccessContext()` 与 `clearAccessContext()`；所有详情、季集、视频、推荐和相似内容请求从 `effectiveConfig` 取认证信息。
-4. `TmdbMatcher` 等标题搜索相关组件即使存在，也必须检查 `origin == SOURCE_TRANSIENT` 后短路，不得误用源凭据。
-5. `DetailRuntimeModePolicy` 只接收 `effectiveReady` 和源数据状态；站点策略仍在调用侧先判断。
-6. 发生 `onNewIntent()`、换源、换 Vod、刷新、取消或 `onDestroy()` 时，先递增/失效 generation，再清除 access context；旧线程不得继续引用源 Key。
+1. `TmdbUIAdapter` 不再永久持有构造时的用户配置；每次加载或每个网络任务开始时调用 `TmdbConfig.effective()` 获取快照。
+2. 已有 `TmdbMatcher`、详情、季集、视频、推荐、个人推荐等调用继续接收 `TmdbConfig`，因此临时全局池可以透明生效。
+3. 所有网络任务在完成时校验当前 generation 和 TMDB identity，防止旧响应污染新页面。
+4. `release()`、Activity `onDestroy()`、换源和显式刷新只清除当前任务的引用，不无条件清空全局池；全局池只按 TTL、401/403、用户配置变化或进程结束清理。
+5. 若产品决定限制搜索和个人推荐，则在对应入口检查 `origin == TRANSIENT_SOURCE_GLOBAL` 后短路；不能依赖 UI 隐藏来保证安全。
 
 ### 19.9 缓存、并发和失败策略
 
 #### 19.9.1 缓存
 
-1. 源详情原始内容缓存：检测到 `tmdb.key` 时跳过 `VodDetailCache.putContent()`；原因是缓存内容经过剥离后无法在下次命中时恢复 Key，缓存带 Key 又违反本设计。
-2. TMDB 响应缓存：可以继续保存公开元数据；缓存键可以使用现有不可逆指纹，但目录、日志、异常和调试导出不得出现原始 Key 或完整认证 URL。
-3. 详情/季集结果缓存：不得保存 `SourceTmdbCredential`；下次打开只复用公开元数据，不能复用凭据。
-4. App 进程重启后，任何未重新从源响应得到的 Key 都必须消失。
+1. 原始带 Key JSON：绝不缓存。
+2. sanitized 详情 JSON：按现有 `VodDetailCache` 规则缓存，不含 Key。
+3. TMDB 公开响应：沿用现有缓存；认证参数不得进入文件内容、文件名、日志或可还原 URL。
+4. 临时池：只在进程内存中存在，不参与 `Result`、`Vod`、Parcel 或 `SavedState`。
+5. 进程重启：缓存可以提供公开 TMDB 数据，但不能恢复源 Key。
 
 #### 19.9.2 并发
 
-1. 凭据属于一次详情加载，不属于全局 `TmdbConfig` 或静态单例。
-2. 所有网络任务在启动前捕获当前 generation 和 access context；完成时同时校验 generation、source identity 和 TMDB identity，避免旧 Key 写入新页面。
-3. 同一详情内的重复请求继续由现有详情/季集 cache 和任务取消机制合并，不新增按 Key 的全局共享池。
-4. 401/403 熔断可以按不可逆凭据指纹记录在内存中，但不得把源 Key 暴露给 UI；源 Key 熔断不能阻塞用户稍后重新配置的官方凭据。
+1. 读取使用不可变快照；每个网络任务只持有一次性引用。
+2. 写入使用 `synchronized` 或等价的原子更新，保证最后一个有效源响应替换旧 Key。
+3. 认证熔断继续使用不可逆指纹，不把原始 Key 作为 map key、日志标签或指标维度。
+4. 用户配置出现后，后续请求必须立即拒绝旧临时池快照；不能继续发送旧临时 Key。
+5. 多个源的 Key 以最后一次成功响应为准，并要求来源、时间和指纹进入审计上下文，但审计不得存 Key 原文。
 
 #### 19.9.3 失败降级
 
 | 失败 | 行为 |
 | --- | --- |
-| 源没有 `key` | 完全保持第 18 节路径 |
-| Key 格式非法 | 当作没有 Key，不写日志中的值 |
-| 用户已配置 Key | 忽略源 Key，执行原用户配置路径 |
-| API Base 非白名单 | 忽略源 Key，不向自定义主机发送源凭据 |
-| `TmdbSitePolicy` 排除 | 忽略源 Key，保持普通详情 |
-| 401/403 | 若已有源内嵌可展示数据则 source-only；否则回退普通详情，不弹 Key 配置提示 |
-| 429/超时/网络失败 | 使用已有源数据或现有合法公开缓存，不循环重试；不覆盖源字段 |
-| 仅身份、无 detail | 只有在有效凭据和网络策略都成立时才发起直查；失败则回退原始详情 |
+| 根字段缺失或非法 | 不写池，继续第 18 节逻辑 |
+| 用户已有配置 | 丢弃源 Key，使用用户配置 |
+| API Base 非白名单 | 丢弃源 Key，不发送 |
+| 401/403 | 清除临时池，保留已有源数据或公开缓存 |
+| 429/超时/网络失败 | 保留源数据，不循环重试；是否保留池由 4xx/5xx 分类决定 |
+| 源数据完整 | 即使池有 Key，也不因 Key 产生新的首屏请求 |
+| Key 过期 | 视为无临时配置，回退 source-only/原始详情 |
 
 ### 19.10 生产者实施合同
 
-T3 爬虫和 T4 服务端都应在自己的独立仓库按同一字段合同实现：
+T3 爬虫和 T4 服务端：
 
-1. 从源站点获得 Key 后，只在详情响应 `list[0].tmdb.key` 返回；不要复制到播放 URL、HTTP header、平铺 `vod_*` 字段或独立日志。
-2. 优先让源服务端在 HTTPS 上返回详情；若源配置本身是 HTTP，必须明确记录该 Key 已在传输链路暴露，不能把它描述为安全凭据。
-3. 源端应尽量使用可轮换、限域、低配额的 Key，并支持在泄漏后立即更换；共享生产 Key 会同时承受所有客户端、爬虫和旧版本的风险。
-4. 源已经提供完整首屏能力时，App 不应因为 Key 存在而增加请求；生产者仍可返回 Key 供缺失能力使用，但必须保留 `complete` 语义。
-5. 源端必须把 Key 当作凭据而不是普通元数据：不进入源站缓存、访问日志、指标标签、错误堆栈、用户可见文本或第三方分析系统。
-6. 旧客户端会记录完整详情字符串。生产源必须使用客户端版本/能力门控；无法确认客户端支持剥离时，先不投放 Key，或只在小范围可控客户端启用。
+1. 只在详情响应根对象返回 `tmdb_api_key`；不要在每条 `Vod.tmdb` 内重复。
+2. 不把 Key 放入 HTTP header、播放地址、图片地址、`vod_*`、错误信息或第三方 analytics。
+3. 尽量通过 HTTPS 提供详情；HTTP 会暴露 Key，必须在源端风险评估中单独处理。
+4. 优先使用可轮换、低配额、可撤销的共享 Key，并准备失效后的快速轮换流程。
+5. 源端必须实施客户端版本/能力门控；旧客户端会记录完整 raw response。
+6. 源已经提供完整 C16 数据时应优先返回数据；Key 只用于客户端确有缺失能力的场景。
+7. 源端不得把该 Key 作为用户身份或长期授权承诺；客户端只把它当临时共享凭据。
 
 ### 19.11 实施文件与职责
 
 | 文件 | 计划改动 |
 | --- | --- |
-| `app/src/main/java/com/fongmi/android/tv/api/SiteApi.java` | 详情入口剥离、sanitized 日志、Result 附着；带源凭据时跳过原始详情缓存 |
-| `app/src/main/java/com/fongmi/android/tv/api/loader/CatSpider.java` / `api/SiteApi.java` | 审计 T3/T4 返回边界，确保不在外围提前记录 raw response |
-| 新增 `SourceTmdbCredential.java` | 有界解析、内存引用释放、不可序列化语义 |
-| 新增 `TmdbSourceCredentialIngress.java` | JSON 定位、剥离、异常回退和脱敏 |
-| `app/src/main/java/com/fongmi/android/tv/bean/Result.java` | transient 一次性凭据接口；不得进入 `toString()`、Parcel、copy 或缓存 |
-| `app/src/main/java/com/fongmi/android/tv/bean/TmdbConfig.java` | `effectiveForSource()`、凭据来源和官方 API Base 校验；不修改用户持久配置 |
-| `app/src/main/java/com/fongmi/android/tv/setting/DetailRuntimeModePolicy.java` | 审计并接入 `effectiveReady`，保持站点和无源数据判定 |
-| `app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbUIAdapter.java` | 绑定/清除 access context，网络请求只取有效配置，source transient 禁止标题搜索类能力 |
-| `app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java` | 从 `Result` 取凭据、绑定 generation、失败回退和释放 |
-| `app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java` | 从同一个 `Result` 传递凭据到 adapter，不把 Key 放回 `Vod` |
-| `app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java` | 与 Mobile 等价接线、生命周期和 generation 校验 |
-| 测试目录 | 新增入口解析/优先级/不落盘/不序列化/网络接线/回退测试 |
+| `app/src/main/java/com/fongmi/android/tv/api/SiteApi.java` | T3/T4 入口先执行根级剥离；日志使用 sanitized JSON；有效结果写入临时池；缓存 sanitized 内容 |
+| 新增 `TmdbSourceCredentialIngress.java` | 根字段解析、类型/长度/字符校验、sanitized JSON 生成和无异常降级 |
+| 新增 `TransientTmdbCredentialStore.java` | 进程内池、TTL、最后有效值替换、401/403 清理、快照读取 |
+| `app/src/main/java/com/fongmi/android/tv/bean/TmdbConfig.java` | `effective()`、临时来源标记、官方 host 校验；不改用户持久配置 |
+| `app/src/main/java/com/fongmi/android/tv/service/TmdbService.java` | 认证/URL 脱敏、临时凭据指纹熔断、保证缓存不保存 Key |
+| `app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbUIAdapter.java` | 每次请求读取有效配置，保留 generation/identity 校验和释放语义 |
+| `app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java` | 无用户 Key 时按有效配置决定网络补齐；无有效配置回退第 18 节 |
+| `app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java` | 原生增强路径使用有效配置，不把 Key放到 `Vod` |
+| `app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java` | 与 Mobile 等价接线和生命周期验证 |
+| 测试目录 | 根字段、全局优先级、TTL、401、缓存、日志、Parcel、进程重启和双端设备测试 |
 
-不得修改 `TmdbSourcePayload.SCHEMA_VERSION`，不得把 `key` 加入 `Vod`、`TmdbBundle` 或 `TmdbDetailCache` 的公开字段。
+不得修改 `TmdbSourcePayload.SCHEMA_VERSION`，不得新增 `Vod.tmdb.key`，不得让 `Result` 或 `Vod` 携带 Key。
 
 ### 19.12 分阶段实施计划
 
-每一阶段独立提交、独立验证、独立回滚；前一阶段的日志/缓存边界未通过，不得开始下一阶段。
+每阶段独立提交、验证和回滚；前一阶段的泄漏/缓存边界未通过，不得进入下一阶段。
 
-#### 阶段 1：协议剥离与不持久化
+#### 阶段 1：根级剥离、临时池和不落盘
 
 范围：
 
-- 新增源凭据值对象和 ingress；
-- `SiteApi` 在日志、`Result` 解析和 `VodDetailCache` 前剥离；
-- 为源详情缓存增加“存在凭据则跳过”分支；
-- 锁定 `Result`、`Vod`、`TmdbSourcePayload` 的 JSON/Parcel/copy 合同。
+- 新增 `TmdbSourceCredentialIngress` 和 `TransientTmdbCredentialStore`；
+- `SiteApi` 在日志/解析/缓存前剥离根级 `tmdb_api_key`；
+- 有效结果写入 30 分钟 TTL 池；
+- 锁定 `Result`、`Vod`、`TmdbSourcePayload`、Parcel 和详情缓存的不可见性。
 
 验收：
 
-- 原 JSON 中的 `key` 不出现在 sanitized JSON、日志捕获、`Result.toString()`、`VodDetailCache`、Parcel 或 TMDB 详情缓存；
-- 无 Key 的旧响应逐字段与当前行为一致；
-- 格式错误、超大和重复字段只影响凭据，不影响普通详情。
+- 原始 Key 不出现在 sanitized JSON、日志、详情缓存、`toString()`、Parcel、偏好、数据库或文件；
+- 无根字段旧响应逐字段保持当前行为；
+- 重复、非法、超大根字段只影响 Key 候选，不影响详情。
 
-#### 阶段 2：有效配置、优先级和运行时接线
+#### 阶段 2：有效配置与全局请求接线
 
 范围：
 
-- 实现 `TmdbConfig.effectiveForSource()` 和官方 API Base 白名单；
-- 区分 configured/effective 就绪；
-- 在 Mobile/Leanback `VideoActivity`、`TmdbDetailActivity` 和 adapter 中绑定/清除 access context；
-- 源 Key 只允许直查当前 TMDB 身份，搜索和匹配类入口短路。
+- 实现 `TmdbConfig.effective()`、官方 Base 白名单和 configured/effective 双语义；
+- `TmdbUIAdapter`、详情页、Mobile/Leanback 原生增强改用有效配置；
+- 用户配置出现时清空临时池；
+- 临时池默认允许现有 TMDB 请求路径，按第 19.7.3 节审计权限。
 
 验收：
 
-- 用户配置优先，源 Key 不覆盖、不旁路用户失败；
-- 无用户 Key、合法源 Key、官方 Base、站点允许时能按 ID 补齐；
-- 自定义 API Base、HTTP Base、非白名单 host、站点禁用和无效身份均不会发送源 Key；
-- 换源/换条目/取消后旧任务不能回写新页面。
+- 用户配置优先，源 Key 不覆盖用户；
+- 多条目、多源、跨 Activity 在同一进程内可读取同一有效临时配置；
+- 自定义 Base、HTTP、非白名单 host、401/403、TTL 过期均不会继续发送。
 
-#### 阶段 3：按需能力和 UI 收口
+#### 阶段 3：详情、季集、视频、推荐能力收口
 
 范围：
 
-- 接入 C16 `TmdbSourceCapabilityPlanner` 的首屏缺口、季集、视频、推荐/相似补齐；
-- source transient 下的状态文本、重新匹配、搜索、个人推荐和 OMDb 入口隐藏/禁用；
-- 保证完整源数据不因存在 Key 而多请求。
+- 复用 C16 `TmdbSourceCapabilityPlanner` 的首屏缺口；
+- 接通季、集、视频、推荐/相似和个人推荐的现有请求；
+- 保持完整源数据零新增请求和 fill-only 合并。
 
 验收：
 
-- 完整 payload 零 TMDB 请求；
-- 缺 `credits` 只请求对应详情一次；
-- 电视季、单集、视频只在访问时请求；
-- 认证失败后保留源数据并稳定回退，不出现空标题、空列表或 Key 提示。
+- 完整 payload 零网络；
+- 缺失能力只按现有 planner 请求；
+- 电视季集和推荐分页遵守作用域、取消和去重；
+- 无效 Key 回退不出现空标题、空列表或 Key 提示。
 
-#### 阶段 4：安全审计与回归
+#### 阶段 4：泄漏扫描与回归
 
 范围：
 
-- 增加日志、缓存、偏好、Room、备份、Parcel、Intent 和进程重建检查；
+- 扫描 `SpiderDebug`、异常、URL、偏好、Room、文件、备份、Parcel、Intent、Bundle 和诊断导出；
 - 补齐 T3/T4 同合同测试；
-- 记录代码、测试和 APK 指纹。
+- 记录测试 Key 的注入、撤销和清理结果。
 
 验收：
 
-- 自动化测试扫描不到测试 Key；
-- 设备日志和本地文件扫描不到测试 Key；
-- source transient 不影响用户配置 Key 的完整现有功能。
+- 自动化与设备日志均找不到测试 Key；
+- 用户配置 Key、无 Key 第 18 节路径、临时全局路径互不回归；
+- 临时池在 TTL、401/403、用户配置和进程重启场景行为正确。
 
 #### 阶段 5：Mobile/Leanback 设备验收
 
-范围：
+场景：
 
-- 无用户 Key、有源 Key、源 payload 完整/部分/仅身份的 Mobile 和 Leanback 场景；
-- 使用可控 T3 fixture 和 T4 stub，必要时由用户在测试时临时提供可撤销 Key；
-- 验证请求数量、身份隔离、缓存命中、切源、进程重建和回退。
+- 无用户 Key、根字段合法、源 payload 完整/部分/仅身份；
+- 用户已配置 Key 且源同时返回 Key；
+- 临时池跨条目/跨源使用、TTL 过期、401/403、重启和切源；
+- Mobile 与 Leanback 各至少 3 组核心场景。
 
 验收：
 
-- Mobile/Leanback 各至少 `3/3` 通过：完整零补齐、部分按需补齐、无 Key/无效 Key 回退；
-- 记录请求端点、请求次数、UI 文本、缓存状态和 Artifact SHA-256；
-- 未验证的真实第三方生产 Key 不得写成已通过。
+- 记录请求端点、次数、源码来源、UI 状态和 Artifact SHA-256；
+- 真实第三方 Key 未验证时必须标记为未验证，不能用 stub 通过替代。
 
 ### 19.13 验收矩阵
 
 | 编号 | 场景 | 预期 |
 | ---: | --- | --- |
-| 19-A1 | 旧 T3/T4 无 `key` | 与第 18 节完全一致，零新增 TMDB 请求 |
-| 19-A2 | 有用户 Key，源同时返回 Key | 只用用户 Key；源 Key 不进入任何请求或缓存 |
-| 19-A3 | 无用户 Key，源 Key + 完整 payload | 先展示源数据，TMDB 请求数为 0 |
-| 19-A4 | 无用户 Key，源 Key + 缺 `credits` | 只按 ID 补一次 `credits`，源字段不被覆盖 |
-| 19-A5 | 无用户 Key，源 Key + 仅身份 | 按 ID 加载详情；失败则原始详情回退 |
-| 19-A6 | 无用户 Key，源 Key + TV 缺失季集 | 只访问用户打开的季/集 |
-| 19-A7 | 无用户 Key，源 Key 非法 | 当作无 Key，无 Key 值日志，无崩溃 |
-| 19-A8 | 无用户 Key，自定义 API Base | 不发送源 Key，按 source-only/原始详情处理 |
-| 19-A9 | 无用户 Key，HTTP/非白名单 API Base | 不发送源 Key |
-| 19-A10 | 站点被 TMDB 策略排除 | 不发送源 Key，保持普通详情 |
-| 19-A11 | TMDB 401/403/429/超时 | 保留已有源数据或合法公开缓存，无循环重试 |
-| 19-A12 | 切源/切条目/取消 | 旧 Key 和旧请求不能影响新详情 |
-| 19-A13 | 退出后重新进入详情 | 进程内旧引用已清除，新 Key 只能由新源响应提供 |
-| 19-A14 | `Result.toString()`、Parcel、Tmdb 缓存往返 | 不包含、不恢复源 Key |
-| 19-A15 | 日志、崩溃、缓存、偏好、Room、备份扫描 | 找不到源 Key |
-| 19-A16 | T3/T4 同 JSON | 解析、优先级、请求计划和回退一致 |
+| 19-A1 | 旧 T3/T4 无 `tmdb_api_key` | 与第 18 节完全一致，无新增 TMDB 请求 |
+| 19-A2 | 用户已配置 Key，源返回根字段 | 只用用户配置；源值不进入池、不进入日志/缓存 |
+| 19-A3 | 用户无配置，合法根字段 + 完整 payload | 源数据上屏；首屏 TMDB 请求数为 0 |
+| 19-A4 | 用户无配置，合法根字段 + 部分 payload | 按有效配置只补缺失能力，源字段不被覆盖 |
+| 19-A5 | 用户无配置，合法根字段 + 仅身份 | 可用有效配置加载详情；失败回退原始详情 |
+| 19-A6 | 临时池跨条目/跨源 | 进程内全局可用到 TTL；用户配置出现立即失效 |
+| 19-A7 | 根字段非法/重复/超长 | 不写池、不崩溃、普通详情正常 |
+| 19-A8 | 自定义 API Base | 不发源 Key，按无有效配置处理 |
+| 19-A9 | HTTP/非白名单 host | 不发源 Key |
+| 19-A10 | 站点被 TMDB 策略排除 | 不新建临时请求，保持普通详情 |
+| 19-A11 | 401/403 | 清除临时池，保留源数据/公开缓存，无循环重试 |
+| 19-A12 | 429/超时 | 不无限重试，按失败策略回退 |
+| 19-A13 | TTL 到期 | 临时配置消失，重新进入详情后可再次接收 |
+| 19-A14 | 进程重启 | 池为空；公开缓存不能恢复 Key |
+| 19-A15 | `Result.toString()`、Parcel、详情缓存、Room、偏好 | 均不包含/不恢复 Key |
+| 19-A16 | 日志、崩溃、URL、诊断、备份 | 扫描不到 Key |
+| 19-A17 | T3/T4 同 JSON | 剥离、优先级、TTL 和请求计划一致 |
 
 ### 19.14 验证证据要求
 
-1. 以单元测试证明 `extractAndStrip()` 对合法、缺失、重复、非字符串、超长、控制字符和无 `list` 输入的行为。
-2. 以序列化测试证明 `Result.toString()`、`Vod.toString()`、`TmdbSourcePayload.ProtocolAdapter` 和 Parcelable 不包含 Key。
-3. 以缓存测试证明带凭据详情不会进入 `VodDetailCache` / 源原始详情缓存，非凭据详情仍保持原有 5 分钟行为。
-4. 以配置测试证明用户 Key 优先、官方 Base 白名单、自定义 Base 禁止、Token 优先关系和 source transient 不写 Setting。
-5. 以任务生命周期测试证明换源、取消、onNewIntent、onDestroy 后旧凭据不继续产生请求。
-6. 以设备测试记录“请求端点 + 请求次数 + UI 状态”；若使用真实 Key，测试 Key 必须由调用环境临时注入且验证结束后撤销，不写入仓库或日志。
-7. 最终验证至少包含 `git diff --check`、定向单测、双 flavor Java 编译和可用的 Mobile/Leanback 设备场景；不要用一次成功构建代替行为和安全验证。
+1. 单元测试覆盖根字段合法、缺失、重复、非字符串、超长、控制字符、无 `list` 和无 `tmdb` 上下文。
+2. 序列化测试证明 `Result.toString()`、`Vod.toString()`、`TmdbSourcePayload.ProtocolAdapter` 和 Parcelable 不包含 Key。
+3. 缓存测试证明 raw 带 Key JSON 不进入 `VodDetailCache`，sanitized JSON 保持现有缓存行为。
+4. 配置测试证明用户 Key 优先、全局池读取、30 分钟 TTL、官方 Base 白名单、非官方 Base 禁用、401/403 清理和用户配置覆盖。
+5. 生命周期测试证明跨 Activity、进程重建、切源、刷新、取消和 Activity 销毁不会把 Key 写入磁盘或跨进程。
+6. 请求测试记录端点、次数、身份和认证来源；日志、异常和缓存文件扫描不到测试 Key。
+7. 最终至少执行 `git diff --check`、定向单测、双 flavor Java 编译和可用设备场景；构建成功不能替代安全验证。
 
 ### 19.15 风险、兼容性与回滚
 
 | 风险 | 等级 | 控制 |
 | --- | --- | --- |
-| 旧客户端仍打印完整源响应中的 Key | 高 | 生产源必须做版本/能力门控；无法门控则不投递共享 Key |
-| 自定义 API Base 截获源 Key | 高 | 仅允许官方 HTTPS host；任何其他 Base 都忽略源 Key |
-| 日志、缓存、Parcel 或备份带走 Key | 高 | 令牌剥离、transient、跳过原始详情缓存、全路径扫描测试 |
-| 共享 Key 被撤销、限流或滥用 | 中高 | 源侧轮换/限额；源优先、完整数据零请求；不开放标题搜索和个人推荐 |
-| 源 Key 与用户 Key 混淆 | 中 | 明确 configured/effective 两层语义；用户配置绝对优先，源不改变设置 |
-| 无效 Key 反复触发认证请求 | 中 | 内存认证熔断、最多一次、失败立即回退，不循环重试 |
-| 跨 Activity 或 Activity 重建丢失 Key | 中 | 默认只绑定当前详情；需要时使用进程内一次性 handle，不能写 Intent 明文 |
-| 源响应是 HTTP，Key 在链路中已暴露 | 中高 | 产品文档明确风险；优先 HTTPS，禁止把该 Key 描述为安全凭据 |
-| Java 内存中的 Key 无法可靠擦除 | 中 | 限定生命周期和引用释放；不承诺物理清零，不进入持久化路径 |
-| 数据结构变更破坏旧 C16 源 | 低 | 保持 schema 1、字段可选、无字段行为不变；先做兼容测试再上线 |
-| 实现范围扩大到全局 TMDB 能力 | 高 | source transient 只允许身份直查；搜索、匹配、个人推荐和配置写入独立审计 |
+| 全局池导致跨源使用共享 Key | 中高 | 明确进程级/30 分钟/TTL；用户配置优先；官方 host 白名单；不持久化 |
+| 旧客户端记录 raw root field | 高 | 服务端版本/能力门控；无法门控则不投放共享 Key |
+| 自定义 Base 截获 Key | 高 | 仅官方 HTTPS host，其他配置直接忽略 |
+| 日志、缓存、Parcel、备份泄漏 | 高 | 入口剥离、sanitized 缓存、transient 池和全路径测试 |
+| 共享 Key 被限流/撤销 | 中高 | 源端轮换、限额、完整数据零请求、429 尊重，不做无限重试 |
+| 临时池跨进程/重启丢失 | 中 | 设计预期；重新访问源详情获取 |
+| Java String 无法物理擦除 | 中 | 限定作用域和引用释放；不承诺物理清零 |
+| 数据合同破坏旧 C16 | 低 | 根字段可选、schema 不变，无字段行为不变 |
+| 权限从详情扩展到全局搜索/推荐 | 中高 | 若产品不批准全量全局使用，阶段 2 收窄为详情/季集白名单 |
 
 兼容性结论：
 
-- 不改变无 `key` 响应的解析和展示；
+- 不影响无根字段的旧源、旧 T4 和无 Key 第 18 节行为；
 - 不改变用户配置 Key 的现有功能和优先级；
-- 不改变 C16 的 `tmdb.schema`、`complete`、detail 结构和 fill-only 合并；
-- 不新增依赖、ABI、二进制、许可证或网络协议；
-- 源 Key 能力可以单独关闭：停止提取或不返回字段即可回到当前第 18 节行为。
+- 不改变 C16 `tmdb` 内嵌数据、`complete` 和 fill-only 合并合同；
+- 不增加依赖、ABI、二进制、许可证或网络协议；
+- 可单独关闭：服务端停止返回根字段，App 入口不再写入临时池即可回退。
 
 回滚：
 
-1. 关闭 `TmdbSourceCredentialIngress` 接线，恢复 sanitized raw 日志和详情缓存行为；源字段自然被忽略。
-2. 删除 `Result` transient access context，恢复 `TmdbUIAdapter` 使用用户配置实例。
-3. 生产者停止返回 `tmdb.key`；无需修改 C16 schema 或旧源。
-4. 若已发布版本存在日志泄漏，先停用源端 Key 字段并轮换 Key，再回滚 App 代码；不能只依赖 App 回滚解决已经暴露的共享 Key。
+1. 移除 `SiteApi` 对根字段的提取，原字段按未知 JSON 字段处理。
+2. 清空/删除 `TransientTmdbCredentialStore` 的使用点，恢复直接使用用户 `TmdbConfig`。
+3. 生产者停止返回 `tmdb_api_key`；无需修改 C16 `schema` 或每条 `Vod.tmdb`。
+4. 如果发生泄漏，先轮换源 Key 并停止投递该字段，再回滚 App；不能只依赖代码回滚解决已暴露凭据。
 
 ### 19.16 实施完成定义
 
-本节从“设计完成”到“生产可用”必须分别记录：
+- **设计完成**：本节的根字段、临时全局池、优先级、30 分钟 TTL、文件清单、验证矩阵和回滚通过用户确认。
+- **阶段 1 完成**：剥离、sanitized 日志/缓存、池写入和不落盘测试通过。
+- **阶段 2 完成**：用户优先、全局读取、官方 Base、TTL、401/403 和跨 Activity 行为通过。
+- **阶段 3 完成**：详情/季集/视频/推荐复用现有能力，完整数据零新增请求。
+- **阶段 4 完成**：日志、缓存、偏好、Room、备份、Parcel、Intent、进程重启扫描通过。
+- **发布完成**：源端有版本门控和 Key 轮换方案，双端设备矩阵、Artifact SHA-256、提交和 recovery tag 已记录。
 
-- **设计完成**：本文节决策、合同、文件清单、安全边界、测试矩阵和回滚通过用户确认。
-- **阶段 1 完成**：Key 剥离、日志脱敏和不落盘测试通过。
-- **阶段 2 完成**：用户优先、官方 Base、站点策略、会话绑定和释放测试通过。
-- **阶段 3 完成**：首屏/季集/视频/推荐按需补齐和 source-only 回退通过。
-- **阶段 4 完成**：日志/缓存/偏好/Room/备份/Parcel/Intent 泄漏扫描通过。
-- **发布完成**：源端有客户端版本/能力门控、Key 可轮换，Mobile/Leanback 设备矩阵通过，Artifact SHA-256、提交和 recovery tag 已记录。
-
-只要上述任一项没有证据，就不能宣称“源 Key 支持已完成”，也不能把它描述为安全地保存或安全地长期使用。
+任一项没有证据，不得宣称“临时全局 TMDB API Key 支持已完成”或“Key 已安全保存”。
 
 ### 19.17 评审证据
 
 | 声明 | 来源 | 等级 | WebHTV 适用性 | 决策影响 |
 | --- | --- | --- | --- | --- |
-| TMDB v3 支持 query `api_key`，推荐使用 `Authorization: Bearer <read access token>`，官方示例使用 `https://api.themoviedb.org/3` | [TMDB Application Authentication](https://developer.themoviedb.org/docs/authentication-application)，页面 `updated_at=2025-10-27`，访问于 2026-09-19 | A（官方文档） | 当前 `TmdbService.apiBuilder()` 已同时支持 query api key 和 Bearer；本节只新增 v3 `api_key` 临时值 | 支持“源 Key 只作为 api_key 直查”，不把源字符串猜成 Bearer |
-| TMDB 当前没有旧式每 10 秒固定限额，但仍有约每秒 40 次级别的上限，并要求尊重 429 | [TMDB Rate Limiting](https://developer.themoviedb.org/docs/rate-limiting)，页面 `updated_at=2025-10-20`，访问于 2026-09-19 | A（官方文档） | 源 Key 可能被所有客户端共享 | 维持 source-first、完整数据零请求、延迟能力、禁止搜索/个人推荐，减少配额滥用 |
-| TMDB API 免费用于非商业项目并要求 attribution，官方强烈建议 SSL；商业项目需许可 | [TMDB FAQ](https://developer.themoviedb.org/docs/faq)，页面 `updated_at=2025-10-07`，访问于 2026-09-19 | A（官方文档） | 源 Key 不改变现有产品性质或归属展示，但 HTTP 源会暴露凭据 | 生产流程要求 HTTPS、保留 TMDB attribution，并要求源端评估共享 Key 的许可/轮换 |
-| `api.tmdb.org` 与 `api.themoviedb.org` 当前均为 TMDB TLS 证书覆盖的官方域名，未带 Key 请求均返回 401 JSON | 2026-09-19 本地 `openssl s_client` 与 HTTPS 探测；证书 SAN 分别为 `*.tmdb.org`、`*.themoviedb.org` | A（可复现实测） | 默认 WebHTV API Base 是 `api.tmdb.org/3`，官方文档示例是 `api.themoviedb.org/3` | 源 Key 白名单允许这两个 host，其他 Base 一律不注入 Key |
-| 当前 `SiteApi` 在解析前记录 raw detail，`VodDetailCache` 缓存 `Result.toString()`；`Vod.tmdb` 会进入 Parcelable | `app/src/main/java/com/fongmi/android/tv/api/SiteApi.java:174-183,211-227`；`bean/TmdbSourcePayload.java:151-217`；`bean/Vod.java:93-115,372-394` | A（当前源码） | 直接把 Key 放进 `Vod.tmdb` 会违反“不保存” | 必须新增入口剥离与 transient access context，并跳过带凭据原始详情缓存 |
-| 当前默认 API Base 是 `https://api.tmdb.org/3`，请求可按 access token 或 api key 选择认证 | `app/src/main/java/com/fongmi/android/tv/bean/TmdbConfig.java:16,35-43,71-76,98-164`；`service/TmdbService.java:594-640` | A（当前源码） | 可以复用现有请求层，但必须新增来源标记和白名单 | 不改用户配置格式，新增内存有效配置和 source transient 来源 |
+| TMDB v3 使用 query `api_key` 或 Bearer；官方示例使用 `https://api.themoviedb.org/3` | [TMDB Application Authentication](https://developer.themoviedb.org/docs/authentication-application)，页面 `updated_at=2025-10-27`，访问于 2026-09-19 | A（官方文档） | 现有 `TmdbService` 已支持两种认证；本节只新增 v3 `api_key` | 根字段只解释为 v3 API Key |
+| TMDB 仍有限流和 429 要求，约每秒 40 次级别 | [TMDB Rate Limiting](https://developer.themoviedb.org/docs/rate-limiting)，页面 `updated_at=2025-10-20`，访问于 2026-09-19 | A（官方文档） | 全局池会扩大共享 Key 的使用面 | 控制 TTL、保留 source-first、禁止无限重试并尊重 429 |
+| TMDB API 免费用于非商业项目、要求 attribution，官方强烈建议 SSL；商业用途需许可 | [TMDB FAQ](https://developer.themoviedb.org/docs/faq)，页面 `updated_at=2025-10-07`，访问于 2026-09-19 | A（官方文档） | 源 Key 共享不改变产品性质，但 HTTP/泄漏影响凭据安全 | 生产要求 HTTPS、归属展示和源端许可评估 |
+| `api.tmdb.org` 与 `api.themoviedb.org` 当前均为官方 TLS 域名，未带 Key 请求返回 401 | 2026-09-19 `openssl s_client` 和 HTTPS 探测 | A（可复现实测） | 默认 API Base 为 `api.tmdb.org/3` | 临时池只允许这两个官方 HTTPS host |
+| 当前 `SiteApi` 先记录 raw detail，再解析 `Result`，`VodDetailCache` 缓存 `Result.toString()` | `api/SiteApi.java:174-183,211-227` | A（当前源码） | 根级字段必须最先剥离，不能依靠 `Vod` 事后清理 | 新增入口 ingress 与 sanitized JSON 管线 |
+| `Vod.tmdb` 进入 Parcelable、copy 和缓存合同；当前 `TmdbConfig` 只表达用户配置 | `bean/TmdbSourcePayload.java:151-217`、`bean/Vod.java:93-115,372-394`、`bean/TmdbConfig.java:16-43,98-164` | A（当前源码） | 临时全局 Key 不能进入 `Vod`，也不能写回 Setting | 新增独立内存池、effective config 和白名单 |
 
-外部 PR、Issue、论文和性能基准对本节的结论不构成必要证据：本能力是本地认证/数据边界设计，不涉及播放器 ABI、性能算法或依赖升级。上述官方文档和本仓库源码已能决定当前设计。
+外部 PR、Issue、论文和性能基准对本节不构成必要证据：本能力是本地凭据生命周期和 JSON 合同设计，不涉及播放器 ABI、性能算法或依赖升级。
 
 ### 19.18 最终建议
 
-建议实施，但只批准第 19.12 节的阶段 1 开始，并要求阶段 1 的证据先证明：
+建议实施，但先批准第 19.12 节阶段 1，并要求先证明：
 
-- Key 在日志、详情缓存、Gson、Parcel 和 `Vod` 中不可见；
-- 无 Key 旧响应与第 18 节行为完全一致；
-- 用户已配置 Key 时源 Key 不产生任何请求。
+- 根字段在日志、缓存、Gson、Parcel、`Vod`、Room 和备份中不可见；
+- 无根字段旧响应与第 18 节完全一致；
+- 用户已配置 Key 时源 Key 不写入临时池、不产生任何请求；
+- 无用户配置时，临时池按进程、30 分钟 TTL、官方 HTTPS host 运行，401/403 后能清理并回退。
 
-阶段 1 通过后再进入阶段 2。若用户希望先验证真实源，可同时准备一个可撤销的测试 Key，但不得把 Key 写入仓库、测试文档、日志或构建产物；真实第三方生产 Key 的端到端结果必须单独标记为未验证或已验证，不能用模拟器结果替代。
+阶段 1 通过后再进行阶段 2。由于“全局”会把共享 Key 暴露给现有所有 TMDB 请求路径，若用户希望只用于当前详情或某些能力，应在批准前明确收窄；否则本文按临时全局配置设计。
