@@ -1,16 +1,16 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：用户已批准按阶段实施。阶段 1-6 已完成；客户端需求已实现并通过模拟器验收，T4 服务端仍需在其独立仓库按本文合同实施。
+> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”补充设计已完成，等待用户批准实施。T4 服务端仍需在其独立仓库按本文合同实施。
 
 ## Recovery anchor
 
-- 目标：扩展现有详情返回协议，使 T3 客户端爬虫和 T4 服务端接口可在 `detailContent` 结果中直接携带 TMDB 数据；APP 优先采用身份匹配的源数据，仅为缺失能力按需访问 TMDB。
+- 目标：扩展现有详情返回协议，使 T3 客户端爬虫和 T4 服务端接口可在 `detailContent` 结果中直接携带 TMDB 数据；APP 优先采用身份匹配的源数据，仅为缺失能力按需访问 TMDB；没有 TMDB Key 时，仍允许用户选择 TMDB 详情模式和主题，但只有源详情携带可展示 TMDB 数据时才使用该模式，否则按影视原始模式打开。
 - 基线：WebHTV `dev4@32a52698e5dab09fe18e49d18849a947057ca717`；OmniBox `main@d57b3e6672337febd46feca0d8ad59c6a2b507c3`；alist-tvbox `master@8a222f69a80291e836db702c34daf1ed5bdd5630`；atv-player `master@09feed1d5e5102f13bf91c9fbb76ea92808cb76d`。
 - 范围：实现合同；阶段 1-6 已完成本仓库 APP 侧协议、解析、合并、详情接入、延迟能力和设备验收。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。
-- 下一动作：如需实际接入，选择目标 T4 服务端仓库并按其现有持久化模型独立实现 C16 生产者合同；本仓库客户端侧无剩余实现项。
+- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节补充设计已覆盖设置解耦、运行时模式决策、无 Key 回退、缺字段隐藏、Mobile/Leanback 接线和验收矩阵。
+- 下一动作：用户批准后，按第 18.11 节从阶段 A“纯策略和契约测试”开始实施；不得先删除 Key 校验再补路由，否则会产生空 TMDB 详情壳。
 
 ## 1. 设计结论
 
@@ -637,3 +637,714 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 - 旧源证据：夹具收到 `/legacy?ac=detail&ids=c16-legacy-1`；Mobile/Leanback 继续走原有 `load tasks ... singlePass=true`、`tmdb wait` 与单次首屏绑定，UI 显示普通标题、`line-a` 线路和 `正片` 选集，无崩溃。
 - 季集证据：Leanback 完整 TV 夹具仅收到 `/t4_tv_complete?ac=detail&ids=c16-t4-tv-1`；`season:1`、`episode:1:1` 与视频组均已内嵌，UI 显示 `Embedded Episode 1`，日志没有 `season`、`episode` 或 TMDB detail/search 请求。
 - 切源/退出隔离：设备场景不制造真实竞态；阶段 4 的 `TmdbDetailGenerationTest` 已验证迟到的 source-fill 结果在 generation、当前 Vod 或 TMDB identity 变化后不会更新页面。真实弱网快速切源仍需发布前抽样关注，但不阻塞本期合同完成。
+
+## 18. 补充设计：无 Key 的源内嵌 TMDB 详情
+
+### 18.1 目标与结论
+
+本补充设计解决两个相互独立但当前被同一把锁绑住的问题：
+
+1. 用户是否能选择 TMDB 详情模式和主题；
+2. APP 是否有权向 TMDB 发起网络请求。
+
+设计要求把这两件事彻底分开：
+
+- 模式、主题始终是可持久化的用户配置，不要求 API Key。
+- TMDB Key 只决定是否允许在线匹配和按缺口网络补齐。
+- 爬虫详情 `Vod.tmdb` 是独立数据源。没有 Key 时，只要其中存在用户可见的 TMDB 数据，就可以使用用户选择的模式和主题做 source-only 渲染。
+- 没有可展示 `Vod.tmdb` 且没有 Key 时，运行时不使用 TMDB 模式，也不显示空壳或 `detail_tmdb_need_key`，而是按影视原始模式打开并复用已经取得的源详情。
+- API 未返回的区域直接隐藏。标题、简介、海报等同义字段允许按既有规则回退到 `Vod`；TMDB 专属区域不得用空标题、空列表、零值或空白间距占位。
+
+推荐方案是“配置模式与运行时模式分离 + source-first 决策 + 无 Key 网络禁用”。禁止采用“无 Key 也总是打开 `TmdbDetailActivity`”或“只在 Activity 内吞掉 Key 提示”的方案，因为它们都会制造空详情页或错误模式页面。
+
+### 18.2 决策依据与本项目证据
+
+本节是 C16 的增量设计，不改变第 4-9 节的生产者协议，也不改变 TMDB 在线 API 的认证合同。现有证据已经足够决定实现方向：
+
+| 证据 | 结论 |
+| --- | --- |
+| C16 阶段 1-5 已实现 `TmdbSourcePayload`、`TmdbSourcePayloadParser`、`TmdbSourceAdapter`、`TmdbSourceCapabilityPlanner` 和 `TmdbSourceMerger` | 源内嵌数据已经能无网络转成现有 `TmdbBundle`，不需要新增协议或重新研究上游 |
+| `TmdbDetailActivity.loadContent()` 已先请求源详情、再解析 payload、再决定在线补齐 | 独立详情页三模式只需补齐“无 Key 路由”和“源数据不可展示时回退” |
+| `TmdbConfig.isReady()` 只表示 API Key 或 Access Token 存在 | 该条件适合控制网络，不应继续作为模式/主题可配置性或详情页可进入性的同义词 |
+| `Setting.getDetailOpenMode()` 在无 Key 时把 TMDB 模式强制降为 `DETAIL_OPEN_DIRECT` | 这是当前“选不了/选了不生效”的直接根因 |
+| 设置页在无 Key 时弹出 `TmdbSourceDialog` 并拒绝保存模式 | 这是第二个直接根因，和运行时降级重复 |
+| `VideoActivity` 的独立模式路由依赖 `Setting.isTmdbDetailPage()`，其中包含 Key 就绪 | 无 Key 时不会进入已经具备 C16 消费能力的页面 |
+| 现有 C16 设备测试通过显式启动 `TmdbDetailActivity` 验证源数据渲染 | 证明渲染能力成立，但没有覆盖正常设置、入口路由、无 Key 回退和 Mobile/Leanback parity |
+| `loadTmdbMediaBlocks()` 仍包含个性化推荐等网络型后处理 | source-only 路径必须显式跳过，不能只靠单个 `canMatchTmdb()` 分散拦截 |
+
+证据适用范围：
+
+- 上游仓库和成熟项目证据继续沿用第 2 节，本轮不新增 OMDB、T4 或播放器依赖，不形成新的 commit ledger。
+- 官方 API 合同没有变化：在线 TMDB 请求仍必须经过 `TmdbConfig.isReady()`；本设计只处理在不请求 API 时消费源数据。
+- Android 生命周期、进程重建、并发 generation 和 Binder 大小合同继续沿用第 8、15 节；本设计不改变这些边界。
+
+### 18.3 三种方案比较
+
+| 方案 | 行为 | 结论 |
+| --- | --- | --- |
+| 保持现状 | 无 Key 时模式被强制改为影视原生，设置页也拒绝选择 | 不满足需求，继续把“在线能力”误当作“展示能力” |
+| 仅删除 Key 校验，总是进入 TMDB 模式 | 无 Key、无源 TMDB 的详情会出现空壳，并可能显示 Key 提示 | 拒绝，破坏普通详情体验 |
+| 配置模式与运行时模式分离，按源数据状态选择 | 有源数据使用用户模式；没有源数据时影视原始；无 Key 时零 TMDB 网络 | 推荐，改动边界清晰且可回滚 |
+
+### 18.4 状态定义
+
+#### 18.4.1 持久化配置
+
+`configuredMode` 是用户在选择器中保存的模式，允许值：
+
+```text
+DETAIL_OPEN_DIRECT
+DETAIL_OPEN_ORIGINAL_ENHANCED
+DETAIL_OPEN_FUSION
+DETAIL_OPEN_ENHANCED
+DETAIL_OPEN_PLAYER
+```
+
+`configuredTheme` 是用户保存的详情主题：
+
+```text
+DETAIL_STYLE_NATIVE
+DETAIL_STYLE_PROFILE
+DETAIL_STYLE_CINEMA
+```
+
+`configuredMode` 和 `configuredTheme` 不依赖 `TmdbConfig.isReady()`。
+
+#### 18.4.2 源 TMDB 状态
+
+新增纯逻辑枚举 `TmdbSourceState`：
+
+| 状态 | 定义 | 无 Key 的行为 | 有 Key 的行为 |
+| --- | --- | --- | --- |
+| `ABSENT_OR_INVALID` | 无 `Vod.tmdb`、解析失败、身份冲突，或 `toBundle()` 失败 | 影视原始 | 原自动匹配/搜索流程 |
+| `IDENTITY_ONLY` | payload 身份合法，但没有任何用户可见字段 | 影视原始 | 使用 payload 的 ID/media type 直接补齐，不做标题搜索 |
+| `RENDERABLE` | 至少存在一个用户可见 TMDB 字段 | source-only 用户模式 | source-first 用户模式，仅补齐缺口 |
+
+“用户可见 TMDB 字段”至少包括一项：
+
+- 标题或原名；
+- 简介、标语、状态；
+- 海报、背景、图片集；
+- 日期、评分、分类、地区；
+- 演职员；
+- 外部 ID；
+- 季、集或视频；
+- 推荐或相似内容。
+
+仅存在 `schema/id/media_type/season_number` 或仅声明空能力组，不等于 `RENDERABLE`。
+
+#### 18.4.3 运行时模式
+
+`runtimeMode` 是一次详情页面会话实际采用的模式，不写回偏好：
+
+```text
+configuredMode == DIRECT
+    -> DIRECT
+
+configuredMode == ORIGINAL_ENHANCED
+    source == RENDERABLE or tmdbReady
+    -> ORIGINAL_ENHANCED
+    otherwise
+    -> DIRECT
+
+configuredMode in {FUSION, ENHANCED, PLAYER}
+    source == RENDERABLE or tmdbReady
+    -> configuredMode
+    otherwise
+    -> DIRECT
+```
+
+`runtimeMode` 一旦基于当前 `Vod` 决定，必须在本次会话内稳定；切源、切 ID、`onNewIntent()` 或显式刷新时重新计算。
+
+### 18.5 完整行为矩阵
+
+| 配置模式 | Key | 源 payload | 运行时结果 | 网络行为 |
+| --- | --- | --- | --- | --- |
+| 影视原生 | 任意 | 任意 | 影视原生 | 不因 payload 改变 |
+| 原生增强 | 无 | 无/无效 | 影视原生 | 零 TMDB 请求 |
+| 原生增强 | 无 | 仅身份 | 影视原生 | 零 TMDB 请求 |
+| 原生增强 | 无 | 可展示 | 原生增强 source-only | 零 TMDB 请求 |
+| 原生增强 | 有 | 无/无效 | 原生增强 | 原自动匹配 |
+| 原生增强 | 有 | 仅身份 | 原生增强 | 按 ID 补齐 |
+| 原生增强 | 有 | 可展示 | 原生增强 source-first | 仅补缺口 |
+| 独立三模式 | 无 | 无/无效 | 加载后回退影视原生 | 零 TMDB 请求 |
+| 独立三模式 | 无 | 仅身份 | 加载后回退影视原生 | 零 TMDB 请求 |
+| 独立三模式 | 无 | 可展示 | 用户选择模式和主题 | 零 TMDB 请求 |
+| 独立三模式 | 有 | 无/无效 | 用户选择模式 | 原匹配/搜索 |
+| 独立三模式 | 有 | 仅身份 | 用户选择模式 | 按 ID 补齐 |
+| 独立三模式 | 有 | 可展示 | 用户选择模式 | source-first，仅补缺口 |
+| 任意 TMDB 模式 | 任意 | 任意，但站点被 TMDB 规则排除 | 影视原始 | 保持现有站点策略 |
+
+### 18.6 纯策略接口
+
+新增纯逻辑类，建议路径：
+
+`app/src/main/java/com/fongmi/android/tv/setting/DetailRuntimeModePolicy.java`
+
+接口：
+
+```java
+public final class DetailRuntimeModePolicy {
+
+    public enum SourceState {
+        ABSENT_OR_INVALID,
+        IDENTITY_ONLY,
+        RENDERABLE
+    }
+
+    public record Input(
+            int configuredMode,
+            boolean tmdbReady,
+            boolean siteAllowed,
+            SourceState sourceState
+    ) {}
+
+    public record Decision(
+            int runtimeMode,
+            boolean sourceOnly,
+            boolean networkAllowed
+    ) {}
+
+    public static Decision resolve(Input input) {
+        if (!Setting.isTmdbMode(input.configuredMode())) {
+            return new Decision(Setting.DETAIL_OPEN_DIRECT, false, false);
+        }
+        if (!input.siteAllowed()) {
+            return new Decision(Setting.DETAIL_OPEN_DIRECT, false, false);
+        }
+        boolean renderable = input.sourceState() == SourceState.RENDERABLE;
+        if (!renderable && !input.tmdbReady()) {
+            return new Decision(Setting.DETAIL_OPEN_DIRECT, false, false);
+        }
+        return new Decision(
+                input.configuredMode(),
+                renderable && !input.tmdbReady(),
+                input.tmdbReady()
+        );
+    }
+}
+```
+
+约束：
+
+- 该策略不得读取 Activity、Intent、网络或 UI。
+- `siteAllowed` 由 `TmdbSitePolicy` 在调用侧解析后传入。
+- `sourceOnly` 只表示本次会话是否禁止网络补齐，不表示数据一定完整。
+- `networkAllowed` 为 false 时，所有 TMDB 网络入口必须短路。
+
+新增纯逻辑可用性判断，建议路径：
+
+`app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbSourceAvailability.java`
+
+接口：
+
+```java
+public final class TmdbSourceAvailability {
+    public static TmdbSourceState classify(
+            Vod vod,
+            TmdbSourcePayload payload,
+            TmdbBundle bundle
+    );
+
+    public static boolean isRenderable(TmdbBundle bundle);
+}
+```
+
+实现必须复用已经规范化后的 bundle，不得用原始 JSON 直接猜字段。`classify()` 的判定顺序固定为：
+
+```text
+payload == null or bundle == null or identity conflict -> ABSENT_OR_INVALID
+!isRenderable(bundle) -> IDENTITY_ONLY
+otherwise -> RENDERABLE
+```
+
+### 18.7 设置层改造
+
+#### 18.7.1 Setting
+
+`Setting.getDetailOpenMode()` 必须改为“纯配置读取”：
+
+```diff
+- return isTmdbMode(mode) && !isTmdbReady() ? DETAIL_OPEN_DIRECT : mode;
++ return mode;
+```
+
+保留 `Setting.isTmdbDetailPage()` 作为“在线 TMDB 详情能力就绪”的旧语义，不把它改成无 Key 也返回 true。新增独立方法：
+
+```java
+public static boolean isTmdbDetailModeConfigured() {
+    return isTmdbMode(getDetailOpenMode()) && getTmdbModel() == TMDB_MODEL_NATIVE;
+}
+```
+
+路由使用 `isTmdbDetailModeConfigured()`；网络补齐继续使用 `isTmdbReady()` 或 `TmdbConfig.isReady()`。
+
+`getDetailThemeMode()`、`getTmdbDetailStyle()`、`putDetailThemeMode()` 不需要 Key 条件。主题选择只要求模式属于 TMDB 模式。
+
+#### 18.7.2 移动端设置页
+
+文件：`app/src/mobile/java/com/fongmi/android/tv/ui/fragment/SettingTmdbFragment.java`
+
+删除 `setDetailOpenMode()` 中的：
+
+```java
+if (Setting.isTmdbMode(mode) && !Setting.isTmdbReady()) {
+    dialog.dismiss();
+    Notify.show(R.string.detail_tmdb_need_key);
+    TmdbSourceDialog...
+    return;
+}
+```
+
+改为直接保存模式：
+
+```java
+Setting.putDetailOpenMode(mode);
+setText();
+dialog.dismiss();
+```
+
+主题行显示条件继续使用 `Setting.isTmdbMode(Setting.getDetailOpenMode())`。由于模式读取不再降级，无 Key 时也会显示并可保存。
+
+#### 18.7.3 Leanback 设置页
+
+文件：`app/src/leanback/java/com/fongmi/android/tv/ui/activity/SettingTmdbActivity.java`
+
+执行与移动端相同的接线移除，不新建第二套规则。
+
+#### 18.7.4 保持 Key 化的功能
+
+以下能力继续要求 `Setting.isTmdbReady()`，本设计不解锁：
+
+- 自动匹配、手动重匹配、手动选季和 TMDB 搜索；
+- 按缺口在线补齐；
+- 个性化 TMDB/豆瓣/AI 推荐；
+- TMDB 字幕辅助、历史聚合和需要远程 API 的 OMDb 评分；
+- 任何写 TMDB 匹配缓存或季匹配缓存的动作。
+
+source-only 页面应隐藏或禁用这些入口，不得点击后再弹 Key 对话框。
+
+### 18.8 独立三模式接线
+
+目标文件：`app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java`
+
+#### 18.8.1 入口路由
+
+移动端和 Leanback `VideoActivity.shouldOpenLegacyTmdbDetail()` 改用：
+
+```java
+return canOpenLegacyTmdbDetail(key, id, cast)
+        && Setting.isTmdbDetailModeConfigured()
+        && Setting.isStandaloneTmdbDetailMode(Setting.getDetailOpenMode());
+```
+
+不再直接要求 `Setting.isTmdbDetailPage()`。由于此时还不知道爬虫详情是否带 payload，允许先进入 `TmdbDetailActivity`，由加载完成后的运行时策略决定保留或回退。
+
+#### 18.8.2 loadContent 分支
+
+`TmdbDetailActivity.loadContent()` 固定顺序：
+
+```text
+generation = ++loadGeneration
+cancel previous detail tasks
+sourceResult = SiteApi.detailContent(key, id)
+loadedVod = sourceResult.getVod()
+payload = TmdbSourcePayloadParser.parse(loadedVod.tmdb)
+bundle = TmdbSourceAdapter.toBundle(payload, loadedVod, tmdbConfig)
+siteAllowed = isTmdbAllowedForCurrentSite()
+sourceState = TmdbSourceAvailability.classify(loadedVod, payload, bundle)
+decision = DetailRuntimeModePolicy.resolve(
+        getDetailMode(),
+        tmdbConfig.isReady(),
+        siteAllowed,
+        sourceState)
+
+if decision.runtimeMode == DIRECT:
+    fallbackToOriginalDetail(loadedVod, directFallbackReason)
+    return
+
+if sourceState == RENDERABLE:
+    applyLoaded(loadedVod, bundle, emptySearchItems, error, false)
+    if !decision.networkAllowed or no initial gaps:
+        bindSourceOnlyBlocks(bundle)
+        return
+    fillMissingGroupsOnly(...)
+    return
+
+if decision.networkAllowed:
+    run existing loadTmdbResult() / search flow
+else:
+    fallbackToOriginalDetail(...)
+```
+
+关键约束：
+
+- `fallbackToOriginalDetail()` 之前不得显示 TMDB 空状态、Key 状态或空列表。
+- `applyLoaded()` 后不得因为 `!tmdbConfig.isReady()` 再显示 `detail_tmdb_need_key`。
+- source-only 路径不得创建 `tmdbFuture`、不得调用搜索、不得调用 `detailForSource()` 或任何分页网络接口。
+- 在线补齐的 generation、identity 和 season 隔离保持第 15.6 节合同。
+
+#### 18.8.3 回退影视原生
+
+回退必须复用已经加载的 `loadedVod`，禁止再次请求爬虫详情。建议新增：
+
+```java
+private void fallbackToOriginalDetail(Vod loadedVod, String reason) {
+    if (isFinishing() || isDestroyed()) return;
+    VideoActivity.startDirectResolved(this, loadedVod);
+    finish();
+}
+```
+
+`VideoActivity.startDirectResolved()` 负责：
+
+- 将 `loadedVod` 放入 `VodDetailCache`；
+- 传递 `EXTRA_DETAIL_RUNTIME_MODE = DETAIL_OPEN_DIRECT`；
+- 传递 `collect=false`、`cast=false`；
+- 不传递 `auto_play=true`；
+- 不触发再次 TMDB 路由。
+
+回退原因只用于日志，不写偏好：
+
+```text
+source_absent_or_invalid
+source_identity_only_without_key
+site_tmdb_disabled
+```
+
+### 18.9 原生增强接线
+
+目标文件：
+
+- `app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java`
+- `app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java`
+
+#### 18.9.1 运行时模式字段
+
+两端各增加：
+
+```java
+private int runtimeDetailMode = Setting.getDetailOpenMode();
+
+private boolean isRuntimeFusionMode();
+private boolean isRuntimeOriginalEnhancedMode();
+private boolean isRuntimeDirectMode();
+private void applyRuntimeDetailMode(int mode);
+```
+
+`EXTRA_DETAIL_RUNTIME_MODE` 只允许：
+
+- `DETAIL_OPEN_DIRECT`：来源于独立页 fallback；
+- `DETAIL_OPEN_ORIGINAL_ENHANCED`：显式直达原生增强源数据页；
+- 未传时使用 `configuredMode`。
+
+活动内所有影响布局和交互的 `Setting.isFusionDetailPage()`、`Setting.isOriginalEnhancedDetailPage()`、`Setting.isDirectDetailPage()` 必须逐步替换为 runtime 版本；设置页仍读取配置版本。首轮至少覆盖：
+
+- 移动端 VideoActivity：`isTmdbSourceEnabled()`、`shouldUseUpstreamNativeEpisodeModule()`、`shouldUseTmdbDetailLayout()`、首屏 reveal、Fusion backdrop/control 分支、Original Enhanced 动作区；
+- Leanback VideoActivity：`shouldUseUpstreamNativeEpisodeModule()`、`isTmdbSourceEnabled()`、`prepareInitialDetailShell()`、`setOriginalEnhancedActionVisibility()`、`shouldRevealShellWhileLoading()`；
+- `TmdbHeaderView` 继续读取当前独立页的配置模式；它不处理 `VideoActivity` fallback。
+
+#### 18.9.2 初始化适配器
+
+`initTmdbMode()` 不再因为 `!mTmdbUIAdapter.isReady()` 直接放弃 source-only 能力。建议拆成：
+
+```text
+configured TMDB mode && site allowed
+    -> 创建 TmdbUIAdapter
+
+canNetworkLoad = adapter.isReady() && site allowed
+hasSourceBundle = false
+
+detail loaded
+    -> classify source
+    -> if RENDERABLE: adapter.loadSource(bundle, vod)
+    -> if no key && no source: applyRuntimeDetailMode(DIRECT)
+```
+
+`TmdbUIAdapter` 新增无网络方法：
+
+```java
+public void loadSource(TmdbBundle bundle, Vod vod, TmdbSourcePayload payload);
+```
+
+该方法只允许：
+
+- 做 generation 校验；
+- 写入 `tmdbItem`、`tmdbDetail`、`tmdbCast`、季节/集数、媒体块；
+- 调用 `enrichVod()`；
+- 派发 `VOD_CORE` 等本地刷新事件；
+- 标记 `loaded=true` 和 `sourceOnly=true`。
+
+不得调用 `tmdbService.detail()`、`season()`、`episode()`、`search()`、推荐分页或 AI。
+
+#### 18.9.3 无 Key、无源数据回退
+
+在 `setDetail(Vod item)` 的最早稳定点决策：
+
+```java
+TmdbSourcePayload payload = TmdbSourcePayloadParser.parse(item.getTmdb());
+TmdbBundle sourceBundle = TmdbSourceAdapter.toBundle(payload, item, tmdbConfig);
+TmdbSourceState sourceState = TmdbSourceAvailability.classify(item, payload, sourceBundle);
+DetailRuntimeModePolicy.Decision decision = DetailRuntimeModePolicy.resolve(
+        Setting.getDetailOpenMode(),
+        tmdbConfig.isReady(),
+        TmdbSitePolicy.isEnabled(getKey(), getId()),
+        sourceState);
+applyRuntimeDetailMode(decision.runtimeMode());
+```
+
+顺序必须在以下操作前完成：
+
+- `mFlagAdapter.addAll()` 和原生/增强选集模块选择；
+- `setOriginalEnhancedActionVisibility()`；
+- `shouldUseTmdbDetailLayout()`；
+- `loadNativePersonalRecommendations()`。
+
+`applyRuntimeDetailMode(DIRECT)` 后：
+
+- `isTmdbSourceEnabled()` 返回 false；
+- 继续使用原始线路、原始集名和源详情字段；
+- 不显示 TMDB Key 状态；
+- 不调用已创建的 adapter 网络路径。
+
+#### 18.9.4 有源数据的原生增强
+
+当 `sourceState == RENDERABLE` 时：
+
+```java
+applyRuntimeDetailMode(DETAIL_OPEN_ORIGINAL_ENHANCED);
+mTmdbUIAdapter.loadSource(sourceBundle, item, payload);
+```
+
+无 Key 时，`loadSource()` 只做本地绑定和 UI 刷新；有 Key 时，继续按现有 C16 planner 仅补缺失能力。
+
+### 18.10 缺失区域的显示合同
+
+#### 18.10.1 字段优先级
+
+| UI 字段 | source-only 规则 | 有 Key 的补充规则 |
+| --- | --- | --- |
+| 标题、原名 | TMDB 标题优先，缺失回退 `Vod.name` | 缺失时按现有网络详情补齐 |
+| 简介、标语、状态 | TMDB 值优先，简介缺失可回退 `Vod.content` | 缺失时按能力组补齐 |
+| 海报、背景 | 合法 TMDB 图片优先，缺失回退 `Vod.pic/wallPic` | 缺失时补齐图片 |
+| 日期、评分、类型、地区 | 有值显示；无值隐藏 | 缺失时补齐 |
+| 演职员、主创 | 数组非空才显示 | 缺失且未声明完整时补齐 |
+| 图片集、海报集 | 非空才显示 | 缺失且未声明完整时补齐 |
+| 外部 ID | 非空才显示 | 缺失且未声明完整时补齐 |
+| 季、集 | 内嵌有数据才显示 TMDB 信息；源选集始终保留 | 缺季时按 `season:N` 补齐 |
+| 视频 | 内嵌有数据才显示 | 缺组时按 scope 补齐 |
+| 推荐、相似 | 内嵌有数据才显示 | 缺组时按页补齐 |
+| 个性化/AI 推荐 | 无 Key 永远隐藏 | 有 Key 且原设置开启时保留 |
+
+#### 18.10.2 视图规则
+
+对每个 TMDB 专属区域统一执行：
+
+```text
+hasData == false
+    -> title GONE
+    -> content/list GONE
+    -> previous section bottom margin 重置
+    -> 不创建空 adapter 项目
+```
+
+不得使用以下占位：
+
+- `"暂无"`、`"未知"`、`"null"`、`"0"`；
+- 空字符串 TextView 但保留高度；
+- `INVISIBLE` 代替 `GONE`；
+- 空列表仍保留标题、分隔线或固定高度；
+- `detail_tmdb_empty` 或 `detail_tmdb_need_key` 作为 source-only 的缺字段提示。
+
+`binding.tmdbStatus` 规则改为：
+
+```text
+sourceOnly && sourceRenderable
+    -> GONE
+!tmdbReady && !sourceRenderable
+    -> 不展示状态，因为最终应回退 DIRECT
+tmdbReady && !siteAllowed
+    -> 保持现有 site_disabled 行为
+tmdbReady && no blocks
+    -> 保持现有 empty 行为
+```
+
+### 18.11 分阶段实施顺序
+
+不得跳过阶段 A 和支持矩阵。每阶段必须保持可独立回滚。
+
+#### 阶段 A：纯策略与测试
+
+范围：
+
+- 新增 `DetailRuntimeModePolicy`；
+- 新增 `TmdbSourceAvailability`；
+- 增补 `TmdbSourceState`；
+- 为配置模式、Key、站点和三种源状态建立纯单元测试。
+
+验收：不改任何现有运行时行为；所有决策矩阵测试通过。
+
+#### 阶段 B：设置解耦
+
+范围：
+
+- `Setting.getDetailOpenMode()` 去除无 Key 降级；
+- 新增 `isTmdbDetailModeConfigured()`；
+- 移动端和 Leanback 设置页移除模式 Key 门禁；
+- 主题行在任意 TMDB 模式下可选。
+
+验收：无 Key 时模式与主题保存后立即回显，重启后保持；网络型功能仍按 Key 隐藏/禁用。
+
+#### 阶段 C：独立三模式
+
+范围：
+
+- 路由改用 `isTmdbDetailModeConfigured()`；
+- `TmdbDetailActivity.loadContent()` 接入运行时决策；
+- `RENDERABLE` 走 source-only；
+- 无源数据回退 `VideoActivity` 原始详情并复用缓存；
+- 隐藏 source-only 的 Key/空状态。
+
+验收：三种独立模式、三种主题、完整/部分/旧源矩阵在无 Key 下行为正确。
+
+#### 阶段 D：原生增强
+
+范围：
+
+- 两套 `VideoActivity` 增加 runtime mode；
+- `TmdbUIAdapter.loadSource()`；
+- 无 Key、无源数据直接使用影视原生路径；
+- 无 Key、有源数据启用原生增强 source-only。
+
+验收：移动端和电视端均不因配置为原生增强而出现空增强模块或网络错误。
+
+#### 阶段 E：缺失区域与交互收口
+
+范围：
+
+- 审计所有 TMDB 标题、列表、间距、状态、重匹配和选季按钮；
+- 无 Key 时禁用/隐藏网络型入口；
+- 校验回退页、返回、切源、`onNewIntent()` 和进程重建。
+
+验收：无空标题、空列表、空值、错误 Key 提示或点击后才失败的入口。
+
+#### 阶段 F：设备验收
+
+范围：
+
+- 复用 C16 fixture，增加无 Key 配置；
+- Mobile 和 Leanback 各跑完整矩阵；
+- 记录请求计数、页面文本、返回栈和偏好保持。
+
+### 18.12 最小改动文件清单
+
+| 文件 | 改动 |
+| --- | --- |
+| `app/src/main/java/com/fongmi/android/tv/setting/Setting.java` | 配置读取解耦、新增 configured 判断，不改变网络就绪方法 |
+| `app/src/mobile/java/com/fongmi/android/tv/ui/fragment/SettingTmdbFragment.java` | 移除模式 Key 门禁 |
+| `app/src/leanback/java/com/fongmi/android/tv/ui/activity/SettingTmdbActivity.java` | 移除模式 Key 门禁 |
+| `app/src/main/java/com/fongmi/android/tv/setting/DetailRuntimeModePolicy.java` | 新增纯策略 |
+| `app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbSourceAvailability.java` | 新增源状态判断 |
+| `app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java` | source-only、无源回退、状态隐藏、网络入口收口 |
+| `app/src/main/java/com/fongmi/android/tv/ui/helper/TmdbUIAdapter.java` | 新增无网络 `loadSource()` |
+| `app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java` | runtime mode、source payload、无源回退 |
+| `app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java` | runtime mode、source payload、无源回退 |
+| `app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbPersonActivity.java` | 仅如需传递 runtime mode，不改变人物页协议 |
+
+禁止修改：
+
+- `Vod.tmdb` JSON 合同和 `TmdbSourcePayload` schema；
+- T3/T4 的生产者调用协议；
+- `TmdbService` 的网络认证或 URL 规则；
+- Exo、MPV、FFmpeg、JNI 和二进制依赖。
+
+### 18.13 测试矩阵
+
+#### 18.13.1 纯单元测试
+
+新增或更新：
+
+| 测试 | 必须证明 |
+| --- | --- |
+| `DetailRuntimeModePolicyTest` | 所有模式 × Key × site × source state 组合正确 |
+| `TmdbSourceAvailabilityTest` | 仅身份不算可展示；任一可见字段算可展示；无效身份拒绝 |
+| `SettingDetailModeTest` | 无 Key 时模式读取不再降级；网络就绪判断仍保持 Key 语义 |
+| `TmdbSourcePayloadParserTest` | 原有协议和清理规则不回归 |
+| `TmdbDetailGenerationTest` | source-only、清空、切源后旧异步结果不能更新 |
+| `TmdbUIAdapterTest` | `loadSource()` 只本地绑定，不触发网络 |
+
+#### 18.13.2 源码/接线测试
+
+| 测试 | 必须证明 |
+| --- | --- |
+| `SettingTmdbSourceOnlyWiringTest` | 两个设置页不再弹出 Key 后拒绝保存模式 |
+| `VideoActivityRuntimeModeWiringTest` | Mobile/Leanback 路由和布局使用 runtime mode，而非配置模式 |
+| `TmdbDetailSourceOnlyWiringTest` | 无 Key、无源数据调用回退；无 Key、有源数据不创建网络任务 |
+| `C16TmdbSourceDetailDeviceTest` | 设备场景覆盖正常路由，而非只显式启动 Activity |
+
+#### 18.13.3 设备矩阵
+
+每项在 Mobile 和 Leanback 各执行一次：
+
+| 场景 | 期望 |
+| --- | --- |
+| 无 Key + 旧源 + 配置独立三模式 | 加载后进入影视原生，无 Key 提示，无 TMDB 请求 |
+| 无 Key + 仅身份 payload | 影视原生，不按 ID 联网 |
+| 无 Key + 完整 payload + 沉浸融合 | 融合布局、用户主题、无 TMDB 请求 |
+| 无 Key + 完整 payload + 炫彩详情 | 富信息布局、无 TMDB 请求 |
+| 无 Key + 完整 payload + 详情直放 | 播放器优先布局、无 TMDB 请求 |
+| 无 Key + 部分 payload | 有值区域显示，缺区域全 GONE，无多余间距 |
+| 无 Key + 完整 payload + 原生增强 | `VideoActivity` 内显示源增强，零网络 |
+| 无 Key + 旧源 + 原生增强 | 使用影视原生线路和选集，无空增强模块 |
+| 有 Key + 旧源 | 原自动匹配不回归 |
+| 有 Key + 完整 payload | 零 TMDB 补齐请求 |
+| 有 Key + 部分 payload | 只请求缺失能力，源字段优先 |
+| 任意 Key + 站点规则禁用 | 影视原生，不进入源 TMDB UI |
+
+请求计数必须来自可注入的 fake `TmdbService`、request counter 或夹具访问日志。仅凭截图通过不能证明“零网络”。
+
+### 18.14 验收标准
+
+全部条件必须同时满足：
+
+1. 无 Key 可以保存任意详情模式和主题，设置回显和重启持久化正确。
+2. 无 Key、无有效源 TMDB 时，独立三模式和原生增强均退化为影视原始行为，不显示 TMDB 空壳或 Key 提示。
+3. 无 Key、有可展示源 TMDB 时，用户选择的模式和主题生效，且全流程零 TMDB 网络请求。
+4. 有 Key 时，原自动匹配、按 ID 补齐、source-first 缺口补齐和站点策略不回归。
+5. 缺字段时 TMDB 专属标题、内容、列表、状态和间距全部消失；没有 `null`、`0`、“暂无”或空占位。
+6. 源线路、源集名、播放 URL、历史续播和返回栈不因模式回退而丢失。
+7. Mobile 与 Leanback 行为一致，差异只允许来自既有布局实现。
+8. 不使用手工修改偏好来伪造设置页通过；设置保存、读取和运行时结果必须闭环。
+
+### 18.15 风险、兼容性与回滚
+
+| 风险 | 控制 |
+| --- | --- |
+| 无 Key 用户曾在旧版本保存过 TMDB 模式但一直被运行时降级，升级后行为改变 | 这是目标行为；无源数据仍自动回退，不产生空壳 |
+| `getDetailOpenMode()` 变为配置语义后，活动内旧判断误把页面当 TMDB | 阶段 D 必须把布局相关调用全部替换为 runtime mode，并用接线测试锁定 |
+| source-only 后处理遗漏网络入口 | 在 `loadTmdbMediaBlocks()`、推荐、季节、单集、视频和重匹配处统一检查 `networkAllowed` |
+| 回退重新请求源详情 | 通过 `VodDetailCache` 传递已加载 Vod，并用 fixture 请求日志断言只有一次详情请求 |
+| 来源策略被绕过 | 路由和 `TmdbDetailActivity.loadContent()` 都必须检查 `TmdbSitePolicy` |
+| 缺失字段导致布局空洞 | 所有区域统一使用 `GONE` 和动态间距复位，设备测试覆盖部分 payload |
+| 回滚不完整 | 阶段 A-F 分别提交；关闭第 18 节接线即可回到现有 C16 source-first 行为，协议和生产者数据保持不变 |
+
+兼容性结论：
+
+- 旧源、旧客户端和现有 T3/T4 协议不受影响；
+- 无 Key 的新行为只增加 source-only 展示，不扩大在线能力；
+- 有 Key 的现有路径保持 source-first 和 fill-only 语义；
+- 不改变 ABI、依赖、许可证、二进制、缓存格式或 Binder 上限。
+
+### 18.16 设计完成定义
+
+第 18 节从“文档完成”到“实现完成”必须分别记录，不得混用：
+
+- 文档完成：本节的决策、接口、文件清单、测试矩阵和回滚合同经用户批准；
+- 纯逻辑完成：阶段 A 测试通过；
+- 配置完成：阶段 B 设置保存/回读验收通过；
+- 独立页完成：阶段 C 三模式及回退矩阵通过；
+- 原生增强完成：阶段 D Mobile/Leanback 通过；
+- 功能完成：阶段 E 无空字段审计通过；
+- 交付完成：阶段 F 设备请求计数和 UI 验收通过，并记录 APK、提交和 recovery tag。
+
+本轮只完成设计文档，不声称功能已实现。
