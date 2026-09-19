@@ -15,16 +15,32 @@ public class TmdbUIAdapterSourceOnlyTest {
     public void loadSourceIsLocalAndSeedsSeasonEpisodeCache() throws Exception {
         String source = readAdapter();
         int start = source.indexOf("public void loadSource(TmdbBundle bundle");
-        int end = source.indexOf("private static String seasonEpisodeKey", start);
+        int end = source.indexOf("private void applySourceBundle", start);
         String method = source.substring(start, end);
+        String apply = source.substring(end, source.indexOf("private void fillInitialSourceGaps", end));
 
-        assertTrue(method.contains("seasonEpisodeCache.put(seasonEpisodeKey(tmdbItem, entry.getKey()), List.copyOf(entry.getValue()));"));
-        assertTrue(method.contains("seasonResolution = TmdbSeasonResolver.resolve("));
-        assertTrue(method.contains("episodeMetadataLoaded = true;"));
+        assertTrue(method.contains("sourceOnly = !tmdbConfig.isReady();"));
+        assertTrue(method.contains("plan.hasInitialNetworkGaps()"));
+        assertTrue(apply.contains("seasonEpisodeCache.put(seasonEpisodeKey(tmdbItem, entry.getKey()), List.copyOf(entry.getValue()));"));
+        assertTrue(apply.contains("seasonResolution = TmdbSeasonResolver.resolve("));
+        assertTrue(apply.contains("episodeMetadataLoaded = true;"));
         assertTrue(method.contains("requestSeasonNumber < 0 && payload != null && payload.getSeasonNumber() >= 0"));
         assertFalse(method.contains("tmdbService."));
         assertFalse(method.contains("Setting.putTmdb"));
         assertFalse(method.contains("saveMatch("));
+    }
+
+    @Test
+    public void sourceHybridFillsOnlyPlannerReportedInitialGaps() throws Exception {
+        String source = readAdapter();
+        String load = method(source, "public void loadSource(TmdbBundle bundle", "private void applySourceBundle");
+        String fill = method(source, "private void fillInitialSourceGaps", "private static String seasonEpisodeKey");
+
+        assertTrue(load.contains("plan.hasInitialNetworkGaps()"));
+        assertTrue(load.contains("if (fillInitial) backgroundTasks.submit"));
+        assertTrue(fill.contains("detailForSource("));
+        assertTrue(fill.contains("TmdbSourceMerger.fillOnly("));
+        assertTrue(fill.contains("isCurrentGeneration(generation)"));
     }
 
     @Test
@@ -38,6 +54,7 @@ public class TmdbUIAdapterSourceOnlyTest {
 
         assertTrue(related.contains("if (sourceOnly) {"));
         assertTrue(related.contains("TmdbSourceAdapter.videos("));
+        assertTrue(related.contains("applySourceVideosIfAvailable(item, seasonNumber, episodeNumber, contextKey)"));
         int localStart = related.indexOf("if (sourceOnly) {");
         int readyCheck = related.indexOf("if (!isReady())", localStart);
         assertTrue(localStart >= 0 && readyCheck > localStart);

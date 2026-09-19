@@ -2385,7 +2385,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         item.checkContent(getTmdbVodContent());
         item.checkContent(getContent());
         applyIntentTmdbVodRemark(item);
-        TmdbConfig tmdbConfig = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+        TmdbConfig tmdbConfig = TmdbConfig.effectiveCurrent();
         TmdbSourcePayload sourcePayload = TmdbSourcePayloadParser.parse(item.getTmdb());
         TmdbBundle sourceBundle = TmdbSourceAdapter.toBundle(sourcePayload, item, tmdbConfig);
         TmdbSourceState sourceState = TmdbSourceAvailability.classify(item, sourcePayload, sourceBundle);
@@ -2451,8 +2451,8 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         // TMDB 增强：全局开关启用或 Intent 传入 TmdbItem 时触发
         if (shouldLoadTmdbDetail()) {
             mTmdbUIAdapter.setActiveFlag(getFlag());
-            if (runtimeSourceOnly && sourceBundle != null) {
-                SpiderDebug.log("tmdb-mobile", "source-only load vodTitle=%s tmdbId=%d media=%s", item.getName(), sourceBundle.item().getTmdbId(), sourceBundle.item().getMediaType());
+            if (sourceState == TmdbSourceState.RENDERABLE && sourceBundle != null) {
+                SpiderDebug.log("tmdb-mobile", "source-first load vodTitle=%s tmdbId=%d media=%s sourceOnly=%s", item.getName(), sourceBundle.item().getTmdbId(), sourceBundle.item().getMediaType(), runtimeSourceOnly);
                 mTmdbUIAdapter.loadSource(sourceBundle, item, sourcePayload);
             } else {
                 com.fongmi.android.tv.bean.TmdbItem tmdbItem = getTmdbItem();
@@ -7837,8 +7837,9 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onConfigEvent(ConfigEvent event) {
-        if (isRedirect() || !event.isVod() || mParseAdapter == null) return;
-        mParseAdapter.reload();
+        if (isRedirect() || !event.isVod()) return;
+        if (mTmdbUIAdapter != null) mTmdbUIAdapter.invalidateSubscription();
+        if (mParseAdapter != null) mParseAdapter.reload();
     }
 
     /**
