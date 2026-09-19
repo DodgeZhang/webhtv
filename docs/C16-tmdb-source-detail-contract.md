@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：用户已批准按阶段实施。阶段 1-3 已实现并通过定向测试；阶段 4 详情页接入待实施。
+> 状态：用户已批准按阶段实施。阶段 1-4 已实现并通过定向测试；阶段 5 延迟能力待实施。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1 已落地 APP 协议模型与解析器，后续仍按第 16 节逐阶段提交。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1 新增协议模型；阶段 2 完成 adapter/planner/merger；阶段 3 验证 T3/T4 JSON 与详情缓存往返。
-- 下一动作：实施阶段 4，先源后网重排 `loadContent`，接入零请求、缺口补齐和 generation 隔离。
+- 当前进展：阶段 1-3 已完成协议、纯逻辑和源缓存合同；阶段 4 已接入详情页 source-first 状态机和按身份补缺口。
+- 下一动作：实施阶段 5，接入季、集、视频和推荐分页的延迟能力及回归测试。
 
 ## 1. 设计结论
 
@@ -593,8 +593,21 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 
 ### 阶段 3：源接入
 
+- 提交：`070efd6f4ec818a840f4b2bccb384389d116b368`；恢复标签 `recovery/C16-stage3/20260919105928-070efd6f4ec8`。
 - 新增 `SiteApiT3TmdbDetailTest`：使用 T3 `detailContent` 的 JSON 形状验证 `Vod.tmdb`、身份、能力组和详情读取器保留，并通过 `VodDetailCache` 内容往返后仍保留完整协议。
 - 新增 `SiteApiT4TmdbDetailTest`：使用 T4 `ac=detail` 的 JSON 形状验证电视剧季上下文、`season:1`、季数组和缓存往返，普通详情字段未被改变。
 - 本阶段确认 Gson、`Result` 列表复制和现有详情缓存无需生产代码改动；`SiteApi` 的 T3/T4 请求与分派保持不变。
 - 定向验证：两个测试类共 4 项通过，Mobile Arm64 Debug 单测任务返回 `BUILD SUCCESSFUL`。
 - 未验证项：Activity 尚未在调用 `TmdbDetailPrefetch` 前消费 payload，真实 T3/T4 网络请求和页面请求数留待阶段 4/6。
+
+### 阶段 4：详情页接入
+
+- `TmdbDetailActivity.loadContent` 已改为先完成 `SiteApi.detailContent`、解析并应用 `Vod.tmdb`，再决定是否创建旧 TMDB 匹配任务；旧源路径仍在源详情完成后串行执行。
+- 合法 payload 先按 identity 构造 `TmdbBundle`，再计算 `TmdbSourceCapabilityPlanner` 首屏缺口；`core/credits/images` 完整时直接返回，不调用来源详情 TMDB 请求。
+- 部分 payload 使用 `TmdbService.detailForSource()` 按 TMDB ID 请求，合并后通过 `TmdbSourceMerger.fillOnly()` 仅填缺口；不再为有效身份执行标题搜索。
+- `TmdbService` 新增 source detail 缓存键，包含媒体类型、TMDB ID、季上下文、语言和排序后的能力 mask；请求 URL、认证和磁盘缓存实现保持现有策略。
+- `TmdbSourceAdapter.fromNetwork()` 复用与服务端 payload 相同的字段解析、图片规范化和季集映射，确保 source 与 network bundle 形状一致。
+- 后台合并回 UI 前继续检查 generation、当前 `Vod` 和 TMDB identity；旧页面、切源或退出不会应用迟到结果。
+- 同步调整旧 standalone 源码测试：仍保留单次首屏绑定和季预加载，但断言顺序改为 source detail -> payload plan -> TMDB wait。
+- 定向验证：`TmdbDetailSourcePayloadTest`、`TmdbDetailGenerationTest`、`TmdbServiceCacheKeyTest`、`TmdbSourceAdapterTest`、`TmdbDetailActivityLayoutTest`、`TmdbUIAdapterTest` 共 75 项通过；Leanback Arm64 Debug Java 编译通过，Gradle 返回 `BUILD SUCCESSFUL`。
+- 未验证项：真实网站 T3/T4 网络请求计数、移动端/电视端字段渲染和真实退出/切源竞态，留待阶段 6 设备验收。

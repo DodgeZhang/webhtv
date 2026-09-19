@@ -38,27 +38,43 @@ public final class TmdbSourceAdapter {
         TmdbConfig effectiveConfig = config == null ? new TmdbConfig().sanitize() : config.sanitize();
         JsonObject detail = new TmdbSourceDetail(valid.getDetailJson()).object();
         if (!detail.has("media_type") && !valid.getMediaType().isEmpty()) detail.addProperty("media_type", valid.getMediaType());
-        TmdbItem item = item(valid, detail, vod, effectiveConfig);
+        TmdbItem item = item(valid.getTmdbId(), valid.getMediaType(), detail, vod, effectiveConfig, valid.hasCapability(TmdbSourceCapabilityPlanner.CORE));
         List<TmdbPerson> cast = cast(detail, effectiveConfig);
         List<TmdbPerson> creators = creators(detail, effectiveConfig);
         List<String> photos = photos(detail, effectiveConfig);
-        List<TmdbItem> related = related(valid, detail, effectiveConfig);
-        SeasonData seasons = seasons(valid, detail, effectiveConfig);
+        List<TmdbItem> related = related(valid.getMediaType(), detail, effectiveConfig);
+        SeasonData seasons = seasons(valid.getTmdbId(), valid.getSeasonNumber(), detail, effectiveConfig);
         return new TmdbBundle(item, detail, cast, creators, photos, related, seasons.numbers, seasons.counts, seasons.episodes, seasons.cast, seasons.photos);
     }
 
-    private static TmdbItem item(TmdbSourcePayload payload, JsonObject detail, @Nullable Vod vod, TmdbConfig config) {
-        boolean tv = "tv".equals(payload.getMediaType());
+    public static TmdbBundle fromNetwork(@Nullable TmdbItem sourceItem, @Nullable JsonObject sourceDetail, @Nullable TmdbConfig config) {
+        if (sourceItem == null) return null;
+        TmdbConfig effectiveConfig = config == null ? new TmdbConfig().sanitize() : config.sanitize();
+        JsonObject detail = sourceDetail == null ? new JsonObject() : sourceDetail.deepCopy();
+        String mediaType = normalizeMediaType(sourceItem.getMediaType());
+        if (mediaType.isEmpty()) mediaType = sourceItem.getMediaType();
+        TmdbItem item = item(sourceItem.getTmdbId(), mediaType, detail, null, effectiveConfig, true);
+        item = fallbackItem(item, sourceItem);
+        List<TmdbPerson> cast = cast(detail, effectiveConfig);
+        List<TmdbPerson> creators = creators(detail, effectiveConfig);
+        List<String> photos = photos(detail, effectiveConfig);
+        List<TmdbItem> related = related(mediaType, detail, effectiveConfig);
+        SeasonData seasons = seasons(sourceItem.getTmdbId(), 0, detail, effectiveConfig);
+        return new TmdbBundle(item, detail, cast, creators, photos, related, seasons.numbers, seasons.counts, seasons.episodes, seasons.cast, seasons.photos);
+    }
+
+    private static TmdbItem item(int tmdbId, String mediaType, JsonObject detail, @Nullable Vod vod, TmdbConfig config, boolean coreComplete) {
+        boolean tv = "tv".equals(mediaType);
         String title = firstString(detail, tv ? new String[]{"name", "title"} : new String[]{"title", "name"});
-        if (title.isEmpty() && vod != null && payload.hasCapability(TmdbSourceCapabilityPlanner.CORE)) title = vod.getName();
+        if (title.isEmpty() && vod != null && coreComplete) title = vod.getName();
         String date = firstString(detail, tv ? new String[]{"first_air_date", "release_date"} : new String[]{"release_date", "first_air_date"});
         double vote = number(detail, "vote_average", 0d);
         String subtitle = subtitle(date, vote);
         String poster = imageUrl(config.getImageBase(), string(detail, "poster_path"));
         String backdrop = imageUrl(config.getBackdropBase(), string(detail, "backdrop_path"));
         return new TmdbItem(
-                payload.getTmdbId(),
-                payload.getMediaType(),
+                tmdbId,
+                mediaType,
                 title,
                 subtitle,
                 string(detail, "overview"),
@@ -72,6 +88,27 @@ public final class TmdbSourceAdapter {
                 "",
                 vote,
                 0d
+        );
+    }
+
+    private static TmdbItem fallbackItem(TmdbItem primary, TmdbItem fallback) {
+        return new TmdbItem(
+                primary.getTmdbId(),
+                primary.getMediaType(),
+                firstNonEmpty(primary.getTitle(), fallback.getTitle()),
+                firstNonEmpty(primary.getSubtitle(), fallback.getSubtitle()),
+                firstNonEmpty(primary.getOverview(), fallback.getOverview()),
+                firstNonEmpty(primary.getPosterUrl(), fallback.getPosterUrl()),
+                firstNonEmpty(primary.getBackdropUrl(), fallback.getBackdropUrl()),
+                firstNonEmpty(primary.getCredit(), fallback.getCredit()),
+                primary.getRating() > 0 ? primary.getRating() : fallback.getRating(),
+                firstNonEmpty(primary.getOriginalLanguage(), fallback.getOriginalLanguage()),
+                firstNonEmpty(primary.getOriginCountry(), fallback.getOriginCountry()),
+                primary.getGenreIds().isEmpty() ? fallback.getGenreIds() : primary.getGenreIds(),
+                firstNonEmpty(primary.getDepartment(), fallback.getDepartment()),
+                primary.getTmdbRating() > 0 ? primary.getTmdbRating() : fallback.getTmdbRating(),
+                primary.getDoubanRating() > 0 ? primary.getDoubanRating() : fallback.getDoubanRating(),
+                firstNonEmpty(primary.getRecommendationReason(), fallback.getRecommendationReason())
         );
     }
 
@@ -164,10 +201,10 @@ public final class TmdbSourceAdapter {
         return limit(result, MAX_PHOTOS);
     }
 
-    private static List<TmdbItem> related(TmdbSourcePayload payload, JsonObject detail, TmdbConfig config) {
+    private static List<TmdbItem> related(String mediaType, JsonObject detail, TmdbConfig config) {
         Map<String, TmdbItem> result = new LinkedHashMap<>();
-        addRelated(result, array(object(detail, "recommendations"), "results"), payload.getMediaType(), config);
-        addRelated(result, array(object(detail, "similar"), "results"), payload.getMediaType(), config);
+        addRelated(result, array(object(detail, "recommendations"), "results"), mediaType, config);
+        addRelated(result, array(object(detail, "similar"), "results"), mediaType, config);
         return result.values().stream().limit(MAX_RELATED).toList();
     }
 
@@ -202,7 +239,7 @@ public final class TmdbSourceAdapter {
         }
     }
 
-    private static SeasonData seasons(TmdbSourcePayload payload, JsonObject detail, TmdbConfig config) {
+    private static SeasonData seasons(int tmdbId, int selectedSeasonNumber, JsonObject detail, TmdbConfig config) {
         LinkedHashSet<Integer> numbers = new LinkedHashSet<>();
         Map<Integer, Integer> counts = new HashMap<>();
         Map<Integer, List<TmdbEpisode>> episodes = new HashMap<>();
@@ -214,7 +251,7 @@ public final class TmdbSourceAdapter {
             int number = integer(season, "season_number", -1);
             if (number < 0) continue;
             numbers.add(number);
-            List<TmdbEpisode> seasonEpisodes = episodes(season, payload.getTmdbId(), number, config);
+            List<TmdbEpisode> seasonEpisodes = episodes(season, tmdbId, number, config);
             if (!seasonEpisodes.isEmpty() || season.has("episodes")) episodes.put(number, seasonEpisodes);
             counts.put(number, integer(season, "episode_count", seasonEpisodes.size()));
             List<TmdbPerson> seasonCast = cast(season, config);
@@ -222,10 +259,10 @@ public final class TmdbSourceAdapter {
             List<String> seasonPhotos = photos(season, config);
             if (!seasonPhotos.isEmpty() || season.has("images")) photos.put(number, seasonPhotos);
         }
-        if (payload.getSeasonNumber() >= 0 && detail.has("episodes")) {
-            int seasonNumber = payload.getSeasonNumber();
-            List<TmdbEpisode> selected = episodes(detail, payload.getTmdbId(), seasonNumber, config);
-            if (payload.getSeasonNumber() > 0 || !selected.isEmpty()) {
+        if (selectedSeasonNumber >= 0 && detail.has("episodes")) {
+            int seasonNumber = selectedSeasonNumber;
+            List<TmdbEpisode> selected = episodes(detail, tmdbId, seasonNumber, config);
+            if (selectedSeasonNumber > 0 || !selected.isEmpty()) {
                 numbers.add(seasonNumber);
                 episodes.put(seasonNumber, selected);
                 counts.putIfAbsent(seasonNumber, selected.size());
@@ -308,6 +345,10 @@ public final class TmdbSourceAdapter {
         String rating = vote > 0 ? String.format(Locale.US, "%.1f", vote) : "";
         if (!date.isEmpty() && !rating.isEmpty()) return date + " · " + rating;
         return date.isEmpty() ? rating : date;
+    }
+
+    private static String firstNonEmpty(String first, String second) {
+        return first != null && !first.isEmpty() ? first : second == null ? "" : second;
     }
 
     private static String firstRole(JsonObject object) {

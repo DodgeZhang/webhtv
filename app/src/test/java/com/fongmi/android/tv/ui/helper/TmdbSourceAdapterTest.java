@@ -4,6 +4,7 @@ import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.bean.TmdbSourcePayload;
 import com.fongmi.android.tv.bean.Vod;
 import com.google.gson.Gson;
+import com.google.gson.JsonParser;
 
 import org.junit.Test;
 
@@ -70,5 +71,25 @@ public class TmdbSourceAdapterTest {
         assertEquals("", bundle.item().getBackdropUrl());
         assertEquals("https://cdn.test/actor.jpg", bundle.cast().get(0).getProfileUrl());
         assertEquals("https://cdn.test/p2.jpg", bundle.photos().get(0));
+    }
+
+    @Test
+    public void networkAdapterUsesSameDetailShapeWithoutRequiringApiKey() {
+        com.fongmi.android.tv.bean.TmdbItem sourceItem = new com.fongmi.android.tv.bean.TmdbItem(
+                550, "movie", "Fallback", "", "Fallback overview", "", "");
+        var detail = JsonParser.parseString("""
+                {"id":550,"title":"Movie","overview":"Network overview","release_date":"1999-10-15","vote_average":8.4,
+                 "poster_path":"/poster.jpg","backdrop_path":"/backdrop.jpg","genres":[{"id":18}],
+                 "credits":{"cast":[{"id":1,"name":"Actor","profile_path":"/actor.jpg"}]},
+                 "images":{"backdrops":[{"file_path":"/backdrop.jpg"}],"posters":[{"file_path":"/poster.jpg"}]}}
+                """).getAsJsonObject();
+
+        TmdbBundle bundle = TmdbSourceAdapter.fromNetwork(sourceItem, detail, new TmdbConfig());
+
+        assertNotNull(bundle);
+        assertEquals("Movie", bundle.item().getTitle());
+        assertEquals("Network overview", bundle.item().getOverview());
+        assertEquals(1, bundle.cast().size());
+        assertEquals(2, bundle.photos().size());
     }
 }
