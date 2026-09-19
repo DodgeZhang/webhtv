@@ -2273,7 +2273,7 @@ private boolean runtimeSourceOnly;
 
     private String cachedTmdbLanguage() {
         try {
-            return com.fongmi.android.tv.bean.TmdbConfig.objectFrom(Setting.getTmdbConfig()).getLanguage();
+            return com.fongmi.android.tv.bean.TmdbConfig.effectiveCurrent().getLanguage();
         } catch (Throwable e) {
             return "";
         }
@@ -2295,7 +2295,7 @@ private boolean runtimeSourceOnly;
         if (path.startsWith("http://") || path.startsWith("https://")) return path;
         String base = "";
         try {
-            com.fongmi.android.tv.bean.TmdbConfig config = com.fongmi.android.tv.bean.TmdbConfig.objectFrom(Setting.getTmdbConfig());
+            com.fongmi.android.tv.bean.TmdbConfig config = com.fongmi.android.tv.bean.TmdbConfig.effectiveCurrent();
             base = backdrop ? config.getBackdropBase() : config.getImageBase();
         } catch (Throwable ignored) {
         }
@@ -2586,7 +2586,7 @@ private boolean runtimeSourceOnly;
         item.checkName(getName());
         item.checkContent(getContent());
         applyIntentTmdbVodRemark(item);
-        TmdbConfig tmdbConfig = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+        TmdbConfig tmdbConfig = TmdbConfig.effectiveCurrent();
         TmdbSourcePayload sourcePayload = TmdbSourcePayloadParser.parse(item.getTmdb());
         TmdbBundle sourceBundle = TmdbSourceAdapter.toBundle(sourcePayload, item, tmdbConfig);
         TmdbSourceState sourceState = TmdbSourceAvailability.classify(item, sourcePayload, sourceBundle);
@@ -2623,8 +2623,8 @@ private boolean runtimeSourceOnly;
         // TMDB 增强：自动匹配并增强 Vod
         if (mTmdbUIAdapter != null && (mTmdbUIAdapter.isReady() || runtimeSourceOnly)) {
             mTmdbUIAdapter.setActiveFlag(getFlag());
-            if (runtimeSourceOnly && sourceBundle != null) {
-                SpiderDebug.log("tmdb-tv", "source-only load vodTitle=%s tmdbId=%d media=%s", item.getName(), sourceBundle.item().getTmdbId(), sourceBundle.item().getMediaType());
+            if (sourceState == TmdbSourceState.RENDERABLE && sourceBundle != null) {
+                SpiderDebug.log("tmdb-tv", "source-first load vodTitle=%s tmdbId=%d media=%s sourceOnly=%s", item.getName(), sourceBundle.item().getTmdbId(), sourceBundle.item().getMediaType(), runtimeSourceOnly);
                 mTmdbUIAdapter.loadSource(sourceBundle, item, sourcePayload);
             } else {
                 com.fongmi.android.tv.bean.TmdbItem tmdbItem = getTmdbItem();
@@ -7387,8 +7387,9 @@ private boolean runtimeSourceOnly;
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onConfigEvent(ConfigEvent event) {
-        if (isRedirect() || !event.isVod() || mParseAdapter == null) return;
-        mParseAdapter.addAll(VodConfig.get().getParses());
+        if (isRedirect() || !event.isVod()) return;
+        if (mTmdbUIAdapter != null) mTmdbUIAdapter.invalidateSubscription();
+        if (mParseAdapter != null) mParseAdapter.addAll(VodConfig.get().getParses());
     }
 
     /**
