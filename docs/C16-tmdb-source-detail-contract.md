@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”补充设计已完成，等待用户批准实施。T4 服务端仍需在其独立仓库按本文合同实施。
+> 状态：C16 基础协议阶段 1-6 已完成并通过模拟器验收；无 TMDB Key 的“源内嵌数据驱动详情模式”第 18 节已按阶段 A-F 实现，并通过 Mobile/Leanback 设备验收。T4 服务端仍需在其独立仓库按本文合同实施。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1-6 已完成本仓库 APP 侧协议、解析、合并、详情接入、延迟能力和设备验收。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节补充设计已覆盖设置解耦、运行时模式决策、无 Key 回退、缺字段隐藏、Mobile/Leanback 接线和验收矩阵。
-- 下一动作：用户批准后，按第 18.11 节从阶段 A“纯策略和契约测试”开始实施；不得先删除 Key 校验再补路由，否则会产生空 TMDB 详情壳。
+- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。第 18 节阶段 A-E 已完成纯策略、设置解耦、独立页、原生增强和交互收口；阶段 F 已在 `V1923A/Android 9` 的 `192.168.50.3:5559` 完成无 Key Mobile/Leanback 设备验收。
+- 下一动作：本仓库第 18 节客户端实现无剩余动作；如接入真实源，按第 4-9 节生产者合同在 T4 服务端独立仓库实现并验证请求次数。
 
 ## 1. 设计结论
 
@@ -1347,4 +1347,17 @@ tmdbReady && no blocks
 - 功能完成：阶段 E 无空字段审计通过；
 - 交付完成：阶段 F 设备请求计数和 UI 验收通过，并记录 APK、提交和 recovery tag。
 
-本轮只完成设计文档，不声称功能已实现。
+阶段 A-F 的提交、验证与设备证据见第 18.17 节。
+
+### 18.17 实施记录
+
+第 18 节按第 18.11 节顺序完成，未采用“先删除 Key 校验、再补运行时路由”的危险捷径：
+
+- 阶段 A：`19128b7d18107b5c614078ebdadc863faa2476b5`，标签 `recovery/C16-stage-A/20260919153225-19128b7d1810`。新增 `DetailRuntimeModePolicy`、`TmdbSourceState` 和 `TmdbSourceAvailability`；11 项策略/可用性测试通过，Mobile/Leanback Arm64 Java 编译通过。
+- 阶段 B：`1c4213db0baf24e9da9495edfdbaa9dcab43f527`，标签 `recovery/C16-stage-B/20260919154930-1c4213db0baf`。`getDetailOpenMode()` 变为纯配置读取，新增 `isTmdbDetailModeConfigured()`，Mobile/Leanback 设置页不再因缺少 Key 拒绝保存模式或主题；3 项接线测试通过。
+- 阶段 C：`6a994fa1acd85cd307bf111bc077f6e5a1385da0`，标签 `recovery/C16-stage-C/20260919155514-6a994fa1acd8`。独立详情页按运行时策略选择用户模式/source-only/影视原生；无有效源数据时用已加载 `Vod` 直接回退，不重复请求详情；4 项接线测试通过。
+- 阶段 D：`b2343d1d1de476226b52bef11b80248e1d5033d9`，标签 `recovery/C16-stage-D/20260919160225-b2343d1d1de4`。Mobile/Leanback `VideoActivity` 使用会话级 runtime mode；新增完全无网络的 `TmdbUIAdapter.loadSource()`，补入内嵌季/集缓存、适配器状态和本地 `VOD_CORE` 刷新；220 项定向 Mobile 测试和双 flavor Java 编译通过。
+- 阶段 E：`6e2cde565ae34c1a0da392c7ca93f34cb97aaa99`，标签 `recovery/C16-stage-E/20260919160601-6e2cde565ae3`。source-only 页隐藏重新匹配/选季和网络评分入口，阻止手动匹配、搜索和匹配缓存写入；无数据 TMDB 专属区域不保留空壳；10 项交互/运行时测试通过。
+- 阶段 F：本次收口新增 `C16KeylessSourceDetailDeviceTest`，在测试内清除 TMDB Key、切换可控 C16 假源并在结束后恢复原 VOD/TMDB 配置。设备 `V1923A`、Android 9、`192.168.50.3:5559`；Mobile 和 Leanback 各执行 3 项：完整内嵌 payload 独立页、完整内嵌 payload 原生增强、无扩展旧源回退，全部 `3/3` 通过，无 Key 提示；夹具只收到 `/config.json` 与对应 `/c16_keyless_*` 详情端点。
+- 阶段 F APK SHA-256：Mobile `ffd6ebfdb7d509f68ec4ced17c0bed37326307d00d71f77f32f69440768e805e`；Leanback `c603991d937850a3c705835ae44d912d42f878f8c4617eed5ee225f9a3e0d750`；Mobile AndroidTest `ac46e38fc5a241e25c7837d93071633463b9a7bdb085b4c8971dc2ec02c8dafe`；Leanback AndroidTest `55ce93d5b93f1f0e4108b3630a8a70d84879a0dd93e4d4a7289d9651cb7890f1`。阶段 F 自身的提交与 recovery tag 由本次收口命令创建。
+- 未在本仓库验证：真实 T4 服务端生产数据、真实弱网切源和发布包签名分发；这些不改变客户端第 18 节合同完成状态，但接入生产 T4 前必须由服务端仓库按第 4-9 节完成请求计数和恢复测试。
