@@ -1703,6 +1703,9 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 来源可播探测会校验 TMDB 映射的季号；映射属于其他季的集不会计入当前追踪季。WorkManager 唯一周期/one-shot 任务的创建和关闭取消已有设备端直接测试。
 - 同配置 `mobileArm64_v8aDebug` 体积比较：功能前 `ceac8d89af` 为 `200,780,386` bytes，当前测试包为 `204,653,512` bytes，增量 `3,873,126` bytes（约 `3.694 MiB`，`1.929%`）。该差值只代表未裁剪的 Debug 测试包，不等价于 Release/市场包体积。
 - 设备端 `FollowingBackupDeviceTest` 使用真实 `following.db` 验证完整导出、合并去重、read/notified/watched 水位取最大、本地 `nextCheckAt`/错误不被远端覆盖，以及恢复后来源表一致性。
+- 修复 TMDB 详情页打开时的 `RoomDatabase.assertNotMainThread` 崩溃：详情页不再在主线程调用 `FollowingStore.findByTmdb/findBySource`，查库、建库记录都通过 `FollowingPlaybackBridge` 在后台执行并回主线程更新按钮。
+- 手机播放页原生动作区、手机 TMDB 详情头部和电视播放页动作行均新增“加入追更/已追更”入口；入口只读取当前 `History`，实际 Room 读写全部异步。
+- 设备端 `FollowingDetailDeviceTest` 已验证：从主线程调用桥接查询不会触发 Room 主线程异常，回调回到主线程。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

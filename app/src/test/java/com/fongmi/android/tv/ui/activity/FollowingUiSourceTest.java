@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 public class FollowingUiSourceTest {
 
@@ -93,6 +94,25 @@ public class FollowingUiSourceTest {
         assertTrue(activity.contains("following_read"));
         assertTrue(activity.contains("following_change_source"));
         assertTrue(activity.contains("following_cancel"));
+    }
+
+    @Test
+    public void detailAndPlaybackScreensWireFollowingActionsOffTheMainThread() throws Exception {
+        String detail = read("app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java");
+        String header = read("app/src/main/res/layout/view_tmdb_header.xml");
+        String mobile = read("app/src/mobile/res/layout/activity_video.xml");
+        String leanback = read("app/src/leanback/res/layout/activity_video.xml");
+        String mobileActivity = read("app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
+        String leanbackActivity = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
+
+        assertTrue(detail.contains("FollowingPlaybackBridge.findAsync"));
+        assertFalse(detail.contains("FollowingStore.findByTmdb"));
+        assertFalse(detail.contains("FollowingStore.findBySource"));
+        assertTrue(header.contains("@+id/tmdbFollowing"));
+        assertTrue(mobile.contains("@+id/following"));
+        assertTrue(leanback.contains("@+id/following"));
+        assertTrue(mobileActivity.contains("onFollowing()"));
+        assertTrue(leanbackActivity.contains("onFollowing()"));
     }
 
     private static String read(String relative) throws Exception {

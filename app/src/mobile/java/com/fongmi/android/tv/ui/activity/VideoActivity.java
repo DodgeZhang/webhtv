@@ -92,6 +92,11 @@ import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.CastEvent;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
+import com.fongmi.android.tv.following.Following;
+import com.fongmi.android.tv.following.FollowingPlaybackBridge;
+import com.fongmi.android.tv.following.FollowingScheduler;
+import com.fongmi.android.tv.following.FollowingSettings;
+import com.fongmi.android.tv.following.FollowingSource;
 import com.fongmi.android.tv.impl.CustomTarget;
 import com.fongmi.android.tv.model.SiteViewModel;
 import com.fongmi.android.tv.playback.PlaybackEventCollector;
@@ -463,6 +468,8 @@ private int mAudioBackgroundRandomNonce;
     private String mContextWallLockedUrl;
     private String playHealthKey;
     private long detailStartTime;
+    private int followingUiGeneration;
+    private boolean followingActionPending;
     private long playerStartTime;
     private long pendingResumeSeekMs = C.TIME_UNSET;
     private boolean tmdbHistoryResumePending;
@@ -1568,6 +1575,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         mBinding.name.setOnClickListener(view -> onName());
         mBinding.more.setOnClickListener(view -> onMore());
         mBinding.shortDisplay.setOnClickListener(view -> onShortDisplay());
+        mBinding.following.setOnClickListener(view -> onFollowing());
         mBinding.search.setOnClickListener(view -> onSearch());
         mBinding.castAction.setOnClickListener(guarded(this::onCast));
         mBinding.settingAction.setOnClickListener(view -> onSetting());
@@ -6083,6 +6091,69 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
             keep.setVodPic(mHistory.getVodPic());
             keep.save();
         }
+        updateFollowingState();
+    }
+
+    private void onFollowing() {
+        if (!FollowingSettings.isEnabled()) {
+            Notify.show(R.string.following_enabled_hint);
+            return;
+        }
+        if (mHistory == null || followingActionPending || !FollowingPlaybackBridge.isEligible(mHistory)) return;
+        String identityKey = FollowingPlaybackBridge.identityKey(mHistory, currentSourceSeasonNumber());
+        if (TextUtils.isEmpty(identityKey)) return;
+        followingActionPending = true;
+        mBinding.following.setEnabled(false);
+        FollowingPlaybackBridge.findAsync(identityKey, existing -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (existing != null) {
+                followingActionPending = false;
+                mBinding.following.setEnabled(true);
+                FollowingActivity.start(this, existing.identityKey);
+                return;
+            }
+            Following item = FollowingPlaybackBridge.build(mHistory, currentSourceSeasonNumber());
+            FollowingSource source = FollowingPlaybackBridge.source(item, mHistory);
+            FollowingPlaybackBridge.addAsync(item, source, (saved, error) -> {
+                followingActionPending = false;
+                if (isFinishing() || isDestroyed()) return;
+                if (error != null) {
+                    mBinding.following.setEnabled(true);
+                    Notify.show(error.getMessage());
+                    return;
+                }
+                FollowingScheduler.ensurePeriodic(this);
+                FollowingScheduler.enqueueDueNow(this);
+                updateFollowingState();
+                Notify.show(R.string.following_added);
+            });
+        });
+    }
+
+    private void updateFollowingState() {
+        boolean eligible = FollowingSettings.isEnabled() && FollowingPlaybackBridge.isEligible(mHistory);
+        int generation = ++followingUiGeneration;
+        if (!eligible) {
+            applyFollowingButtonState(false, false);
+            return;
+        }
+        String identityKey = FollowingPlaybackBridge.identityKey(mHistory, currentSourceSeasonNumber());
+        applyFollowingButtonState(true, false);
+        FollowingPlaybackBridge.findAsync(identityKey, item -> {
+            if (generation != followingUiGeneration || isFinishing() || isDestroyed()) return;
+            applyFollowingButtonState(true, item != null);
+        });
+    }
+
+    private void applyFollowingButtonState(boolean eligible, boolean followed) {
+        mBinding.following.setVisibility(eligible ? View.VISIBLE : View.GONE);
+        mBinding.following.setEnabled(true);
+        mBinding.following.setSelected(followed);
+        mBinding.following.setText(followed ? R.string.following_added : R.string.following_add);
+        if (mTmdbHeaderView != null) {
+            mTmdbHeaderView.setFollowingVisible(eligible);
+            mTmdbHeaderView.setFollowingSelected(followed);
+        }
     }
 
     private void updateVod(Vod item) {
@@ -8204,6 +8275,11 @@ private void checkOrientation() {
             public void onKeep() {
                 VideoActivity.this.onKeep();
             }
+
+            @Override
+            public void onFollowing() {
+                VideoActivity.this.onFollowing();
+            }
         });
 
         // 设置图片加载完成监听器
@@ -9010,6 +9086,7 @@ private void checkOrientation() {
 
     private void updateTmdbKeepState() {
         if (mTmdbHeaderView != null) mTmdbHeaderView.setKeepSelected(Keep.find(getHistoryKey()) != null);
+        updateFollowingState();
     }
 
     private void moveFlagAndEpisodeToTmdb() {

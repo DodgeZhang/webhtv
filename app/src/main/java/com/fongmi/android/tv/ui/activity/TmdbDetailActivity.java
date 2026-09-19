@@ -101,6 +101,7 @@ import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.following.Following;
 import com.fongmi.android.tv.following.FollowingIdentity;
+import com.fongmi.android.tv.following.FollowingPlaybackBridge;
 import com.fongmi.android.tv.following.FollowingScheduler;
 import com.fongmi.android.tv.following.FollowingSettings;
 import com.fongmi.android.tv.following.FollowingSource;
@@ -432,6 +433,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean inlinePiPSourceFrozen;
     private long inlineStartPosition = C.TIME_UNSET;
     private int selectedSeasonNumber = -1;
+    private int followingUiGeneration;
+    private boolean followingActionPending;
     private TmdbSeasonMatchCache.Entry tmdbSeasonBinding;
     private TmdbItem pendingTmdbSeasonChoice;
     private int lastEpisodeMediaSeason = Integer.MIN_VALUE;
@@ -11289,11 +11292,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             Notify.show(R.string.following_enabled_hint);
             return;
         }
-        Following existing = currentFollowing();
-        if (existing != null) {
-            FollowingActivity.start(this, existing.identityKey);
-            return;
-        }
+        if (followingActionPending) return;
         TmdbItem tmdb = followingTmdbItem();
         String siteKey = getKeyText();
         String vodId = getIdText();
@@ -11302,6 +11301,21 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         String identityKey = tmdb == null
                 ? FollowingIdentity.identityKey(VodConfig.getCid(), siteKey, vodId, season)
                 : FollowingIdentity.identityKey(tmdb, season);
+        followingActionPending = true;
+        setFollowingButtonsEnabled(false);
+        FollowingPlaybackBridge.findAsync(identityKey, existing -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (existing != null) {
+                followingActionPending = false;
+                setFollowingButtonsEnabled(true);
+                FollowingActivity.start(this, existing.identityKey);
+                return;
+            }
+            addFollowing(tmdb, siteKey, vodId, season, identityKey);
+        });
+    }
+
+    private void addFollowing(TmdbItem tmdb, String siteKey, String vodId, int season, String identityKey) {
         long now = System.currentTimeMillis();
         Following item = new Following();
         item.identityKey = identityKey;
@@ -11338,22 +11352,19 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         source.vodFlag = selectedFlag == null ? "" : selectedFlag.getFlag();
         source.playableSeason = Math.max(0, season);
         source.preferred = true;
-        try {
-            FollowingStore.saveNew(item, source);
+        FollowingPlaybackBridge.addAsync(item, source, (saved, error) -> {
+            followingActionPending = false;
+            if (isFinishing() || isDestroyed()) return;
+            if (error != null) {
+                setFollowingButtonsEnabled(true);
+                Notify.show(error.getMessage());
+                return;
+            }
             FollowingScheduler.ensurePeriodic(this);
             FollowingScheduler.enqueueDueNow(this);
             updateFollowingState();
             Notify.show(R.string.following_added);
-        } catch (Throwable error) {
-            Notify.show(error.getMessage());
-        }
-    }
-
-    private Following currentFollowing() {
-        TmdbItem tmdb = followingTmdbItem();
-        int season = Math.max(0, currentSeasonSourceScope());
-        if (tmdb != null) return FollowingStore.findByTmdb(tmdb, season);
-        return FollowingStore.findBySource(VodConfig.getCid(), getKeyText(), getIdText(), season);
+        });
     }
 
     private TmdbItem followingTmdbItem() {
@@ -11383,7 +11394,24 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void updateFollowingState() {
         boolean enabled = FollowingSettings.isEnabled();
         boolean eligible = enabled && (followingTmdbItem() != null || (vod != null && !vod.getFlags().isEmpty()));
-        boolean followed = eligible && currentFollowing() != null;
+        int generation = ++followingUiGeneration;
+        if (!eligible) {
+            applyFollowingButtonState(false, false);
+            return;
+        }
+        TmdbItem tmdb = followingTmdbItem();
+        int season = Math.max(0, currentSeasonSourceScope());
+        String identityKey = tmdb == null
+                ? FollowingIdentity.identityKey(VodConfig.getCid(), getKeyText(), getIdText(), season)
+                : FollowingIdentity.identityKey(tmdb, season);
+        applyFollowingButtonState(true, false);
+        FollowingPlaybackBridge.findAsync(identityKey, item -> {
+            if (generation != followingUiGeneration || isFinishing() || isDestroyed()) return;
+            applyFollowingButtonState(true, item != null);
+        });
+    }
+
+    private void applyFollowingButtonState(boolean eligible, boolean followed) {
         String text = getString(followed ? R.string.following_added : R.string.following_add);
         binding.following.setVisibility(eligible ? View.VISIBLE : View.GONE);
         binding.followingTop.setVisibility(View.GONE);
@@ -11394,6 +11422,13 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.following.setSelected(followed);
         binding.followingTop.setSelected(followed);
         binding.followingFusion.setSelected(followed);
+        setFollowingButtonsEnabled(true);
+    }
+
+    private void setFollowingButtonsEnabled(boolean enabled) {
+        binding.following.setEnabled(enabled);
+        binding.followingTop.setEnabled(enabled);
+        binding.followingFusion.setEnabled(enabled);
     }
 
     private void onKeep() {

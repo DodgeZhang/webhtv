@@ -110,6 +110,11 @@ import com.fongmi.android.tv.setting.TmdbSourceState;
 import com.fongmi.android.tv.title.MediaTitleLearningExample;
 import com.fongmi.android.tv.title.MediaTitleRequest;
 import com.fongmi.android.tv.subtitle.SubtitlePlaybackSession;
+import com.fongmi.android.tv.following.Following;
+import com.fongmi.android.tv.following.FollowingPlaybackBridge;
+import com.fongmi.android.tv.following.FollowingScheduler;
+import com.fongmi.android.tv.following.FollowingSettings;
+import com.fongmi.android.tv.following.FollowingSource;
 import com.fongmi.android.tv.ui.activity.SearchActivity;
 import com.fongmi.android.tv.ui.adapter.ArrayAdapter;
 import com.fongmi.android.tv.ui.adapter.BackdropAdapter;
@@ -407,6 +412,8 @@ private boolean runtimeSourceOnly;
     private boolean detailRequested;
     private boolean detailHealthRecorded;
     private boolean playHealthRecorded;
+    private int followingUiGeneration;
+    private boolean followingActionPending;
     private SpaceItemDecoration episodeGridDecoration;
     private boolean episodeGridMode;
     private Runnable mR1;
@@ -1484,6 +1491,7 @@ private boolean runtimeSourceOnly;
     @SuppressLint("ClickableViewAccessibility")
     protected void initEvent() {
         mBinding.keep.setOnClickListener(view -> onKeep());
+        mBinding.following.setOnClickListener(view -> onFollowing());
         mBinding.searchDetail.setOnClickListener(view -> onSearch());
         mBinding.searchDetail.setOnLongClickListener(view -> {
             onGlobalSearch();
@@ -2660,14 +2668,16 @@ private boolean runtimeSourceOnly;
         mBinding.change1.setVisibility(hide ? View.VISIBLE : View.GONE);
         mBinding.searchDetail.setVisibility(hide ? View.GONE : View.VISIBLE);
         mBinding.keep.setNextFocusLeftId(hide ? R.id.change1 : R.id.searchDetail);
+        mBinding.following.setNextFocusLeftId(R.id.keep);
     }
 
     private void setTmdbRematchVisible(boolean visible) {
         mBinding.tmdbRematch.setVisibility(visible ? View.VISIBLE : View.GONE);
         mBinding.searchDetail.setNextFocusRightId(R.id.keep);
         mBinding.change1.setNextFocusRightId(R.id.keep);
-        mBinding.keep.setNextFocusRightId(visible ? R.id.tmdbRematch : View.NO_ID);
-        mBinding.tmdbRematch.setNextFocusLeftId(R.id.keep);
+        mBinding.keep.setNextFocusRightId(R.id.following);
+        mBinding.following.setNextFocusRightId(visible ? R.id.tmdbRematch : View.NO_ID);
+        mBinding.tmdbRematch.setNextFocusLeftId(R.id.following);
         mBinding.tmdbRematch.setNextFocusRightId(View.NO_ID);
     }
 
@@ -5414,6 +5424,65 @@ private boolean runtimeSourceOnly;
             keep.setVodPic(mHistory.getVodPic());
             keep.save();
         }
+        updateFollowingState();
+    }
+
+    private void onFollowing() {
+        if (!FollowingSettings.isEnabled()) {
+            Notify.show(R.string.following_enabled_hint);
+            return;
+        }
+        if (mHistory == null || followingActionPending || !FollowingPlaybackBridge.isEligible(mHistory)) return;
+        String identityKey = FollowingPlaybackBridge.identityKey(mHistory, currentSourceSeasonNumber());
+        if (TextUtils.isEmpty(identityKey)) return;
+        followingActionPending = true;
+        mBinding.following.setEnabled(false);
+        FollowingPlaybackBridge.findAsync(identityKey, existing -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (existing != null) {
+                followingActionPending = false;
+                mBinding.following.setEnabled(true);
+                FollowingActivity.start(this, existing.identityKey);
+                return;
+            }
+            Following item = FollowingPlaybackBridge.build(mHistory, currentSourceSeasonNumber());
+            FollowingSource source = FollowingPlaybackBridge.source(item, mHistory);
+            FollowingPlaybackBridge.addAsync(item, source, (saved, error) -> {
+                followingActionPending = false;
+                if (isFinishing() || isDestroyed()) return;
+                if (error != null) {
+                    mBinding.following.setEnabled(true);
+                    Notify.show(error.getMessage());
+                    return;
+                }
+                FollowingScheduler.ensurePeriodic(this);
+                FollowingScheduler.enqueueDueNow(this);
+                updateFollowingState();
+                Notify.show(R.string.following_added);
+            });
+        });
+    }
+
+    private void updateFollowingState() {
+        boolean eligible = FollowingSettings.isEnabled() && FollowingPlaybackBridge.isEligible(mHistory);
+        int generation = ++followingUiGeneration;
+        if (!eligible) {
+            applyFollowingButtonState(false, false);
+            return;
+        }
+        String identityKey = FollowingPlaybackBridge.identityKey(mHistory, currentSourceSeasonNumber());
+        applyFollowingButtonState(true, false);
+        FollowingPlaybackBridge.findAsync(identityKey, item -> {
+            if (generation != followingUiGeneration || isFinishing() || isDestroyed()) return;
+            applyFollowingButtonState(true, item != null);
+        });
+    }
+
+    private void applyFollowingButtonState(boolean eligible, boolean followed) {
+        mBinding.following.setVisibility(eligible ? View.VISIBLE : View.GONE);
+        mBinding.following.setEnabled(true);
+        mBinding.following.setSelected(followed);
+        mBinding.following.setText(followed ? R.string.following_added : R.string.following_add);
     }
 
     private void updateVod(Vod item) {
@@ -6328,6 +6397,7 @@ private boolean runtimeSourceOnly;
         mBinding.shortDisplay.setNextFocusDownId(target);
         mBinding.searchDetail.setNextFocusDownId(target);
         mBinding.keep.setNextFocusDownId(target);
+        mBinding.following.setNextFocusDownId(target);
         mBinding.change1.setNextFocusDownId(target);
         mBinding.tmdbRematch.setNextFocusDownId(target);
     }
