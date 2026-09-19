@@ -1691,6 +1691,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 模拟器 `HD1910 - 9`（ADB `192.168.50.3:5561`）安装成功；从手机首页点击追更入口打开 `FollowingActivity`，并确认界面显示检查更新、追更数量与空状态。
 - 设备上实际创建独立 `following` 数据库；`following`、`following_source`、`room_master_table` 表存在。
 - 设备端 `FollowingDatabaseTest` 通过；WorkManager 的 `SystemJobService` 作业已出现在 `dumpsys jobscheduler`。
+- 设备端 `FollowingActivityDeviceTest` 通过：预置两条记录后，真实活动显示“2 部/未读 1 部”；点击“只看更新”后卡片数从 2 降为 1。
 - 模拟器实际点击“只看更新”后按钮切换为“显示全部”，空态切换为筛选空态；个性化设置页可见“追更更新”开关，关闭/重新打开均即时更新。
 - 当官方快照出现更高季号时，旧季卡片显示“追新季 Sx”；点击后仅创建/跳转到新季 identity，不改变旧季观看进度和提醒水位。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
