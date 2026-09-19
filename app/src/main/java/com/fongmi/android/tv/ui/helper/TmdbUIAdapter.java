@@ -16,6 +16,7 @@ import com.fongmi.android.tv.bean.TmdbSeasonMatchCache;
 import com.fongmi.android.tv.bean.TmdbSeasonSegment;
 import com.fongmi.android.tv.bean.TmdbSeasonScope;
 import com.fongmi.android.tv.bean.TmdbPerson;
+import com.fongmi.android.tv.bean.TmdbSourcePayload;
 import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.service.AiRecommendationService;
@@ -119,6 +120,7 @@ public class TmdbUIAdapter {
     private boolean relatedVideoLoading;
     private String relatedVideoContextKey = "";
     private boolean loaded;
+    private boolean sourceOnly;
     private volatile boolean episodeMetadataLoaded;
 
     private volatile int loadGeneration;
@@ -162,6 +164,10 @@ public class TmdbUIAdapter {
 
     public boolean isLoaded() {
         return loaded;
+    }
+
+    public boolean isSourceOnly() {
+        return sourceOnly;
     }
 
     public boolean isEpisodeMetadataLoaded() {
@@ -562,6 +568,95 @@ public class TmdbUIAdapter {
         backgroundTasks.submit(() -> loadDetailSync(vod, cached.getItem(), cached.getDetail(), cached.getCast(), generation));
     }
 
+    /** Applies a validated C16 source bundle without any TMDB request or match-cache write. */
+    public void loadSource(TmdbBundle bundle, Vod sourceVod, TmdbSourcePayload payload) {
+        if (bundle == null || bundle.item() == null || bundle.detail() == null || sourceVod == null) return;
+        String sourceTitle = sourceCacheTitle;
+        int generation = resetLoadState();
+        sourceOnly = true;
+        captureSourceSeason(sourceVod, sourceTitle);
+        if (payload != null && payload.getSeasonNumber() >= 0) requestSeasonNumber = payload.getSeasonNumber();
+        cancelActivePrefetch();
+        detailPrefetch.cancel();
+
+        vod = sourceVod;
+        tmdbItem = bundle.item();
+        tmdbDetail = bundle.detail();
+        tmdbCast = new ArrayList<>(bundle.cast());
+        recommendations = new ArrayList<>(bundle.related());
+        relatedVideos = new ArrayList<>();
+        personalTmdbRecommendations = new ArrayList<>();
+        personalDoubanRecommendations = new ArrayList<>();
+        personalAiRecommendations = new ArrayList<>();
+        personalTmdbPage = PersonalRecommendationService.RecommendationPage.empty("");
+        personalDoubanPage = PersonalRecommendationService.RecommendationPage.empty("");
+        personalAiPage = PersonalRecommendationService.RecommendationPage.empty("");
+        activeFlag = activeFlagFor(sourceVod);
+        activeFlagKey = flagKey(activeFlag, flagIndex(sourceVod == null ? null : sourceVod.getFlags(), activeFlag));
+
+        seasonEpisodeCache.clear();
+        for (Map.Entry<Integer, List<TmdbEpisode>> entry : bundle.seasonEpisodes().entrySet()) {
+            if (entry.getKey() == null || entry.getKey() < 0 || entry.getValue() == null || entry.getValue().isEmpty()) continue;
+            seasonEpisodeCache.put(seasonEpisodeKey(tmdbItem, entry.getKey()), List.copyOf(entry.getValue()));
+        }
+        seasonOptions = sourceSeasonOptions(bundle);
+        if (tmdbItem.isTv()) {
+            List<Integer> seasons = new ArrayList<>();
+            Map<Integer, Integer> counts = new LinkedHashMap<>();
+            for (SeasonOption option : seasonOptions) {
+                seasons.add(option.getSeasonNumber());
+                counts.put(option.getSeasonNumber(), option.getEpisodeCount());
+            }
+            Flag sourceFlag = activeFlagFor(sourceVod);
+            seasonResolution = TmdbSeasonResolver.resolve(
+                    requestSeasonNumber,
+                    null,
+                    explicitSourceSeasons(sourceFlag),
+                    titleSeasonNumber,
+                    seasons,
+                    counts,
+                    sourceEpisodeCount(sourceFlag),
+                    sourceEpisodeNumbers(sourceFlag),
+                    null,
+                    false);
+            if (seasonResolution.getStatus() == TmdbSeasonResolver.Status.RESOLVED
+                    && seasonResolution.getSelectedSeason() != null) {
+                sourceSeasonNumber = seasonResolution.getSelectedSeason();
+            }
+        } else {
+            sourceSeasonNumber = -1;
+            seasonResolution = null;
+            seasonOptions = List.of();
+        }
+        episodeInfo = TmdbEpisodeInfo.from(tmdbItem.getMediaType(), tmdbDetail, sourceSeasonNumber);
+        loaded = true;
+        episodeMetadataLoaded = true;
+        enrichVod(sourceVod, tmdbItem, tmdbDetail);
+        SpiderDebug.log("tmdb", "source-only loaded title=%s media=%s id=%d seasons=%d", tmdbItem.getTitle(), tmdbItem.getMediaType(), tmdbItem.getTmdbId(), seasonOptions.size());
+        notifyVodChanged(sourceVod, generation, RefreshEvent.Type.VOD_CORE);
+        notifyLoadComplete(sourceVod, generation);
+    }
+
+    private static String seasonEpisodeKey(TmdbItem item, int seasonNumber) {
+        return item.getTmdbId() + "|" + item.getMediaType() + "|" + seasonNumber;
+    }
+
+    private static List<SeasonOption> sourceSeasonOptions(TmdbBundle bundle) {
+        List<SeasonOption> fromDetail = parseSeasonOptions(bundle.detail());
+        if (!fromDetail.isEmpty()) return fromDetail;
+        List<SeasonOption> result = new ArrayList<>();
+        for (Integer seasonNumber : bundle.seasons()) {
+            if (seasonNumber == null || seasonNumber < 0 || containsSeason(result, seasonNumber)) continue;
+            result.add(new SeasonOption(seasonNumber, "", "", bundle.seasonCounts().getOrDefault(seasonNumber, 0)));
+        }
+        return List.copyOf(result);
+    }
+
+    private static boolean containsSeason(List<SeasonOption> options, int seasonNumber) {
+        for (SeasonOption option : options) if (option.getSeasonNumber() == seasonNumber) return true;
+        return false;
+    }
+
     public void rememberManualMatch(Vod vod, TmdbItem item) {
         saveTitleLearning(vod, item);
         saveManualMatch(vod, item);
@@ -756,6 +851,7 @@ public class TmdbUIAdapter {
         relatedVideoContextKey = "";
         relatedVideoGeneration++;
         loaded = false;
+        sourceOnly = false;
         episodeMetadataLoaded = false;
         pendingVodRefreshVod = null;
         pendingVodRefreshGeneration = generation;
