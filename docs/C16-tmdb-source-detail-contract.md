@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：用户已批准按阶段实施。阶段 1 协议模型和阶段 2 纯逻辑已实现并通过定向测试；阶段 3 源接入待实施。
+> 状态：用户已批准按阶段实施。阶段 1-3 已实现并通过定向测试；阶段 4 详情页接入待实施。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1 已落地 APP 协议模型与解析器，后续仍按第 16 节逐阶段提交。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1 已新增协议模型和解析器；阶段 2 已完成 adapter、capability planner、merger，并暴露修复了数组元素校验问题。
-- 下一动作：实施阶段 3，确认 T3/T4 JSON 详情与 `VodDetailCache` 往返并补 SiteApi 测试。
+- 当前进展：阶段 1 新增协议模型；阶段 2 完成 adapter/planner/merger；阶段 3 验证 T3/T4 JSON 与详情缓存往返。
+- 下一动作：实施阶段 4，先源后网重排 `loadContent`，接入零请求、缺口补齐和 generation 隔离。
 
 ## 1. 设计结论
 
@@ -582,6 +582,7 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 
 ### 阶段 2：纯逻辑
 
+- 提交：`bbd0a4de5fbbbe497cc4f5935a6c17ed46d50708`；恢复标签 `recovery/C16-stage2/20260919105729-bbd0a4de5fbb`。
 - 将原活动内私有 `TmdbBundle` 提升为 `ui.helper.TmdbBundle`，保持现有字段和详情页调用不变，供纯逻辑和后续源接入共用。
 - 新增 `TmdbSourceAdapter`：从已校验 payload 无网络构造 `TmdbItem`、详情 JSON、演职员、图片、相关推荐、季集、季演职员和季图片；绝对 HTTPS 图片保持原样，相对路径使用当前 APP 图片基址。
 - 新增 `TmdbSourceCapabilityPlanner`：按首屏、季、集和视频场景计算 required/available/missing，完整空组视为已满足，季与集严格隔离。
@@ -589,3 +590,11 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 - 修复 `TmdbSourcePayloadParser` 对数组元素递归校验时误用父数组字段类型、导致 cast/images/seasons 等数组被清空的问题；新增 adapter/planner/merger 测试覆盖。
 - 定向验证：`TmdbSourceAdapterTest`、`TmdbSourceCapabilityPlannerTest`、`TmdbSourceMergerTest` 共 10 项通过；同一 Gradle 调用完成 Leanback Arm64 Debug Java 编译，结果 `BUILD SUCCESSFUL`。
 - 未验证项：真实网络补齐请求、Activity 状态机接线、真实设备 UI 和源详情缓存往返，按阶段 3-6 继续处理。
+
+### 阶段 3：源接入
+
+- 新增 `SiteApiT3TmdbDetailTest`：使用 T3 `detailContent` 的 JSON 形状验证 `Vod.tmdb`、身份、能力组和详情读取器保留，并通过 `VodDetailCache` 内容往返后仍保留完整协议。
+- 新增 `SiteApiT4TmdbDetailTest`：使用 T4 `ac=detail` 的 JSON 形状验证电视剧季上下文、`season:1`、季数组和缓存往返，普通详情字段未被改变。
+- 本阶段确认 Gson、`Result` 列表复制和现有详情缓存无需生产代码改动；`SiteApi` 的 T3/T4 请求与分派保持不变。
+- 定向验证：两个测试类共 4 项通过，Mobile Arm64 Debug 单测任务返回 `BUILD SUCCESSFUL`。
+- 未验证项：Activity 尚未在调用 `TmdbDetailPrefetch` 前消费 payload，真实 T3/T4 网络请求和页面请求数留待阶段 4/6。
