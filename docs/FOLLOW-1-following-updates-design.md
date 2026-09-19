@@ -1702,6 +1702,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 追更列表支持“全部/有更新/未看完/已完结/检查失败”五类筛选，并按更新、未看数量、最近观看/修改、官方更新时间和创建时间排序；Leanback 首页追更按钮显示本地未读后缀，不触发网络请求。
 - 来源可播探测会校验 TMDB 映射的季号；映射属于其他季的集不会计入当前追踪季。WorkManager 唯一周期/one-shot 任务的创建和关闭取消已有设备端直接测试。
 - 同配置 `mobileArm64_v8aDebug` 体积比较：功能前 `ceac8d89af` 为 `200,780,386` bytes，当前测试包为 `204,653,512` bytes，增量 `3,873,126` bytes（约 `3.694 MiB`，`1.929%`）。该差值只代表未裁剪的 Debug 测试包，不等价于 Release/市场包体积。
+- 设备端 `FollowingBackupDeviceTest` 使用真实 `following.db` 验证完整导出、合并去重、read/notified/watched 水位取最大、本地 `nextCheckAt`/错误不被远端覆盖，以及恢复后来源表一致性。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入
