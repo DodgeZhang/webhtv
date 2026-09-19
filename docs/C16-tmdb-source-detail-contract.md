@@ -1986,3 +1986,11 @@ T3 爬虫和 T4 服务端：
 - 验证：7 个定向 JVM 测试类共 26 项通过；分配设备 `SM-N9700/Android 9 @ 192.168.50.3:5557` 上 Mobile 凭据 5/5 + 无 Key 3/3、Leanback 凭据 5/5 + 无 Key 3/3 通过；app 私有目录自动扫描和 `logcat -d` 均未发现测试 Key。
 - 提交：`b51a3795e9c88d2f370271f64513e5928d6e067f`；tag：`recovery/C16-config-root-credential/20260919211254-b51a3795e9c8`。
 - 回滚：撤销本次修订即可恢复“详情响应根字段接收”的旧实现；已暴露在日志或旧客户端中的 Key 必须轮换。
+
+#### 认证失败竞态修复（2026-09-19）
+
+- 设备复现：5557 上旧进程日志显示 `runtime policy mode=1 runtime=2 source=ABSENT_OR_INVALID tmdbReady=false`，详情页因此回退 `VideoActivity`；重启并重新加载订阅配置后，同一详情返回 `runtime=1 tmdbReady=true bundle=true`。
+- 根因：旧订阅或旧测试任务的 401/403 会无条件调用 `SubscriptionTmdbCredentialStore.clear()`，可能在新订阅配置已接收 Key 后把新凭据一起清掉。
+- 修复：`TmdbConfig` 的临时凭据快照携带 `subscriptionKey + scopeEpoch`；`TmdbService` 的 401/403 改为 `clearIfCurrent()`，只清除与失败请求相同订阅身份和 epoch 的 Key。旧任务失败不再影响新订阅。
+- 诊断日志：订阅配置接收路径新增低敏 `tmdb-credential` 日志，只记录候选是否存在、用户配置是否就绪、订阅 ID/URL 是否匹配、accept 结果和 epoch，不记录 Key 内容。
+- 测试：新增 JVM 与设备用例，构造 A→B 后由 A 的旧请求返回 401，断言 B 的 Key 保持不变；B 自身 403 仍会清除 B。

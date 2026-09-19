@@ -90,6 +90,16 @@ public final class SubscriptionTmdbCredentialStore {
         }
     }
 
+    public static boolean clearIfCurrent(String expectedSubscriptionKey, long expectedEpoch) {
+        if (expectedSubscriptionKey == null || expectedSubscriptionKey.isEmpty()) return false;
+        synchronized (LOCK) {
+            if (!hasScope || scopeEpoch != expectedEpoch || !expectedSubscriptionKey.equals(subscriptionKey(configId, configUrl))) return false;
+            scopeEpoch++;
+            clearCredential();
+            return true;
+        }
+    }
+
     public static void discardCredential() {
         synchronized (LOCK) {
             if (apiKey.isEmpty()) return;

@@ -626,7 +626,9 @@ public class TmdbService {
 
     RuntimeException httpFailure(TmdbConfig config, int statusCode, String message) {
         if (statusCode == 401 || statusCode == 403) {
-            if (config != null && config.isTransientSubscriptionCredential()) SubscriptionTmdbCredentialStore.clear();
+            if (config != null && config.isTransientSubscriptionCredential()) {
+                SubscriptionTmdbCredentialStore.clearIfCurrent(config.getCredentialSubscriptionKey(), config.getCredentialScopeEpoch());
+            }
             AUTH_FAILURE_BLOCKS.put(authCircuitKey(config), System.currentTimeMillis() + AUTH_FAILURE_COOLDOWN);
             SpiderDebug.log("tmdb", "authentication circuit opened status=%d cooldown=%dms", statusCode, AUTH_FAILURE_COOLDOWN);
             return new AuthException(statusCode, message);

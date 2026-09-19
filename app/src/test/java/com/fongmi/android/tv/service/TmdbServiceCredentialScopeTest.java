@@ -10,6 +10,7 @@ import org.junit.Test;
 import java.lang.reflect.Field;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -56,6 +57,24 @@ public class TmdbServiceCredentialScopeTest {
 
         assertTrue(user.isReady());
         assertFalse(user.isTransientSubscriptionCredential());
+    }
+
+    @Test
+    public void staleTransientCredentialFailureDoesNotClearNewSubscription() {
+        SubscriptionTmdbCredentialStore.Scope first = SubscriptionTmdbCredentialStore.beginSubscription(6, "https://source.first/config", "first");
+        assertTrue(SubscriptionTmdbCredentialStore.accept(SOURCE_KEY, 6, "https://source.first/config", first.getEpoch(), "site", "vod"));
+        TmdbConfig firstConfig = TmdbConfig.effective(TmdbConfig.objectFrom("{}"), SubscriptionTmdbCredentialStore.snapshot(first));
+
+        SubscriptionTmdbCredentialStore.Scope second = SubscriptionTmdbCredentialStore.beginSubscription(7, "https://source.second/config", "second");
+        assertTrue(SubscriptionTmdbCredentialStore.accept("fedcba9876543210fedcba9876543210", 7, "https://source.second/config", second.getEpoch(), "site", "vod"));
+        TmdbService service = new TmdbService();
+
+        service.httpFailure(firstConfig, 401, "unauthorized");
+        assertEquals("fedcba9876543210fedcba9876543210", SubscriptionTmdbCredentialStore.snapshot(second).getApiKey());
+
+        TmdbConfig secondConfig = TmdbConfig.effective(TmdbConfig.objectFrom("{}"), SubscriptionTmdbCredentialStore.snapshot(second));
+        service.httpFailure(secondConfig, 403, "forbidden");
+        assertTrue(SubscriptionTmdbCredentialStore.snapshot(second).isEmpty());
     }
 
     private static TmdbConfig transientConfig() {

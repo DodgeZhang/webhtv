@@ -35,6 +35,7 @@ import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.bean.Header;
 import com.github.catvod.bean.Proxy;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Json;
 import com.google.gson.JsonObject;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -181,15 +182,23 @@ public class VodConfig extends BaseConfig {
     }
 
     private static void acceptSubscriptionCredential(String candidateApiKey, Config config) {
-        if (candidateApiKey == null || candidateApiKey.isEmpty() || config == null) return;
-        if (TmdbConfig.objectFrom(Setting.getTmdbConfig()).isReady()) {
+        if (candidateApiKey == null || candidateApiKey.isEmpty() || config == null) {
+            SpiderDebug.log("tmdb-credential", "config-candidate skip candidate=%s config=%s", candidateApiKey != null && !candidateApiKey.isEmpty(), config != null);
+            return;
+        }
+        boolean userReady = TmdbConfig.objectFrom(Setting.getTmdbConfig()).isReady();
+        SubscriptionTmdbCredentialStore.Scope scope = SubscriptionTmdbCredentialStore.currentScope();
+        boolean urlMatch = scope.isAvailable() && scope.getConfigUrl().equals(normalizeConfigUrl(config.getUrl()));
+        SpiderDebug.log("tmdb-credential", "config-candidate present=true userReady=%s scopeAvailable=%s scopeId=%d configId=%d urlMatch=%s",
+                userReady, scope.isAvailable(), scope.getConfigId(), config.getId(), urlMatch);
+        if (userReady) {
             SubscriptionTmdbCredentialStore.discardCredential();
             return;
         }
-        SubscriptionTmdbCredentialStore.Scope scope = SubscriptionTmdbCredentialStore.currentScope();
         if (!scope.isAvailable() || scope.getConfigId() != config.getId() || !scope.getConfigUrl().equals(normalizeConfigUrl(config.getUrl()))) return;
-        SubscriptionTmdbCredentialStore.accept(candidateApiKey, scope.getConfigId(), scope.getConfigUrl(),
+        boolean accepted = SubscriptionTmdbCredentialStore.accept(candidateApiKey, scope.getConfigId(), scope.getConfigUrl(),
                 scope.getEpoch(), "subscription-config", config.getUrl());
+        SpiderDebug.log("tmdb-credential", "config-candidate accept=%s epoch=%d", accepted, scope.getEpoch());
     }
 
     private static String normalizeConfigUrl(String value) {

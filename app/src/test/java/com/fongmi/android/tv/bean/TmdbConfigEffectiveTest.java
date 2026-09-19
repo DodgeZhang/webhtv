@@ -48,6 +48,8 @@ public class TmdbConfigEffectiveTest {
         assertEquals("en-US", effective.getLanguage());
         assertEquals("https://images.example.com/t/p/w342", effective.getImageBase());
         assertTrue(effective.isTransientSubscriptionCredential());
+        assertEquals(scope.getEpoch(), effective.getCredentialScopeEpoch());
+        assertFalse(effective.getCredentialSubscriptionKey().isEmpty());
         assertFalse(effective.toJson().contains(SOURCE_KEY));
     }
 

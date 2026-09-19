@@ -65,6 +65,8 @@ public class TmdbConfig {
     @SerializedName(value = "allowedSites", alternate = {"includeSites", "whitelistSites"})
     private List<String> allowedSites;
     private transient String credentialOrigin = ORIGIN_USER;
+    private transient String credentialSubscriptionKey = "";
+    private transient long credentialScopeEpoch;
 
     public static TmdbConfig objectFrom(String json) {
         try {
@@ -95,6 +97,8 @@ public class TmdbConfig {
             effective.apiKeyCompat = effective.apiKey;
             effective.accessToken = "";
             effective.credentialOrigin = ORIGIN_TRANSIENT_SUBSCRIPTION;
+            effective.credentialSubscriptionKey = snapshot.getSubscriptionKey();
+            effective.credentialScopeEpoch = snapshot.getScopeEpoch();
             return effective;
         }
         effective.credentialOrigin = ORIGIN_USER;
@@ -206,6 +210,14 @@ public class TmdbConfig {
         return credentialOrigin;
     }
 
+    public String getCredentialSubscriptionKey() {
+        return credentialSubscriptionKey == null ? "" : credentialSubscriptionKey;
+    }
+
+    public long getCredentialScopeEpoch() {
+        return credentialScopeEpoch;
+    }
+
     public static boolean isOfficialApiBase(String value) {
         if (TextUtils.isEmpty(value)) return false;
         try {
@@ -262,6 +274,8 @@ public class TmdbConfig {
         copy.disabledSites = copyList(disabledSites);
         copy.allowedSites = copyList(allowedSites);
         copy.credentialOrigin = credentialOrigin;
+        copy.credentialSubscriptionKey = credentialSubscriptionKey;
+        copy.credentialScopeEpoch = credentialScopeEpoch;
         return copy;
     }
 
