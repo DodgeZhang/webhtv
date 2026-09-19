@@ -1,6 +1,6 @@
 # C16：T3/T4 详情内嵌 TMDB 元数据设计
 
-> 状态：用户已批准按阶段实施。阶段 1-5 已实现并通过定向测试；阶段 6 设备验收待执行。
+> 状态：用户已批准按阶段实施。阶段 1-6 已完成；客户端需求已实现并通过模拟器验收，T4 服务端仍需在其独立仓库按本文合同实施。
 
 ## Recovery anchor
 
@@ -9,8 +9,8 @@
 - 范围：实现合同；阶段 1 已落地 APP 协议模型与解析器，后续仍按第 16 节逐阶段提交。
 - 回滚：删除本文档并撤销总评估索引中的 C16 条目即可。
 - 追加结论：alist-tvbox 适合作为 T4 的元数据持久化和图片访问参考，但当前 `/vod` 输出仍是平铺 `vod_*` 字段；atv-player 适合作为 APP 的字段级合并、季级身份、缓存和异步取消参考，不能直接作为 Android 协议实现。
-- 当前进展：阶段 1-4 已完成协议、纯逻辑、源缓存和 source-first 详情接入；阶段 5 已接入季、集和视频的完整组短路。
-- 下一动作：执行阶段 6 设备验收；移动端和电视端分别覆盖完整 T3、部分 T4、无扩展旧源，并记录请求数与页面结果。
+- 当前进展：阶段 1-5 已完成客户端协议、纯逻辑、源缓存、source-first 详情接入和延迟能力；阶段 6 已在 `HD1910/Android 9` 模拟器完成 Mobile 与 Leanback 验收。
+- 下一动作：如需实际接入，选择目标 T4 服务端仓库并按其现有持久化模型独立实现 C16 生产者合同；本仓库客户端侧无剩余实现项。
 
 ## 1. 设计结论
 
@@ -623,3 +623,17 @@ T4 的服务端测试必须验证旧客户端仍可读取 `vod_*`，新客户端
 - 推荐和相似内容继续使用阶段 2 的内嵌首批 `related`；加载更多和个性化推荐仍走现有分页/服务流程。
 - 定向验证：`TmdbSourceAdapterTest` 新增三 scope 视频解析；`TmdbDetailSourcePayloadTest` 新增季、集、视频短路断言；连同 generation、缓存键、布局和 UI 接线测试共 203 项通过；Leanback Arm64 Debug Java 编译通过。
 - 未验证项：真实设备上选择缺失季、长按缺失集、打开视频区的请求数与 UI 结果，留待阶段 6。
+
+### 阶段 6：设备验收
+
+- 测试入口：新增 `app/src/androidTest/java/com/fongmi/android/tv/ui/activity/C16TmdbSourceDetailDeviceTest.java`。测试通过 `ActivityScenario` 启动未导出的 `TmdbDetailActivity`，等待真实 View 文本后断言字段渲染；夹具使用 `adb reverse` 暴露本机 T4/T3 源。
+- 设备：`192.168.50.3:5561`，`HD1910`，Android 9，`x86_64 + arm64` 兼容层，1920×1080/280 dpi。所有数据改动在测试前备份，验收后已恢复 `com.silent.android.webhtv_preferences.xml` 和 `databases/tv`；测试 APK 已卸载，reverse 已移除。
+- Mobile APK：SHA-256 `17e0ec2c403a9185134cbc609fb80867a65a54094b5ccc1f6166ba2c79256dbe`。Leanback APK：SHA-256 `563a222b1773ad8df7beeddb765d49cf6e6e39701a2fbe1622c63785ce873887`。AndroidTest APK：SHA-256 `4a659334f8c617b45e5bcb53c5867a52b5c7250c74b15684864e266a86367ed8`。
+- Mobile 结果：完整 T4、部分 T4、无扩展旧源、完整 T3 各 1 项仪器测试通过。
+- Leanback 结果：完整 T4、部分 T4、无扩展旧源、完整 T3 各 1 项仪器测试通过；另通过完整 TV 季集场景 1 项。
+- 完整 T4 请求证据：夹具仅收到 `/config.json` 与 `/t4_complete?ac=detail&ids=c16-t4-complete-1`；日志为 `source payload plan required=[core, credits, images] missing=[]`，没有 TMDB detail/search 请求。UI 显示 `C16 Complete T4`、`Embedded complete overview`、`Embedded Actor`。
+- 完整 T3 请求证据：夹具仅收到 `/config.json` 与 `/t3_complete.js`；Mobile 和 Leanback 均为 `required=[core, credits, images] missing=[]`，没有 TMDB detail/search 请求。JS Spider 返回普通 `detailContent` JSON，证明 T3 JSON 字段无需 ABI 改动即可透传。
+- 部分 T4 请求证据：夹具收到 `/t4_partial?ac=detail&ids=c16-t4-partial-1`；Mobile 日志为 `missing=[credits, images]`，Leanback 同组，随后只出现按 TMDB ID 的 `requestJson type=detail`，没有标题搜索。UI 保留 `C16 Partial T4` 和 `Source partial overview must win`。
+- 旧源证据：夹具收到 `/legacy?ac=detail&ids=c16-legacy-1`；Mobile/Leanback 继续走原有 `load tasks ... singlePass=true`、`tmdb wait` 与单次首屏绑定，UI 显示普通标题、`line-a` 线路和 `正片` 选集，无崩溃。
+- 季集证据：Leanback 完整 TV 夹具仅收到 `/t4_tv_complete?ac=detail&ids=c16-t4-tv-1`；`season:1`、`episode:1:1` 与视频组均已内嵌，UI 显示 `Embedded Episode 1`，日志没有 `season`、`episode` 或 TMDB detail/search 请求。
+- 切源/退出隔离：设备场景不制造真实竞态；阶段 4 的 `TmdbDetailGenerationTest` 已验证迟到的 source-fill 结果在 generation、当前 Vod 或 TMDB identity 变化后不会更新页面。真实弱网快速切源仍需发布前抽样关注，但不阻塞本期合同完成。
