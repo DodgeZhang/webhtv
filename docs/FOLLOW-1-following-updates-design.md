@@ -1701,6 +1701,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - TMDB 主 provider 失败但绑定来源探测成功时，保留上一次官方快照，仅更新来源可播状态，并把本轮视为成功；不会因 TMDB 暂时不可用而丢弃可用来源结果。关闭 `following_enabled` 后 Leanback 首页不显示追更按钮。
 - 追更列表支持“全部/有更新/未看完/已完结/检查失败”五类筛选，并按更新、未看数量、最近观看/修改、官方更新时间和创建时间排序；Leanback 首页追更按钮显示本地未读后缀，不触发网络请求。
 - 来源可播探测会校验 TMDB 映射的季号；映射属于其他季的集不会计入当前追踪季。WorkManager 唯一周期/one-shot 任务的创建和关闭取消已有设备端直接测试。
+- 同配置 `mobileArm64_v8aDebug` 体积比较：功能前 `ceac8d89af` 为 `200,780,386` bytes，当前测试包为 `204,653,512` bytes，增量 `3,873,126` bytes（约 `3.694 MiB`，`1.929%`）。该差值只代表未裁剪的 Debug 测试包，不等价于 Release/市场包体积。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入
@@ -1716,6 +1717,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 本轮只具备手机 arm64 模拟器与双端编译证据；TV 真机、Doze/弱网、双设备同步和通知拒绝授权后的完整人工矩阵仍需后续执行。
 - JavaScript serverless relay 已通过 `node --check`；当前工作环境没有 Go/Rust 工具链，因此这两个 relay 只完成了源码级 `follow` 兼容检查和仓库单测，未执行各自编译。
 - 分配的 `5561` 设备是 API 28，因此设计完成定义第 6 条要求的 API 33+ 通知权限实测尚不能成立；不能把 API 28 上的权限代码路径冒充 API 33 验收。
+- 按用户明确要求，资源有限时只构建 Debug 测试包和 androidTest 包，不构建正式 Release 包；因此 Release 体积和签名产物验收未执行，不能以 Debug 结果替代。
 
 ### 25.5 提交与回滚记录
 
@@ -1729,6 +1731,9 @@ dc2e3d4096b85d359c3cf79c5d72b5a3cccba3d6  test(following): verify activity rende
 89a517ce0e79916f82bb57e5cb362befbaf090ee  fix(following): avoid first fetch notification
 189e622522aa7eabe06a525b9c2c53b7619791c7  fix(following): harden source probe fallback
 1496d617d74124fb258646f62b14541f9d6b948b  test(following): update leanback home button catalog
+fb6b5042f42bba4b8c45418cfbcde7a2ec8c1c29  fix(following): preserve source fallback and gate leanback entry
+b85a58209f51b553be1b68c4d1d5f0d772936882  feat(following): complete list filters and leanback badge
+8994c01086c917d05ec7959e813cc1afa8d8000a  fix(following): enforce season bounds and verify scheduler
 ```
 
 每个原子提交均由 `task_guard.sh` 创建独立 `recovery/FOLLOW-1-*` annotated tag；完整标签可在仓库中用 `git tag -l 'recovery/FOLLOW-1*'` 查询。回滚时可以回退到对应提交，也可以仅关闭 `following_enabled`；独立 `following.db` 不需要随 APK 降级删除。
