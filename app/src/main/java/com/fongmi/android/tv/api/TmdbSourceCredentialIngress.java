@@ -8,7 +8,7 @@ import com.google.gson.stream.JsonReader;
 
 import java.io.StringReader;
 
-/** Removes the optional subscription-level TMDB key before any detail logging or parsing. */
+/** Removes the optional subscription-level TMDB key before config/detail logging or parsing. */
 public final class TmdbSourceCredentialIngress {
 
     public static final String ROOT_FIELD = "tmdb_api_key";

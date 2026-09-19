@@ -2,6 +2,7 @@ package com.fongmi.android.tv.api;
 
 import com.fongmi.android.tv.bean.Result;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
 import org.junit.Test;
 
@@ -34,6 +35,18 @@ public class TmdbSourceCredentialIngressTest {
 
         assertEquals("", ingress.getCandidateKey());
         assertEquals(raw, ingress.getSanitizedJson());
+    }
+
+    @Test
+    public void extractsSubscriptionConfigRootKeyAndPreservesSites() {
+        String raw = "{\"tmdb_api_key\":\"" + KEY + "\",\"sites\":[{\"key\":\"demo\",\"api\":\"https://source.example/api\"}]}";
+
+        TmdbSourceCredentialIngress.Ingress ingress = TmdbSourceCredentialIngress.extractRootAndStrip(raw);
+        JsonObject sanitized = GSON.fromJson(ingress.getSanitizedJson(), JsonObject.class);
+
+        assertEquals(KEY, ingress.getCandidateKey());
+        assertFalse(sanitized.has(TmdbSourceCredentialIngress.ROOT_FIELD));
+        assertEquals("demo", sanitized.getAsJsonArray("sites").get(0).getAsJsonObject().get("key").getAsString());
     }
 
     @Test

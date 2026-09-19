@@ -9,6 +9,7 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.CatSource;
 import com.fongmi.android.tv.api.CspWarmup;
 import com.fongmi.android.tv.api.Decoder;
+import com.fongmi.android.tv.api.TmdbSourceCredentialIngress;
 import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.bean.Depot;
@@ -17,6 +18,7 @@ import com.fongmi.android.tv.bean.HlsAdRule;
 import com.fongmi.android.tv.bean.Parse;
 import com.fongmi.android.tv.bean.Rule;
 import com.fongmi.android.tv.bean.Site;
+import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
@@ -172,8 +174,28 @@ public class VodConfig extends BaseConfig {
         // 猫源填的是 bundle 地址（.js.md5），要先在本机把 Node 服务跑起来，再读它的 /config
         String url = CatSource.isBundle(config.getUrl()) ? CatSource.serve(config.getUrl()) : UrlUtil.convert(config.getUrl());
         String json = Decoder.getJson(url, TAG);
-        checkJson(config, CatSource.normalize(url, Json.parse(json)));
+        TmdbSourceCredentialIngress.Ingress ingress = TmdbSourceCredentialIngress.extractRootAndStrip(json);
+        checkJson(config, CatSource.normalize(url, Json.parse(ingress.getSanitizedJson())));
         if (!isLoaded()) throw new Exception("VOD sites is empty");
+        acceptSubscriptionCredential(ingress.getCandidateKey(), getConfig());
+    }
+
+    private static void acceptSubscriptionCredential(String candidateApiKey, Config config) {
+        if (candidateApiKey == null || candidateApiKey.isEmpty() || config == null) return;
+        if (TmdbConfig.objectFrom(Setting.getTmdbConfig()).isReady()) {
+            SubscriptionTmdbCredentialStore.discardCredential();
+            return;
+        }
+        SubscriptionTmdbCredentialStore.Scope scope = SubscriptionTmdbCredentialStore.currentScope();
+        if (!scope.isAvailable() || scope.getConfigId() != config.getId() || !scope.getConfigUrl().equals(normalizeConfigUrl(config.getUrl()))) return;
+        SubscriptionTmdbCredentialStore.accept(candidateApiKey, scope.getConfigId(), scope.getConfigUrl(),
+                scope.getEpoch(), "subscription-config", config.getUrl());
+    }
+
+    private static String normalizeConfigUrl(String value) {
+        String normalized = value == null ? "" : value.trim();
+        while (normalized.endsWith("/")) normalized = normalized.substring(0, normalized.length() - 1);
+        return normalized;
     }
 
     @Override

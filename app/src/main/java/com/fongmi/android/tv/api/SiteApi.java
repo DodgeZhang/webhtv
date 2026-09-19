@@ -7,17 +7,14 @@ import androidx.collection.ArrayMap;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.api.config.SubscriptionTmdbCredentialStore;
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.bean.Class;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Site;
-import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.event.CatWebEvent;
 import com.fongmi.android.tv.player.Source;
 import com.fongmi.android.tv.setting.PlayerSetting;
-import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.setting.SiteHealthStore;
 import com.fongmi.android.tv.utils.PushParser;
 import com.fongmi.android.tv.utils.ResUtil;
@@ -170,15 +167,12 @@ public class SiteApi {
         }
 
         Result result;
-        String candidateApiKey = "";
-        SubscriptionTmdbCredentialStore.Scope credentialScope = SubscriptionTmdbCredentialStore.currentScope();
         // 取一次时刻，隔着 spider 调用；调用后若最近一次开页请求落在这之后，就是这次调用开的页。
         // 那是个副作用，缓存会吞掉它，见 cacheDetail 的说明。
         long beforeSpider = System.currentTimeMillis();
         if (isSpider(site)) {
             String detailContent = site.recent().spider().detailContent(Arrays.asList(requestId));
             TmdbSourceCredentialIngress.Ingress ingress = TmdbSourceCredentialIngress.extractRootAndStrip(detailContent);
-            candidateApiKey = ingress.getCandidateKey();
             SpiderDebug.log("detail", ingress.getSanitizedJson());
             result = Result.fromJson(ingress.getSanitizedJson());
         } else {
@@ -187,26 +181,15 @@ public class SiteApi {
             params.put("ids", requestId);
             String detailContent = call(site, params);
             TmdbSourceCredentialIngress.Ingress ingress = TmdbSourceCredentialIngress.extractRootAndStrip(detailContent);
-            candidateApiKey = ingress.getCandidateKey();
             SpiderDebug.log("detail", ingress.getSanitizedJson());
             result = Result.fromType(site.getType(), ingress.getSanitizedJson());
         }
-        acceptSubscriptionCredential(candidateApiKey, credentialScope, key, requestId, result);
         Source.get().parse(result.getVod().setFlags());
         result = applyPushTitle(push, result);
         cacheDetail(key, sourceKey, id, result, beforeSpider);
         return result;
     }
 
-    private static void acceptSubscriptionCredential(String candidateApiKey, SubscriptionTmdbCredentialStore.Scope scope,
-                                                     String sourceKey, String sourceRevision, Result result) {
-        if (candidateApiKey == null || candidateApiKey.isEmpty() || result == null || result.getList().isEmpty() || scope == null || !scope.isAvailable()) return;
-        if (TmdbConfig.objectFrom(Setting.getTmdbConfig()).isReady()) {
-            SubscriptionTmdbCredentialStore.clear();
-            return;
-        }
-        SubscriptionTmdbCredentialStore.accept(candidateApiKey, scope.getConfigId(), scope.getConfigUrl(), scope.getEpoch(), sourceKey, sourceRevision);
-    }
 
     /**
      * 把详情结果写进缓存，除非这条不该缓存。

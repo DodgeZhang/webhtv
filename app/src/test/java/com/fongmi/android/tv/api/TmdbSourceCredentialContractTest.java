@@ -26,7 +26,7 @@ public class TmdbSourceCredentialContractTest {
             """;
 
     @Test
-    public void type3AndType4UseTheSameSanitizedCredentialContract() {
+    public void legacyDetailRootCredentialIsStrippedForType3AndType4() {
         Result t3 = parse("{\"tmdb_api_key\":\"" + KEY + "\",\"list\":[{\"vod_id\":\"t3\",\"vod_name\":\"T3\"," + TMDB + "}]}");
         Result t4 = parse("{\"code\":0,\"msg\":\"ok\",\"tmdb_api_key\":\"" + KEY + "\",\"list\":[{\"vod_id\":\"t4\",\"vod_name\":\"T4\"," + TMDB + "}]}");
 
@@ -61,6 +61,7 @@ public class TmdbSourceCredentialContractTest {
 
     private static Result parse(String raw) {
         TmdbSourceCredentialIngress.Ingress ingress = TmdbSourceCredentialIngress.extractRootAndStrip(raw);
+        // The ingress API still reports a candidate so callers can sanitize it. SiteApi must not accept this candidate.
         assertEquals(KEY, ingress.getCandidateKey());
         assertFalse(ingress.getSanitizedJson().contains(KEY));
         Result result = GSON.fromJson(ingress.getSanitizedJson(), Result.class);

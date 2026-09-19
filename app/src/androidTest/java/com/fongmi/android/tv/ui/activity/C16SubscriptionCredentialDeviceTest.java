@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.ui.activity;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -41,6 +42,7 @@ public class C16SubscriptionCredentialDeviceTest {
 
     private static final String FIXTURE_URL = "http://127.0.0.1:18081/config.json";
     private static final String NO_KEY_URL = "http://127.0.0.1:18081/no-key-config.json";
+    private static final String INVALID_KEY_URL = "http://127.0.0.1:18081/invalid-key-config.json";
     private String previousTmdbConfig;
     private int previousDetailMode;
     private String previousConfigUrl;
@@ -61,6 +63,8 @@ public class C16SubscriptionCredentialDeviceTest {
         SubscriptionTmdbCredentialStore.clear();
         reload(Config.find(FIXTURE_URL, 0).url(FIXTURE_URL).name("C16 subscription credential fixture"), true);
         assertFalse("fixture site did not load", VodConfig.get().getSite("c16_subscription_complete").isEmpty());
+        assertTrue("subscription config root key was not accepted",
+                SubscriptionTmdbCredentialStore.snapshot(SubscriptionTmdbCredentialStore.currentScope()).isPresent());
     }
 
     @After
@@ -77,23 +81,23 @@ public class C16SubscriptionCredentialDeviceTest {
     }
 
     @Test
-    public void completeSourceWithRootKeyAcceptsCredentialAndRendersSourceData() throws Exception {
+    public void subscriptionConfigRootKeyIsAcceptedAndRendersSourceData() throws Exception {
         Result direct = SiteApi.detailContent("c16_subscription_complete", "c16-subscription-complete-1", true);
         assertFalse(direct.getList().isEmpty());
-        assertTrue("valid root key was not accepted",
+        assertTrue("subscription config root key was not accepted",
                 SubscriptionTmdbCredentialStore.snapshot(SubscriptionTmdbCredentialStore.currentScope()).isPresent());
         assertDetailTextEventually("c16_subscription_complete", "C16 Subscription Complete",
                 List.of("Embedded subscription complete", "Subscription Complete Actor"));
     }
 
     @Test
-    public void partialSourceUsesRootKeyAndFallsBackWithoutBreakingSourceUi() {
+    public void partialSourceUsesSubscriptionConfigRootKeyAndFallsBackWithoutBreakingUi() {
         assertDetailTextEventually("c16_subscription_partial", "C16 Subscription Partial",
                 List.of("Source partial overview", "C16 Subscription Partial"));
     }
 
     @Test
-    public void sameSubscriptionReusesKeyAndSwitchBackDoesNotRestoreIt() throws Exception {
+    public void sameSubscriptionReusesKeyAndSwitchBackReacquiresFromConfig() throws Exception {
         Result first = SiteApi.detailContent("c16_subscription_complete", "c16-subscription-complete-1", true);
         assertFalse(first.getList().isEmpty());
         SubscriptionTmdbCredentialStore.Scope firstScope = SubscriptionTmdbCredentialStore.currentScope();
@@ -107,14 +111,17 @@ public class C16SubscriptionCredentialDeviceTest {
         assertTrue(SubscriptionTmdbCredentialStore.snapshot(SubscriptionTmdbCredentialStore.currentScope()).isEmpty());
 
         reload(Config.find(FIXTURE_URL, 0).url(FIXTURE_URL).name("C16 subscription credential fixture"), true);
-        assertTrue("switching back unexpectedly restored the old key",
-                SubscriptionTmdbCredentialStore.snapshot(SubscriptionTmdbCredentialStore.currentScope()).isEmpty());
+        SubscriptionTmdbCredentialStore.Scope returned = SubscriptionTmdbCredentialStore.currentScope();
+        assertNotEquals(firstScope.getEpoch(), returned.getEpoch());
+        assertTrue("switching back did not reacquire the key from the new config response",
+                SubscriptionTmdbCredentialStore.snapshot(returned).isPresent());
     }
 
     @Test
-    public void userConfiguredCredentialWinsAndRootKeyIsNotStored() throws Exception {
+    public void userConfiguredCredentialWinsAndSubscriptionRootKeyIsNotStored() throws Exception {
         Setting.putTmdbConfig("{\"apiKey\":\"user-key-0123456789abcdef\"}");
         SubscriptionTmdbCredentialStore.clear();
+        reload(Config.find(FIXTURE_URL, 0).url(FIXTURE_URL).name("C16 subscription credential fixture"), true);
 
         Result result = SiteApi.detailContent("c16_subscription_complete", "c16-subscription-complete-1", true);
 
@@ -124,11 +131,7 @@ public class C16SubscriptionCredentialDeviceTest {
 
     @Test
     public void invalidRootKeyDoesNotPopulateSubscriptionScope() throws Exception {
-        SubscriptionTmdbCredentialStore.clear();
-
-        Result result = SiteApi.detailContent("c16_subscription_invalid", "c16-subscription-invalid-1", true);
-
-        assertFalse(result.getList().isEmpty());
+        reload(Config.find(INVALID_KEY_URL, 0).url(INVALID_KEY_URL).name("C16 invalid key fixture"), true);
         assertTrue(SubscriptionTmdbCredentialStore.snapshot(SubscriptionTmdbCredentialStore.currentScope()).isEmpty());
     }
 
