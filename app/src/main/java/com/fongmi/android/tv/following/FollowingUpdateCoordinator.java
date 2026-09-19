@@ -41,39 +41,42 @@ public class FollowingUpdateCoordinator {
             FollowingSource source = FollowingStore.preferredSource(item.identityKey);
             FollowingMetadataSnapshot metadata = null;
             boolean metadataChanged = false;
+            boolean sourceAlreadyProbed = false;
+            Throwable metadataError = null;
             if (item.tmdbId > 0) {
                 try {
                     metadata = metadataClient.fetch(item, manual);
                 } catch (Throwable error) {
-                    probeBestEffort(item, source, manual, true);
-                    FollowingUpdatePolicy.markFailure(item, error, now);
-                    FollowingStore.update(item);
-                    FollowingScheduler.scheduleNext(App.get(), item);
-                    return false;
+                    // TMDB is the preferred official provider, but an unavailable/rate-limited
+                    // provider must not make the whole record fail when the bound source is
+                    // still usable. Preserve the last official snapshot and probe the source.
+                    metadataError = error;
                 }
             }
             if (metadata != null) {
                 metadataChanged = FollowingUpdatePolicy.applyMetadata(item, metadata, now);
             } else {
                 FollowingSourceSnapshot sourceSnapshot = probeBestEffort(item, source, manual, false);
+                sourceAlreadyProbed = sourceSnapshot != null;
                 if (sourceSnapshot == null || sourceSnapshot.source == null) {
-                    FollowingUpdatePolicy.markFailure(item, new IllegalStateException("来源检查失败"), now);
+                    Throwable failure = metadataError != null
+                            ? metadataError : new IllegalStateException("来源检查失败");
+                    FollowingUpdatePolicy.markFailure(item, failure, now);
                     FollowingStore.update(item);
                     FollowingScheduler.scheduleNext(App.get(), item);
                     return false;
                 }
                 source = sourceSnapshot.source;
-                FollowingUpdatePolicy.applyMetadata(item, FollowingSourceProbe.metadata(item, source, now), now);
             }
             FollowingStore.reconcile(item);
             FollowingUpdatePolicy.refreshDerived(item, now);
-            if (FollowingSettings.shouldProbe(manual, metadataChanged, source)) {
+            if (!sourceAlreadyProbed && FollowingSettings.shouldProbe(manual, metadataChanged, source)) {
                 FollowingSourceSnapshot probed = probeBestEffort(item, source, manual, false);
                 if (probed != null) source = probed.source;
             }
             item.lastCheckedAt = now;
             item.failureCount = 0;
-            item.lastError = "";
+            item.lastError = metadataError == null ? "" : "TMDB不可用，已回退原站";
             item.nextCheckAt = FollowingSchedulePolicy.nextCheckAt(now, item.officialStatus, item.nextAirAt);
             item.updatedAt = now;
             FollowingStore.update(item);
