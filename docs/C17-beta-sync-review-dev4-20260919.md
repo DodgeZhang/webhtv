@@ -1,6 +1,6 @@
 # C17：dev4 合并 beta 最新代码与合并后复评
 
-> 状态：合并、两轮复评与验证已通过，待提交、推送和创建到 `beta` 的 PR。
+> 状态：已完成。合并、两轮复评与验证通过，提交与恢复标签已创建，`dev4` 已推送，PR #317 已创建并可合并，远端最新状态已拉取。
 
 ## Recovery anchor
 
@@ -9,7 +9,7 @@
 - 合并基线：共同祖先 `32a52698e5dab09fe18e49d18849a947057ca717`；目标 beta 头 `da00b7a1f20815fd49921d415c315c21fd6d8bb1`。
 - 范围：`app/**`、`docs/**`；不修改依赖、锁、二进制、爬虫 ABI 或公开接口，除非复评证明合并必须处理且仍在授权范围内。
 - 回滚：最终合并提交以 `dev4` 当前头为第一父；如需回滚，使用 `git revert -m 1 <merge-commit>`。既有 C16 提交及恢复标签保持不动。
-- 下一动作：创建本次合并提交和恢复标签，随后推送 `dev4` 并创建到 `beta` 的 PR。
+- 下一动作：无；等待 PR #317 的正常评审与合并。
 
 ## 合并提交账本
 
@@ -37,3 +37,6 @@
 - 第一轮定向测试：`bash ./gradlew --console=plain :app:testMobileArm64_v8aDebugUnitTest` 配合 14 组过滤规则返回 `BUILD SUCCESSFUL in 34s`；覆盖 C16 解析/适配/合并/缓存/详情接线、TMDB UI、广告统计布局、预加载策略和播放器取址约束。
 - 第二轮复评：最终树无冲突标记、无未合并路径、无越界或二进制变更；`git diff --check` 与 `git diff --cached --check` 均通过；6 个 beta 提交及其两个合并父关系保持完整，10 个 C16 非合并提交仍在最终树中。
 - 复评结论：未发现需要修改的正确性、兼容性、性能、生命周期、资源或回滚问题；无需追加代码修复。
+- 收口结果：合并提交 `5acd3f084155e7016b3798528eb8343f2f076177`；恢复标签 `recovery/C17-beta-sync-review-dev4-20260919/20260919122049-5acd3f084155`；`origin/dev4` 已更新到该提交。
+- PR：<https://github.com/Silent1566/webhtv/pull/317>，目标分支 `beta`，创建时为非草稿、`MERGEABLE`、状态 `OPEN`。
+- 远端同步：在推送后执行 `git pull --ff-only`，结果为 `Already up to date.`，当前 `dev4` 与 `origin/dev4` 一致。
