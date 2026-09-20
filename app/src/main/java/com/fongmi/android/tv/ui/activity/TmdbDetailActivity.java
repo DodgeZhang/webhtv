@@ -68,6 +68,7 @@ import com.fongmi.android.tv.api.SiteApi;
 import com.fongmi.android.tv.api.config.AdBlockStatsStore;
 import com.fongmi.android.tv.api.config.UserAdRuleStore;
 import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.config.SubscriptionTmdbCredentialStore;
 import com.fongmi.android.tv.bean.AdDetectionRequest;
 import com.fongmi.android.tv.bean.AdDetectionResult;
 import com.fongmi.android.tv.bean.AiConfig;
@@ -108,6 +109,7 @@ import com.fongmi.android.tv.following.FollowingSettings;
 import com.fongmi.android.tv.following.FollowingSource;
 import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.following.FollowingUpdatePolicy;
+import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.setting.DetailRuntimeModePolicy;
 import com.fongmi.android.tv.setting.TmdbSourceState;
 import com.fongmi.android.tv.ui.detail.DetailModeHost;
@@ -445,6 +447,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private int statusBarInsetTop;
     private int detailThemeMode;
     private int loadGeneration;
+    private SubscriptionTmdbCredentialStore.Scope tmdbCredentialScope;
     /** 本次取详情的起始时刻，用来认出「猫源开内嵌页」是不是自己这次导航触发的。volatile：加载在后台线程发起，事件在主线程读。 */
     private volatile long detailLoadStart;
     private int inlinePlaybackGeneration;
@@ -699,7 +702,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         inflateMobileInlineControl();
         initModeController();
         super.initView(savedInstanceState);
-        tmdbConfig = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+        tmdbConfig = TmdbConfig.effectiveCurrent();
+        tmdbCredentialScope = SubscriptionTmdbCredentialStore.currentScope();
         initialTmdbItem = getIntentTmdbItem();
         detailThemeMode = Setting.getTmdbDetailTheme();
         applyDetailEdgeToEdge();
@@ -723,7 +727,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void resetDetailState() {
         cancelAiSeasonAnalysis(false);
         closeInlineSearch();
-        tmdbConfig = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+        tmdbConfig = TmdbConfig.effectiveCurrent();
+        tmdbCredentialScope = SubscriptionTmdbCredentialStore.currentScope();
         initialTmdbItem = getIntentTmdbItem();
         vod = null;
         matchedTmdbItem = null;
@@ -2345,6 +2350,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void loadContent(@Nullable TmdbBundle reusableBundle) {
         int generation = ++loadGeneration;
+        tmdbCredentialScope = SubscriptionTmdbCredentialStore.currentScope();
         detailTasks.cancelAll();
         int mode = getDetailMode();
         String key = getKeyText();
@@ -2379,9 +2385,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             }
             SpiderDebug.log("tmdb-detail-flow", "source detail cost=%dms mode=%d key=%s id=%s hit=%s error=%s", System.currentTimeMillis() - sourceStart, mode, key, id, loadedVod != null, TextUtils.isEmpty(error) ? "" : error);
 
-            if (generation != loadGeneration || Thread.currentThread().isInterrupted()) {
+            if (generation != loadGeneration || Thread.currentThread().isInterrupted()
+                    || !SubscriptionTmdbCredentialStore.isCurrent(tmdbCredentialScope)) {
                 return;
             }
+            tmdbConfig = TmdbConfig.effectiveCurrent();
+            tmdbCredentialScope = SubscriptionTmdbCredentialStore.currentScope();
             Vod finalVod = loadedVod;
             String finalError = error;
 
@@ -10852,6 +10861,14 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         } else if (event.getType() == RefreshEvent.Type.SUBTITLE) {
             player().setSub(Sub.from(event.getPath()));
         }
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onConfigEvent(ConfigEvent event) {
+        if (!event.isVod() || isFinishing() || isDestroyed()) return;
+        tmdbConfig = TmdbConfig.effectiveCurrent();
+        tmdbCredentialScope = SubscriptionTmdbCredentialStore.currentScope();
+        loadContent(null);
     }
 
     @Override

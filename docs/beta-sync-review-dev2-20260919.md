@@ -87,11 +87,38 @@
   - 结果：`LiveSourceFallbackInstrumentedTest` 2/2 通过，`OK (2 tests)`。
 - 设备测试执行期间没有使用未指定设备的 connected Gradle 任务；`5559` 未作为本轮最终设备验证证据。
 
-## 当前状态与后续动作
+## 上一轮状态与后续动作（历史）
 
 - 当前状态：代码第二轮复评通过，合并结果待原子提交。
 - 提交后：推送当前 `dev2` 分支，创建 base `beta` / head `dev2` 的中文 PR，PR 描述列出直播源 fallback、设置项、两端实现、测试和兼容性说明。
 - PR 创建后：执行 `git fetch --prune origin beta`，核对最新 beta、当前分支、PR 状态和工作区。
+
+## 2026-09-19 第三轮：beta `552b68bb8e` 合并与 C16 复评
+
+### 基线与范围
+
+- 合并前本地 HEAD：`009f4e68d495174b5d5a37b6e4664282bcd70e35`，包含 15 个相对 `origin/dev2` 尚未推送的提交。
+- 本轮 `origin/beta`：`552b68bb8e781d06ca989abfd8caa96a567e494a`，相对本地上次评估基线新增长按卡片绑定剧集修复和播放会话单确认框修复。
+- 使用 `git merge --no-commit --no-ff origin/beta` 合并，自动合并成功；当前待提交树包含 beta 8 个文件及本地 C16 硬化修复。
+
+### 复评发现与修复
+
+- 订阅配置加载改为把原始 `Config` 传入凭据接收校验，避免旧加载任务在订阅切换后用 `getConfig()` 把旧 Key 误绑定到新订阅。
+- 同一订阅内替换 Key 时推进凭据 epoch，旧请求的 401/403 不再清掉刚轮换的新 Key；`TmdbService` 在请求入口拒绝已经失效的临时凭据快照。
+- 畸形 JSON 的 ingress 不再原样回传含 `tmdb_api_key` 的文本，防止结构化解析失败时泄漏到日志或缓存。
+- `TmdbUIAdapter.invalidateSubscription()` 和 Leanback 缓存详情入口先刷新有效配置，再捕获新订阅作用域，避免后续推荐/详情请求继续使用旧凭据。
+- 重评 beta 的 `IntroSkipPlayback` 会话租约、长按卡片绑定剧集传递和原 API 兼容委托，未发现新的阻断问题。
+
+### 第三轮验证
+
+- `git diff --check` 与 `git diff --cached --check`：通过。
+- Mobile Arm64 Debug 定向 JVM 测试：17 个测试类共 248 项，`failures=0 errors=0 skipped=0`，`BUILD SUCCESSFUL`。
+- Leanback Arm64 Debug Java 编译：`BUILD SUCCESSFUL`。
+
+### 最新状态与下一步
+
+- 当前状态：第三轮复评和定向验证通过，合并结果与修复待由任务守卫原子提交并创建 recovery tag。
+- 提交后：推送当前 `dev2` 分支，创建 base `beta` / head `dev2` 的中文 PR，最后重新拉取远端最新代码。
 
 ## 回滚
 

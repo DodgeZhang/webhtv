@@ -2238,6 +2238,7 @@ public class TmdbDetailActivityLayoutTest {
                 "adapter_tmdb_person_photo.xml",
                 "adapter_tmdb_rail_item.xml",
                 "adapter_tmdb_rail_landscape.xml",
+                "adapter_tmdb_recommendation.xml",
                 "adapter_tmdb_recommendation_landscape.xml",
                 "adapter_tmdb_work.xml",
                 "item_tmdb_person_photo.xml",
