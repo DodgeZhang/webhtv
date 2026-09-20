@@ -1725,6 +1725,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 详情页新建追更记录显式设置 `enabled=true`，确保从详情页加入的记录会进入到期查询和后台 Worker；源代码回归测试防止再次漏设。
 - 无 TMDB 的源站追更记录在详情页后续匹配成功后，按 `cid + siteKey + vodId` 自动迁移到 TMDB 季身份；迁移保留来源绑定、观看进度和提醒水位，并立即回填当前 TMDB 官方状态，不保留重复可见记录。
 - 手机和 Leanback 个性化设置切换“追更更新”后额外发送 `ConfigEvent.common()`，立即重建首页入口；修复开关已为开启但底栏/首页追更按钮仍保持旧可见状态的问题。
+- 播放页及 TMDB 头部追更按钮初始为 `gone`，待历史身份与开关状态确认后再显示，避免关闭追更后进入播放页先闪现按钮再消失。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

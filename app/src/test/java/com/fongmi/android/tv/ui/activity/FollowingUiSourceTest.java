@@ -130,6 +130,12 @@ public class FollowingUiSourceTest {
         assertTrue(header.contains("@+id/tmdbFollowing"));
         assertTrue(mobile.contains("@+id/following"));
         assertTrue(leanback.contains("@+id/following"));
+        assertTrue(followingInitiallyGone(read("app/src/mobile/res/layout/activity_video.xml")));
+        assertTrue(followingInitiallyGone(read("app/src/mobile/res/layout-land/activity_video.xml")));
+        assertTrue(followingInitiallyGone(read("app/src/mobile/res/layout-sw600dp/activity_video.xml")));
+        assertTrue(followingInitiallyGone(read("app/src/mobile/res/layout-sw600dp-land/activity_video.xml")));
+        assertTrue(followingInitiallyGone(read("app/src/leanback/res/layout/activity_video.xml")));
+        assertTrue(followingInitiallyGone(read("app/src/main/res/layout/view_tmdb_header.xml")));
         assertTrue(mobileActivity.contains("onFollowing()"));
         assertTrue(leanbackActivity.contains("onFollowing()"));
         assertTrue(followingActivity.contains("FollowingPlaybackBridge.deleteAsync"));
@@ -145,5 +151,13 @@ public class FollowingUiSourceTest {
         Path path = Path.of(relative);
         if (!Files.exists(path) && relative.startsWith("app/")) path = Path.of(relative.substring(4));
         return Files.readString(path, StandardCharsets.UTF_8);
+    }
+
+    private static boolean followingInitiallyGone(String xml) {
+        int id = xml.indexOf("@+id/following");
+        if (id < 0) id = xml.indexOf("@+id/tmdbFollowing");
+        if (id < 0) return false;
+        int next = xml.indexOf(">", id);
+        return next > id && xml.substring(id, next).contains("android:visibility=\"gone\"");
     }
 }

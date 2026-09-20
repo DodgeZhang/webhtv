@@ -334,6 +334,7 @@
                 android:layout_height="40dp"
                 android:layout_marginStart="10dp"
                 android:minWidth="60dp"
+                android:visibility="gone"
                 android:text="@string/following_add"
                 android:textAllCaps="false"
                 android:textColor="@color/tmdb_action_button_text"
