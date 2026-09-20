@@ -66,6 +66,8 @@ public class FollowingUiSourceTest {
         assertTrue(activity.contains("following_filter_empty"));
         assertTrue(mobile.contains("FollowingScheduler.cancelAll(requireContext())"));
         assertTrue(leanback.contains("FollowingScheduler.cancelAll(this)"));
+        assertTrue(mobile.contains("ConfigEvent.common();"));
+        assertTrue(leanback.contains("ConfigEvent.common();"));
         assertTrue(mobileLayout.contains("@+id/following"));
         assertTrue(mobileLayout.contains("@+id/followingText"));
         assertTrue(leanbackLayout.contains("@+id/following"));

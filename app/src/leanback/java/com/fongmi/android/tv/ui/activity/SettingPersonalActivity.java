@@ -10,6 +10,7 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.HomeButton;
 import com.fongmi.android.tv.databinding.ActivitySettingPersonalBinding;
+import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.following.FollowingScheduler;
 import com.fongmi.android.tv.following.FollowingSettings;
@@ -145,6 +146,7 @@ public class SettingPersonalActivity extends BaseActivity {
         } else {
             FollowingScheduler.cancelAll(this);
         }
+        ConfigEvent.common();
         RefreshEvent.home();
         setText();
     }

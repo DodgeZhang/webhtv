@@ -10,6 +10,7 @@ import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.FragmentSettingPersonalBinding;
+import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.following.FollowingScheduler;
 import com.fongmi.android.tv.following.FollowingSettings;
@@ -127,6 +128,7 @@ public class SettingPersonalFragment extends BaseFragment {
         } else {
             FollowingScheduler.cancelAll(requireContext());
         }
+        ConfigEvent.common();
         RefreshEvent.home();
         setText();
     }
