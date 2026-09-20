@@ -119,6 +119,7 @@ public class FollowingUiSourceTest {
         assertTrue(leanbackActivity.contains("onFollowing()"));
         assertTrue(followingActivity.contains("FollowingPlaybackBridge.deleteAsync"));
         assertFalse(followingActivity.contains("FollowingStore.delete(item.identityKey)"));
+        assertTrue(followingActivity.contains("Task.execute(() -> {\n            List<Following> items = FollowingStore.list();"));
         assertTrue(mobile.contains("ic_home_following_shadow"));
         assertFalse(mobile.contains("drawable/ic_home_following\""));
     }

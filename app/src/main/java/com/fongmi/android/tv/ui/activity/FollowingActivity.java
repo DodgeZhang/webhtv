@@ -198,11 +198,18 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     }
 
     private void checkAll() {
-        List<Following> items = FollowingStore.list();
-        if (items.isEmpty()) return;
         binding.check.setEnabled(false);
         Notify.show(R.string.following_checking);
         Task.execute(() -> {
+            List<Following> items = FollowingStore.list();
+            if (items.isEmpty()) {
+                App.post(() -> {
+                    if (binding == null) return;
+                    binding.check.setEnabled(true);
+                    load();
+                });
+                return;
+            }
             FollowingUpdateCoordinator coordinator = new FollowingUpdateCoordinator();
             int limit = Math.min(5, items.size());
             boolean success = false;
