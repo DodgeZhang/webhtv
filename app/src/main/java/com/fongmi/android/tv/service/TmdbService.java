@@ -125,6 +125,16 @@ public class TmdbService {
         return requestJson(url, config, "detail", cacheKey, fallbackKeys, DETAIL_CACHE_TTL, "TMDB 详情返回为空", "TMDB 详情失败: HTTP ", false);
     }
 
+    public JsonObject detailForFollowing(@NonNull TmdbItem item, @NonNull TmdbConfig config, boolean refresh) throws Exception {
+        ensureReady(config);
+        String url = detailUrl(item, config, false);
+        List<String> fallbackKeys = detailCacheKeys(item, config, false);
+        String cacheKey = "following-" + fallbackKeys.remove(0);
+        long ttl = TimeUnit.MINUTES.toMillis(30);
+        return requestJson(url, config, "detail-following", cacheKey, fallbackKeys, ttl,
+                "TMDB 追更详情返回为空", "TMDB 追更详情失败: HTTP ", refresh);
+    }
+
     public JsonObject detailForSource(@NonNull TmdbItem item, int seasonNumber, @NonNull TmdbConfig config, @NonNull Set<String> missing) throws Exception {
         ensureReady(config);
         boolean includeRelated = missing.contains("recommendations") || missing.contains("similar");
