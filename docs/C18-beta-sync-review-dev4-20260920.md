@@ -1,6 +1,6 @@
 # C18：dev4 合并 beta 最新代码与合并后复评
 
-> 状态：进行中。`origin/beta` 已合并到本地 `dev4`，唯一冲突已按本地跟随功能与 beta 配置事件监听合并；双端编译与移动端全量单测通过，正在准备最终复评与交付。
+> 状态：已完成。`origin/beta` 已合并到本地 `dev4`，唯一冲突已按本地跟随功能与 beta 配置事件监听合并；双端编译与移动端全量单测通过，复评未发现需追加修复的问题；提交、恢复标签、推送、PR #331 和远端拉取均已完成。
 
 ## Recovery anchor
 
@@ -10,7 +10,7 @@
 - 冲突：仅 `app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java` 的 import 区域冲突；保留本地 FOLLOW-1 全部 import 与 beta 新增 `ConfigEvent`。
 - 范围：`app/**`、`docs/**`、`gradle/**`、`gradlew`、`scripts/**`、`third_party/**`；不修改依赖锁、播放器二进制或公开协议，除非复评证明合并必须处理。
 - 回滚：最终合并提交以本地基线为第一父；如需回滚使用 `git revert -m 1 <merge-commit>`。本地 46 个提交及各自 recovery tag 保持不变。
-- 下一动作：完成最终复评，记录验证证据，然后由任务守卫提交并创建 recovery tag，推送、创建 PR 到 `beta`，最后 `git pull --ff-only`。
+- 下一动作：无；等待 PR #331 的正常评审与合并。
 
 ## beta 增量账本
 
@@ -50,4 +50,8 @@
 
 ## 交付记录
 
-- 待提交后补充最终合并提交 ID、recovery tag、推送结果、PR URL 和远端拉取结果。
+- 合并提交：`9f998d6808f3e8144d2d4d68f23d92308e49b599`，第一父 `ea485ee9bfff330345adf1f565ea703a508d4cc9`，第二父 `b4501c91c748cc5b910b5dc0ab7553e513f7fa8c`。
+- 恢复标签：`recovery/C18-beta-sync-review-dev4-20260920/20260920160703-9f998d6808f3`。
+- 推送：`origin/dev4` 已从 `dcfd78749bf4` 更新到 `9f998d6808`。
+- PR：<https://github.com/Silent1566/webhtv/pull/331>，目标分支 `beta`，当前状态 `OPEN`、非草稿、`MERGEABLE`、`mergeStateStatus=CLEAN`。
+- 远端同步：推送并创建 PR 后执行 `git fetch --prune origin beta dev4` 和 `git pull --ff-only`，结果为 `Already up to date.`，当前 `dev4` 与 `origin/dev4` 一致。
