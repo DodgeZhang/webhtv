@@ -44,14 +44,12 @@ public class CompatFfmpegVideoRendererSourceTest {
     }
 
     @Test
-    public void hardwareOnlyMode_registersPlatformYieldingFfmpegFallback() throws Exception {
+    public void hardwareOnlyMode_neverRegistersFfmpegFallback() throws Exception {
         String exoUtil = readSource(EXO_UTIL_PATH);
 
-        assertTrue(exoUtil.contains("buildHardwareOnlyFfmpegVideoRenderer"));
-        assertTrue(exoUtil.contains("new CompatFfmpegVideoRenderer("));
-        assertTrue(exoUtil.contains("MediaCodecSelector platformDecoderSelector"));
-        assertTrue(exoUtil.contains("videoCodecSelector));"));
-        assertFalse(exoUtil.contains("if (videoRenderMode == EXTENSION_RENDERER_MODE_OFF) return;"));
+        assertTrue(exoUtil.contains("if (videoRenderMode == EXTENSION_RENDERER_MODE_OFF) return;"));
+        assertFalse(exoUtil.contains("buildHardwareOnlyFfmpegVideoRenderer"));
+        assertFalse(exoUtil.contains("new CompatFfmpegVideoRenderer("));
     }
 
     private static String readSource() throws Exception {

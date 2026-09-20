@@ -95,7 +95,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.CompatFfmpegAudioRenderer;
-import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.CompatFfmpegVideoRenderer;
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegVideoRenderer;
 
 public class ExoUtil {
@@ -1112,53 +1111,13 @@ public class ExoUtil {
                         dolbyVisionPlaybackState));
             } catch (Throwable ignored) {
             }
-            if (videoRenderMode == EXTENSION_RENDERER_MODE_OFF) {
-                // Keep hardware decode first. FFmpeg only claims a video MIME when the
-                // hardware-only selector has no candidate at all; otherwise this renderer
-                // yields the track to MediaCodec.
-                try {
-                    out.add(buildHardwareOnlyFfmpegVideoRenderer(
-                            allowedVideoJoiningTimeMs,
-                            eventHandler,
-                            eventListener,
-                            videoCodecSelector));
-                } catch (Throwable ignored) {
-                }
-                return;
-            }
+            // Video decode mode is explicit: hardware mode must never register
+            // a software fallback. Audio has its own policy.
+            if (videoRenderMode == EXTENSION_RENDERER_MODE_OFF) return;
             try {
                 out.add(getExtensionRendererIndex(videoRenderMode, videoPrefer, out), buildFfmpegVideoRenderer(allowedVideoJoiningTimeMs, eventHandler, eventListener));
             } catch (Throwable ignored) {
             }
-        }
-
-        private CompatFfmpegVideoRenderer buildHardwareOnlyFfmpegVideoRenderer(
-                long allowedVideoJoiningTimeMs,
-                Handler eventHandler,
-                VideoRendererEventListener eventListener,
-                MediaCodecSelector platformDecoderSelector) {
-            if (!softVideoTune) {
-                return new CompatFfmpegVideoRenderer(
-                        allowedVideoJoiningTimeMs,
-                        eventHandler,
-                        eventListener,
-                        MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY,
-                        true,
-                        platformDecoderSelector);
-            }
-            return new CompatFfmpegVideoRenderer(
-                    allowedVideoJoiningTimeMs,
-                    eventHandler,
-                    eventListener,
-                    MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY,
-                    Runtime.getRuntime().availableProcessors(),
-                    4,
-                    4,
-                    FFMPEG_SKIP_FRAME_NONREF,
-                    FFMPEG_SKIP_LOOP_FILTER_ALL,
-                    FFMPEG_LOWRES_HALF,
-                    true,
-                    platformDecoderSelector);
         }
 
         private FfmpegVideoRenderer buildFfmpegVideoRenderer(long allowedVideoJoiningTimeMs, Handler eventHandler, VideoRendererEventListener eventListener) {
