@@ -1743,6 +1743,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 最新 `mobileArm64_v8aDebug` 测试包与 androidTest 包均使用覆盖安装部署到 `192.168.50.3:5561`，未卸载现有应用。
 - 运行 `com.fongmi.android.tv.following` 全包 instrumentation：`FollowingActivityDeviceTest`、`FollowingBackupDeviceTest`、`FollowingCheckDeviceTest`、`FollowingDatabaseTest`、`FollowingDeleteDeviceTest`、`FollowingDetailDeviceTest`、`FollowingNotifierDeviceTest`、`FollowingProjectionDeviceTest`、`FollowingSchedulerDeviceTest`、`FollowingUpdateCoordinatorDeviceTest`，共 10 项全部通过。
 - 该回归覆盖最新提交后的 Activity 渲染、Room 主线程安全、取消/检查更新、备份合并、调度、投影队列和前台通知抑制。
+- 同一批次执行 `:app:testMobileArm64_v8aDebugUnitTest` 与 `:app:testLeanbackArm64_v8aDebugUnitTest`，双端全量单元测试均通过；最新设备包没有发现 `FATAL EXCEPTION` 或主线程 Room 崩溃。
 
 ### 25.5 提交与回滚记录
 
@@ -1761,6 +1762,20 @@ b85a58209f51b553be1b68c4d1d5f0d772936882  feat(following): complete list filters
 8994c01086c917d05ec7959e813cc1afa8d8000a  fix(following): enforce season bounds and verify scheduler
 e64abf8df4341a5dc5f860ac695577b191673856  docs(following): record debug size and package constraint
 78471f77fd4192092c8d1a692ee0f3abeb681f13  test(following): verify backup restore and merge on device
+98c198926d02be7e23b0f20c540d08a5e6a5c145  fix(following): prevent main-thread crash and add playback entries
+212db245ebef18ce15f963922ed404522a1f06f9  fix(following): add playback entry to mobile layout variants
+0b34d1821d82c925a4396cf7fd570ea3f70177c8  fix(following): make cancellation async and unify icon color
+f90b311716d30038457a56c583ee5995c93078ff  fix(following): move check-all database read off main thread
+6c762b863c8ce202ba7c2119150821af54d776f3  fix(following): refresh home badges off the main thread
+feb1f5c78731cc7a8985c876b2e6ac7ddafb2958  fix(following): serialize progress projection off the main thread
+33398512e3bf1827829af6ee1a5ca309636d94d0  fix(following): suppress foreground update notifications
+ad76a8b3ea0f72c4c677efa15efbcd727bc95630  fix(following): keep released metadata monotonic
+d5a72def79f0aee2428d7ddd956ed6114f76abdf  fix(following): select source flag by tracked season
+03b7cd5e78d22609fe61b0c7d8f33cacc5890133  fix(following): use latest aired episode from season detail
+981b63bf211b42f607f610916b2b84f7590222bf  fix(following): resume from cross-source TMDB history
+a6978e6ba4818eab6e1407657deb49c5692e24b5  fix(following): schedule returning shows after next air
+7567032bc07a99cb0755f61503e60aa86ae4683e  fix(following): gate progress projection by feature flag
+2b8d7943938cde453f173261f792ff0165ef0017  fix(following): enable imported alist subscriptions
 ```
 
 每个原子提交均由 `task_guard.sh` 创建独立 `recovery/FOLLOW-1-*` annotated tag；完整标签可在仓库中用 `git tag -l 'recovery/FOLLOW-1*'` 查询。回滚时可以回退到对应提交，也可以仅关闭 `following_enabled`；独立 `following.db` 不需要随 APK 降级删除。
