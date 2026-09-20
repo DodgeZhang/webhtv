@@ -115,19 +115,20 @@ public class TmdbEpisodeAdapterTest {
     }
 
     @Test
-    public void gridEpisodeCardsAlignToStartWithoutChangingCardWidths() throws Exception {
+    public void gridEpisodeCardsMatchPlaybackGridOuterAndInnerEdges() throws Exception {
         String source = tmdbEpisodeAdapterSource();
         int method = source.indexOf("private void applyCardSize(ViewHolder holder, boolean compact, boolean hasTmdbEpisodeData)");
         int methodEnd = source.indexOf("private boolean nativeEnhancedMobileGrid", method);
         String body = method >= 0 && methodEnd > method ? source.substring(method, methodEnd) : "";
 
-        assertTrue("grid cards must all share zero start margin and one end spacing so their widths and inner gaps stay consistent",
+        assertTrue("detail grid margins must match the playback grid's column distribution so both outer edges align and cards stay equal width",
                 body.contains("int gridSpacing = dp(holder.itemView, standardGridItem ? 8 : isNativeEnhanced() ? 12 : 8);")
-                        && body.contains("int marginStart = 0;")
-                        && body.contains("int marginEnd = mode == Mode.GRID ? gridSpacing : dp(holder.itemView, 12);")
+                        && body.contains("int gridColumn = position >= 0 ? position % gridSpanCount : 0;")
+                        && body.contains("int marginStart = mode == Mode.GRID ? gridSpacing * gridColumn / gridSpanCount : 0;")
+                        && body.contains("int marginEnd = mode == Mode.GRID")
+                        && body.contains("? gridSpacing - gridSpacing * (gridColumn + 1) / gridSpanCount")
                         && body.contains("marginParams.setMarginStart(marginStart);")
-                        && body.contains("marginParams.getMarginStart() != marginStart")
-                        && !body.contains("getBindingAdapterPosition()"));
+                        && body.contains("marginParams.getMarginStart() != marginStart"));
     }
 
     @Test
