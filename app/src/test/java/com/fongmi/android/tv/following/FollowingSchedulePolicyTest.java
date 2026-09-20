@@ -14,7 +14,15 @@ public class FollowingSchedulePolicyTest {
         long now = 1_000_000;
         long nextAir = now + TimeUnit.HOURS.toMillis(3);
         long check = FollowingSchedulePolicy.nextCheckAt(now, FollowingMetadataSnapshot.RETURNING, nextAir);
-        assertEquals(now + FollowingSchedulePolicy.PERIODIC_INTERVAL, check);
+        assertEquals(nextAir + FollowingSchedulePolicy.NEXT_AIR_GRACE, check);
+    }
+
+    @Test
+    public void justCompletedPastAirDateWaitsAtLeastOneHour() {
+        long now = 1_000_000;
+        long nextAir = now - TimeUnit.MINUTES.toMillis(1);
+        long check = FollowingSchedulePolicy.nextCheckAt(now, FollowingMetadataSnapshot.RETURNING, nextAir);
+        assertEquals(now + FollowingSchedulePolicy.MIN_ONE_SHOT_AFTER_CHECK, check);
     }
 
     @Test

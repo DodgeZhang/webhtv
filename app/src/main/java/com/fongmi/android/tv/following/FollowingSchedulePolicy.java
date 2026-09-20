@@ -7,6 +7,7 @@ public final class FollowingSchedulePolicy {
     public static final long PERIODIC_INTERVAL = TimeUnit.HOURS.toMillis(6);
     public static final long PERIODIC_FLEX = TimeUnit.HOURS.toMillis(1);
     public static final long MIN_ONE_SHOT_DELAY = TimeUnit.MINUTES.toMillis(15);
+    public static final long MIN_ONE_SHOT_AFTER_CHECK = TimeUnit.HOURS.toMillis(1);
     public static final long NEXT_AIR_GRACE = TimeUnit.MINUTES.toMillis(30);
 
     private FollowingSchedulePolicy() {
@@ -14,15 +15,23 @@ public final class FollowingSchedulePolicy {
 
     public static long nextCheckAt(long now, String status, long nextAirAt) {
         String normalized = FollowingMetadataSnapshot.normalizeStatus(status);
-        if (FollowingMetadataSnapshot.RETURNING.equals(normalized)) return now + PERIODIC_INTERVAL;
+        long nextAirCheckAt = nextAirCheckAt(now, nextAirAt);
+        if (FollowingMetadataSnapshot.RETURNING.equals(normalized)) {
+            return nextAirCheckAt > 0 ? Math.min(now + PERIODIC_INTERVAL, nextAirCheckAt) : now + PERIODIC_INTERVAL;
+        }
         if (FollowingMetadataSnapshot.PLANNED.equals(normalized)) {
-            if (nextAirAt > now) return Math.max(now + MIN_ONE_SHOT_DELAY, nextAirAt + NEXT_AIR_GRACE);
-            return now + TimeUnit.HOURS.toMillis(24);
+            return nextAirCheckAt > 0 ? nextAirCheckAt : now + TimeUnit.HOURS.toMillis(24);
         }
         if (FollowingMetadataSnapshot.ENDED.equals(normalized) || FollowingMetadataSnapshot.CANCELED.equals(normalized)) {
             return now + TimeUnit.DAYS.toMillis(7);
         }
         return now + PERIODIC_INTERVAL;
+    }
+
+    private static long nextAirCheckAt(long now, long nextAirAt) {
+        if (nextAirAt <= 0) return 0;
+        if (nextAirAt <= now) return now + MIN_ONE_SHOT_AFTER_CHECK;
+        return Math.max(now + MIN_ONE_SHOT_AFTER_CHECK, nextAirAt + NEXT_AIR_GRACE);
     }
 
     public static long backoffAt(long now, int failureCount) {
