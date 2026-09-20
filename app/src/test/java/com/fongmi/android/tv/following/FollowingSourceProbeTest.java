@@ -2,6 +2,7 @@ package com.fongmi.android.tv.following;
 
 import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.Flag;
+import com.fongmi.android.tv.bean.TmdbEpisode;
 import com.fongmi.android.tv.bean.Vod;
 
 import org.junit.Test;
@@ -40,6 +41,15 @@ public class FollowingSourceProbeTest {
     }
 
     @Test
+    public void fallbackFlagUsesTrackedSeasonCoverage() {
+        Vod vod = vod(
+                seasonFlag("other", 2, 5),
+                seasonFlag("tracked", 1, 2));
+
+        assertEquals("tracked", FollowingSourceProbe.chooseFlag(vod, "", 1).getFlag());
+    }
+
+    @Test
     public void episodeNumberPrefersTmdbMapping() {
         Episode episode = Episode.create("第10集", "url");
         episode.setTmdbEpisode(new com.fongmi.android.tv.bean.TmdbEpisode(3, "", "", "", "", 0, 0));
@@ -61,5 +71,15 @@ public class FollowingSourceProbeTest {
         Vod vod = new Vod();
         vod.setFlags(List.of(flags));
         return vod;
+    }
+
+    private static Flag seasonFlag(String name, int season, int count) {
+        Flag flag = new Flag(name);
+        for (int i = 1; i <= count; i++) {
+            Episode episode = Episode.create("第" + i + "集", name + ":" + i);
+            episode.setTmdbEpisode(new TmdbEpisode(i, "", "", "", "", 0, 0, 0, season));
+            flag.getEpisodes().add(episode);
+        }
+        return flag;
     }
 }

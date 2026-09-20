@@ -19,7 +19,7 @@ public class FollowingSourceProbe {
         if (item == null || source == null) throw new IllegalArgumentException("following/source == null");
         Result result = SiteApi.detailContent(source.siteKey, source.vodId, true);
         Vod vod = result == null ? null : result.getVod();
-        Flag flag = chooseFlag(vod, source.vodFlag);
+        Flag flag = chooseFlag(vod, source.vodFlag, item.trackedSeason);
         long now = System.currentTimeMillis();
         FollowingSourceSnapshot snapshot = new FollowingSourceSnapshot();
         snapshot.source = source;
@@ -57,6 +57,10 @@ public class FollowingSourceProbe {
     }
 
     static Flag chooseFlag(Vod vod, String preferred) {
+        return chooseFlag(vod, preferred, -1);
+    }
+
+    static Flag chooseFlag(Vod vod, String preferred, int trackedSeason) {
         if (vod == null || vod.getFlags() == null) return null;
         Flag preferredFlag = null;
         Flag fallback = null;
@@ -67,19 +71,23 @@ public class FollowingSourceProbe {
                 preferredFlag = flag;
                 continue;
             }
-            int count = validCount(flag);
+            int count = validCount(flag, trackedSeason);
             if (count > fallbackCount) {
                 fallback = flag;
                 fallbackCount = count;
             }
         }
-        if (preferredFlag != null && validCount(preferredFlag) > 0) return preferredFlag;
+        if (preferredFlag != null && validCount(preferredFlag, trackedSeason) > 0) return preferredFlag;
         return fallbackCount > 0 ? fallback : null;
     }
 
-    private static int validCount(Flag flag) {
+    private static int validCount(Flag flag, int trackedSeason) {
         int count = 0;
-        for (Episode episode : flag.getEpisodes()) if (episode != null && !TextUtils.isEmpty(episode.getUrl())) count++;
+        for (Episode episode : flag.getEpisodes()) {
+            if (episode == null || TextUtils.isEmpty(episode.getUrl())) continue;
+            if (trackedSeason >= 0 && !matchesSeason(episode, trackedSeason)) continue;
+            count++;
+        }
         return count;
     }
 
