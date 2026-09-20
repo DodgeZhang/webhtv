@@ -1712,6 +1712,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 修复追更列表点击“检查更新”时的同类主线程崩溃：`checkAll()` 先完整进入后台线程再读取 `FollowingStore.list()`；设备端 `FollowingCheckDeviceTest` 通过真实 Activity 点击验证该入口。
 - 修复手机底栏与 Leanback 首页追更角标的同类主线程崩溃：未读数统一通过 `FollowingPlaybackBridge.refreshUnreadCountAsync()` 在后台刷新并缓存，UI 只读取 `cachedUnreadCount()`；两端首页恢复后异步更新显示。双端定向单元测试通过，`mobileArm64_v8aDebug` 测试包已覆盖安装到 `192.168.50.3:5561`，启动与首页恢复日志未出现主线程 Room 或 `FATAL EXCEPTION`。
 - 播放进度投影改为专用单线程队列：`FollowingStore.project()` 只入队，历史/季进度事务提交后再投影，避免 UI 线程访问 following Room 和事务提交前读取旧进度；设备测试验证主线程调用可安全完成并更新追更水位。
+- 应用处于前台时抑制追更系统通知，避免用户正在使用应用时弹出重复提醒；站内状态、角标和后台后续检查不受影响。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

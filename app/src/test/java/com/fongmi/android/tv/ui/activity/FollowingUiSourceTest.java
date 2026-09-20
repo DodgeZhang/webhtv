@@ -57,6 +57,7 @@ public class FollowingUiSourceTest {
         String leanbackLayout = read("app/src/leanback/res/layout/activity_setting_personal.xml");
         String func = read("app/src/leanback/java/com/fongmi/android/tv/bean/Func.java");
         String bridge = read("app/src/main/java/com/fongmi/android/tv/following/FollowingPlaybackBridge.java");
+        String notifier = read("app/src/main/java/com/fongmi/android/tv/following/FollowingNotifier.java");
 
         assertTrue(activity.contains("FILTER_UPDATES"));
         assertTrue(activity.contains("FILTER_UNWATCHED"));
@@ -74,6 +75,7 @@ public class FollowingUiSourceTest {
         assertTrue(func.contains("FollowingPlaybackBridge.cachedUnreadCount()"));
         assertFalse(func.contains("FollowingStore.unreadCount()"));
         assertTrue(func.contains(" + \" · \" + unread"));
+        assertTrue(notifier.contains("App.activity() != null"));
     }
 
     @Test

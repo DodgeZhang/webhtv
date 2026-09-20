@@ -37,6 +37,9 @@ public final class FollowingNotifier {
     }
 
     public static boolean notifyUpdate(Following item, FollowingSource source) {
+        // Keep the database-derived site state fresh while the user is already looking at the app;
+        // defer the system notification until the next background check.
+        if (App.activity() != null) return false;
         if (item == null || !FollowingUpdatePolicy.shouldNotify(item) || !canNotify()) return false;
         createChannel();
         Intent intent = FollowingActivity.intent(App.get(), item.identityKey);
