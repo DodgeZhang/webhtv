@@ -47,6 +47,17 @@ public class DialogGlassChipStyleTest {
     }
 
     @Test
+    public void mobileTrackStyleSupportsPersistentActivatedState() throws Exception {
+        String text = readMobileResource("color", "selector_control_sheet_text.xml");
+        String background = readMobileResource("drawable", "selector_player_child_sheet_button.xml");
+
+        assertTrue("mobile selected track text must react to the adapter activated state",
+                text.contains("android:state_activated=\"true\""));
+        assertTrue("mobile selected track background must react to the adapter activated state",
+                background.contains("android:state_activated=\"true\""));
+    }
+
+    @Test
     public void mobileCategoryAndFilterDialogsShareTheControlSheetStyle() throws Exception {
         String category = readMobileResource("layout", "adapter_type_dialog.xml");
         String filter = readMobileResource("layout", "adapter_value.xml");
