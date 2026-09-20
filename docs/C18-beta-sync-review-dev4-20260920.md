@@ -52,6 +52,6 @@
 
 - 合并提交：`9f998d6808f3e8144d2d4d68f23d92308e49b599`，第一父 `ea485ee9bfff330345adf1f565ea703a508d4cc9`，第二父 `b4501c91c748cc5b910b5dc0ab7553e513f7fa8c`。
 - 恢复标签：`recovery/C18-beta-sync-review-dev4-20260920/20260920160703-9f998d6808f3`。
-- 推送：`origin/dev4` 已从 `dcfd78749bf4` 更新到 `9f998d6808`。
+- 推送：`origin/dev4` 已从 `dcfd78749bf4` 更新并包含合并提交 `9f998d6808`；收口文档提交会作为分支末端同步推送。
 - PR：<https://github.com/Silent1566/webhtv/pull/331>，目标分支 `beta`，当前状态 `OPEN`、非草稿、`MERGEABLE`、`mergeStateStatus=CLEAN`。
 - 远端同步：推送并创建 PR 后执行 `git fetch --prune origin beta dev4` 和 `git pull --ff-only`，结果为 `Already up to date.`，当前 `dev4` 与 `origin/dev4` 一致。
