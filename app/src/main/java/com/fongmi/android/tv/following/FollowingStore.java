@@ -106,7 +106,7 @@ public final class FollowingStore {
     }
 
     public static void project(History history) {
-        if (history == null) return;
+        if (history == null || !FollowingSettings.isEnabled()) return;
         History snapshot = history.copy();
         PROJECTOR.execute(() -> {
             try {

@@ -117,6 +117,7 @@ public class FollowingUiSourceTest {
         String mobileActivity = read("app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
         String leanbackActivity = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
         String followingActivity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
+        String store = read("app/src/main/java/com/fongmi/android/tv/following/FollowingStore.java");
 
         assertTrue(detail.contains("FollowingPlaybackBridge.findAsync"));
         assertFalse(detail.contains("FollowingStore.findByTmdb"));
@@ -131,6 +132,7 @@ public class FollowingUiSourceTest {
         assertTrue(followingActivity.contains("Task.execute(() -> {\n            List<Following> items = FollowingStore.list();"));
         assertTrue(mobile.contains("ic_home_following_shadow"));
         assertFalse(mobile.contains("drawable/ic_home_following\""));
+        assertTrue(store.contains("history == null || !FollowingSettings.isEnabled()"));
     }
 
     private static String read(String relative) throws Exception {
