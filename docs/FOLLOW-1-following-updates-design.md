@@ -1707,6 +1707,8 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 手机播放页原生动作区、手机 TMDB 详情头部和电视播放页动作行均新增“加入追更/已追更”入口；入口只读取当前 `History`，实际 Room 读写全部异步。
 - 设备端 `FollowingDetailDeviceTest` 已验证：从主线程调用桥接查询不会触发 Room 主线程异常，回调回到主线程。
 - 修复手机横屏/平板布局启动 `VideoActivity` 时 `mBinding.following` 为空导致的 NPE：`layout`、`layout-land`、`layout-sw600dp`、`layout-sw600dp-land` 四个 `activity_video.xml` 变体均加入追更按钮，代码同时保留空值保护。
+- 修复取消追更时主线程调用 `FollowingStore.delete()` 导致的 Room 崩溃：取消、已读、通知开关和来源导入均通过后台桥接执行；设备端 `FollowingDeleteDeviceTest` 验证主线程发起删除可安全完成并同时清理来源表。
+- 手机播放页追更图标改用与搜索、投屏、设置一致的 `_shadow` 双层样式，避免系统主题对 vector tint 产生不同颜色。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

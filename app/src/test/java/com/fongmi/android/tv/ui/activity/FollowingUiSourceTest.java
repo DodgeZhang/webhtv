@@ -107,6 +107,7 @@ public class FollowingUiSourceTest {
         String leanback = read("app/src/leanback/res/layout/activity_video.xml");
         String mobileActivity = read("app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
         String leanbackActivity = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
+        String followingActivity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
 
         assertTrue(detail.contains("FollowingPlaybackBridge.findAsync"));
         assertFalse(detail.contains("FollowingStore.findByTmdb"));
@@ -116,6 +117,10 @@ public class FollowingUiSourceTest {
         assertTrue(leanback.contains("@+id/following"));
         assertTrue(mobileActivity.contains("onFollowing()"));
         assertTrue(leanbackActivity.contains("onFollowing()"));
+        assertTrue(followingActivity.contains("FollowingPlaybackBridge.deleteAsync"));
+        assertFalse(followingActivity.contains("FollowingStore.delete(item.identityKey)"));
+        assertTrue(mobile.contains("ic_home_following_shadow"));
+        assertFalse(mobile.contains("drawable/ic_home_following\""));
     }
 
     private static String read(String relative) throws Exception {

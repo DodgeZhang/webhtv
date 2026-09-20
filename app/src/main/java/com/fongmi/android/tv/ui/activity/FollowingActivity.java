@@ -27,6 +27,7 @@ import com.fongmi.android.tv.databinding.ActivityFollowingBinding;
 import com.fongmi.android.tv.following.AlistSubscriptionImporter;
 import com.fongmi.android.tv.following.Following;
 import com.fongmi.android.tv.following.FollowingNotifier;
+import com.fongmi.android.tv.following.FollowingPlaybackBridge;
 import com.fongmi.android.tv.following.FollowingIdentity;
 import com.fongmi.android.tv.following.FollowingMetadataSnapshot;
 import com.fongmi.android.tv.following.FollowingScheduler;
@@ -73,7 +74,10 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
                 if (pendingNotifyIdentity == null) return;
                 if (granted) {
                     FollowingSettings.setNotificationsEnabled(true);
-                    FollowingStore.setNotifyEnabled(pendingNotifyIdentity, true);
+                    String identityKey = pendingNotifyIdentity;
+                    FollowingPlaybackBridge.setNotifyEnabledAsync(identityKey, true, error -> load());
+                    pendingNotifyIdentity = null;
+                    return;
                 }
                 pendingNotifyIdentity = null;
                 load();
@@ -294,9 +298,13 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
                 .setMessage(message)
                 .setNegativeButton(R.string.dialog_negative, null)
                 .setPositiveButton(R.string.following_server_import_action, (dialog, which) -> {
-                    AlistSubscriptionImporter.ImportResult result = AlistSubscriptionImporter.importCandidates(candidates);
-                    Notify.show(getString(R.string.following_server_result, result.created, result.updated));
-                    load();
+                    Task.execute(() -> {
+                        AlistSubscriptionImporter.ImportResult result = AlistSubscriptionImporter.importCandidates(candidates);
+                        App.post(() -> {
+                            Notify.show(getString(R.string.following_server_result, result.created, result.updated));
+                            load();
+                        });
+                    });
                 })
                 .show();
     }
@@ -343,85 +351,94 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
 
     @Override
     public void onContinue(Following item, FollowingSource source) {
-        FollowingStore.reconcile(item);
-        History history = FollowingStore.historyFor(item, source);
-        if (history != null) {
-            TmdbDetailActivity.startFromHistory(this, history);
-            return;
-        }
-        FollowingSource target = preferred(item, source);
-        if (target == null || TextUtils.isEmpty(target.siteKey) || TextUtils.isEmpty(target.vodId)) {
-            Notify.show(R.string.following_check_failed);
-            return;
-        }
-        TmdbItem tmdb = item.tmdbId > 0 ? new TmdbItem(item.tmdbId, item.mediaType, item.vodName,
-                "", "", item.vodPic, "", "", 0.0) : null;
-        TmdbDetailActivity.start(this, target.siteKey, target.vodId, item.vodName, item.vodPic, "", tmdb, Setting.getDetailOpenMode());
+        Task.execute(() -> {
+            FollowingStore.reconcile(item);
+            History history = FollowingStore.historyFor(item, source);
+            App.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (history != null) {
+                    TmdbDetailActivity.startFromHistory(this, history);
+                    return;
+                }
+                FollowingSource target = preferred(item, source);
+                if (target == null || TextUtils.isEmpty(target.siteKey) || TextUtils.isEmpty(target.vodId)) {
+                    Notify.show(R.string.following_check_failed);
+                    return;
+                }
+                TmdbItem tmdb = item.tmdbId > 0 ? new TmdbItem(item.tmdbId, item.mediaType, item.vodName,
+                        "", "", item.vodPic, "", "", 0.0) : null;
+                TmdbDetailActivity.start(this, target.siteKey, target.vodId, item.vodName, item.vodPic, "", tmdb, Setting.getDetailOpenMode());
+            });
+        });
     }
 
     @Override
     public void onFollowNextSeason(Following item) {
         if (item == null || item.latestReleasedSeason <= item.trackedSeason || TextUtils.isEmpty(item.seriesKey)) return;
         String identityKey = FollowingIdentity.identityKey(item.seriesKey, item.latestReleasedSeason);
-        if (FollowingStore.find(identityKey) != null) {
-            FollowingActivity.start(this, identityKey);
-            return;
-        }
         long now = System.currentTimeMillis();
-        Following next = item.copy();
-        next.identityKey = identityKey;
-        next.trackedSeason = item.latestReleasedSeason;
-        next.trackedEpisode = 0;
-        next.watchedSeason = item.latestReleasedSeason;
-        next.watchedEpisode = 0;
-        next.position = 0;
-        next.duration = 0;
-        next.latestReleasedSeason = item.latestReleasedSeason;
-        next.latestReleasedEpisode = 0;
-        next.seasonTotalEpisodes = 0;
-        next.seasonReleasedEpisodes = 0;
-        next.nextAirSeason = item.nextAirSeason == next.trackedSeason ? item.nextAirSeason : 0;
-        next.nextAirEpisode = item.nextAirSeason == next.trackedSeason ? item.nextAirEpisode : 0;
-        next.nextAirAt = item.nextAirSeason == next.trackedSeason ? item.nextAirAt : 0;
-        next.readWatermarkEpisode = 0;
-        next.lastNotifiedEpisode = 0;
-        next.lastNotifiedAt = 0;
-        next.lastObservedEpisode = 0;
-        next.hasUpdate = false;
-        next.unwatchedCount = 0;
-        next.failureCount = 0;
-        next.lastError = "";
-        next.createdAt = now;
-        next.updatedAt = now;
-        next.nextCheckAt = now;
-        FollowingSource source = FollowingStore.preferredSource(item.identityKey);
-        if (source != null) {
-            source = source.copy();
-            source.followingKey = identityKey;
-            source.playableSeason = next.trackedSeason;
-            source.playableEpisode = 0;
-            source.playableCount = 0;
-            source.lastProbeAt = 0;
-            source.lastError = "";
-        }
-        if (source == null) {
-            source = new FollowingSource();
-            source.followingKey = identityKey;
-            source.cid = next.cid;
-            source.siteKey = next.siteKey;
-            source.vodId = next.vodId;
-            source.vodName = next.vodName;
-            source.vodPic = next.vodPic;
-            source.preferred = true;
-        }
-        try {
-            FollowingStore.saveNew(next, source);
-            FollowingScheduler.enqueueDueNow(this);
-            Notify.show(R.string.following_added);
-            load();
-        } catch (Throwable error) {
-            Notify.show(error.getMessage());
-        }
+        Task.execute(() -> {
+            if (FollowingStore.find(identityKey) != null) {
+                App.post(() -> FollowingActivity.start(this, identityKey));
+                return;
+            }
+            Following next = item.copy();
+            next.identityKey = identityKey;
+            next.trackedSeason = item.latestReleasedSeason;
+            next.trackedEpisode = 0;
+            next.watchedSeason = item.latestReleasedSeason;
+            next.watchedEpisode = 0;
+            next.position = 0;
+            next.duration = 0;
+            next.latestReleasedSeason = item.latestReleasedSeason;
+            next.latestReleasedEpisode = 0;
+            next.seasonTotalEpisodes = 0;
+            next.seasonReleasedEpisodes = 0;
+            next.nextAirSeason = item.nextAirSeason == next.trackedSeason ? item.nextAirSeason : 0;
+            next.nextAirEpisode = item.nextAirSeason == next.trackedSeason ? item.nextAirEpisode : 0;
+            next.nextAirAt = item.nextAirSeason == next.trackedSeason ? item.nextAirAt : 0;
+            next.readWatermarkEpisode = 0;
+            next.lastNotifiedEpisode = 0;
+            next.lastNotifiedAt = 0;
+            next.lastObservedEpisode = 0;
+            next.hasUpdate = false;
+            next.unwatchedCount = 0;
+            next.failureCount = 0;
+            next.lastError = "";
+            next.createdAt = now;
+            next.updatedAt = now;
+            next.nextCheckAt = now;
+            FollowingSource source = FollowingStore.preferredSource(item.identityKey);
+            if (source != null) {
+                source = source.copy();
+                source.followingKey = identityKey;
+                source.playableSeason = next.trackedSeason;
+                source.playableEpisode = 0;
+                source.playableCount = 0;
+                source.lastProbeAt = 0;
+                source.lastError = "";
+            }
+            if (source == null) {
+                source = new FollowingSource();
+                source.followingKey = identityKey;
+                source.cid = next.cid;
+                source.siteKey = next.siteKey;
+                source.vodId = next.vodId;
+                source.vodName = next.vodName;
+                source.vodPic = next.vodPic;
+                source.preferred = true;
+            }
+            try {
+                FollowingStore.saveNew(next, source);
+                App.post(() -> {
+                    FollowingScheduler.enqueueDueNow(this);
+                    Notify.show(R.string.following_added);
+                    load();
+                });
+            } catch (Throwable error) {
+                App.post(() -> Notify.show(error.getMessage()));
+            }
+        });
     }
 
     @Override
@@ -439,8 +456,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
 
     @Override
     public void onRead(Following item) {
-        FollowingStore.markRead(item.identityKey);
-        load();
+        FollowingPlaybackBridge.markReadAsync(item.identityKey, error -> load());
     }
 
     @Override
@@ -453,8 +469,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
             return;
         }
         if (enabled) FollowingSettings.setNotificationsEnabled(true);
-        FollowingStore.setNotifyEnabled(item.identityKey, enabled);
-        load();
+        FollowingPlaybackBridge.setNotifyEnabledAsync(item.identityKey, enabled, error -> load());
     }
 
     @Override
@@ -475,8 +490,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
                 .setNegativeButton(R.string.dialog_negative, null)
                 .setPositiveButton(R.string.following_cancel, (dialog, which) -> {
                     FollowingScheduler.cancelNext(this, item.identityKey);
-                    FollowingStore.delete(item.identityKey);
-                    load();
+                    FollowingPlaybackBridge.deleteAsync(item.identityKey, error -> load());
                 })
                 .show();
     }

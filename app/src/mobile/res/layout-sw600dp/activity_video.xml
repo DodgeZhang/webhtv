@@ -557,7 +557,7 @@
                             style="@style/VideoActionButton"
                             android:layout_marginEnd="8dp"
                             android:text="@string/following_add"
-                            app:drawableTopCompat="@drawable/ic_home_following" />
+                            app:drawableTopCompat="@drawable/ic_home_following_shadow" />
 
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/search"

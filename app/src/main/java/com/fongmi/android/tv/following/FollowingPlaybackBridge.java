@@ -131,6 +131,48 @@ public final class FollowingPlaybackBridge {
         });
     }
 
+    public static void deleteAsync(String identityKey, Consumer<Throwable> callback) {
+        if (TextUtils.isEmpty(identityKey)) {
+            if (callback != null) App.post(() -> callback.accept(null));
+            return;
+        }
+        Task.execute(() -> {
+            Throwable error = null;
+            try {
+                FollowingStore.delete(identityKey);
+            } catch (Throwable throwable) {
+                error = throwable;
+            }
+            final Throwable result = error;
+            if (callback != null) App.post(() -> callback.accept(result));
+        });
+    }
+
+    public static void markReadAsync(String identityKey, Consumer<Throwable> callback) {
+        writeAsync(() -> FollowingStore.markRead(identityKey), callback);
+    }
+
+    public static void setNotifyEnabledAsync(String identityKey, boolean enabled, Consumer<Throwable> callback) {
+        writeAsync(() -> FollowingStore.setNotifyEnabled(identityKey, enabled), callback);
+    }
+
+    private static void writeAsync(Runnable action, Consumer<Throwable> callback) {
+        if (action == null) {
+            if (callback != null) App.post(() -> callback.accept(null));
+            return;
+        }
+        Task.execute(() -> {
+            Throwable error = null;
+            try {
+                action.run();
+            } catch (Throwable throwable) {
+                error = throwable;
+            }
+            final Throwable result = error;
+            if (callback != null) App.post(() -> callback.accept(result));
+        });
+    }
+
     private static String safe(String value) {
         return value == null ? "" : value;
     }
