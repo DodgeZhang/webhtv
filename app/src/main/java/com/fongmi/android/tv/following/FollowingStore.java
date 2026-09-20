@@ -139,13 +139,17 @@ public final class FollowingStore {
         if (item.tmdbId > 0) {
             List<History> histories = AppDatabase.get().getHistoryDao().findByTmdbIdentity(
                     item.cid, FollowingIdentity.normalizeMediaType(item.mediaType), item.tmdbId);
-            History latest = null;
+            History preferred = null;
+            History anySource = null;
             for (History history : histories) {
                 if (history.getTmdbSeasonNumber() != item.trackedSeason) continue;
-                if (source != null && !TextUtils.equals(history.getSiteKey(), source.siteKey)) continue;
-                if (latest == null || history.getCreateTime() > latest.getCreateTime()) latest = history;
+                if (anySource == null || history.getCreateTime() > anySource.getCreateTime()) anySource = history;
+                if (source == null || TextUtils.equals(history.getSiteKey(), source.siteKey)) {
+                    if (preferred == null || history.getCreateTime() > preferred.getCreateTime()) preferred = history;
+                }
             }
-            if (latest != null) return latest;
+            if (preferred != null) return preferred;
+            if (anySource != null) return anySource;
         }
         if (source != null) return History.find(item.cid, sourceHistoryKey(source.siteKey, source.vodId));
         return History.find(item.cid, sourceHistoryKey(item.siteKey, item.vodId));

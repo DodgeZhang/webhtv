@@ -1717,6 +1717,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 设备端 `FollowingNotifierDeviceTest` 验证应用前台时通知器返回抑制状态且不推进 `lastNotifiedEpisode`，确保站内状态更新与系统提醒解耦。
 - 来源线路选择按当前 `trackedSeason` 统计覆盖集数；其他季线路即使集数更多，也不能压过真正覆盖当前季的线路，单测覆盖该回退场景。
 - 季详情解析按“已播最大集号”而不是“已播集数”更新 `latestReleasedEpisode`，并忽略未来集；修复第 1、10 集已播却误记为第 2 集的场景。
+- 继续播放优先复用同源历史，同源没有记录时回退到同一 TMDB 季的其他来源历史，避免用户换源后丢失已有季集和播放进度；设备测试覆盖跨源回退。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入
