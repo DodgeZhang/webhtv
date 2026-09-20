@@ -1732,6 +1732,12 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 分配的 `5561` 设备是 API 28，因此设计完成定义第 6 条要求的 API 33+ 通知权限实测尚不能成立；不能把 API 28 上的权限代码路径冒充 API 33 验收。
 - 按用户明确要求，资源有限时只构建 Debug 测试包和 androidTest 包，不构建正式 Release 包；因此 Release 体积和签名产物验收未执行，不能以 Debug 结果替代。
 
+### 25.4.1 2026-09-20 最新设备回归
+
+- 最新 `mobileArm64_v8aDebug` 测试包与 androidTest 包均使用覆盖安装部署到 `192.168.50.3:5561`，未卸载现有应用。
+- 运行 `com.fongmi.android.tv.following` 全包 instrumentation：`FollowingActivityDeviceTest`、`FollowingBackupDeviceTest`、`FollowingCheckDeviceTest`、`FollowingDatabaseTest`、`FollowingDeleteDeviceTest`、`FollowingDetailDeviceTest`、`FollowingNotifierDeviceTest`、`FollowingProjectionDeviceTest`、`FollowingSchedulerDeviceTest`、`FollowingUpdateCoordinatorDeviceTest`，共 10 项全部通过。
+- 该回归覆盖最新提交后的 Activity 渲染、Room 主线程安全、取消/检查更新、备份合并、调度、投影队列和前台通知抑制。
+
 ### 25.5 提交与回滚记录
 
 ```text
