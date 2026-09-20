@@ -1720,6 +1720,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 继续播放优先复用同源历史，同源没有记录时回退到同一 TMDB 季的其他来源历史，避免用户换源后丢失已有季集和播放进度；设备测试覆盖跨源回退。
 - 调度策略让 RETURNING 状态也使用 `next_episode_to_air`：在 6 小时周期和“播出后 30 分钟”中取更早者，刚完成检查时至少延迟 1 小时，避免在播剧多等一个周期。
 - 追更投影入口受 `following_enabled` 控制；关闭功能后历史保存不再访问 following DB，重新开启后由 Worker reconcile 恢复进度。
+- alist 导入记录显式设置 `enabled=true`，确保导入后能被到期查询和后台 Worker 调度；单测覆盖导入 identity 和调度启用状态。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

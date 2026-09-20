@@ -40,6 +40,20 @@ public class FollowingAlistImportTest {
     }
 
     @Test
+    public void importedSubscriptionIsEnabledForScheduledChecks() {
+        AlistSubscriptionImporter.Candidate candidate = new AlistSubscriptionImporter.Candidate();
+        candidate.title = "导入剧集";
+        candidate.season = 1;
+        candidate.tmdbId = 1399;
+        candidate.currentEpisodes = 8;
+
+        Following item = AlistSubscriptionImporter.toFollowing(candidate, 100);
+
+        assertTrue(item.enabled);
+        assertEquals("tmdb:tv:1399:s1", item.identityKey);
+    }
+
+    @Test
     public void serverlessNormalizersPreserveFollowOption() throws Exception {
         String[] files = {
                 "serverless/webhtv-remote-rust/src/main.rs",

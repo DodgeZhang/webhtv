@@ -144,6 +144,7 @@ public final class AlistSubscriptionImporter {
         item.latestReleasedEpisode = candidate.currentEpisodes;
         item.officialStatus = FollowingMetadataSnapshot.normalizeStatus(candidate.status);
         item.notifyEnabled = FollowingSettings.isNotificationsEnabled();
+        item.enabled = true;
         item.createdAt = now;
         item.updatedAt = now;
         FollowingUpdatePolicy.initializeNew(item, candidate.currentEpisodes, now);
