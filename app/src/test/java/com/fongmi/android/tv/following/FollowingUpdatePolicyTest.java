@@ -45,6 +45,18 @@ public class FollowingUpdatePolicyTest {
         assertEquals(4, item.unwatchedCount);
     }
 
+    @Test
+    public void metadataDowngradeDoesNotReduceReleasedEpisode() {
+        Following item = following(8);
+        item.metadataUpdatedAt = 100;
+        FollowingMetadataSnapshot lower = snapshot(1, 6);
+        lower.fetchedAt = 300;
+
+        assertFalse(FollowingUpdatePolicy.applyMetadata(item, lower, 300));
+        assertEquals(8, FollowingUpdatePolicy.releasedEpisode(item));
+        assertEquals(1, item.latestReleasedSeason);
+    }
+
     private static Following following(int released) {
         Following item = new Following();
         item.identityKey = "tmdb:tv:1:s1";

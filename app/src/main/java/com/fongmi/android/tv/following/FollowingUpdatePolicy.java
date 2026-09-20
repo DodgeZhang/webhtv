@@ -29,11 +29,23 @@ public final class FollowingUpdatePolicy {
                 && item.readWatermarkEpisode <= 0
                 && item.lastNotifiedEpisode <= 0;
         int before = releasedEpisode(item);
+        int previousLatestSeason = Math.max(0, item.latestReleasedSeason);
+        int previousLatestEpisode = Math.max(0, item.latestReleasedEpisode);
         item.officialStatus = FollowingMetadataSnapshot.normalizeStatus(snapshot.status);
-        item.latestReleasedSeason = Math.max(0, snapshot.latestReleasedSeason);
-        item.latestReleasedEpisode = Math.max(0, snapshot.latestReleasedEpisode);
+        int latestSeason = Math.max(0, snapshot.latestReleasedSeason);
+        int latestEpisode = Math.max(0, snapshot.latestReleasedEpisode);
+        if (latestSeason > previousLatestSeason) {
+            item.latestReleasedSeason = latestSeason;
+            item.latestReleasedEpisode = latestEpisode;
+        } else if (latestSeason == previousLatestSeason) {
+            item.latestReleasedSeason = previousLatestSeason;
+            item.latestReleasedEpisode = Math.max(previousLatestEpisode, latestEpisode);
+        } else {
+            item.latestReleasedSeason = previousLatestSeason;
+            item.latestReleasedEpisode = previousLatestEpisode;
+        }
         item.seasonTotalEpisodes = Math.max(0, snapshot.seasonTotalEpisodes);
-        item.seasonReleasedEpisodes = Math.max(0, snapshot.seasonReleasedEpisodes);
+        item.seasonReleasedEpisodes = Math.max(Math.max(0, item.seasonReleasedEpisodes), Math.max(0, snapshot.seasonReleasedEpisodes));
         item.seriesTotalEpisodes = Math.max(0, snapshot.seriesTotalEpisodes);
         item.nextAirSeason = Math.max(0, snapshot.nextAirSeason);
         item.nextAirEpisode = Math.max(0, snapshot.nextAirEpisode);
