@@ -2,7 +2,6 @@ package com.fongmi.android.tv.following;
 
 import android.text.TextUtils;
 
-import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.TmdbItem;
@@ -10,8 +9,16 @@ import com.fongmi.android.tv.db.AppDatabase;
 
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class FollowingStore {
+
+    private static final ExecutorService PROJECTOR = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "following-projector");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     private FollowingStore() {
     }
@@ -100,11 +107,14 @@ public final class FollowingStore {
 
     public static void project(History history) {
         if (history == null) return;
-        try {
-            projectHistory(history);
-        } catch (Throwable ignored) {
-            // Projection is best effort and must never affect playback history writes.
-        }
+        History snapshot = history.copy();
+        PROJECTOR.execute(() -> {
+            try {
+                projectHistory(snapshot);
+            } catch (Throwable ignored) {
+                // Projection is best effort and must never affect playback history writes.
+            }
+        });
     }
 
     public static void reconcile(Following item) {
