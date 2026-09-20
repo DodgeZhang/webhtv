@@ -1746,6 +1746,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 运行 `com.fongmi.android.tv.following` 全包 instrumentation：`FollowingActivityDeviceTest`、`FollowingBackupDeviceTest`、`FollowingCheckDeviceTest`、`FollowingDatabaseTest`、`FollowingDeleteDeviceTest`、`FollowingDetailDeviceTest`、`FollowingNotifierDeviceTest`、`FollowingProjectionDeviceTest`、`FollowingSchedulerDeviceTest`、`FollowingUpdateCoordinatorDeviceTest`，共 10 项全部通过。
 - 该回归覆盖最新提交后的 Activity 渲染、Room 主线程安全、取消/检查更新、备份合并、调度、投影队列和前台通知抑制。
 - 同一批次执行 `:app:testMobileArm64_v8aDebugUnitTest` 与 `:app:testLeanbackArm64_v8aDebugUnitTest`，双端全量单元测试均通过；最新设备包没有发现 `FATAL EXCEPTION` 或主线程 Room 崩溃。
+- 在最后的调度和详情页启用修复后，重新构建 Debug 包并以 `adb install -r -t` 覆盖安装：双端全量单元测试再次通过，追更 instrumentation 仍为 `OK (11 tests)`，日志未出现主线程 Room 或 `FATAL EXCEPTION`。
 
 ### 25.5 提交与回滚记录
 
@@ -1778,6 +1779,8 @@ d5a72def79f0aee2428d7ddd956ed6114f76abdf  fix(following): select source flag by 
 a6978e6ba4818eab6e1407657deb49c5692e24b5  fix(following): schedule returning shows after next air
 7567032bc07a99cb0755f61503e60aa86ae4683e  fix(following): gate progress projection by feature flag
 2b8d7943938cde453f173261f792ff0165ef0017  fix(following): enable imported alist subscriptions
+1cab41ffc9c6d2dc9d77e42b4967e5f32bbb5b53  fix(following): keep planned shows on a daily check
+9b17375d2bf60e7083a01586f882d8ec3382d98f  fix(following): enable detail-page subscriptions
 ```
 
 每个原子提交均由 `task_guard.sh` 创建独立 `recovery/FOLLOW-1-*` annotated tag；完整标签可在仓库中用 `git tag -l 'recovery/FOLLOW-1*'` 查询。回滚时可以回退到对应提交，也可以仅关闭 `following_enabled`；独立 `following.db` 不需要随 APK 降级删除。
