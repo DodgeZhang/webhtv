@@ -30,6 +30,9 @@ public abstract class FollowingDao {
     @Query("SELECT * FROM following WHERE cid = :cid AND site_key = :siteKey AND vod_id = :vodId AND tracked_season = :season LIMIT 1")
     public abstract Following findBySource(int cid, String siteKey, String vodId, int season);
 
+    @Query("SELECT * FROM following WHERE cid = :cid AND site_key = :siteKey AND vod_id = :vodId AND tmdb_id = 0 ORDER BY tracked_season ASC")
+    public abstract List<Following> findUnmatchedBySource(int cid, String siteKey, String vodId);
+
     @Query("SELECT COUNT(*) FROM following WHERE enabled = 1 AND has_update = 1")
     public abstract int unreadCount();
 

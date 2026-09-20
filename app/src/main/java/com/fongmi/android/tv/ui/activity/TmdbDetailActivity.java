@@ -101,6 +101,7 @@ import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.following.Following;
 import com.fongmi.android.tv.following.FollowingIdentity;
+import com.fongmi.android.tv.following.FollowingMetadataSnapshot;
 import com.fongmi.android.tv.following.FollowingPlaybackBridge;
 import com.fongmi.android.tv.following.FollowingScheduler;
 import com.fongmi.android.tv.following.FollowingSettings;
@@ -2811,6 +2812,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         if (selectedFlag == null || selectedFlag.getEpisodes() == null || selectedFlag.getEpisodes().isEmpty()) bindTmdbSection();
         focusInlinePlayerPanel();
         if (bundle != null) binding.getRoot().post(() -> loadTmdbMediaBlocks(bundle));
+        updateFollowingState();
         if (shouldShowAutoTmdbMatchDialog(bundle)) showTmdbMatchDialog(result == null ? List.of() : result.searchItems());
         SpiderDebug.log("tmdb-detail-flow", "apply tmdb result cost=%dms mode=%d bundle=%s search=%d", System.currentTimeMillis() - start, getDetailMode(), bundle != null, result == null ? 0 : result.searchItems().size());
     }
@@ -11303,7 +11305,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 : FollowingIdentity.identityKey(tmdb, season);
         followingActionPending = true;
         setFollowingButtonsEnabled(false);
-        FollowingPlaybackBridge.findAsync(identityKey, existing -> {
+        resolveFollowing(tmdb, identityKey, siteKey, vodId, season, existing -> {
             if (isFinishing() || isDestroyed()) return;
             if (existing != null) {
                 followingActionPending = false;
@@ -11374,15 +11376,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private void applyInitialFollowingMetadata(Following item) {
-        TmdbEpisodeInfo info = cachedEpisodeInfo;
+        TmdbEpisodeInfo info = tmdbEpisodeInfo();
         if (info == null || info.isEmpty()) return;
-        item.officialStatus = switch (info.getState()) {
-            case ONGOING -> "RETURNING";
-            case PLANNED -> "PLANNED";
-            case COMPLETE -> "ENDED";
-            case CANCELED -> "CANCELED";
-            default -> "UNKNOWN";
-        };
+        item.officialStatus = followingStatus(info);
         item.seriesTotalEpisodes = info.getTotalEpisodes();
         item.seasonTotalEpisodes = info.getScopedTotalEpisodes();
         item.seasonReleasedEpisodes = info.getScopedAiredEpisodes();
@@ -11390,6 +11386,38 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         else item.latestReleasedEpisode = info.getScopedAiredEpisodes();
         item.latestReleasedSeason = info.getLastSeason();
         item.metadataUpdatedAt = System.currentTimeMillis();
+    }
+
+    private String followingStatus(TmdbEpisodeInfo info) {
+        if (info == null) return FollowingMetadataSnapshot.UNKNOWN;
+        return switch (info.getState()) {
+            case ONGOING -> FollowingMetadataSnapshot.RETURNING;
+            case PLANNED -> FollowingMetadataSnapshot.PLANNED;
+            case COMPLETE -> FollowingMetadataSnapshot.ENDED;
+            case CANCELED -> FollowingMetadataSnapshot.CANCELED;
+            default -> FollowingMetadataSnapshot.UNKNOWN;
+        };
+    }
+
+    private FollowingMetadataSnapshot followingSnapshot() {
+        TmdbEpisodeInfo info = tmdbEpisodeInfo();
+        if (info == null || info.isEmpty()) return null;
+        FollowingMetadataSnapshot snapshot = new FollowingMetadataSnapshot();
+        snapshot.source = "tmdb";
+        snapshot.status = followingStatus(info);
+        snapshot.latestReleasedSeason = Math.max(0, info.getLastSeason());
+        snapshot.latestReleasedEpisode = Math.max(0, info.getLastEpisode());
+        snapshot.seasonTotalEpisodes = Math.max(0, info.getScopedTotalEpisodes());
+        snapshot.seasonReleasedEpisodes = Math.max(0, info.getScopedAiredEpisodes());
+        snapshot.seriesTotalEpisodes = Math.max(0, info.getTotalEpisodes());
+        snapshot.fetchedAt = System.currentTimeMillis();
+        return snapshot;
+    }
+
+    private void resolveFollowing(TmdbItem tmdb, String identityKey, String siteKey, String vodId, int season,
+                                  java.util.function.Consumer<Following> callback) {
+        if (tmdb == null) FollowingPlaybackBridge.findAsync(identityKey, callback);
+        else FollowingPlaybackBridge.resolveTmdbAsync(tmdb, season, VodConfig.getCid(), siteKey, vodId, followingSnapshot(), callback);
     }
 
     private void updateFollowingState() {
@@ -11406,7 +11434,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 ? FollowingIdentity.identityKey(VodConfig.getCid(), getKeyText(), getIdText(), season)
                 : FollowingIdentity.identityKey(tmdb, season);
         applyFollowingButtonState(true, false);
-        FollowingPlaybackBridge.findAsync(identityKey, item -> {
+        resolveFollowing(tmdb, identityKey, getKeyText(), getIdText(), season, item -> {
             if (generation != followingUiGeneration || isFinishing() || isDestroyed()) return;
             applyFollowingButtonState(true, item != null);
         });

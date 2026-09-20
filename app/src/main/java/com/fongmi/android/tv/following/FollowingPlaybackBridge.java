@@ -130,6 +130,19 @@ public final class FollowingPlaybackBridge {
         });
     }
 
+    public static void resolveTmdbAsync(TmdbItem tmdb, int season, int cid, String siteKey, String vodId,
+                                        FollowingMetadataSnapshot snapshot, Consumer<Following> callback) {
+        Task.execute(() -> {
+            Following item = null;
+            try {
+                item = FollowingStore.resolveTmdb(tmdb, season, cid, siteKey, vodId, snapshot);
+            } catch (Throwable ignored) {
+            }
+            final Following result = item;
+            if (callback != null) App.post(() -> callback.accept(result));
+        });
+    }
+
     public static void addAsync(Following item, FollowingSource source, SaveCallback callback) {
         if (item == null || TextUtils.isEmpty(item.identityKey)) {
             if (callback != null) App.post(() -> callback.onResult(null, new IllegalArgumentException("following identity is empty")));

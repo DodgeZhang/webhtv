@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 
 public final class FollowingStore {
 
+    private static final Object MIGRATION_LOCK = new Object();
     private static final ExecutorService PROJECTOR = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "following-projector");
         thread.setDaemon(true);
@@ -50,6 +51,64 @@ public final class FollowingStore {
 
     public static Following findBySource(int cid, String siteKey, String vodId, int season) {
         return database().getFollowingDao().findBySource(cid, FollowingIdentity.normalize(siteKey), FollowingIdentity.normalize(vodId), season);
+    }
+
+    public static Following resolveTmdb(TmdbItem tmdb, int season, int cid, String siteKey, String vodId,
+                                        FollowingMetadataSnapshot snapshot) {
+        if (tmdb == null || tmdb.getTmdbId() <= 0 || !"tv".equals(FollowingIdentity.normalizeMediaType(tmdb.getMediaType()))) return null;
+        String identityKey = FollowingIdentity.identityKey(tmdb, season);
+        synchronized (MIGRATION_LOCK) {
+            return runInTransaction(() -> {
+                Following target = database().getFollowingDao().find(identityKey);
+                List<Following> sources = database().getFollowingDao().findUnmatchedBySource(
+                        cid, FollowingIdentity.normalize(siteKey), FollowingIdentity.normalize(vodId));
+                Following source = selectMigrationSource(sources, season);
+                if (source == null) return target;
+                return migrateSourceToTmdb(source, tmdb, season, snapshot);
+            });
+        }
+    }
+
+    private static Following selectMigrationSource(List<Following> sources, int season) {
+        if (sources == null || sources.isEmpty()) return null;
+        for (Following item : sources) if (item.trackedSeason == season) return item;
+        for (Following item : sources) if (item.trackedSeason <= 0) return item;
+        return sources.get(0);
+    }
+
+    private static Following migrateSourceToTmdb(Following source, TmdbItem tmdb, int season,
+                                                 FollowingMetadataSnapshot snapshot) {
+        long now = System.currentTimeMillis();
+        String identityKey = FollowingIdentity.identityKey(tmdb, season);
+        Following migrated = source.copy();
+        boolean fallbackSeason = migrated.trackedSeason <= 0 && season > 0;
+        migrated.identityKey = identityKey;
+        migrated.seriesKey = FollowingIdentity.seriesKey(tmdb);
+        migrated.mediaType = FollowingIdentity.normalizeMediaType(tmdb.getMediaType());
+        migrated.tmdbId = tmdb.getTmdbId();
+        migrated.trackedSeason = season;
+        if (fallbackSeason) {
+            if (migrated.watchedEpisode > 0) migrated.watchedSeason = season;
+            if (migrated.lastNotifiedEpisode > 0 || migrated.readWatermarkEpisode > 0) migrated.watchedSeason = season;
+        }
+
+        Following target = database().getFollowingDao().find(identityKey);
+        Following result = target == null ? migrated : FollowingMergePolicy.mergeOne(target, migrated);
+        if (snapshot != null) FollowingUpdatePolicy.applyMetadata(result, snapshot, now);
+        else FollowingUpdatePolicy.refreshDerived(result, now);
+        result.nextCheckAt = FollowingSchedulePolicy.nextCheckAt(now, result.officialStatus, result.nextAirAt);
+        database().getFollowingDao().insertOrUpdate(result);
+
+        List<FollowingSource> bindings = database().getFollowingSourceDao().findForFollowing(source.identityKey);
+        for (FollowingSource binding : bindings) {
+            if (binding == null) continue;
+            binding.followingKey = identityKey;
+            if (binding.playableSeason <= 0) binding.playableSeason = season;
+            database().getFollowingSourceDao().insertOrUpdate(binding);
+        }
+        database().getFollowingSourceDao().deleteForFollowing(source.identityKey);
+        database().getFollowingDao().delete(source.identityKey);
+        return result;
     }
 
     public static int unreadCount() {

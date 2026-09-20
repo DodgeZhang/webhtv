@@ -1723,6 +1723,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - alist 导入记录显式设置 `enabled=true`，确保导入后能被到期查询和后台 Worker 调度；单测覆盖导入 identity 和调度启用状态。
 - PLANNED 状态在下一集日期较远时仍至少每 24 小时轻查一次，取“24 小时”和“下一集检查时间”中更早者，避免播出前长期不刷新官方状态。
 - 详情页新建追更记录显式设置 `enabled=true`，确保从详情页加入的记录会进入到期查询和后台 Worker；源代码回归测试防止再次漏设。
+- 无 TMDB 的源站追更记录在详情页后续匹配成功后，按 `cid + siteKey + vodId` 自动迁移到 TMDB 季身份；迁移保留来源绑定、观看进度和提醒水位，并立即回填当前 TMDB 官方状态，不保留重复可见记录。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

@@ -108,6 +108,7 @@ public class FollowingUiSourceTest {
     @Test
     public void detailAndPlaybackScreensWireFollowingActionsOffTheMainThread() throws Exception {
         String detail = read("app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java");
+        String store = read("app/src/main/java/com/fongmi/android/tv/following/FollowingStore.java");
         String header = read("app/src/main/res/layout/view_tmdb_header.xml");
         String mobile = read("app/src/mobile/res/layout/activity_video.xml")
                 + read("app/src/mobile/res/layout-land/activity_video.xml")
@@ -117,9 +118,10 @@ public class FollowingUiSourceTest {
         String mobileActivity = read("app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
         String leanbackActivity = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
         String followingActivity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
-        String store = read("app/src/main/java/com/fongmi/android/tv/following/FollowingStore.java");
 
         assertTrue(detail.contains("FollowingPlaybackBridge.findAsync"));
+        assertTrue(detail.contains("FollowingPlaybackBridge.resolveTmdbAsync"));
+        assertTrue(detail.contains("followingSnapshot()"));
         assertTrue(detail.contains("item.enabled = true"));
         assertFalse(detail.contains("FollowingStore.findByTmdb"));
         assertFalse(detail.contains("FollowingStore.findBySource"));
@@ -134,6 +136,7 @@ public class FollowingUiSourceTest {
         assertTrue(mobile.contains("ic_home_following_shadow"));
         assertFalse(mobile.contains("drawable/ic_home_following\""));
         assertTrue(store.contains("history == null || !FollowingSettings.isEnabled()"));
+        assertTrue(store.contains("migrateSourceToTmdb"));
     }
 
     private static String read(String relative) throws Exception {
