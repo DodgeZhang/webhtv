@@ -120,6 +120,7 @@ public class FollowingUiSourceTest {
         String store = read("app/src/main/java/com/fongmi/android/tv/following/FollowingStore.java");
 
         assertTrue(detail.contains("FollowingPlaybackBridge.findAsync"));
+        assertTrue(detail.contains("item.enabled = true"));
         assertFalse(detail.contains("FollowingStore.findByTmdb"));
         assertFalse(detail.contains("FollowingStore.findBySource"));
         assertTrue(header.contains("@+id/tmdbFollowing"));

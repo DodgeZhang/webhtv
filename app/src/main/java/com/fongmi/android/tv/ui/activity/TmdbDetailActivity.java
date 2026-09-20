@@ -11336,6 +11336,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         item.position = history == null ? 0 : Math.max(0, history.getPosition());
         item.duration = history == null ? 0 : Math.max(0, history.getDuration());
         item.notifyEnabled = FollowingSettings.isNotificationsEnabled();
+        item.enabled = true;
         item.createdAt = now;
         item.updatedAt = now;
         item.nextCheckAt = now;
