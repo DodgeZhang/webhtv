@@ -259,6 +259,8 @@
     <string name="history_record_missing">The history record no longer exists</string>
     <string name="history_config_changed">VOD configuration changed. Please try again.</string>
     <string name="dialog_delete_global_history">Delete history from all VOD configurations?</string>
+    <string name="config_delete_title">Delete source?</string>
+    <string name="config_delete_message">Delete “%1$s”? Related playback history may also be lost. This cannot be undone.</string>
     <string name="setting_home_history">Home recent history</string>
     <string name="setting_personal_recommendation">Personal recommendations</string>
     <string name="setting_recommendation_feedback">Not interested management</string>
