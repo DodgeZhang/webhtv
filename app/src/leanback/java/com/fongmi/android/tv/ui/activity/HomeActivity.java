@@ -46,6 +46,7 @@ import com.fongmi.android.tv.event.CastEvent;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.event.ServerEvent;
+import com.fongmi.android.tv.following.FollowingPlaybackBridge;
 import com.fongmi.android.tv.following.FollowingScheduler;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.impl.ConfigListener;
@@ -782,6 +783,12 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         mFuncAdapter.setItems(items, new BaseDiffCallback<Func>());
     }
 
+    private void refreshFollowingCount() {
+        FollowingPlaybackBridge.refreshUnreadCountAsync(unread -> {
+            if (!isFinishing() && !isDestroyed()) setFunc();
+        });
+    }
+
     private void getHistory() {
         getHistory(false);
     }
@@ -1246,6 +1253,7 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         FollowingScheduler.ensurePeriodic(this);
         FollowingScheduler.enqueueDueNow(this);
         setFunc();
+        refreshFollowingCount();
         syncTypeItems();
         resumeTypeSwitch();
     }

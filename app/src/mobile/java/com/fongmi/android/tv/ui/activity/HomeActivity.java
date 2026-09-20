@@ -29,9 +29,9 @@ import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.event.ServerEvent;
 import com.fongmi.android.tv.event.StateEvent;
+import com.fongmi.android.tv.following.FollowingPlaybackBridge;
 import com.fongmi.android.tv.following.FollowingSettings;
 import com.fongmi.android.tv.following.FollowingScheduler;
-import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.lab.LabActivity;
 import com.fongmi.android.tv.lab.LabConfig;
@@ -308,7 +308,18 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
             mBinding.navigation.removeBadge(R.id.following);
             return;
         }
-        int unread = FollowingStore.unreadCount();
+        applyFollowingBadge(FollowingPlaybackBridge.cachedUnreadCount());
+        FollowingPlaybackBridge.refreshUnreadCountAsync(unread -> {
+            if (!isFinishing() && !isDestroyed()) applyFollowingBadge(unread);
+        });
+    }
+
+    private void applyFollowingBadge(int unread) {
+        if (mBinding == null || mBinding.navigation.getMenu().findItem(R.id.following) == null) return;
+        if (!FollowingSettings.isEnabled()) {
+            mBinding.navigation.removeBadge(R.id.following);
+            return;
+        }
         if (unread > 0) mBinding.navigation.getOrCreateBadge(R.id.following).setNumber(unread);
         else mBinding.navigation.removeBadge(R.id.following);
     }

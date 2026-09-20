@@ -16,7 +16,26 @@ public final class FollowingPlaybackBridge {
         void onResult(Following item, Throwable error);
     }
 
+    private static volatile int cachedUnreadCount;
+
     private FollowingPlaybackBridge() {
+    }
+
+    public static int cachedUnreadCount() {
+        return cachedUnreadCount;
+    }
+
+    public static void refreshUnreadCountAsync(Consumer<Integer> callback) {
+        Task.execute(() -> {
+            int unread = 0;
+            try {
+                unread = FollowingStore.unreadCount();
+            } catch (Throwable ignored) {
+            }
+            cachedUnreadCount = unread;
+            final int result = unread;
+            if (callback != null) App.post(() -> callback.accept(result));
+        });
     }
 
     public static boolean isEligible(History history) {

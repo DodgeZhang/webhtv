@@ -3,8 +3,8 @@ package com.fongmi.android.tv.bean;
 import androidx.annotation.Nullable;
 
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.following.FollowingPlaybackBridge;
 import com.fongmi.android.tv.impl.Diffable;
-import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.setting.CustomCspSetting;
 import com.fongmi.android.tv.utils.ResUtil;
 
@@ -51,7 +51,7 @@ public class Func implements Diffable<Func> {
 
     private static String resolveText(int resId) {
         if (resId == R.string.home_following) {
-            int unread = FollowingStore.unreadCount();
+            int unread = FollowingPlaybackBridge.cachedUnreadCount();
             String text = ResUtil.getString(resId);
             return unread > 0 ? text + " · " + unread : text;
         }

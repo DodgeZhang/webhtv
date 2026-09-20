@@ -21,6 +21,9 @@ public class FollowingUiSourceTest {
         assertTrue(mobile.contains("FollowingSettings.isEnabled()"));
         assertTrue(mobile.contains("FollowingActivity.start(this"));
         assertTrue(mobile.contains("updateFollowingBadge()"));
+        assertTrue(mobile.contains("FollowingPlaybackBridge.cachedUnreadCount()"));
+        assertTrue(mobile.contains("FollowingPlaybackBridge.refreshUnreadCountAsync"));
+        assertFalse(mobile.contains("FollowingStore.unreadCount()"));
     }
 
     @Test
@@ -53,6 +56,7 @@ public class FollowingUiSourceTest {
         String mobileLayout = read("app/src/mobile/res/layout/fragment_setting_personal.xml");
         String leanbackLayout = read("app/src/leanback/res/layout/activity_setting_personal.xml");
         String func = read("app/src/leanback/java/com/fongmi/android/tv/bean/Func.java");
+        String bridge = read("app/src/main/java/com/fongmi/android/tv/following/FollowingPlaybackBridge.java");
 
         assertTrue(activity.contains("FILTER_UPDATES"));
         assertTrue(activity.contains("FILTER_UNWATCHED"));
@@ -65,7 +69,10 @@ public class FollowingUiSourceTest {
         assertTrue(mobileLayout.contains("@+id/followingText"));
         assertTrue(leanbackLayout.contains("@+id/following"));
         assertTrue(leanbackLayout.contains("@+id/followingText"));
-        assertTrue(func.contains("FollowingStore.unreadCount()"));
+        assertTrue(bridge.contains("volatile int cachedUnreadCount"));
+        assertTrue(bridge.contains("FollowingStore.unreadCount()"));
+        assertTrue(func.contains("FollowingPlaybackBridge.cachedUnreadCount()"));
+        assertFalse(func.contains("FollowingStore.unreadCount()"));
         assertTrue(func.contains(" + \" · \" + unread"));
     }
 

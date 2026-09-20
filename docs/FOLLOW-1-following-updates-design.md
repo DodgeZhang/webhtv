@@ -1710,6 +1710,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 修复取消追更时主线程调用 `FollowingStore.delete()` 导致的 Room 崩溃：取消、已读、通知开关和来源导入均通过后台桥接执行；设备端 `FollowingDeleteDeviceTest` 验证主线程发起删除可安全完成并同时清理来源表。
 - 手机播放页追更图标改用与搜索、投屏、设置一致的 `_shadow` 双层样式，避免系统主题对 vector tint 产生不同颜色。
 - 修复追更列表点击“检查更新”时的同类主线程崩溃：`checkAll()` 先完整进入后台线程再读取 `FollowingStore.list()`；设备端 `FollowingCheckDeviceTest` 通过真实 Activity 点击验证该入口。
+- 修复手机底栏与 Leanback 首页追更角标的同类主线程崩溃：未读数统一通过 `FollowingPlaybackBridge.refreshUnreadCountAsync()` 在后台刷新并缓存，UI 只读取 `cachedUnreadCount()`；两端首页恢复后异步更新显示。双端定向单元测试通过，`mobileArm64_v8aDebug` 测试包已覆盖安装到 `192.168.50.3:5561`，启动与首页恢复日志未出现主线程 Room 或 `FATAL EXCEPTION`。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入
@@ -1753,7 +1754,7 @@ e64abf8df4341a5dc5f860ac695577b191673856  docs(following): record debug size and
 ```text
 objective:         FOLLOW-1 P0–P5 代码、备份/同步、双端入口和手动 alist 导入已实施
 authority:         用户已要求按设计实施；当前已提交多个可回滚原子单元
-status:            implementation + all simulator-available targeted/device verification complete; design completion item 6 (API 33+/TV/Doze/multi-device) not available
+status:            implementation + all simulator-available targeted/device verification complete; badge unread queries are off-main-thread as of FOLLOW-1-BADGE-CRASH; design completion item 6 (API 33+/TV/Doze/multi-device) not available
                           Release/package-size build intentionally excluded by explicit user constraint
 next_action:       如需完成正式发布验收，由具备 API 33+ 手机和 TV 真机的环境执行完成定义第 6 条；当前 5561 上没有剩余可执行的代码级验证
 rollback_anchor:   following_enabled=false + FollowingScheduler.cancelAll；不修改 AppDatabase v45
