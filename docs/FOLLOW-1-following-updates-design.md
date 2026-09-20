@@ -1714,6 +1714,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 播放进度投影改为专用单线程队列：`FollowingStore.project()` 只入队，历史/季进度事务提交后再投影，避免 UI 线程访问 following Room 和事务提交前读取旧进度；设备测试验证主线程调用可安全完成并更新追更水位。
 - 应用处于前台时抑制追更系统通知，避免用户正在使用应用时弹出重复提醒；站内状态、角标和后台后续检查不受影响。
 - 官方元数据回退保护：同一追踪季内 `latestReleasedEpisode` 和已播集数只增不减；TMDB 返回旧季或较小集数时保留已有水位，避免更新角标和未看计数倒退。
+- 设备端 `FollowingNotifierDeviceTest` 验证应用前台时通知器返回抑制状态且不推进 `lastNotifiedEpisode`，确保站内状态更新与系统提醒解耦。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入
