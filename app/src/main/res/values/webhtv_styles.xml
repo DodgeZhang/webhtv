@@ -31,6 +31,22 @@
         <item name="isLightTheme">false</item>
     </style>
 
+    <style name="Theme.WebHTV.Dialog" parent="Theme.Material3.DayNight.Dialog.Alert">
+        <item name="android:windowNoTitle">true</item>
+        <item name="alertDialogStyle">@style/Widget.WebHTV.Dialog</item>
+        <item name="android:windowBackground">@color/webhtv_color_surface_container_high</item>
+        <item name="android:colorBackground">@color/webhtv_color_surface_container_high</item>
+        <item name="android:textColorPrimary">@color/webhtv_color_on_surface</item>
+        <item name="android:textColorSecondary">@color/webhtv_color_on_surface_variant</item>
+        <item name="android:textColorHint">@color/webhtv_color_on_surface_variant</item>
+        <item name="colorSurface">@color/webhtv_color_surface_container_high</item>
+        <item name="colorOnSurface">@color/webhtv_color_on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/webhtv_color_on_surface_variant</item>
+        <item name="colorPrimary">@color/webhtv_color_primary</item>
+        <item name="colorControlNormal">@color/webhtv_color_on_surface_variant</item>
+        <item name="colorControlActivated">@color/webhtv_color_primary</item>
+    </style>
+
     <style name="ThemeOverlay.WebHTV.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="colorSurface">@color/webhtv_color_surface_container_high</item>
         <item name="colorOnSurface">@color/webhtv_color_on_surface</item>
@@ -48,68 +64,77 @@
 
     <style name="Widget.WebHTV.Label">
         <item name="android:textAppearance">@style/TextAppearance.WebHTV.BodyMedium</item>
-        <item name="android:textColor">?attr/webhtvColorOnSurface</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 
     <style name="Widget.WebHTV.Label.Secondary">
         <item name="android:textAppearance">@style/TextAppearance.WebHTV.LabelSmall</item>
-        <item name="android:textColor">?attr/webhtvColorOnSurfaceVariant</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
     <style name="Widget.WebHTV.Helper">
         <item name="android:textAppearance">@style/TextAppearance.WebHTV.LabelSmall</item>
-        <item name="android:textColor">?attr/webhtvColorOnSurfaceVariant</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
     <style name="Widget.WebHTV.Button.Filled" parent="Widget.Material3.Button">
-        <item name="backgroundTint">?attr/webhtvColorPrimary</item>
-        <item name="android:textColor">?attr/webhtvColorOnPrimary</item>
+        <item name="backgroundTint">?attr/colorPrimary</item>
+        <item name="android:textColor">?attr/colorOnPrimary</item>
     </style>
 
     <style name="Widget.WebHTV.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
-        <item name="backgroundTint">?attr/webhtvColorSecondaryContainer</item>
-        <item name="android:textColor">?attr/webhtvColorOnSecondaryContainer</item>
+        <item name="backgroundTint">?attr/colorSecondaryContainer</item>
+        <item name="android:textColor">?attr/colorOnSecondaryContainer</item>
     </style>
 
     <style name="Widget.WebHTV.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="strokeColor">?attr/webhtvColorOutline</item>
-        <item name="android:textColor">?attr/webhtvColorPrimary</item>
+        <item name="strokeColor">?attr/colorOutline</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
     </style>
 
     <style name="Widget.WebHTV.Button.Text" parent="Widget.Material3.Button.TextButton">
-        <item name="android:textColor">?attr/webhtvColorPrimary</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
     </style>
 
     <style name="Widget.WebHTV.Input" parent="Widget.Material3.TextInputLayout.OutlinedBox">
-        <item name="boxStrokeColor">?attr/webhtvColorOutline</item>
-        <item name="hintTextColor">?attr/webhtvColorOnSurfaceVariant</item>
-        <item name="errorTextColor">?attr/webhtvColorError</item>
+        <item name="boxStrokeColor">?attr/colorOutline</item>
+        <item name="hintTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="errorTextColor">?attr/colorError</item>
     </style>
 
     <style name="Widget.WebHTV.ListItem">
         <item name="android:background">?attr/selectableItemBackground</item>
         <item name="android:minHeight">@dimen/webhtv_size_button</item>
-        <item name="android:textColor">?attr/webhtvColorOnSurface</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 
     <style name="Widget.WebHTV.Card" parent="Widget.Material3.CardView.Elevated">
-        <item name="cardBackgroundColor">?attr/webhtvColorSurfaceContainer</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainer</item>
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.WebHTV.Medium</item>
     </style>
 
     <style name="Widget.WebHTV.Dialog" parent="MaterialAlertDialog.Material3">
-        <item name="backgroundTint">?attr/webhtvColorSurfaceContainerHigh</item>
+        <item name="backgroundTint">?attr/colorSurfaceContainerHigh</item>
         <item name="shapeAppearance">@style/ShapeAppearance.WebHTV.ExtraLarge</item>
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.WebHTV.ExtraLarge</item>
     </style>
 
     <style name="Widget.WebHTV.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
-        <item name="backgroundTint">?attr/webhtvColorSurfaceContainerHigh</item>
+        <item name="backgroundTint">?attr/colorSurfaceContainerHigh</item>
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.WebHTV.ExtraLarge</item>
+    </style>
+
+    <style name="ThemeOverlay.WebHTV.Dialog.NoInset" parent="ThemeOverlay.WebHTV.Dialog">
+        <item name="alertDialogStyle">@style/MaterialAlertDialog.WebHTV.NoInset</item>
     </style>
 
     <style name="Widget.WebHTV.PlayerControl" parent="Widget.Material3.Button.TextButton">
         <item name="android:textColor">@color/webhtv_color_player_control</item>
         <item name="iconTint">@color/webhtv_color_player_control</item>
+    </style>
+
+    <style name="Widget.WebHTV.SliderLabel" parent="Widget.MaterialComponents.Tooltip">
+        <item name="android:textAppearance">@style/TextAppearance.WebHTV.BodyMedium</item>
+        <item name="backgroundTint">@color/webhtv_color_primary</item>
     </style>
 </resources>

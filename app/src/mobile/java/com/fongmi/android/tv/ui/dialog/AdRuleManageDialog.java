@@ -73,7 +73,7 @@ public class AdRuleManageDialog extends BaseAlertDialog implements AdRuleAdapter
 
     @Override
     protected MaterialAlertDialogBuilder getBuilder() {
-        return new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_LightDialog).setView(getBinding().getRoot());
+        return new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_Dialog).setView(getBinding().getRoot());
     }
 
     @Override
@@ -146,7 +146,7 @@ public class AdRuleManageDialog extends BaseAlertDialog implements AdRuleAdapter
     }
 
     private void onDisableImported() {
-        new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog)
+        new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)
                 .setTitle(R.string.ad_rule_disable_imported)
                 .setMessage(R.string.ad_rule_disable_imported_confirm)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -176,7 +176,7 @@ public class AdRuleManageDialog extends BaseAlertDialog implements AdRuleAdapter
                 () -> updateCandidateSelection(dialogRef[0], candidates, selected, 1),
                 () -> updateCandidateSelection(dialogRef[0], candidates, selected, 2),
                 () -> ignoreCandidates(dialogRef[0], candidates));
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog)
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)
                 .setTitle(R.string.ad_rule_import_title)
                 .setCustomTitle(toolbar)
                 .setMultiChoiceItems(labels, selected, (dialog, which, checked) -> selected[which] = checked)
@@ -279,7 +279,7 @@ public class AdRuleManageDialog extends BaseAlertDialog implements AdRuleAdapter
         HlsRuleConfig.Entry current = HlsRuleConfig.getEntries().stream()
                 .filter(entry -> item.key().equals(entry.key()))
                 .findFirst().orElse(item);
-        new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog)
+        new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)
                 .setTitle(current.name().isBlank() ? current.id() : current.name())
                 .setMessage(getHlsRuleDetail(current))
                 .setPositiveButton(android.R.string.ok, null)
@@ -289,7 +289,7 @@ public class AdRuleManageDialog extends BaseAlertDialog implements AdRuleAdapter
     private void showRuleDetail(String name, String summary, List<String> hosts, List<String> regex, List<String> exclude, Runnable editAction) {
         String message = (summary.isEmpty() ? "" : summary + "\n\n")
                 + "域名\n" + listText(hosts) + "\n\nURL 规则\n" + listText(regex) + "\n\n白名单\n" + listText(exclude);
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog)
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)
                 .setTitle(name)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null);
@@ -346,7 +346,7 @@ public class AdRuleManageDialog extends BaseAlertDialog implements AdRuleAdapter
     }
 
     private void confirmDisable(String name, int messageRes, Runnable action) {
-        new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog)
+        new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)
                 .setTitle(name)
                 .setMessage(messageRes)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> action.run())
@@ -393,7 +393,7 @@ public class AdRuleManageDialog extends BaseAlertDialog implements AdRuleAdapter
 
     @Override
     public void onDeleteClick(UserAdRule item) {
-        new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog)
+        new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)
                 .setTitle(R.string.ad_rule_delete_confirm)
                 .setMessage(getString(R.string.ad_rule_delete_message, item.getName()))
                 .setPositiveButton(R.string.ad_rule_delete_confirm, (dialog, which) -> deleteUserRule(item))

@@ -95,7 +95,7 @@ public final class IntroSkipKinds {
             labels[i] = ResUtil.getString(LABELS[i]);
             checked[i] = (kinds & FLAGS[i]) != 0;
         }
-        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog)
                 .setTitle(R.string.setting_intro_skip_kinds)
                 .setMultiChoiceItems(labels, checked, (d, which, isChecked) -> checked[which] = isChecked)
                 .setPositiveButton(R.string.dialog_positive, (d, w) -> {

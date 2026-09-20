@@ -54,7 +54,7 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
 
     @Override
     protected MaterialAlertDialogBuilder getBuilder() {
-        return new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_LightDialog).setView(getBinding().getRoot());
+        return new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_Dialog).setView(getBinding().getRoot());
     }
 
     @Override
@@ -388,7 +388,7 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
     }
 
     private void showClearConfirmation(int titleRes, CharSequence message, Runnable action) {
-        AlertDialog dialog = new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)
                 .setTitle(titleRes)
                 .setMessage(message)
                 .setNegativeButton(R.string.dialog_negative, null)

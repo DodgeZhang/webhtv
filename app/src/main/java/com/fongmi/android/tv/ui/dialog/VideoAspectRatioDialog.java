@@ -63,7 +63,7 @@ public final class VideoAspectRatioDialog {
         container.setPadding(dp(activity, 20), dp(activity, 8), dp(activity, 20), 0);
         container.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog)
                 .setTitle(R.string.aspect_ratio_title)
                 .setMessage(R.string.aspect_ratio_hint)
                 .setView(container)

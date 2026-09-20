@@ -55,7 +55,7 @@ public class SyncPathDialog extends BaseAlertDialog {
 
     @Override
     protected MaterialAlertDialogBuilder getBuilder() {
-        return new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog).setView(getBinding().getRoot());
+        return new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog).setView(getBinding().getRoot());
     }
 
     @Override

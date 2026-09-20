@@ -122,7 +122,7 @@ public final class AdBlockLogFilterDialog {
         selectAll.setOnClickListener(v -> adapter.selectAll());
         clear.setOnClickListener(v -> adapter.clearSelection());
 
-        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.ThemeOverlay_WebHTV_LightDialog)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.ThemeOverlay_WebHTV_Dialog)
                 .setTitle(title)
                 .setView(root)
                 .setNegativeButton(R.string.ad_log_filter_cancel, null)

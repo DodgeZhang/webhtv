@@ -166,7 +166,7 @@ public final class HistoryResumeCoordinator {
         messageParams.leftMargin = ResUtil.dp2px(16);
         content.addView(message, messageParams);
 
-        AlertDialog loading = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog)
+        AlertDialog loading = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog)
                 .setView(content)
                 .setCancelable(false)
                 .create();
@@ -177,7 +177,7 @@ public final class HistoryResumeCoordinator {
     }
 
     private static void showSearchFallback(Activity activity, History history, int targetCid) {
-        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog)
                 .setMessage(R.string.history_source_not_found)
                 .setNegativeButton(R.string.dialog_negative, null)
                 .setPositiveButton(R.string.history_source_open_search, (ignored, which) -> openSearch(activity, history.getCid(), HistoryResumePayload.encode(history), targetCid, history.getVodName()))

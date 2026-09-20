@@ -2,7 +2,7 @@
 
     <style name="Theme.Base" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/white</item>
-        <item name="materialAlertDialogTheme">@style/ThemeOverlay.WebHTV.LightDialog</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.WebHTV.Dialog</item>
         <item name="android:windowBackground">?attr/colorSurface</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowTranslucentStatus">true</item>
@@ -96,8 +96,6 @@
     </style>
 
     <!-- Keep TV dialogs aligned with the active app theme instead of pinning a fixed palette. -->
-    <style name="ThemeOverlay.WebHTV.LightDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
-        <item name="alertDialogStyle">@style/MaterialAlertDialog.WebHTV.Rounded</item>
-    </style>
+    <style name="ThemeOverlay.WebHTV.LightDialog" parent="ThemeOverlay.WebHTV.Dialog" />
 
 </resources>

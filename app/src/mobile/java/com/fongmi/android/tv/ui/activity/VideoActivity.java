@@ -4798,7 +4798,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         if (result == null || isFinishing() || isDestroyed()) return;
         if (mKaraokeResultDialog != null && mKaraokeResultDialog.isShowing()) return;
         KaraokeResultView view = new KaraokeResultView(this).setResult(result);
-        AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog).setView(view).create();
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_Dialog).setView(view).create();
         view.setAction(() -> {
             dialog.dismiss();
             completeKaraokeResult(action);

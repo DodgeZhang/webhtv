@@ -68,7 +68,7 @@ public final class AboutDialog {
     }
 
     private static void showGithubProxy(FragmentActivity activity) {
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog);
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog);
         Context context = builder.getContext();
         DialogGithubProxyBinding binding = DialogGithubProxyBinding.inflate(LayoutInflater.from(context));
         GithubProxyAdapter adapter = new GithubProxyAdapter(new GithubProxyAdapter.OnClickListener() {

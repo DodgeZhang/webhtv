@@ -157,7 +157,7 @@ public class TmdbSourceDialog {
                 String apiResult = resultText(result.api, R.string.dialog_tmdb_test_api_success, R.string.dialog_tmdb_test_api_failed);
                 String imageResult = resultText(result.image, R.string.dialog_tmdb_test_image_success, R.string.dialog_tmdb_test_image_failed);
                 String omdbResult = resultText(result.omdb, R.string.dialog_tmdb_test_omdb_success, R.string.dialog_tmdb_test_omdb_failed);
-                new MaterialAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_LightDialog)
+                new MaterialAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_Dialog)
                         .setTitle(R.string.dialog_tmdb_test_result_title)
                         .setMessage(apiResult + "\n" + imageResult + "\n" + omdbResult)
                         .setPositiveButton(R.string.dialog_positive, null)
@@ -177,7 +177,7 @@ public class TmdbSourceDialog {
     }
 
     private MaterialAlertDialogBuilder builder() {
-        return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog);
+        return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog);
     }
 
     private void wireConfigDialogFocus(AlertDialog dialog, EditText ruleInput, View addBtn, EditText disabledRuleInput, View addDisabledBtn, View manageBtn, View resetBtn) {

@@ -59,7 +59,7 @@ public class TmdbSearchDialog {
 
     public TmdbSearchDialog(Activity activity) {
         this.activity = activity;
-        ContextThemeWrapper dialogContext = new ContextThemeWrapper(activity, R.style.Theme_WebHTV_LightDialog);
+        ContextThemeWrapper dialogContext = new ContextThemeWrapper(activity, R.style.Theme_WebHTV_Dialog);
         this.binding = DialogResultListBinding.inflate(LayoutInflater.from(dialogContext));
     }
 
@@ -100,7 +100,7 @@ public class TmdbSearchDialog {
 
     public void show() {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
-        dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog).setView(binding.getRoot()).create();
+        dialog = new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog).setView(binding.getRoot()).create();
         if (activity.isFinishing() || activity.isDestroyed()) return;
         dialog.show();
         LightDialog.apply(dialog);

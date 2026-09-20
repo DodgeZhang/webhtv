@@ -9876,7 +9876,7 @@ private boolean showKaraokeResultIfNeeded(@Nullable Runnable after) {
         if (result == null) return false;
         mKaraokeResultShown = true;
         KaraokeResultView view = new KaraokeResultView(this).setLeanbackLandscapeExpanded(true).setResult(result);
-        AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_LightDialog).setView(view).create();
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_Dialog).setView(view).create();
         view.setAction(() -> {
             dialog.dismiss();
             runAfterKaraokeResult(after);

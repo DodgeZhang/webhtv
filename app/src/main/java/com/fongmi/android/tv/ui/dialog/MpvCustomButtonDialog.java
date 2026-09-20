@@ -83,7 +83,7 @@ public class MpvCustomButtonDialog extends DialogFragment {
         scroll.addView(list, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
         refresh();
-        return new MaterialAlertDialogBuilder(requireContext(), R.style.ThemeOverlay_WebHTV_LightDialog).setView(root).create();
+        return new MaterialAlertDialogBuilder(requireContext(), R.style.ThemeOverlay_WebHTV_Dialog).setView(root).create();
     }
 
     private void refresh() {
@@ -391,7 +391,7 @@ public class MpvCustomButtonDialog extends DialogFragment {
             root.addView(actions, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             ScrollView scroll = new ScrollView(requireContext());
             scroll.addView(root, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            return new MaterialAlertDialogBuilder(requireContext(), R.style.ThemeOverlay_WebHTV_LightDialog).setView(scroll).create();
+            return new MaterialAlertDialogBuilder(requireContext(), R.style.ThemeOverlay_WebHTV_Dialog).setView(scroll).create();
         }
 
         private void save() {

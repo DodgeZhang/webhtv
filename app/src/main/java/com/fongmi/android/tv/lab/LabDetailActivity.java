@@ -321,7 +321,7 @@ public class LabDetailActivity extends AppCompatActivity implements LabCommandAd
             View row = inflateSetting(container, setting, values);
             if (row != null) container.addView(row);
         }
-        new MaterialAlertDialogBuilder(this, R.style.Theme_WebHTV_LightDialog)
+        new MaterialAlertDialogBuilder(this, R.style.Theme_WebHTV_Dialog)
                 .setTitle(item.name + " 设置")
                 .setView(container)
                 .setNegativeButton(android.R.string.cancel, null)

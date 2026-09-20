@@ -9,9 +9,9 @@
 
 - 目标：按阶段 A–E 完成 WebHTV 原生与内置 Web 的语义视觉统一，阶段 F 仅保留清理与独立审批的高级主题入口。
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
-- 当前证据：阶段 A 已新增完整 token 资源、不可变 `ThemeTokens`、`ThemeResolver`、`ThemeController`、`ThemeWebBridge`、基线检查器和契约测试；现有页面资源未改动。
-- 未验证项：阶段 B–E 尚未实施；阶段 A 无设备验证要求。后续阶段的设备截图、焦点状态和播放回归仍未验证。
-- 下一步唯一动作：完成阶段 A 提交/tag 后，开始阶段 B 的 Dialog 与设置页迁移，并先核对当前分支实际存在的旧样式与调用点。
+- 当前证据：阶段 A 已新增 token/resolver/检查器/契约测试并独立提交；阶段 B 已将 137 个 dialog 布局、19 个设置布局、16 个 dialog 状态列表和 63 个 Java 调用点迁到共享语义角色，设备已覆盖手机浅/深色 Dialog 场景。
+- 未验证项：阶段 B 仍需完成最终提交/tag 和 TV 深色设备场景的收尾记录；阶段 C–E 尚未实施。播放、分页与 Web 页面回归尚未验证。
+- 下一步唯一动作：提交阶段 B 并生成 recovery tag，然后开始阶段 C 的首页、列表与卡片迁移。
 
 ### 阶段 A 实施记录（2026-09-20）
 
@@ -21,6 +21,15 @@
 - 静态证据：`scripts/check_ui_tokens.sh --baseline` 输出 378 个布局、549 个 drawable、47 个 color state list；38 组对比度全部通过，最低为 `outline/surface=4.28:1`。
 - 测试证据：`ThemeResolverTest`、`ThemeContractTest`、`UiStyleSourceTest` 共 13 项通过；mobile/leanback arm64 debug Java 编译通过。
 - 回滚锚点：本阶段只新增 token/测试/脚本，不接现有页面；直接回滚阶段 A 提交即可恢复阶段开始前的运行行为。
+
+### 阶段 B 实施记录（2026-09-21）
+
+- 迁移范围：137 个 `dialog_*.xml`、19 个设置页布局、16 个 `dialog_*` 状态列表和 63 个 Java 调用点；`Theme.WebHTV.LightDialog`/`ThemeOverlay.WebHTV.LightDialog` 只保留别名。
+- 设计修正：共享组件样式统一消费 Material `?attr/color*`，Dialog 主题与 overlay 使用固定语义资源，避免在主题定义中自引用导致 `Theme.AppCompat` 校验失败；TV 只保留深色 token 覆盖。
+- 静态证据：`scripts/check_ui_tokens.sh --stage B` 输出 `violations=0 legacy=0`，38 组对比度全部通过；`git diff --check` 通过。
+- 自动化证据：`ThemeResolverTest`、`ThemeContractTest`、`DialogRoundedCornerSourceTest`、`UiStyleSourceTest` 全部通过；mobile/leanback arm64 debug Java 编译通过。
+- 设备证据：dev3 `192.168.50.3:5559` 覆盖手机浅色/深色，均可进入去广告规则管理 Dialog，且 `FATAL EXCEPTION` 为 0；截图见 `/tmp/webhtv-b-mobile-dialog-light-final.png`、`/tmp/webhtv-b-mobile-dialog-dark-final.png`。
+- 回滚锚点：仅回滚阶段 B 提交即可恢复阶段 A 的页面视觉与旧 LightDialog 别名行为，不涉及数据或播放器内核。
 
 ---
 

@@ -105,7 +105,7 @@ public class AiConfigDialog {
     }
 
     private MaterialAlertDialogBuilder builder() {
-        return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog);
+        return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog);
     }
 
     private void showPromptConfig() {
@@ -163,7 +163,7 @@ public class AiConfigDialog {
                 dialogContext.getString(R.string.dialog_ai_group_rule_prompt_label)
         };
         boolean[] checked = {true, true, true, true, true};
-        AlertDialog picker = new MaterialAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_LightDialog)
+        AlertDialog picker = new MaterialAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_Dialog)
                 .setTitle(R.string.dialog_ai_prompt_reset)
                 .setMultiChoiceItems(labels, checked, (d, which, isChecked) -> checked[which] = isChecked)
                 .setPositiveButton(R.string.dialog_positive, (d, w) -> {
@@ -295,7 +295,7 @@ public class AiConfigDialog {
                 break;
             }
         }
-        new MaterialAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_LightDialog)
+        new MaterialAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_Dialog)
                 .setTitle(R.string.dialog_ai_protocol_label)
                 .setSingleChoiceItems(labels, currentIndex, (dialog, which) -> {
                     String oldProtocol = config.getProtocol();

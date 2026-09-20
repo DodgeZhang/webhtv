@@ -66,7 +66,7 @@ public class AdBlockStatsDialog {
     private AdBlockStatsDialog(Activity activity) {
         this.activity = activity;
         this.binding = DialogAdBlockStatsBinding.inflate(LayoutInflater.from(activity));
-        this.dialog = new MaterialAlertDialogBuilder(activity, R.style.ThemeOverlay_WebHTV_LightDialog)
+        this.dialog = new MaterialAlertDialogBuilder(activity, R.style.ThemeOverlay_WebHTV_Dialog)
                 .setView(binding.getRoot())
                 .create();
     }

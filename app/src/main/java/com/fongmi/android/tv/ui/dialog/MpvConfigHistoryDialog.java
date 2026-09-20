@@ -46,7 +46,7 @@ public class MpvConfigHistoryDialog extends BaseAlertDialog implements MpvConfig
 
     @Override
     protected MaterialAlertDialogBuilder getBuilder() {
-        MaterialAlertDialogBuilder builder = Util.isLeanback() ? builder() : new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_LightDialog);
+        MaterialAlertDialogBuilder builder = Util.isLeanback() ? builder() : new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_Dialog);
         return builder.setView(getBinding().getRoot());
     }
 

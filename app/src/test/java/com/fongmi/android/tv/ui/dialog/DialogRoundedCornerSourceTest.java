@@ -50,8 +50,8 @@ public class DialogRoundedCornerSourceTest {
         String mobileStyles = Files.readString(Path.of("src/mobile/res/values/styles.xml"), StandardCharsets.UTF_8);
         String leanbackStyles = Files.readString(Path.of("src/leanback/res/values/styles.xml"), StandardCharsets.UTF_8);
         assertTrue("Mobile theme should apply the unified rounded dialog overlay",
-                mobileStyles.contains("<item name=\"materialAlertDialogTheme\">@style/ThemeOverlay.WebHTV.LightDialog</item>"));
+                mobileStyles.contains("<item name=\"materialAlertDialogTheme\">@style/ThemeOverlay.WebHTV.Dialog</item>"));
         assertTrue("Leanback theme should apply the unified rounded dialog overlay",
-                leanbackStyles.contains("<item name=\"materialAlertDialogTheme\">@style/ThemeOverlay.WebHTV.LightDialog</item>"));
+                leanbackStyles.contains("<item name=\"materialAlertDialogTheme\">@style/ThemeOverlay.WebHTV.Dialog</item>"));
     }
 }

@@ -67,7 +67,7 @@ public final class AdSkipPromptPresenter implements AdSkipCoordinator.UiPort, Au
         String message = speech
                 ? owner.getString(R.string.ad_audio_speech_candidate_message, duration)
                 : owner.getString(R.string.ad_audio_candidate_message, prompt.ruleId(), duration);
-        dialog = new MaterialAlertDialogBuilder(owner, R.style.ThemeOverlay_WebHTV_LightDialog)
+        dialog = new MaterialAlertDialogBuilder(owner, R.style.ThemeOverlay_WebHTV_Dialog)
                 .setTitle(title)
                 .setMessage(message)
                 .setPositiveButton(R.string.ad_audio_skip, (ignored, which) ->
@@ -89,7 +89,7 @@ public final class AdSkipPromptPresenter implements AdSkipCoordinator.UiPort, Au
         dismissInternal();
         long token = ++presentationToken;
         AtomicBoolean handled = new AtomicBoolean();
-        dialog = new MaterialAlertDialogBuilder(owner, R.style.ThemeOverlay_WebHTV_LightDialog)
+        dialog = new MaterialAlertDialogBuilder(owner, R.style.ThemeOverlay_WebHTV_Dialog)
                 .setTitle(R.string.ad_audio_skipped_title)
                 .setMessage(owner.getString(R.string.ad_audio_skipped_message,
                         Math.max(1L, prompt.expiresAfterMs() / 1_000L)))

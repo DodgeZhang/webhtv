@@ -592,7 +592,7 @@ public final class GroupRuleDialog {
     }
 
     private MaterialAlertDialogBuilder builder() {
-        return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog);
+        return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog);
     }
 
     private static void wireDpadFocus(View view, View up, View down, View left, View right) {

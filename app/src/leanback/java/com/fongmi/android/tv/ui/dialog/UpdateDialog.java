@@ -75,7 +75,7 @@ public class UpdateDialog extends BaseAlertDialog {
 
     @Override
     protected MaterialAlertDialogBuilder getBuilder() {
-        return new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_LightDialog_NoInset).setView(getBinding().getRoot()).setCancelable(false);
+        return new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_Dialog_NoInset).setView(getBinding().getRoot()).setCancelable(false);
     }
 
     @Override
