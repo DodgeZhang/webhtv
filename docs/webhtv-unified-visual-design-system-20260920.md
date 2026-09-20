@@ -9,9 +9,9 @@
 
 - 目标：按阶段 A–E 完成 WebHTV 原生与内置 Web 的语义视觉统一，阶段 F 仅保留清理与独立审批的高级主题入口。
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
-- 当前证据：阶段 A 已新增 token/resolver/检查器/契约测试并独立提交；阶段 B 已将 137 个 dialog 布局、19 个设置布局、16 个 dialog 状态列表和 63 个 Java 调用点迁到共享语义角色，设备已覆盖手机浅/深色 Dialog 场景。
-- 未验证项：阶段 B 仍需完成最终提交/tag 和 TV 深色设备场景的收尾记录；阶段 C–E 尚未实施。播放、分页与 Web 页面回归尚未验证。
-- 下一步唯一动作：提交阶段 B 并生成 recovery tag，然后开始阶段 C 的首页、列表与卡片迁移。
+- 当前证据：阶段 A/B 均已独立提交并打 recovery tag；阶段 C 已迁移首页、搜索、历史、收藏、站点与推荐等列表/卡片布局到共享语义角色，检查器与自动化编译验证通过。
+- 未验证项：阶段 C 尚未提交/tag；阶段 D–E 尚未实施。播放、分页与 Web 页面回归尚未完成。
+- 下一步唯一动作：提交阶段 C 并生成 recovery tag，然后开始阶段 D 的详情与播放器控制层迁移。
 
 ### 阶段 A 实施记录（2026-09-20）
 
@@ -30,6 +30,15 @@
 - 自动化证据：`ThemeResolverTest`、`ThemeContractTest`、`DialogRoundedCornerSourceTest`、`UiStyleSourceTest` 全部通过；mobile/leanback arm64 debug Java 编译通过。
 - 设备证据：dev3 `192.168.50.3:5559` 覆盖手机浅色/深色，均可进入去广告规则管理 Dialog，且 `FATAL EXCEPTION` 为 0；截图见 `/tmp/webhtv-b-mobile-dialog-light-final.png`、`/tmp/webhtv-b-mobile-dialog-dark-final.png`。
 - 回滚锚点：仅回滚阶段 B 提交即可恢复阶段 A 的页面视觉与旧 LightDialog 别名行为，不涉及数据或播放器内核。
+
+### 阶段 C 实施记录（2026-09-21）
+
+- 迁移范围：首页、搜索、历史、收藏、站点、推荐、剧集、EPG、实验室配置等列表/卡片布局；共迁移 71 个 `adapter_*`/`item_*`/`view_empty`/`view_progress` 资源文件。
+- 阶段边界：检查器将 `adapter_tmdb_*`、`adapter_player_osd` 等详情与播放器控制文件保留给阶段 D，避免跨阶段提前修改。
+- 静态证据：`scripts/check_ui_tokens.sh --stage C` 输出 `violations=0 legacy=0`，38 组对比度全部通过；`git diff --check` 通过。
+- 自动化证据：`UiStyleSourceTest`、`ThemeResolverTest`、`ThemeContractTest` 全部通过；mobile/leanback arm64 debug Java 编译通过。
+- 设备证据：dev3 `192.168.50.3:5559` 重新覆盖安装后进入去广告规则管理 Dialog，列表与卡片正常显示，`FATAL EXCEPTION=0`；截图见 `/tmp/webhtv-c-ad-dialog.png`。
+- 回滚锚点：仅回滚阶段 C 提交即可恢复阶段 B 的列表与卡片视觉，不影响阶段 A/B 的 token 与 Dialog 契约。
 
 ---
 

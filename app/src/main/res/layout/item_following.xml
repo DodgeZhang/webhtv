@@ -9,10 +9,10 @@
     android:focusable="false"
     android:descendantFocusability="afterDescendants"
     android:foreground="?attr/selectableItemBackground"
-    app:cardBackgroundColor="@color/following_card_bg"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
     app:cardCornerRadius="16dp"
     app:cardElevation="2dp"
-    app:strokeColor="@color/following_card_stroke"
+    app:strokeColor="?attr/colorOutlineVariant"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -25,7 +25,7 @@
             android:id="@+id/image"
             android:layout_width="86dp"
             android:layout_height="120dp"
-            android:background="@color/following_card_stroke"
+            android:background="?attr/colorOutlineVariant"
             android:contentDescription="@null"
             android:scaleType="centerCrop" />
 
@@ -49,7 +49,7 @@
                     android:layout_weight="1"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:textColor="@color/following_text_primary"
+                    android:textColor="?attr/colorOnSurface"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     tools:text="示例剧" />
@@ -64,7 +64,7 @@
                     android:paddingTop="3dp"
                     android:paddingEnd="8dp"
                     android:paddingBottom="3dp"
-                    android:textColor="#174EA6"
+                    android:textColor="?attr/colorPrimary"
                     android:textSize="12sp"
                     android:textStyle="bold"
                     tools:text="新 3 集" />
@@ -75,7 +75,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:textColor="@color/following_text_primary"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="13sp"
                 tools:text="官方已更新至第 12 集" />
 
@@ -86,7 +86,7 @@
                 android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/following_text_secondary"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="12sp"
                 tools:text="当前源可播至 E10" />
 
@@ -95,7 +95,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:textColor="@color/following_text_secondary"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="12sp"
                 tools:text="看到 E8，还有 4 集未看" />
 
@@ -106,7 +106,7 @@
                 android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="#B3261E"
+                android:textColor="?attr/colorError"
                 android:textSize="11sp"
                 android:visibility="gone"
                 tools:text="检查失败" />

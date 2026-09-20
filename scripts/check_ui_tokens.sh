@@ -177,7 +177,12 @@ def in_stage(path):
     if stage == "B":
         return name.startswith("dialog_") or name.startswith("fragment_setting") or name.startswith("activity_setting") or "/color/dialog_" in value
     if stage == "C":
-        return name.startswith(("adapter_", "item_", "view_empty", "view_progress", "view_wall"))
+        if name.startswith(("view_empty", "view_progress", "view_wall")):
+            return True
+        if name.startswith(("item_", "adapter_")):
+            # Detail and player OSD layouts are owned by stage D.
+            return "player_osd" not in value and "tmdb" not in value
+        return False
     if stage == "D":
         return "tmdb" in value or "detail" in value or name.startswith("view_control") or name.startswith("view_player_osd") or name.startswith("adapter_player_osd")
     if stage == "E":
