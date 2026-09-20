@@ -257,6 +257,8 @@
     <string name="history_record_missing">历史记录已不存在</string>
     <string name="history_config_changed">点播配置已切换，请重新操作</string>
     <string name="dialog_delete_global_history">确定删除所有点播配置的历史记录吗？</string>
+    <string name="config_delete_title">删除播放源？</string>
+    <string name="config_delete_message">确定删除“%1$s”吗？相关播放历史也可能丢失，此操作无法撤销。</string>
     <string name="setting_home_history">首页最近观看</string>
     <string name="setting_personal_recommendation">个性推荐</string>
     <string name="setting_recommendation_feedback">不感兴趣管理</string>
