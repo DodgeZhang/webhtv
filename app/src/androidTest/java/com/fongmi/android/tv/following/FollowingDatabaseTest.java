@@ -4,9 +4,11 @@ import android.content.Context;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.room.Room;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -16,20 +18,21 @@ import static org.junit.Assert.assertNotNull;
 @RunWith(AndroidJUnit4.class)
 public class FollowingDatabaseTest {
 
+    @Rule
+    public final FollowingDeviceDataRule followingData = new FollowingDeviceDataRule();
+
     private Context context;
     private FollowingDatabase database;
 
     @Before
     public void setUp() {
         context = ApplicationProvider.getApplicationContext();
-        context.deleteDatabase(FollowingDatabase.NAME);
-        database = FollowingDatabase.create(context);
+        database = Room.inMemoryDatabaseBuilder(context, FollowingDatabase.class).build();
     }
 
     @After
     public void tearDown() {
         if (database != null) database.close();
-        context.deleteDatabase(FollowingDatabase.NAME);
     }
 
     @Test

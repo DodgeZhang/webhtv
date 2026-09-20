@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -18,6 +19,9 @@ import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
 public class FollowingDeleteDeviceTest {
+
+    @Rule
+    public final FollowingDeviceDataRule followingData = new FollowingDeviceDataRule();
 
     private static final String IDENTITY = "tmdb:tv:993344:s1";
 

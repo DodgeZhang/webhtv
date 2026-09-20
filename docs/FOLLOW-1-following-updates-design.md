@@ -1727,6 +1727,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 手机和 Leanback 个性化设置切换“追更更新”后额外发送 `ConfigEvent.common()`，立即重建首页入口；修复开关已为开启但底栏/首页追更按钮仍保持旧可见状态的问题。
 - 播放页及 TMDB 头部追更按钮初始为 `gone`，待历史身份与开关状态确认后再显示，避免关闭追更后进入播放页先闪现按钮再消失。
 - 追更列表采用可视区域停留后自动已读：卡片进入可视区域约 800ms 后清除未读；打开卡片也会立即标记已读。未读徽标只表示未读更新，已读后不再冒充“未看集数”，显式操作统一为“标记已读”。
+- 追更 instrumentation 测试新增真实数据库快照/恢复规则；所有会清表或删除数据库文件的测试结束前恢复原有 `following` 和 `following_source`，`FollowingDatabaseTest` 改用内存数据库，避免设备测试再次清空用户追更数据。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 
 ### 25.3 P5 同步与 alist 导入

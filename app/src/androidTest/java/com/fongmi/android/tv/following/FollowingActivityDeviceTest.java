@@ -14,6 +14,7 @@ import com.fongmi.android.tv.ui.activity.FollowingActivity;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -27,6 +28,9 @@ import static org.junit.Assert.fail;
 
 @RunWith(AndroidJUnit4.class)
 public class FollowingActivityDeviceTest {
+
+    @Rule
+    public final FollowingDeviceDataRule followingData = new FollowingDeviceDataRule();
 
     private Context context;
     private List<String> identityKeys;

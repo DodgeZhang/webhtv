@@ -10,6 +10,7 @@ import com.fongmi.android.tv.ui.activity.FollowingActivity;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -20,6 +21,9 @@ import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
 public class FollowingCheckDeviceTest {
+
+    @Rule
+    public final FollowingDeviceDataRule followingData = new FollowingDeviceDataRule();
 
     @Before
     public void setUp() {
