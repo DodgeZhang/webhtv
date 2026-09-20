@@ -1,0 +1,8 @@
+# path-pattern|reason
+# Phase A starts with only canonical legacy palettes and shared fallback aliases allowed.
+# Entries must be removed as their owning phase migrates the file.
+app/src/main/res/values/colors.xml|System transparency, brand/player overlays, and legacy compatibility values removed in phase F
+app/src/main/res/values/lab_colors.xml|Lab palette migrated during phases C-F
+app/src/main/res/values-night/lab_colors.xml|Lab night palette migrated during phases C-F
+app/src/main/res/values/styles.xml|Legacy LightDialog and toolbar aliases retained for one release during phases B-F
+app/src/main/res/values/styles_disc_menu.xml|Disc menu fallback palette migrated during phase D-F
