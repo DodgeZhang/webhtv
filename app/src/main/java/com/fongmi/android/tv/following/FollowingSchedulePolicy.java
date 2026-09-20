@@ -20,7 +20,8 @@ public final class FollowingSchedulePolicy {
             return nextAirCheckAt > 0 ? Math.min(now + PERIODIC_INTERVAL, nextAirCheckAt) : now + PERIODIC_INTERVAL;
         }
         if (FollowingMetadataSnapshot.PLANNED.equals(normalized)) {
-            return nextAirCheckAt > 0 ? nextAirCheckAt : now + TimeUnit.HOURS.toMillis(24);
+            long daily = now + TimeUnit.HOURS.toMillis(24);
+            return nextAirCheckAt > 0 ? Math.min(daily, nextAirCheckAt) : daily;
         }
         if (FollowingMetadataSnapshot.ENDED.equals(normalized) || FollowingMetadataSnapshot.CANCELED.equals(normalized)) {
             return now + TimeUnit.DAYS.toMillis(7);

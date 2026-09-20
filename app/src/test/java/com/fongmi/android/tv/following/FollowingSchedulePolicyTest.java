@@ -26,6 +26,14 @@ public class FollowingSchedulePolicyTest {
     }
 
     @Test
+    public void plannedShowStillChecksAtLeastDailyBeforeAirDate() {
+        long now = 1_000_000;
+        long nextAir = now + TimeUnit.DAYS.toMillis(10);
+        long check = FollowingSchedulePolicy.nextCheckAt(now, FollowingMetadataSnapshot.PLANNED, nextAir);
+        assertEquals(now + TimeUnit.HOURS.toMillis(24), check);
+    }
+
+    @Test
     public void failureBackoffGrowsAndCapsAtOneDay() {
         assertEquals(TimeUnit.MINUTES.toMillis(15), FollowingSchedulePolicy.backoffAt(0, 1));
         assertEquals(TimeUnit.MINUTES.toMillis(30), FollowingSchedulePolicy.backoffAt(0, 2));
