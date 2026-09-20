@@ -1748,6 +1748,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 该回归覆盖最新提交后的 Activity 渲染、Room 主线程安全、取消/检查更新、备份合并、调度、投影队列和前台通知抑制。
 - 同一批次执行 `:app:testMobileArm64_v8aDebugUnitTest` 与 `:app:testLeanbackArm64_v8aDebugUnitTest`，双端全量单元测试均通过；最新设备包没有发现 `FATAL EXCEPTION` 或主线程 Room 崩溃。
 - 在最后的调度和详情页启用修复后，重新构建 Debug 包并以 `adb install -r -t` 覆盖安装：双端全量单元测试再次通过，追更 instrumentation 仍为 `OK (11 tests)`，日志未出现主线程 Room 或 `FATAL EXCEPTION`。
+- 新增源站身份到 TMDB 身份的迁移设备测试后，追更 instrumentation 为 `OK (12 tests)`；测试确认旧 `tmdb_id=0` 记录迁移到 TMDB 季身份、来源绑定跟随迁移，并立即写入官方状态和已播集数。
 
 ### 25.5 提交与回滚记录
 
