@@ -13,11 +13,13 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.NonNull;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
@@ -46,8 +48,10 @@ import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 public class FollowingActivity extends AppCompatActivity implements FollowingAdapter.Listener {
 
@@ -58,6 +62,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     private static final int FILTER_ENDED = 3;
     private static final int FILTER_FAILED = 4;
     private static final int FILTER_COUNT = 5;
+    private static final long VISIBLE_READ_DELAY_MS = 800;
     private static final Comparator<Following> LIST_ORDER = Comparator
             .comparing((Following item) -> !item.hasUpdate)
             .thenComparing(Comparator.comparingInt((Following item) -> item.unwatchedCount).reversed())
@@ -68,6 +73,8 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     private FollowingAdapter adapter;
     private String focusIdentity;
     private String pendingNotifyIdentity;
+    private final Set<String> readPending = new HashSet<>();
+    private final Runnable visibleReadRunnable = this::markVisibleReadNow;
     private int filterIndex = FILTER_ALL;
     private final ActivityResultLauncher<String> notificationPermission = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(), granted -> {
@@ -122,6 +129,12 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         binding.recycler.setLayoutManager(new LinearLayoutManager(this));
         binding.recycler.addItemDecoration(new SpaceItemDecoration(1, 8));
         binding.recycler.setAdapter(adapter = new FollowingAdapter(this));
+        binding.recycler.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) scheduleVisibleRead();
+            }
+        });
         binding.check.setOnClickListener(view -> checkAll());
         binding.filter.setOnClickListener(view -> {
             filterIndex = (filterIndex + 1) % FILTER_COUNT;
@@ -167,6 +180,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         binding.recycler.setVisibility(rows.isEmpty() ? View.GONE : View.VISIBLE);
         binding.summary.setText(getString(R.string.following_summary, rows.size(), unread));
         adapter.setItems(rows);
+        scheduleVisibleRead();
         int index = TextUtils.isEmpty(focusIdentity) ? -1 : adapter.indexOf(focusIdentity);
         if (index >= 0) {
             binding.recycler.post(() -> {
@@ -174,6 +188,47 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
                 focusIdentity = null;
             });
         }
+    }
+
+    private void scheduleVisibleRead() {
+        if (binding == null) return;
+        binding.recycler.removeCallbacks(visibleReadRunnable);
+        binding.recycler.postDelayed(visibleReadRunnable, VISIBLE_READ_DELAY_MS);
+    }
+
+    private void markVisibleReadNow() {
+        if (binding == null || isFinishing() || isDestroyed()) return;
+        RecyclerView.LayoutManager manager = binding.recycler.getLayoutManager();
+        if (!(manager instanceof LinearLayoutManager linear)) return;
+        int first = linear.findFirstVisibleItemPosition();
+        int last = linear.findLastVisibleItemPosition();
+        List<String> keys = new ArrayList<>();
+        for (int i = first; i <= last; i++) {
+            FollowingAdapter.Row row = adapter.rowAt(i);
+            if (row == null || !row.following.hasUpdate || readPending.contains(row.following.identityKey)) continue;
+            keys.add(row.following.identityKey);
+        }
+        markReadNow(keys);
+    }
+
+    private void markReadNow(List<String> keys) {
+        if (keys == null || keys.isEmpty()) return;
+        List<String> pending = new ArrayList<>();
+        for (String key : keys) if (!TextUtils.isEmpty(key) && readPending.add(key)) pending.add(key);
+        if (pending.isEmpty()) return;
+        adapter.markReadLocally(pending);
+        FollowingPlaybackBridge.markReadAllAsync(pending, error -> {
+            readPending.removeAll(pending);
+            if (error != null) load();
+            else refreshUnreadSummary();
+        });
+    }
+
+    private void refreshUnreadSummary() {
+        FollowingPlaybackBridge.refreshUnreadCountAsync(unread -> {
+            if (binding == null || isFinishing() || isDestroyed()) return;
+            binding.summary.setText(getString(R.string.following_summary, adapter.getItemCount(), unread));
+        });
     }
 
     private boolean matchesFilter(Following item) {
@@ -323,6 +378,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     @Override
     public void onOpenDetail(Following item, FollowingSource source) {
         if (item == null) return;
+        markReadNow(List.of(item.identityKey));
         StringBuilder message = new StringBuilder();
         int released = FollowingUpdatePolicy.releasedEpisode(item);
         message.append(released > 0 ? getString(R.string.following_official, released) : getString(R.string.following_official_unknown));
@@ -463,7 +519,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
 
     @Override
     public void onRead(Following item) {
-        FollowingPlaybackBridge.markReadAsync(item.identityKey, error -> load());
+        if (item != null) markReadNow(List.of(item.identityKey));
     }
 
     @Override

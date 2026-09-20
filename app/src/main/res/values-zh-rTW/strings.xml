@@ -2737,7 +2737,7 @@
     <string name="following_empty">還沒有追更內容。打開劇集詳情頁，點擊「加入追更」。</string>
     <string name="following_summary">追更 %1$d 部 · 未讀 %2$d 部</string>
     <string name="following_continue">繼續看</string>
-    <string name="following_read">已讀</string>
+    <string name="following_read">標記已讀</string>
     <string name="following_notify_on">提醒開</string>
     <string name="following_notify_off">提醒關</string>
     <string name="following_change_source">換源</string>

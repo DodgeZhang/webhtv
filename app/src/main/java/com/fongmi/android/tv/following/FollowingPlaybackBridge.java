@@ -8,6 +8,7 @@ import com.fongmi.android.tv.bean.TmdbItem;
 import com.fongmi.android.tv.utils.Task;
 
 import java.util.function.Consumer;
+import java.util.Collection;
 
 /** Main-thread-safe bridge between playback state and the independent following database. */
 public final class FollowingPlaybackBridge {
@@ -182,6 +183,14 @@ public final class FollowingPlaybackBridge {
 
     public static void markReadAsync(String identityKey, Consumer<Throwable> callback) {
         writeAsync(() -> FollowingStore.markRead(identityKey), callback);
+    }
+
+    public static void markReadAllAsync(Collection<String> identityKeys, Consumer<Throwable> callback) {
+        if (identityKeys == null || identityKeys.isEmpty()) {
+            if (callback != null) App.post(() -> callback.accept(null));
+            return;
+        }
+        writeAsync(() -> FollowingStore.markReadAll(identityKeys), callback);
     }
 
     public static void setNotifyEnabledAsync(String identityKey, boolean enabled, Consumer<Throwable> callback) {

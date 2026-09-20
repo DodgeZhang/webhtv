@@ -120,6 +120,8 @@ public class FollowingUiSourceTest {
         String mobileActivity = read("app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
         String leanbackActivity = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java");
         String followingActivity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
+        String followingAdapter = read("app/src/main/java/com/fongmi/android/tv/ui/adapter/FollowingAdapter.java");
+        String strings = read("app/src/main/res/values-zh-rCN/strings.xml");
 
         assertTrue(detail.contains("FollowingPlaybackBridge.findAsync"));
         assertTrue(detail.contains("FollowingPlaybackBridge.resolveTmdbAsync"));
@@ -141,6 +143,11 @@ public class FollowingUiSourceTest {
         assertTrue(followingActivity.contains("FollowingPlaybackBridge.deleteAsync"));
         assertFalse(followingActivity.contains("FollowingStore.delete(item.identityKey)"));
         assertTrue(followingActivity.contains("Task.execute(() -> {\n            List<Following> items = FollowingStore.list();"));
+        assertTrue(followingActivity.contains("VISIBLE_READ_DELAY_MS"));
+        assertTrue(followingActivity.contains("markVisibleReadNow()"));
+        assertTrue(followingAdapter.contains("item.hasUpdate && item.unwatchedCount > 0"));
+        assertTrue(followingAdapter.contains("markReadLocally"));
+        assertTrue(strings.contains("<string name=\"following_read\">标记已读</string>"));
         assertTrue(mobile.contains("ic_home_following_shadow"));
         assertFalse(mobile.contains("drawable/ic_home_following\""));
         assertTrue(store.contains("history == null || !FollowingSettings.isEnabled()"));

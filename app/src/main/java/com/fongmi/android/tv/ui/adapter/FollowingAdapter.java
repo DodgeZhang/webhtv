@@ -15,6 +15,7 @@ import com.fongmi.android.tv.following.FollowingUpdatePolicy;
 import com.fongmi.android.tv.utils.ImgUtil;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class FollowingAdapter extends RecyclerView.Adapter<FollowingAdapter.Holder> {
@@ -98,7 +99,7 @@ public class FollowingAdapter extends RecyclerView.Adapter<FollowingAdapter.Hold
         else holder.binding.progress.setText(R.string.following_source_unknown);
         if (item.unwatchedCount > 0) holder.binding.progress.append("\n" + holder.itemView.getContext().getString(R.string.following_unwatched, item.unwatchedCount));
         else if (released > 0) holder.binding.progress.append("\n" + holder.itemView.getContext().getString(R.string.following_unwatched_none));
-        if (item.unwatchedCount > 0) {
+        if (item.hasUpdate && item.unwatchedCount > 0) {
             holder.binding.badge.setVisibility(View.VISIBLE);
             holder.binding.badge.setText(holder.itemView.getContext().getString(R.string.following_new_count, item.unwatchedCount));
         } else {
@@ -121,6 +122,7 @@ public class FollowingAdapter extends RecyclerView.Adapter<FollowingAdapter.Hold
         holder.binding.nextSeason.setOnClickListener(view -> listener.onFollowNextSeason(item));
         holder.binding.continuePlay.setOnClickListener(view -> listener.onContinue(item, source));
         holder.binding.check.setOnClickListener(view -> listener.onCheck(item));
+        holder.binding.read.setVisibility(item.hasUpdate ? View.VISIBLE : View.GONE);
         holder.binding.read.setOnClickListener(view -> listener.onRead(item));
         holder.binding.notify.setOnClickListener(view -> listener.onToggleNotify(item));
         holder.binding.sourceChange.setOnClickListener(view -> listener.onChangeSource(item));
@@ -130,6 +132,20 @@ public class FollowingAdapter extends RecyclerView.Adapter<FollowingAdapter.Hold
     @Override
     public int getItemCount() {
         return items.size();
+    }
+
+    public Row rowAt(int position) {
+        return position >= 0 && position < items.size() ? items.get(position) : null;
+    }
+
+    public void markReadLocally(Collection<String> identityKeys) {
+        if (identityKeys == null || identityKeys.isEmpty()) return;
+        for (int i = 0; i < items.size(); i++) {
+            Following item = items.get(i).following;
+            if (!identityKeys.contains(item.identityKey) || !item.hasUpdate) continue;
+            FollowingUpdatePolicy.markRead(item, 0);
+            notifyItemChanged(i);
+        }
     }
 
     static final class Holder extends RecyclerView.ViewHolder {

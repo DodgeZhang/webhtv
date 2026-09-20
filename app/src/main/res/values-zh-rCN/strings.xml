@@ -2783,7 +2783,7 @@
     <string name="following_empty">还没有追更内容。打开剧集详情页，点击“加入追更”。</string>
     <string name="following_summary">追更 %1$d 部 · 未读 %2$d 部</string>
     <string name="following_continue">继续看</string>
-    <string name="following_read">已读</string>
+    <string name="following_read">标记已读</string>
     <string name="following_notify_on">提醒开</string>
     <string name="following_notify_off">提醒关</string>
     <string name="following_change_source">换源</string>

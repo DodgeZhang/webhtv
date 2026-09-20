@@ -20,6 +20,8 @@ import org.junit.runner.RunWith;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -95,9 +97,18 @@ public class FollowingActivityDeviceTest {
                 return recycler != null && recycler.getAdapter() != null && recycler.getAdapter().getItemCount() == 2;
             }));
 
+            assertTrue(await(scenario, activity -> {
+                TextView summary = activity.findViewById(R.id.summary);
+                return summary != null && "追更 2 部 · 未读 0 部".contentEquals(summary.getText());
+            }));
             scenario.onActivity(activity -> {
                 TextView summary = activity.findViewById(R.id.summary);
-                assertEquals("追更 2 部 · 未读 1 部", summary.getText().toString());
+                assertEquals("追更 2 部 · 未读 0 部", summary.getText().toString());
+                RecyclerView recycler = activity.findViewById(R.id.recycler);
+                RecyclerView.ViewHolder holder = recycler.findViewHolderForAdapterPosition(0);
+                assertNotNull(holder);
+                assertEquals(View.GONE, holder.itemView.findViewById(R.id.read).getVisibility());
+                assertEquals(View.GONE, holder.itemView.findViewById(R.id.badge).getVisibility());
                 activity.findViewById(R.id.filter).performClick();
             });
 
@@ -109,6 +120,7 @@ public class FollowingActivityDeviceTest {
                         && recycler.getAdapter().getItemCount() == 1;
             }));
         }
+        assertFalse(FollowingStore.find(identityKeys.get(0)).hasUpdate);
     }
 
     private boolean await(ActivityScenario<FollowingActivity> scenario, Check check) {

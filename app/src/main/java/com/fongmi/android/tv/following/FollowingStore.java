@@ -8,6 +8,7 @@ import com.fongmi.android.tv.bean.TmdbItem;
 import com.fongmi.android.tv.db.AppDatabase;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -146,6 +147,20 @@ public final class FollowingStore {
         if (item == null) return;
         FollowingUpdatePolicy.markRead(item, System.currentTimeMillis());
         update(item);
+    }
+
+    public static void markReadAll(Collection<String> identityKeys) {
+        if (identityKeys == null || identityKeys.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        runInTransaction(() -> {
+            for (String identityKey : identityKeys) {
+                Following item = find(identityKey);
+                if (item == null || !item.hasUpdate) continue;
+                FollowingUpdatePolicy.markRead(item, now);
+                update(item);
+            }
+            return null;
+        });
     }
 
     public static void setNotifyEnabled(String identityKey, boolean enabled) {
