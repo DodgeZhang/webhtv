@@ -3,7 +3,7 @@
     <style name="Theme.Base" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/white</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.WebHTV.LightDialog</item>
-        <item name="android:windowBackground">@color/black</item>
+        <item name="android:windowBackground">@color/display_dialog_panel_bg</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:windowTranslucentNavigation">true</item>
@@ -93,6 +93,28 @@
     <style name="ShapeAppearance.WebHTV.AudioCover" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">50%</item>
+    </style>
+
+    <!-- TV dialogs use the same dark surface and readable text palette as TV pages and panels. -->
+    <style name="ThemeOverlay.WebHTV.LightDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="alertDialogStyle">@style/MaterialAlertDialog.WebHTV.Rounded</item>
+        <item name="android:colorBackground">@color/display_dialog_panel_bg</item>
+        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColorSecondary">@color/white_70</item>
+        <item name="android:textColorHint">@color/white_50</item>
+        <item name="colorSurface">@color/display_dialog_panel_bg</item>
+        <item name="colorOnSurface">@color/white</item>
+        <item name="colorOnSurfaceVariant">@color/white_70</item>
+        <item name="colorPrimary">#2196F3</item>
+        <item name="colorControlNormal">@color/white_70</item>
+        <item name="colorControlActivated">#2196F3</item>
+        <item name="isLightTheme">false</item>
+    </style>
+
+    <style name="MaterialAlertDialog.WebHTV.Rounded" parent="MaterialAlertDialog.Material3">
+        <item name="backgroundTint">@color/display_dialog_panel_bg</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.WebHTV.Dialog</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.WebHTV.Dialog</item>
     </style>
 
 </resources>
