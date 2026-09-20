@@ -56,6 +56,7 @@ public class FollowingUiSourceTest {
         String mobileLayout = read("app/src/mobile/res/layout/fragment_setting_personal.xml");
         String leanbackLayout = read("app/src/leanback/res/layout/activity_setting_personal.xml");
         String func = read("app/src/leanback/java/com/fongmi/android/tv/bean/Func.java");
+        String settings = read("app/src/main/java/com/fongmi/android/tv/following/FollowingSettings.java");
         String bridge = read("app/src/main/java/com/fongmi/android/tv/following/FollowingPlaybackBridge.java");
         String notifier = read("app/src/main/java/com/fongmi/android/tv/following/FollowingNotifier.java");
 
@@ -70,6 +71,7 @@ public class FollowingUiSourceTest {
         assertTrue(leanback.contains("ConfigEvent.common();"));
         assertTrue(mobileLayout.contains("@+id/following"));
         assertTrue(mobileLayout.contains("@+id/followingText"));
+        assertTrue(settings.contains("Prefers.getBoolean(ENABLED, false)"));
         assertTrue(leanbackLayout.contains("@+id/following"));
         assertTrue(leanbackLayout.contains("@+id/followingText"));
         assertTrue(bridge.contains("volatile int cachedUnreadCount"));
