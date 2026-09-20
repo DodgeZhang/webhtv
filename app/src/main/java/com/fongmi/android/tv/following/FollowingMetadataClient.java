@@ -90,7 +90,7 @@ public class FollowingMetadataClient {
         if (snapshot == null || season == null) return;
         snapshot.seasonTotalEpisodes = Math.max(snapshot.seasonTotalEpisodes, integer(season, "episode_count"));
         int released = 0;
-        int latest = 0;
+        int latestReleased = 0;
         JsonArray episodes = array(season, "episodes");
         if (episodes != null) {
             for (JsonElement element : episodes) {
@@ -98,14 +98,16 @@ public class FollowingMetadataClient {
                 JsonObject episode = element.getAsJsonObject();
                 int number = integer(episode, "episode_number");
                 if (number <= 0) continue;
-                latest = Math.max(latest, number);
                 long airAt = airTime(string(episode, "air_date"));
-                if (airAt > 0 && airAt <= now) released++;
+                if (airAt > 0 && airAt <= now) {
+                    released++;
+                    latestReleased = Math.max(latestReleased, number);
+                }
             }
         }
         if (released > 0) snapshot.seasonReleasedEpisodes = Math.max(snapshot.seasonReleasedEpisodes, released);
-        if (latest > 0 && snapshot.latestReleasedSeason == trackedSeason) {
-            snapshot.latestReleasedEpisode = Math.max(snapshot.latestReleasedEpisode, released);
+        if (latestReleased > 0 && snapshot.latestReleasedSeason == trackedSeason) {
+            snapshot.latestReleasedEpisode = Math.max(snapshot.latestReleasedEpisode, latestReleased);
         }
     }
 

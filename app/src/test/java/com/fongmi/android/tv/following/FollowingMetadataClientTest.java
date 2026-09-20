@@ -3,6 +3,9 @@ package com.fongmi.android.tv.following;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -29,5 +32,27 @@ public class FollowingMetadataClientTest {
         assertEquals(9, snapshot.nextAirEpisode);
         assertTrue(snapshot.nextAirAt > 0);
         assertEquals(1234, snapshot.fetchedAt);
+    }
+
+    @Test
+    public void seasonDetailUsesLatestAiredEpisodeNumberNotReleasedCount() {
+        JsonObject season = JsonParser.parseString("""
+                {
+                  "episode_count": 10,
+                  "episodes": [
+                    {"episode_number": 1, "air_date": "2026-09-18"},
+                    {"episode_number": 2, "air_date": "2027-01-01"},
+                    {"episode_number": 10, "air_date": "2026-09-19"}
+                  ]
+                }
+                """).getAsJsonObject();
+        FollowingMetadataSnapshot snapshot = new FollowingMetadataSnapshot();
+        snapshot.latestReleasedSeason = 1;
+        snapshot.latestReleasedEpisode = 1;
+
+        FollowingMetadataClient.applySeason(snapshot, season, 1, FollowingMetadataClient.airTime("2026-09-20"));
+
+        assertEquals(10, snapshot.latestReleasedEpisode);
+        assertEquals(2, snapshot.seasonReleasedEpisodes);
     }
 }
