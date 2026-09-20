@@ -37,6 +37,16 @@ public class DialogGlassChipStyleTest {
     }
 
     @Test
+    public void trackAdapterUsesActivatedStateForPersistentSelection() throws Exception {
+        String adapter = read(findAppPath().resolve(Path.of("src", "main", "java", "com", "fongmi", "android", "tv", "ui", "adapter", "TrackAdapter.java")));
+
+        assertTrue("track selection must use activated state so focus cannot erase the selected text color",
+                adapter.contains("holder.binding.text.setActivated(item.isSelected());"));
+        assertTrue("selected state is reserved for transient focus and must not represent the playing track",
+                !adapter.contains("holder.binding.text.setSelected(item.isSelected());"));
+    }
+
+    @Test
     public void mobileCategoryAndFilterDialogsShareTheControlSheetStyle() throws Exception {
         String category = readMobileResource("layout", "adapter_type_dialog.xml");
         String filter = readMobileResource("layout", "adapter_value.xml");
