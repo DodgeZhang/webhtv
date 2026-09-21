@@ -6,6 +6,8 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import android.media.AudioManager;
+
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
@@ -22,10 +24,71 @@ import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
 
 public class ExoCompressedAudioDirectPolicyTest {
+
+    @Test
+    public void offloadOnlyFlag_doesNotAuthorizeNonOffloadedBitstream() {
+        assertFalse(ExoCompressedAudioDirectPolicy.supportsBitstream(0));
+        assertFalse(ExoCompressedAudioDirectPolicy.supportsBitstream(
+                AudioManager.DIRECT_PLAYBACK_OFFLOAD_SUPPORTED));
+        assertFalse(ExoCompressedAudioDirectPolicy.supportsBitstream(
+                AudioManager.DIRECT_PLAYBACK_OFFLOAD_GAPLESS_SUPPORTED));
+        assertTrue(ExoCompressedAudioDirectPolicy.supportsBitstream(
+                AudioManager.DIRECT_PLAYBACK_BITSTREAM_SUPPORTED));
+        assertTrue(ExoCompressedAudioDirectPolicy.supportsBitstream(
+                AudioManager.DIRECT_PLAYBACK_BITSTREAM_SUPPORTED | AudioManager.DIRECT_PLAYBACK_OFFLOAD_SUPPORTED));
+    }
+
+    @Test
+    public void capabilityQueryAndOutput_useTheSameEffectiveAttributes() throws Exception {
+        AtomicReference<AudioAttributes> queried = new AtomicReference<>();
+        ExoCompressedAudioDirectPolicy policy = new ExoCompressedAudioDirectPolicy(
+                (format, attributes) -> AudioOffloadSupport.DEFAULT_UNSUPPORTED,
+                (format, attributes) -> { queried.set(attributes); return true; });
+        AudioAttributes original = AudioAttributes.DEFAULT.buildUpon()
+                .setHapticChannelsMuted(false).setIsContentSpatialized(true).build();
+        AudioOutputProvider.FormatConfig config = new AudioOutputProvider.FormatConfig.Builder(aacStereo())
+                .setAudioAttributes(original).build();
+        AudioOutputProvider provider = wrapped(policy);
+        provider.getFormatSupport(config);
+        AudioOutputProvider.OutputConfig output = provider.getOutputConfig(config);
+        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, queried.get().contentType);
+        assertEquals(queried.get(), output.audioAttributes);
+        assertEquals(original.usage, output.audioAttributes.usage);
+        assertEquals(original.flags, output.audioAttributes.flags);
+        assertEquals(original.hapticChannelsMuted, output.audioAttributes.hapticChannelsMuted);
+        assertEquals(original.isContentSpatialized, output.audioAttributes.isContentSpatialized);
+        assertEquals(C.AUDIO_CONTENT_TYPE_UNKNOWN, original.contentType);
+    }
+
+    @Test
+    public void cachedDirectCapability_doesNotCrossAudioAttributes() {
+        ExoCompressedAudioDirectPolicy policy = new ExoCompressedAudioDirectPolicy(
+                (format, attributes) -> AudioOffloadSupport.DEFAULT_UNSUPPORTED,
+                (format, attributes) -> true);
+        AudioOutputProvider provider = wrapped(policy);
+        provider.getFormatSupport(formatConfig(aacStereo()));
+        AudioOutputProvider.FormatConfig speech = new AudioOutputProvider.FormatConfig.Builder(aacStereo())
+                .setAudioAttributes(AudioAttributes.DEFAULT.buildUpon()
+                        .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build()).build();
+        assertThrows(AudioOutputProvider.ConfigurationException.class,
+                () -> provider.getOutputConfig(speech));
+    }
+
+    @Test
+    public void startupThreshold_preservesCompressedByteUnitsAndUnknownState() {
+        assertEquals(256 * 1024, new ExoCompressedAudioDirectPolicy.StartupBuffer(
+                512 * 1024, 256 * 1024, 512 * 1024).effectiveThresholdBytes());
+        assertEquals(4096, new ExoCompressedAudioDirectPolicy.StartupBuffer(
+                256 * 1024, 256 * 1024, 4096).effectiveThresholdBytes());
+        assertEquals(0, ExoCompressedAudioDirectPolicy.StartupBuffer.UNKNOWN.effectiveThresholdBytes());
+        assertEquals(0, new ExoCompressedAudioDirectPolicy.StartupBuffer(4096, 4096, 8192)
+                .effectiveThresholdBytes());
+    }
 
     @Test
     public void standardOffload_isPreservedWithoutDirectProbe() {
@@ -480,6 +543,254 @@ public class ExoCompressedAudioDirectPolicyTest {
                 fixture.provider.getFormatSupport(formatConfig(fixture.format)).supportLevel);
     }
 
+    @Test
+    public void failedDirect_thenStableSameTrackPcm_isRememberedAcrossEngines() throws Exception {
+        MemoryFixture fixture = new MemoryFixture();
+        fixture.failDirect();
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+        fixture.preparePcm(true);
+        fixture.advancePcm();
+        assertFalse(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url + "&token=other", fixture.format,
+                AudioAttributes.DEFAULT));
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url,
+                fixture.format.buildUpon().setId("different-track").build(), AudioAttributes.DEFAULT));
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format,
+                AudioAttributes.DEFAULT.buildUpon().setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build()));
+        fixture.environment.expected = route(2);
+        fixture.environment.actual = route(2);
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+    }
+
+    @Test
+    public void pcmWithoutProgress_doesNotConfirmDirectFailure() throws Exception {
+        MemoryFixture fixture = new MemoryFixture();
+        fixture.failDirect();
+        fixture.preparePcm(true);
+        fixture.pcm.play();
+        fixture.pcm.write(ByteBuffer.allocateDirect(32), 1, 0);
+        fixture.pcm.getPositionUs();
+        fixture.nowMs.addAndGet(20_000);
+        fixture.pcm.getPositionUs();
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+    }
+
+    @Test
+    public void unrelatedRestartOrNewMedia_doesNotCarryPendingConfirmation() throws Exception {
+        for (boolean changeMedia : new boolean[]{false, true}) {
+            MemoryFixture fixture = new MemoryFixture();
+            fixture.failDirect();
+            if (changeMedia) fixture.url += "&episode=next";
+            fixture.preparePcm(changeMedia);
+            fixture.advancePcm();
+            assertTrue(fixture.freshEngineUsesDirect(MemoryFixture.URL, fixture.format, AudioAttributes.DEFAULT));
+        }
+    }
+
+    @Test
+    public void differentSelectedTrackOrActualRoute_doesNotConfirm() throws Exception {
+        for (boolean changeTrack : new boolean[]{false, true}) {
+            MemoryFixture fixture = new MemoryFixture();
+            fixture.failDirect();
+            fixture.preparePcm(true);
+            if (changeTrack) {
+                fixture.policy.setSelectedAudioFormat(fixture.format.buildUpon().setId("other").build());
+            } else {
+                fixture.environment.actual = route(2);
+            }
+            fixture.advancePcm();
+            assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+        }
+    }
+
+    @Test
+    public void unknownRoute_doesNotShareFailureButStillRecoversLocally() throws Exception {
+        MemoryFixture fixture = new MemoryFixture();
+        fixture.environment.expected = null;
+        fixture.failDirect();
+        fixture.preparePcm(true);
+        fixture.advancePcm();
+        fixture.environment.expected = route(1);
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+    }
+
+    @Test
+    public void flushStopReleaseAndNewAttempt_cancelPendingPcmConfirmation() throws Exception {
+        for (int action = 0; action < 4; action++) {
+            MemoryFixture fixture = new MemoryFixture();
+            fixture.failDirect();
+            fixture.preparePcm(true);
+            switch (action) {
+                case 0 -> fixture.pcm.flush();
+                case 1 -> fixture.pcm.stop();
+                case 2 -> fixture.pcm.release();
+                case 3 -> fixture.policy.resetOutputProgress();
+            }
+            if (action != 2) fixture.advancePcm();
+            assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+        }
+    }
+
+    @Test
+    public void pausedPcm_doesNotConfirmUntilFreshContinuousProgress() throws Exception {
+        MemoryFixture fixture = new MemoryFixture();
+        fixture.failDirect();
+        fixture.preparePcm(true);
+        fixture.pcm.write(ByteBuffer.allocateDirect(32), 1, 0);
+        fixture.pcm.play();
+        fixture.pcm.getPositionUs();
+        fixture.pcm.pause();
+        fixture.nowMs.addAndGet(20_000);
+        fixture.pcmRaw.positionUs = 2_000_000;
+        fixture.pcm.getPositionUs();
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+        fixture.pcmRaw.positionUs = 0;
+        fixture.advancePcm();
+        assertFalse(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+    }
+
+    @Test
+    public void capabilityNotification_invalidatesConfirmedAndPendingFailures() throws Exception {
+        MemoryFixture fixture = new MemoryFixture();
+        AtomicReference<AudioOutputProvider.Listener> observer = new AtomicReference<>();
+        AudioOutputProvider watched = fixture.policy.wrapOutputProvider(new UnsupportedAudioOutputProvider() {
+            @Override public void addListener(Listener listener) { observer.compareAndSet(null, listener); }
+        });
+        watched.addListener(() -> {});
+        fixture.failDirect();
+        fixture.preparePcm(true);
+        observer.get().onFormatSupportChanged();
+        fixture.advancePcm();
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+
+        MemoryFixture confirmed = new MemoryFixture();
+        confirmed.failDirect();
+        confirmed.preparePcm(true);
+        confirmed.advancePcm();
+        confirmed.memory.invalidate();
+        assertTrue(confirmed.freshEngineUsesDirect(confirmed.url, confirmed.format, AudioAttributes.DEFAULT));
+    }
+
+    @Test
+    public void staleWriteFailure_cannotRequestPcmForNewPlayback() throws Exception {
+        DirectOutputFixture fixture = new DirectOutputFixture(44_100);
+        fixture.policy.resetOutputProgress();
+        fixture.raw.writeFailure = new AudioOutput.WriteException(-6, false);
+        assertThrows(AudioOutput.WriteException.class, fixture::writeAndPlay);
+        assertFalse(fixture.policy.consumePcmFallbackRequest());
+        assertEquals(AudioOutputProvider.FORMAT_SUPPORTED_DIRECTLY,
+                fixture.provider.getFormatSupport(formatConfig(fixture.format)).supportLevel);
+    }
+
+    @Test
+    public void newAttemptDuringFinalRouteQuery_rejectsLatePcmConfirmation() throws Exception {
+        MemoryFixture fixture = new MemoryFixture();
+        fixture.failDirect();
+        fixture.preparePcm(true);
+        fixture.environment.onExpectedRoute = fixture.policy::resetOutputProgress;
+        fixture.advancePcm();
+        fixture.environment.onExpectedRoute = null;
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+    }
+
+    @Test
+    public void replacedPcmOutput_cannotConfirmTheRetiredOutput() throws Exception {
+        MemoryFixture fixture = new MemoryFixture();
+        fixture.failDirect();
+        fixture.preparePcm(true);
+        AudioOutputProvider.OutputConfig config = new AudioOutputProvider.OutputConfig.Builder()
+                .setEncoding(C.ENCODING_PCM_16BIT).setSampleRate(44_100)
+                .setChannelMask(12).setBufferSize(4096).build();
+        fixture.policy.wrapOutputProvider(new StandardAudioOutputProvider(config, new FakeAudioOutput().output))
+                .getAudioOutput(config);
+        fixture.advancePcm();
+        assertTrue(fixture.freshEngineUsesDirect(fixture.url, fixture.format, AudioAttributes.DEFAULT));
+    }
+
+    private static ExoAudioDirectFailureMemory.Route route(int id) {
+        return new ExoAudioDirectFailureMemory.Route(id, 2, 3, 4, 5);
+    }
+
+    private static final class TestEnvironment implements ExoCompressedAudioDirectPolicy.OutputEnvironment {
+        ExoAudioDirectFailureMemory.Route expected = route(1);
+        ExoAudioDirectFailureMemory.Route actual = route(1);
+        Runnable onExpectedRoute;
+        @Override public ExoAudioDirectFailureMemory.Route expectedRoute(AudioAttributes attributes) {
+            if (onExpectedRoute != null) onExpectedRoute.run();
+            return expected;
+        }
+        @Override public ExoAudioDirectFailureMemory.Route actualRoute(AudioOutput output) { return actual; }
+    }
+
+    private static final class MemoryFixture {
+        static final String URL = "https://example.invalid/video?token=private";
+        final ExoAudioDirectFailureMemory memory = new ExoAudioDirectFailureMemory();
+        final TestEnvironment environment = new TestEnvironment();
+        final AtomicLong nowMs = new AtomicLong();
+        final Format format = aacStereo().buildUpon().setSampleRate(44_100).build();
+        final FakeAudioOutput directRaw = new FakeAudioOutput();
+        final ExoCompressedAudioDirectPolicy policy = newPolicy();
+        final AudioOutputProvider provider = wrapped(policy);
+        String url = URL;
+        AudioOutput pcm;
+        FakeAudioOutput pcmRaw;
+
+        private ExoCompressedAudioDirectPolicy newPolicy() {
+            Clock clock = (Clock) Proxy.newProxyInstance(Clock.class.getClassLoader(),
+                    new Class<?>[]{Clock.class}, (proxy, method, args) -> {
+                        if (method.getName().equals("elapsedRealtime")) return nowMs.get();
+                        throw new AssertionError("Unexpected Clock call: " + method.getName());
+                    });
+            return new ExoCompressedAudioDirectPolicy(
+                    (ignored, attributes) -> AudioOffloadSupport.DEFAULT_UNSUPPORTED,
+                    (ignored, attributes) -> true, clock, config -> directRaw.output, memory, environment);
+        }
+
+        void failDirect() throws Exception {
+            policy.prepareForPlayback(url, false);
+            provider.getFormatSupport(formatConfig(format));
+            AudioOutput output = provider.getAudioOutput(provider.getOutputConfig(formatConfig(format)));
+            output.write(ByteBuffer.allocateDirect(32), 1, 0);
+            output.play();
+            output.getPositionUs();
+            nowMs.addAndGet(10_000);
+            output.getPositionUs();
+            assertTrue(policy.requestPcmFallbackForStuckPlayback(stuckPlaying()));
+            assertTrue(policy.consumePcmFallbackRequest());
+            output.release();
+        }
+
+        void preparePcm(boolean retry) throws Exception {
+            policy.prepareForPlayback(url, retry);
+            policy.setSelectedAudioFormat(format);
+            pcmRaw = new FakeAudioOutput();
+            AudioOutputProvider.OutputConfig config = new AudioOutputProvider.OutputConfig.Builder()
+                    .setEncoding(C.ENCODING_PCM_16BIT).setSampleRate(44_100)
+                    .setChannelMask(12).setBufferSize(4096).build();
+            pcm = policy.wrapOutputProvider(new StandardAudioOutputProvider(config, pcmRaw.output))
+                    .getAudioOutput(config);
+        }
+
+        void advancePcm() throws Exception {
+            pcm.write(ByteBuffer.allocateDirect(32), 1, 0);
+            pcm.play();
+            pcm.getPositionUs();
+            for (int i = 1; i <= 2; i++) {
+                nowMs.addAndGet(1_000);
+                pcmRaw.positionUs = i * 1_000_000L;
+                pcm.getPositionUs();
+            }
+        }
+
+        boolean freshEngineUsesDirect(String media, Format input, AudioAttributes attributes) {
+            ExoCompressedAudioDirectPolicy fresh = newPolicy();
+            fresh.prepareForPlayback(media, false);
+            return wrapped(fresh).getFormatSupport(new AudioOutputProvider.FormatConfig.Builder(input)
+                    .setAudioAttributes(attributes).build()).supportLevel
+                    == AudioOutputProvider.FORMAT_SUPPORTED_DIRECTLY;
+        }
+    }
+
     private static PlaybackException stuckPlaying() {
         return stuck(StuckPlayerException.STUCK_PLAYING_NO_PROGRESS);
     }
@@ -664,12 +975,19 @@ public class ExoCompressedAudioDirectPolicyTest {
 
     private static final class StandardAudioOutputProvider extends UnsupportedAudioOutputProvider {
         private final OutputConfig config;
+        private final AudioOutput output;
         private final FormatSupport support = new FormatSupport.Builder()
                 .setFormatSupportLevel(AudioOutputProvider.FORMAT_SUPPORTED_DIRECTLY).build();
         private int creations;
 
         StandardAudioOutputProvider(OutputConfig config) {
+            this(config, (AudioOutput) Proxy.newProxyInstance(AudioOutput.class.getClassLoader(),
+                    new Class<?>[]{AudioOutput.class}, (proxy, method, args) -> null));
+        }
+
+        StandardAudioOutputProvider(OutputConfig config, AudioOutput output) {
             this.config = config;
+            this.output = output;
         }
 
         @Override public FormatSupport getFormatSupport(FormatConfig config) { return support; }
@@ -679,8 +997,7 @@ public class ExoCompressedAudioDirectPolicyTest {
         @Override public AudioOutput getAudioOutput(OutputConfig config) {
             assertSame(this.config, config);
             creations++;
-            return (AudioOutput) Proxy.newProxyInstance(AudioOutput.class.getClassLoader(),
-                    new Class<?>[]{AudioOutput.class}, (proxy, method, args) -> null);
+            return output;
         }
     }
 }

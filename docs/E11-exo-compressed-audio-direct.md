@@ -1,6 +1,57 @@
 # E11 Exo 压缩音频输出与跳转生命周期
 
-## Recovery anchor（2026-09-21，起播速度与成功率研究）
+## Recovery anchor（2026-09-21，起播优化实施）
+
+- Objective / acceptance：实施获批 A 的直出准入一致、已确认失败配置的短期记忆和准确错误分类；保留正常 DSP、标准 offload/HDMI、用户偏好、音画同步、隧道、视频解码及已有失败回退。B 只在真实启动门槛和状态证据满足后推进，C 暂缓。
+- User decision：恢复后用户明确“继续实施”；不再重复请求同一阶段批准。
+- Lane / guard：`standard` / `E11-audio-startup-admission`。
+- Branch / baseline：`main` / `8d7ccf42b449db6ae12eb04a38f95196ef29c737`；研究已提交并创建 `recovery/E11-audio-startup-research/20260921140026-8d7ccf42b449`。
+- Scope：`app/src/main/java/com/fongmi/android/tv/player/` 下 `exo/ExoCompressedAudioDirectPolicy.java`、`exo/ExoAudioDirectFailureMemory.java`、必要时 `exo/ExoAudioOutputState.java`、`engine/ExoPlayerEngine.java`、`PlaybackErrorClassifier.java`；对应四个测试类与本文/主索引。保护预存 `app/.cxx/` 104 个文件。
+- Completed evidence：恢复与研究文档校验通过，0 error/0 warning；实际发货 Media3 输出提供 `getAudioTrack()`，可读取真实启动门槛；API 33 可按属性查询预期设备，旧 API 仅在唯一输出设备且与实播一致时允许经验命中。多路/未知路由保守不命中。
+- Implementation status：A 的代码和主机验证已完成；仅确认 vendor 失败且同媒体/同输入音轨/同输出路由的 PCM 连续推进后，才写入最多 32 项、10 分钟的进程内记录。媒体完整 URL 与音轨初始化数据仅保留摘要；系统设备连接通知和能力变化使经验失效；旧输出与新 attempt 隔离。B 未开启，C 暂缓。
+- Verification：64 项定向用例通过；随后公共错误分类收窄以保留 IJK 通用超时合同，其 10 项用例重测通过，其余 54 项对应代码未再修改。Leanback armeabi-v7a Debug APK、ZIP CRC、目标 ABI 和 v2 签名验证通过，最终 SHA-256 `4093aeff27e55101e6ba199a78e77fd5d1c4bc608aa8f89aeac7939131b0c4f9`。本机 `adb devices -l` 无设备；Sony 和健康 direct/HDMI 的实播、速度、性能尚未验收。
+- Rollback：A 作为独立代码/测试/文档原子提交，可 revert；不修改依赖、native、ABI 或打包配置。
+- Next action：用本节最终 APK 在目标 Sony 与健康直出设备做同片对照，采集真实 capacity/start threshold、首次推进及恢复日志，再裁决 B 的短观察窗；不需要重复批准已授权的 A/B 范围。
+
+## 2026-09-21 阶段 A：准入一致与已确认失败记忆
+
+### 最终行为与边界
+
+- `ExoCompressedAudioDirectPolicy.effectiveAttributes/supportsBitstream`：保留既有 UNKNOWN → MUSIC 的 vivo 兼容处理，但在能力查询、决策 key、OutputConfig 和建轨之前统一执行；API 33+ 的 non-offload vendor 路径必须包含 BITSTREAM 支持位。API 29–32 保留官方布尔查询。标准 offload、隧道与原始 AAC/MP3 格式白名单保持。
+- `ExoAudioDirectFailureMemory`：只存完整媒体 URL、输入音轨 ID/编码/profile/采样率/声道/CSD 的摘要、有效音频属性、实际设备端口及能力标识；不存 URL/token/CSD 明文，不落盘。容量 32 项、确认起 10 分钟有效，读取不续期；设备/能力变化使世代失效。
+- 只有本实例 vendor 输出有真实停滞或写入失败证据，显式 PCM 重试仍是同一媒体，选中输入音轨一致，PCM 在至少 2 秒的连续观察中推进至少 1 秒，且实际与预期输出设备均和故障时相同，才确认共享经验。未成功恢复、零供数、暂停、跳转/flush、输出释放/替换、不同音轨/媒体及迟到回调均不会形成新经验。
+- 能力查询处命中经验时只跳过相应 non-offload vendor 配置，交给现有解码候选输出 PCM；健康配置不初始化备用解码器、不复制音频、不新增网络流或定时轮询。确认 PCM 的包装只用于明确的恢复过程，确认结束后不继续采集进度。
+- `AudioManager.getAudioDevicesForAttributes()` 在 API 33+ 提供当前预期路由；API 29–32 只接受唯一输出设备。多路、未知路由、非 NORMAL 音频模式或无法订阅设备变化时不共享经验，保留原引擎内失败保护与原 10 秒 stuck 回退。这意味着本机测试不能证明反馈 Sony 必然命中跨 engine 记忆。
+- 系统 `AudioDeviceCallback` 在第一次故障/经验查询时才注册，使用现有主 Looper，进程内只有一个观察者，不持有 engine/Activity。初始已连接设备通知与真正增删分开；已有 provider 的能力变化通知继续使经验失效。AOSP Android 13 `0d3ff311e6e80dee7fe88a2a2cfa272ce231c3c6` 的 `registerAudioDeviceCallback/broadcastDeviceListChange_sync/NativeEventHandlerDelegate` 是此行为的 A 级源码依据，访问 2026-09-21，沿用研究证据目录。
+- `ExoPlayerEngine` 仅在明确音频重试时传递待确认故障，结合当前输入音轨验证恢复；其它 prepare、stop、rebuild 和 release 隔离旧 attempt。故障提交和新播放启动串行化，PCM 最终确认重新核对输出身份，避免跨线程迟到状态污染新播放。
+- `PlaybackErrorClassifier` 将类型明确的 `StuckPlayerException` 标成 `playback-stuck`，renderer 归属仍 UNKNOWN；音频归因由实际 vendor 输出证据决定。收尾核对发现 `IjkErrorMappingPolicy` 也用 `ERROR_CODE_TIMEOUT` 表示原生 timed-out，因此保留未类型化超时的既有分类和 IJK 恢复合同，没有扩大到 IJK 的错误模型改造；MPV 稳定 marker 与明确网络/解析/DRM 分类保持。
+- 真实 AudioTrack 创建处新增 capacity、buffer size、start threshold 和有效门槛的单次日志；压缩输出的单位为 byte。首次写入、首次推进和 PCM 确认各记录一次，日志关闭时不格式化字符串。没有改变实际 buffer、音频数据封装或音画时钟。
+
+### 已完成验证
+
+临时构建/证据目录：`/private/tmp/webhtv-E11-admission-c18ee9ju/`。host init 仅选择任务内测试源码并启用 Android mock 默认值，原生构建暂存指向该目录的 `cxx`；未修改正式 Gradle 配置，也未重建播放器依赖或其它 ABI。
+
+| 测试类 | 最终用例数 | 覆盖 |
+| --- | ---: | --- |
+| `ExoCompressedAudioDirectPolicyTest` | 41 | 标准 offload/隧道、模式位/属性匹配、真实输出包装、已供数但停滞、正常进度、未知位置、暂停/flush/stop/release、输出/attempt 隔离、不同媒体/音轨/路由、PCM 成功才共享、最终路由查询期间开始新播放 |
+| `ExoAudioDirectFailureMemoryTest` | 6 | TTL 不续期、容量淘汰、路由世代/迟到确认、未知身份拒绝、媒体/路由隔离、摘要与音轨/CSD 区分 |
+| `ExoAudioOutputStateTest` | 7 | 已有实例归属与交错释放合同 |
+| `PlaybackErrorClassifierTest` | 10 | typed stuck 与真实网络区分、既有 IJK 通用超时语义、MPV marker、解析/输出/DRM 与脱敏 |
+
+- 首轮 62 项通过，Gradle 用时 2 分 29 秒；补齐同能力设备增删与交错确认边界后，64 项全部通过，并完成电视 32 位 Debug 打包，用时 2 分 57 秒。最终保留 IJK 合同只修改错误分类及其测试，重跑该类 10 项并刷新同一 APK，53 秒通过；未重复其余已通过的 54 项检查。
+- 实际构建均用 `bash gradlew -I /private/tmp/webhtv-E11-admission-c18ee9ju/host-tests.init.gradle :app:testLeanbackArmeabi_v7aDebugUnitTest`；最终两次按完整测试类名加 `--tests`，并构建 `:app:assembleLeanbackArmeabi_v7aDebug`。完整输出依次为 `gradle-verified.log`、`gradle-final.log`、`gradle-classifier-final.log`。最初沙箱调用只因用户 Gradle 缓存锁权限失败，授权后才执行实际构建。
+- 最终 APK：`app/build/outputs/apk/leanbackArmeabi_v7a/debug/app-leanback-armeabi_v7a-debug.apk`，162,518,123 bytes；SHA-256 `4093aeff27e55101e6ba199a78e77fd5d1c4bc608aa8f89aeac7939131b0c4f9`。包名 `com.fongmi.android.tv`，versionCode 560 / versionName 5.6.0，native ABI 仅 `armeabi-v7a`；ZIP 全文件 CRC 与 APK v2 签名通过。签名/manifest 记录为临时目录的 `apk-signature.txt`、`apk-badging.txt`。
+- APK 在本次代码提交之前构建，因此调试日志中的 Git 基线是 `8d7ccf42b449db6ae12eb04a38f95196ef29c737` / dirty；以最终 SHA-256 识别候选，不把旧 APK `912276b40ca353704943451eab6ae8ddc33e1a5784193426ffd58f89af3961cf` 当作最终版本。最后一次构建后仅更新任务文档，没有再改生产代码。
+
+### 尚未通过的设备门槛与交付
+
+`adb devices -l` 没有连接设备，已在工作期间询问目标设备可用性，尚无设备响应。本轮没有安装或实测，不能声称 Sony 起播已缩短、健康 DSP/HDMI 实播已验收或性能已证明不下降。特别是 API 31 的多输出环境可能不命中共享经验，首次播放依然保留原 10 秒检测。
+
+B 的早回退没有启用：旧日志只有请求的 256 KiB 和总写入量，没有实际启动门槛、路由变更后的门槛以及健康直出的启动分布。先用本次 APK 采集这些证据，按前述同片对照裁决观察窗；不把 2 秒建议值直接推广到生产。C 音频局部重建仍暂缓。此限制来自实际证据缺口及用户要求保留功能/性能，不是等待重复的实施批准。
+
+A 的源码、测试、本文和索引按 `E11-audio-startup-admission` guard 原子提交并创建 annotated recovery tag；具体提交/tag 由 Git 记录确定，回滚 revert 该单提交。保留原有 104 个 `app/.cxx/` 文件，不推送或发布。
+
+## 历史 Recovery anchor（2026-09-21，起播速度与成功率研究）
 
 - Objective / acceptance：为 AAC/MP3 厂商直出形成兼顾起播时间与成功率的决策方案；保留正常直出、标准 offload/HDMI passthrough、音画同步、用户偏好、视频手动解码和既有格式能力。研究须覆盖平台合同、实际发货源码、上游问题、成熟播放器与相关性能实践，并明确实施阶段、验收和回滚。
 - User decision：研究方案形成后，用户于 2026-09-21 明确要求“继续实施”，授权推荐的准入一致、确认失败后有限记忆及具备安全门槛的较早恢复；保留“当前功能不被破坏、性能不会降低”的验收条件。先实施 A；B 仍须满足真实启动门槛与输出状态证据；C 不进入本轮生产变更。
