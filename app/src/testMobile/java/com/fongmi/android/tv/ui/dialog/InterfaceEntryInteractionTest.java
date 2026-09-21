@@ -35,6 +35,14 @@ public class InterfaceEntryInteractionTest {
     }
 
     @Test
+    public void newConfigInsertsAfterCombiningPrimaryAndBackupAddresses() throws Exception {
+        String mobile = read("app/src/mobile/java/com/fongmi/android/tv/ui/dialog/ConfigDialog.java");
+        String leanback = read("app/src/leanback/java/com/fongmi/android/tv/ui/dialog/ConfigDialog.java");
+        assertTrue(mobile.contains(".urls(addresses(url, addresses)).insert().update()"));
+        assertTrue(leanback.contains(".urls(addresses(text, addresses)).insert().update()"));
+    }
+
+    @Test
     public void settingsRowsOpenTheManagerInsteadOfUsingLongPressAsEdit() throws Exception {
         String mobile = read("app/src/mobile/java/com/fongmi/android/tv/ui/fragment/SettingFragment.java");
         String leanback = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/SettingActivity.java");

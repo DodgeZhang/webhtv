@@ -220,7 +220,11 @@ public class ConfigDialog extends BaseAlertDialog {
             saved = Config.find(config.getId()).url(url).name(name).update();
         } else {
             Config exists = AppDatabase.get().getConfigDao().find(url, type);
-            saved = exists != null ? exists.name(name).update() : Config.create(type).url(url).name(name).update();
+            saved = exists != null ? exists.name(name).update() : null;
+            if (saved == null) {
+                return config = Config.create(type).url(url).name(name)
+                        .urls(addresses(url, addresses)).insert().update();
+            }
         }
         return config = saved.urls(addresses(url, addresses)).update();
     }
