@@ -237,3 +237,14 @@
 - 修法：测试夹具改为经 `playbackError(errorCode, cause)` 构造 `TestPlaybackException`（`PlaybackException` 的带时间戳 protected 构造函数，显式 timestamp 0），只影响测试代码；生产路径 `requestPcmFallbackForStuckPlayback(PlaybackException)` 及其读取的 `errorCode`/`getCause()` 语义不变。
 - 拒绝的替代：全局开启 `testOptions.unitTests.returnDefaultValues = true`，会把所有单测的未实现框架方法静默降级为默认值，放宽既有门禁。
 - 验证（真实构建配置，无临时 init 脚本）：`:app:testMobileArm64_v8aDebugUnitTest` 全量 4765 项（失败 0、错误 0、跳过 1）`BUILD SUCCESSFUL`；`:app:testLeanbackArmeabi_v7aDebugUnitTest` 以 `com.fongmi.android.tv.player.exo.*` 与 `FlagSelectionListenerTest` 过滤执行 75 个测试类共 553 项（失败 0、错误 0、跳过 0）`BUILD SUCCESSFUL`，其中含被修复的 `ExoCompressedAudioDirectPolicyTest` 26 项。
+
+### 切换播放器后厂商直出初始化失败导致延迟卡顿（2026-09-21）
+
+- 用户现象：0904 版本音乐来回切换播放器顺畅；0921 版本才恢复音乐播放，但 MPV -> EXO 后 EXO 可显示首帧却不出声、界面持续缓冲，按下一曲或退出重开才恢复；MPV 也存在切换后长时间等待。两份用户日志：`webhtv-debug-log (21).txt`、`webhtv-debug-log_3.txt`。
+- 现场证据：`webhtv-debug-log_3.txt` 中 `p-6mbtnm-4` 于 `14:33:03.382` 开始连续 `AudioTrack init failed 0 Config(48000,12,10,262144/131072/100000)`，`p-6mcun2-7` 于 `14:33:52.065` 以 44100Hz 重复同一失败；两次都只记录 sink 回调与首帧，之后没有 `onPlayerError`、没有 PCM fallback，直到用户清播放或退出。对照初始起播的 `p-6mbmjg-2`，Media3 在 `14:32:54.448` 最终上报 `ERROR_CODE_AUDIO_TRACK_INIT_FAILED`，随后现有逻辑成功执行 `fallback=pcm`。
+- 根因：锁定 Media3 `1.11.0-alpha01-fongmi` 的 `DefaultAudioSink` 对非 offload 的 `AudioOutputProvider.InitializationException` 不立即上抛，而是放入 `PendingExceptionHolder`；其计时起点被全局 `pendingReleaseCount` 阻塞。切内核时旧 `AudioTrackAudioOutput.release()` 走异步释放，若 `onReleased` 未及时回到旧的 playback thread，新 sink 的初始化失败会被无限期延迟，App 层 `ExoPlayerEngine.handleError()` 因此没有机会执行已有 PCM 回退。0904 基线没有这套 vendor-direct 失败路径，所以切换不触发该等待。
+- 本地源码复核：`ExoCompressedAudioDirectPolicy.getAudioOutput()` 已在厂商直出初始化异常时执行 `disableVendorDirect()` 并设置 `pendingPcmFallback`；但 `ExoPlayerEngine` 只在最终 `PlaybackException` 到达时消费该请求，和日志断层完全对应。
+- 修法：策略层新增每输出 attempt 仅一次的 `InitializationFailureListener`，在初始化异常现场通知引擎；`ExoPlayerEngine` 用 attempt generation 与 request sequence 去重，将 PCM 重启投递到主线程，并在 `handleError()` 保留原最终错误回退作为兜底。`startInternal()`、`release()`、`rebuild()`、`stop()` 推进 generation，避免旧切换的延迟回调误重启新播放；`resetOutputProgress()` 清理本 attempt 的通知与请求状态。
+- 拒绝的替代：等待 Media3 固定延迟上抛会把用户可见卡顿保留；把 vendor-direct `OutputConfig` 伪装成 offload 会改变 Media3 的 offload/gapless/回退语义；修改锁定 AAR 需要额外二进制重建与更宽回滚范围，均不符合本次局部修复合同。
+- 验证：`:app:testLeanbackArmeabi_v7aDebugUnitTest --tests com.fongmi.android.tv.player.exo.ExoCompressedAudioDirectPolicyTest` 通过（含新增“初始化失败必须通知一次”用例），主源码 Java 编译通过。随后以 `scripts/build_arm64_debug_install.sh --serial 192.168.50.3:5557` 覆盖安装 mobile/arm64-v8a Debug 到 dev2，安装成功且未卸载原包；安装后 EXO 正常 PCM 播放会话中 `OMX.google.aac.decoder`、`audio.output.playhead` 持续前进。
+- 设备验证边界：dev2 对同一个 HLS AAC 样例返回 `exo-audio-direct: ... reason=no-direct-support`，没有进入用户 Sony 日志中的 `reason=vendor-direct` 失败分支，因此本轮不能把“原设备切换已通过”冒充为已验证结论；需要在会触发 vendor-direct 初始化失败的设备/片源上复测 MPV -> EXO 和 EXO -> MPV，预期日志应在首次 `disable ... reason=initialization` 后立即出现 `fallback=pcm`，而不是等待最终 `onPlayerError`。

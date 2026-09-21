@@ -28,6 +28,7 @@ import com.github.catvod.crawler.SpiderDebug;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ExoCompressedAudioDirectPolicy
@@ -52,6 +53,9 @@ public final class ExoCompressedAudioDirectPolicy
     private final Set<OutputKey> vendorDirectConfigs;
     private final Set<OutputKey> failedVendorDirectConfigs;
     private final AtomicReference<OutputKey> pendingPcmFallback = new AtomicReference<>();
+    private final AtomicBoolean initializationFailureNotified = new AtomicBoolean();
+    private final AtomicReference<Runnable> initializationFailureListener =
+            new AtomicReference<>();
     private final ExoAudioOutputState audioOutputState = new ExoAudioOutputState();
     private final AtomicReference<OutputAttempt> outputAttempt =
             new AtomicReference<>(new OutputAttempt());
@@ -207,6 +211,7 @@ public final class ExoCompressedAudioDirectPolicy
                 } catch (AudioOutputProvider.InitializationException error) {
                     if (vendorDirect) {
                         disableVendorDirect(config, "initialization");
+                        notifyInitializationFailure();
                     }
                     throw error;
                 }
@@ -309,8 +314,18 @@ public final class ExoCompressedAudioDirectPolicy
         return pendingPcmFallback.getAndSet(null) != null;
     }
 
+    /**
+     * Registers a listener that can begin the PCM fallback without waiting for Media3's
+     * delayed audio initialization error.
+     */
+    public void setInitializationFailureListener(Runnable listener) {
+        initializationFailureListener.set(listener);
+    }
+
     /** Forget retired output evidence without retrying a failed configuration. */
     public void resetOutputProgress() {
+        initializationFailureNotified.set(false);
+        pendingPcmFallback.set(null);
         outputAttempt.set(new OutputAttempt());
     }
 
@@ -423,6 +438,12 @@ public final class ExoCompressedAudioDirectPolicy
                     "disable encoding=%d sampleRate=%d channelMask=0x%X reason=%s",
                     key.encoding(), key.sampleRate(), key.channelMask(), reason);
         }
+    }
+
+    private void notifyInitializationFailure() {
+        if (!initializationFailureNotified.compareAndSet(false, true)) return;
+        Runnable listener = initializationFailureListener.get();
+        if (listener != null) listener.run();
     }
 
     private static final class OutputAttempt {
