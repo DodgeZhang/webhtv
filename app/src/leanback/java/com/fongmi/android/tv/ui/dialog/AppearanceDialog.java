@@ -20,10 +20,12 @@ import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.theme.ThemeController;
+import com.fongmi.android.tv.theme.ThemeProfile;
+import com.fongmi.android.tv.theme.ThemeProfileStore;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.textview.MaterialTextView;
 
-public final class AppearanceDialog extends DialogFragment implements ThemeDialog.Listener {
+public final class AppearanceDialog extends DialogFragment {
 
     private String[] uiScales;
     private String[] languages;
@@ -150,16 +152,16 @@ public final class AppearanceDialog extends DialogFragment implements ThemeDialo
         });
     }
 
-    @Override
-    public void setTheme(int color) {
-        themeValue.setText(themeText(color));
-        Setting.putThemeColor(color);
+    void onThemeProfileApplied() {
+        themeValue.setText(getThemeText());
         dismissAllowingStateLoss();
         RefreshEvent.theme();
     }
 
     private String getThemeText() {
-        return themeText(Setting.getThemeColor());
+        ThemeProfile profile = ThemeProfileStore.load();
+        String name = profile.displayName();
+        return "Default".equals(name) ? themeText(Setting.getThemeColor()) : name;
     }
 
     private String themeText(int color) {

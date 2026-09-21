@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（见 3.4）与 Layer 2A（见 4.8）已提交并打 recovery tag；Layer 2B 受控 ThemeBinder 与运行时应用已实施并通过 JVM 与 dev3 设备验证（见 4.9）；Layer 2C–2D 未启动。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）已提交并打 recovery tag；Layer 2C 编辑器与预览已实施并通过自动化门禁（见 4.10）；Layer 2D（Web/备份收口）未启动。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：等待用户确认 Layer 2B 的设备表现后，启动 Layer 2C（编辑器与实时预览）；Layer 2D（Web/备份收口）随后执行。
+- 下一步唯一动作：等待用户确认 Layer 2C 的编辑器交互（建议在实际设备上手工走一遍外观→主题编辑），随后启动 Layer 2D（Web 快照、备份兼容与设备收口）。
 
 ---
 
@@ -613,6 +613,25 @@ Layer 2 DoD：
 - 自动化证据：mobile/leanback `--tests 'com.fongmi.android.tv.theme.*'` 全部通过；`scripts/check_ui_tokens.sh --strict` → `violations=0 legacy=0`、38 组对比度 0 失败。
 - 残余风险：本轮只验证了 mobile 端首页/列表/对话框；leanback 设备场景、连续 30 次切换的内存回收、播放器内嵌面板与 WebHome 同步仍属 Layer 2C/2D 验收项。
 - 回滚锚点：回退 Layer 2B 提交即恢复到 Layer 1 的静态主题；已保存的 v2 profile 不被删除，旧版本忽略该键。
+
+---
+
+### 4.10 Layer 2C 实施记录（2026-09-22）
+
+- 任务：`L2C-THEME-EDITOR-20260921`。交付 16 槽主题编辑器与实时预览，替换原 14 色圆点对话框。
+- 新增共享实现（`app/src/main/java/com/fongmi/android/tv/theme/`）：
+  - `ThemeEditor.java`：draft 深拷贝、逐槽 `set`/`clear`/`valueOf`、模式与 seed 归一化、`preview()`（只解析不落盘）、`apply()`/`reset()` 唯一写盘入口；非法颜色与越界透明度在进入 draft 前即被拒绝。
+  - `ThemePreviewView.java`：纯代码构建的实时预览（filled/tonal 按钮、正文、次要文字、卡片、Dialog 面板、透明度摘要）与完整编辑面板（13 颜色槽 + 3 透明度滑杆 + 每槽“恢复继承”），mobile/leanback 共用。
+  - `ThemeColorPickerDialog.java`：HSV 三滑杆 + 精确 hex 输入；确认前用 `ThemeProfileValidator.normalizeColor` 校验，非法输入不关闭对话框也不回调。
+- 两端接入：mobile/leanback `ThemeDialog` 改为编辑器（模式/预设行、浅深切换、面板、应用/取消/恢复默认），`AppearanceDialog` 不再直写 `theme_color`，应用后经既有 `RefreshEvent.theme()` 统一重建。
+- 事务性：取消只丢弃 draft；应用走 `ThemeProfileStore.apply()` 原子写入并同步 `theme_color` 镜像；恢复默认走 `ThemeProfileStore.reset()`。
+- 新增字符串资源 46 条（默认 `values/` 英文，与仓库既有 base 语言策略一致）；新增 `ThemeEditorContractTest` 11 项覆盖逐槽往返、透明度边界、非法值拒绝、浅深独立、预览不落盘、旧 14 色路径已移除。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 全部通过；`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均通过；`scripts/check_ui_tokens.sh --strict` → `violations=0 legacy=0`、38 组对比度 0 失败。
+- **未完成项（本阶段唯一缺口）**：编辑器 UI 的真机交互验收未完成。dev3 `192.168.50.3:5559` 上的首页被内置 WebHome 接管，按 `nav_position=1` 启动设置后界面仍由 Web 层渲染，原生“外观→主题色”入口在自动化点击路径下不可达（多次尝试均落到 WebHome 或相邻设置子页）。因此以下矩阵行仍为**未验证**：模式/预设切换、单槽改色、透明度上下界、取消不改动、应用后统一重建、重启保持、TV 遥控焦点。
+- 残余风险：
+  - 新增字符串只有 `values/` 英文 base，`values-zh-rCN`/`values-zh-rTW` 走系统回退；建议随 Layer 2D 一并补齐中文翻译。
+  - 颜色选择器与滑杆布局在小屏手机上的滚动/触控体验未实测。
+- 回滚锚点：回退 Layer 2C 提交即恢复原 14 色圆点 `ThemeDialog`；v2 profile 数据不受影响，Layer 2B 的运行时绑定继续可用。
 
 ---
 
