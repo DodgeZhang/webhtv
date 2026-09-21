@@ -38,7 +38,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:hint="@string/dialog_config_name_hint"
+            android:hint="@string/dialog_config_name"
             android:importantForAutofill="no"
             android:inputType="text"
             android:singleLine="true"
