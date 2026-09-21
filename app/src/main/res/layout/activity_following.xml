@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/following_page_bg"
+    android:background="?attr/colorSurface"
     android:fitsSystemWindows="true">
 
     <LinearLayout
@@ -31,8 +31,8 @@
                 android:nextFocusRight="@id/filter"
                 android:nextFocusDown="@id/recycler"
                 android:text="@string/following_check_all"
-                android:textColor="@color/following_button_primary_text"
-                app:backgroundTint="@color/following_button_primary_bg" />
+                android:textColor="?attr/colorOnPrimary"
+                app:backgroundTint="?attr/colorPrimary" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/filter"
@@ -46,8 +46,8 @@
                 android:nextFocusDown="@id/recycler"
                 android:layout_marginStart="8dp"
                 android:text="@string/following_filter_updates"
-                android:textColor="@color/following_button_secondary_text"
-                app:backgroundTint="@color/following_button_secondary_bg" />
+                android:textColor="?attr/colorOnSecondaryContainer"
+                app:backgroundTint="?attr/colorSecondaryContainer" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/alistImport"
@@ -60,8 +60,8 @@
                 android:nextFocusDown="@id/recycler"
                 android:layout_marginStart="8dp"
                 android:text="@string/following_server_import"
-                android:textColor="@color/following_button_secondary_text"
-                app:backgroundTint="@color/following_button_secondary_bg" />
+                android:textColor="?attr/colorOnSecondaryContainer"
+                app:backgroundTint="?attr/colorSecondaryContainer" />
 
             <TextView
                 android:id="@+id/summary"
@@ -71,7 +71,7 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="2"
-                android:textColor="@color/following_text_secondary"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -111,7 +111,7 @@
                     android:layout_marginTop="12dp"
                     android:gravity="center"
                     android:text="@string/following_empty"
-                    android:textColor="@color/following_text_secondary"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="15sp" />
             </LinearLayout>
 

@@ -891,9 +891,13 @@
     <string name="site_name_reset_title">Reset custom site names?</string>
     <string name="site_name_reset_message">All custom names and groups for the current interface will be removed.</string>
     <string name="setting_short_drama_source">Short drama source config</string>
+    <string name="setting_theme_mode">Theme mode</string>
+    <string name="setting_theme_mode_system">Follow system</string>
+    <string name="setting_theme_mode_light">Light</string>
+    <string name="setting_theme_mode_dark">Dark</string>
     <string name="setting_theme_color">Theme color</string>
     <string name="setting_appearance">Appearance &amp; language</string>
-    <string name="setting_appearance_summary">4 options</string>
+    <string name="setting_appearance_summary">5 options</string>
     <string name="setting_auto">Auto</string>
     <string name="setting_custom">Custom</string>
     <string name="setting_language">Language</string>

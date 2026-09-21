@@ -136,8 +136,8 @@
                         android:text="@string/following_next_season"
                         android:textSize="12sp"
                         android:visibility="gone"
-                        app:backgroundTint="@color/following_button_secondary_bg"
-                        android:textColor="@color/following_button_secondary_text"/>
+                        app:backgroundTint="?attr/colorSecondaryContainer"
+                        android:textColor="?attr/colorOnSecondaryContainer"/>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/continuePlay"
@@ -150,8 +150,8 @@
                         android:minWidth="70dp"
                         android:text="@string/following_continue"
                         android:textSize="12sp"
-                        app:backgroundTint="@color/following_button_primary_bg"
-                        android:textColor="@color/following_button_primary_text"/>
+                        app:backgroundTint="?attr/colorPrimary"
+                        android:textColor="?attr/colorOnPrimary"/>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/check"
@@ -164,8 +164,8 @@
                         android:minWidth="62dp"
                         android:text="@string/following_check"
                         android:textSize="12sp"
-                        app:backgroundTint="@color/following_button_secondary_bg"
-                        android:textColor="@color/following_button_secondary_text"/>
+                        app:backgroundTint="?attr/colorSecondaryContainer"
+                        android:textColor="?attr/colorOnSecondaryContainer"/>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/read"
@@ -178,8 +178,8 @@
                         android:minWidth="58dp"
                         android:text="@string/following_read"
                         android:textSize="12sp"
-                        app:backgroundTint="@color/following_button_secondary_bg"
-                        android:textColor="@color/following_button_secondary_text"/>
+                        app:backgroundTint="?attr/colorSecondaryContainer"
+                        android:textColor="?attr/colorOnSecondaryContainer"/>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/notify"
@@ -192,8 +192,8 @@
                         android:minWidth="62dp"
                         android:text="@string/following_notify_on"
                         android:textSize="12sp"
-                        app:backgroundTint="@color/following_button_secondary_bg"
-                        android:textColor="@color/following_button_secondary_text"/>
+                        app:backgroundTint="?attr/colorSecondaryContainer"
+                        android:textColor="?attr/colorOnSecondaryContainer"/>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/sourceChange"
@@ -206,8 +206,8 @@
                         android:minWidth="58dp"
                         android:text="@string/following_change_source"
                         android:textSize="12sp"
-                        app:backgroundTint="@color/following_button_secondary_bg"
-                        android:textColor="@color/following_button_secondary_text"/>
+                        app:backgroundTint="?attr/colorSecondaryContainer"
+                        android:textColor="?attr/colorOnSecondaryContainer"/>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/delete"
@@ -220,8 +220,8 @@
                         android:minWidth="58dp"
                         android:text="@string/following_cancel"
                         android:textSize="12sp"
-                        app:backgroundTint="@color/following_button_danger_bg"
-                        android:textColor="@color/following_button_danger_text"/>
+                        app:backgroundTint="?attr/colorErrorContainer"
+                        android:textColor="?attr/colorOnErrorContainer"/>
                 </LinearLayout>
             </HorizontalScrollView>
         </LinearLayout>

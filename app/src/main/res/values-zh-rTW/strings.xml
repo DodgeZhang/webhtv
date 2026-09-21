@@ -844,9 +844,13 @@
     <string name="site_name_reset_title">重設自訂站源名稱？</string>
     <string name="site_name_reset_message">將清除目前介面的全部自訂名稱和分組。</string>
     <string name="setting_short_drama_source">短劇源配置</string>
+    <string name="setting_theme_mode">主題模式</string>
+    <string name="setting_theme_mode_system">跟隨系統</string>
+    <string name="setting_theme_mode_light">淺色</string>
+    <string name="setting_theme_mode_dark">深色</string>
     <string name="setting_theme_color">主題色彩</string>
     <string name="setting_appearance">外觀與語言</string>
-    <string name="setting_appearance_summary">4 項</string>
+    <string name="setting_appearance_summary">5 項</string>
     <string name="setting_auto">自動</string>
     <string name="setting_custom">自訂</string>
     <string name="setting_language">語言</string>

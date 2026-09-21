@@ -888,9 +888,13 @@
     <string name="site_name_reset_title">重置自定义站源名称？</string>
     <string name="site_name_reset_message">将清除当前接口的全部自定义名称和分组。</string>
     <string name="setting_short_drama_source">短剧源配置</string>
+    <string name="setting_theme_mode">主题模式</string>
+    <string name="setting_theme_mode_system">跟随系统</string>
+    <string name="setting_theme_mode_light">浅色</string>
+    <string name="setting_theme_mode_dark">深色</string>
     <string name="setting_theme_color">主题色彩</string>
     <string name="setting_appearance">外观与语言</string>
-    <string name="setting_appearance_summary">4 项</string>
+    <string name="setting_appearance_summary">5 项</string>
     <string name="setting_auto">自动</string>
     <string name="setting_custom">自定义</string>
     <string name="setting_language">语言</string>
