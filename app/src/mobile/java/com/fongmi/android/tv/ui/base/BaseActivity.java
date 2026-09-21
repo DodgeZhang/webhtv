@@ -49,9 +49,11 @@ public abstract class BaseActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         ThemeController.applyFromPreferences(this);
         setContentView(getBinding().getRoot());
+        ThemeController.bindTheme(getBinding().getRoot());
         audioMiniPlayer = new AudioMiniPlayer(this);
         EventBus.getDefault().register(this);
         initView(savedInstanceState);
+        ThemeController.bindTheme(getBinding().getRoot());
         setBackCallback();
         initEvent();
     }

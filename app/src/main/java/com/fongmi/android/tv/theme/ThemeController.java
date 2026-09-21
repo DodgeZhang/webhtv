@@ -3,7 +3,9 @@ package com.fongmi.android.tv.theme;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.app.Dialog;
 import android.os.Build;
+import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
@@ -12,6 +14,8 @@ import androidx.appcompat.app.AppCompatDelegate;
 public final class ThemeController {
 
     private static volatile ThemeTokens current = ThemeTokens.light();
+    private static volatile ThemeTokens baseline = ThemeTokens.light();
+    private static volatile ThemeProfile profile = ThemeProfile.defaultProfile();
 
     private ThemeController() {
     }
@@ -45,6 +49,11 @@ public final class ThemeController {
         return current;
     }
 
+    /** The frozen Layer 1 palette the binder compares against. */
+    public static ThemeTokens baseline() {
+        return baseline;
+    }
+
     /**
      * Single source of truth for "the current app appearance is dark".
      *
@@ -70,17 +79,27 @@ public final class ThemeController {
      * other value is an explicit ARGB seed.
      */
     public static ThemeTokens resolveFromPreferences() {
+        ThemeProfile stored = null;
+        try {
+            stored = ThemeProfileStore.load();
+        } catch (RuntimeException ignored) {
+            // Preference access is unavailable; Layer 1 defaults remain valid.
+        }
+        return resolveWith(stored);
+    }
+
+    private static ThemeTokens resolveWith(ThemeProfile profile) {
         boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         int mode = com.fongmi.android.tv.setting.Setting.getThemeMode();
         ThemeMode themeMode = mode < 0 ? ThemeMode.SYSTEM : (mode == 0 ? ThemeMode.LIGHT : ThemeMode.DARK);
         int themeColor = com.fongmi.android.tv.setting.Setting.getThemeColor();
         if (themeColor == -1) {
-            return ThemeResolver.resolve(themeMode, ThemeSeed.NONE, 0, 0, systemDark);
+            return ThemeResolver.resolve(themeMode, ThemeSeed.NONE, 0, 0, profile, null, systemDark);
         }
         ThemeSeed seed = themeColor == 0 ? ThemeSeed.WALLPAPER : ThemeSeed.EXPLICIT;
         int explicit = themeColor == 0 ? 0 : themeColor;
         int wallpaper = com.fongmi.android.tv.setting.Setting.getWallColor();
-        return ThemeResolver.resolve(themeMode, seed, explicit, wallpaper, systemDark);
+        return ThemeResolver.resolve(themeMode, seed, explicit, wallpaper, profile, null, systemDark);
     }
 
     /**
@@ -92,7 +111,15 @@ public final class ThemeController {
      * existing immersive layouts.
      */
     public static void applyFromPreferences(AppCompatActivity activity) {
-        current = resolveFromPreferences();
+        ThemeProfile stored = null;
+        try {
+            stored = ThemeProfileStore.load();
+        } catch (RuntimeException ignored) {
+            // Preference access is unavailable; Layer 1 defaults remain valid.
+        }
+        profile = stored == null ? ThemeProfile.defaultProfile() : stored;
+        baseline = resolveWith(null);
+        current = resolveWith(profile);
         if (activity == null || activity.isFinishing()) return;
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return;
         if (activity.getWindow().getStatusBarColor() != android.graphics.Color.TRANSPARENT) {
@@ -101,5 +128,30 @@ public final class ThemeController {
         if (activity.getWindow().getNavigationBarColor() != android.graphics.Color.TRANSPARENT) {
             activity.getWindow().setNavigationBarColor(current.colorSurface());
         }
+    }
+
+    /**
+     * Applies the active profile to an already-created view tree.
+     *
+     * <p>When no profile override is active this returns immediately, so the
+     * default Layer 1 path is byte-identical and costs nothing.
+     */
+    public static void bindTheme(View root) {
+        ThemeBinder.bind(root, baseline, current);
+    }
+
+    /** Same controlled channel for a dialog or bottom-sheet window. */
+    public static void bindDialog(Dialog dialog) {
+        if (dialog == null || dialog.getWindow() == null) return;
+        bindTheme(dialog.getWindow().getDecorView());
+    }
+
+    /** True when the active profile overrides at least one slot. */
+    public static boolean hasProfileOverrides() {
+        return !baseline.equals(current);
+    }
+
+    public static ThemeProfile activeProfile() {
+        return profile;
     }
 }

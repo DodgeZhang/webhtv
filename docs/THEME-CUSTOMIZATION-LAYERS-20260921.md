@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1 已实施、提交并打 recovery tag（见 3.4）；Layer 2A（B-safe profile 与 resolver）已实施并通过 JVM 验证（见 4.8）；Layer 2B–2D 未启动。
+- 当前状态：Layer 1（见 3.4）与 Layer 2A（见 4.8）已提交并打 recovery tag；Layer 2B 受控 ThemeBinder 与运行时应用已实施并通过 JVM 与 dev3 设备验证（见 4.9）；Layer 2C–2D 未启动。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：等待用户确认 Layer 2A 的 profile/resolver 契约后，启动 Layer 2B（受控 ThemeBinder 与运行时应用），把 profile 读取接入 `ThemeController`。
+- 下一步唯一动作：等待用户确认 Layer 2B 的设备表现后，启动 Layer 2C（编辑器与实时预览）；Layer 2D（Web/备份收口）随后执行。
 
 ---
 
@@ -593,6 +593,26 @@ Layer 2 DoD：
   - 叠加在壁纸上的透明度仍沿用 Layer 1/H2 的既有取舍：极亮壁纸下浅色模式次要文字无法给出全局 4.5:1 硬保证。
   - 未覆盖 Android 12+ Dynamic Colors 与显式 profile 的优先级（当前设备 API 28）。
 - 回滚锚点：回退 Layer 2A 提交即回到 Layer 1 的纯 `theme_color` 路径；v2 偏好键成为孤儿数据，旧版本会忽略，不涉及数据库迁移。
+
+---
+
+### 4.9 Layer 2B 实施记录（2026-09-22）
+
+- 任务：`L2B-THEME-BINDER-20260921`。交付受控 `ThemeBinder` 与运行时应用通道：`ThemeController` 读取 v2 profile，生成 baseline/active 两份快照，并把差异绑定到已创建的视图树。
+- 新增文件：`ThemeRole.java`（19 个角色；13 个用户槽 + resolver 派生的 6 个 on* 角色；`webhtv:<role>` 显式标记；播放器/媒体/健康/品牌角色不可表达）、`ThemeColorIndex.java`（基线颜色→角色索引、歧义保护、状态骨架）。
+- 接入点：mobile/leanback `BaseActivity.onCreate()` 在 `setContentView()` 后与 `initView()` 后各绑定一次；`BaseBottomSheetDialog` 通过 `ThemeController.bindDialog()` 覆盖 33 个 BottomSheet；`RecyclerView.addOnChildAttachStateChangeListener` 绑定新 child；根视图布局变化且子视图数量变化时补绑定一次。
+- 恒等与性能：`baseline.equals(active)` 时直接返回（默认路径零遍历、零改写）；真实 profile 下 dev3 首页 `walked=49 bound=10 costMs=6–7ms`，满足 p95 < 8ms 门禁。
+- 安全边界：只改写“与冻结基线精确同色且角色唯一或共享角色一致”的颜色；状态化 ColorStateList 通过**公开构造器** `new ColorStateList(int[][], int[])` 重着色并保留各状态 alpha（pressed/disabled/focused 语义不丢失）；`player/media/logo/rating/karaoke/wall/subtitle/danmaku/surface/texture/video` 子树与 `webhtv:ignore` 显式跳过；不反射改 Resources，不使用隐藏 API。
+- 设备验证（dev3 `192.168.50.3:5559`，API 28，`build_arm64_debug_install.sh --flavor mobile`）：
+  - 无 profile 冷启动：无 binder 日志、画面与 Layer 1 一致、`FATAL EXCEPTION=0`。
+  - 注入 13 槽 profile 冷启动：`baselineOverridden=true`、`bound=10`、无崩溃；分类列表滚动、右上菜单/对话框打开、返回均正常。
+  - 覆盖测试后恢复默认 profile，确认不残留自定义状态。
+- 本轮修复的两个真实设备缺陷（JVM 单测无法发现）：
+  1. `Class.getRecordComponents()` 在 Android API < 33 不存在，曾导致 API 28 启动崩溃（`NoSuchMethodError`）。已改为内容哈希签名并加源码契约禁止该反射路径。
+  2. `ColorStateList.createFromXml()` 需要平台 `XmlBlock$Parser`，自建 pull parser 会抛 `ClassCastException`。已改用公开构造器重建。
+- 自动化证据：mobile/leanback `--tests 'com.fongmi.android.tv.theme.*'` 全部通过；`scripts/check_ui_tokens.sh --strict` → `violations=0 legacy=0`、38 组对比度 0 失败。
+- 残余风险：本轮只验证了 mobile 端首页/列表/对话框；leanback 设备场景、连续 30 次切换的内存回收、播放器内嵌面板与 WebHome 同步仍属 Layer 2C/2D 验收项。
+- 回滚锚点：回退 Layer 2B 提交即恢复到 Layer 1 的静态主题；已保存的 v2 profile 不被删除，旧版本忽略该键。
 
 ---
 

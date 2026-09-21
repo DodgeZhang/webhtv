@@ -99,6 +99,17 @@ public class ThemeControllerContractTest {
     }
 
     @Test
+    public void controllerReadsTheV2ProfileAndKeepsABaselineSnapshot() throws Exception {
+        String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
+        assertTrue(controller.contains("ThemeProfileStore.load()"));
+        assertTrue(controller.contains("private static ThemeTokens resolveWith(ThemeProfile profile)"));
+        assertTrue(controller.contains("baseline = resolveWith(null);"));
+        assertTrue(controller.contains("current = resolveWith(profile);"));
+        assertTrue(controller.contains("ThemeBinder.bind(root, baseline, current);"));
+        assertTrue(controller.contains("public static ThemeTokens baseline()"));
+    }
+
+    @Test
     public void ordinaryUiNightDecisionComesFromTheThemeController() throws Exception {
         String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
         assertTrue(controller.contains("public static boolean isNight(Context context)"));

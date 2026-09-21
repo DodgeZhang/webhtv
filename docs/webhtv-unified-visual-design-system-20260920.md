@@ -11,7 +11,7 @@
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
 - 当前证据：阶段 A–F 均已独立提交并打 recovery tag，后续回归修复也已提交；新增 `UiLayoutSourceTest` 固化海报/横向卡片比例、TV 卡片圆角族与图片文字 scrim，并补齐 `--webhtv-surface-variant`。
 - 未验证项：播放器长时/字幕/音轨/倍速回归与管理页、reader、WebHome 三页面浏览器视觉逐项人工验收仍需完成；高级主题编辑器按计划继续延后，需独立审批。
-- 下一步唯一动作：Layer 1（阶段 G/H/H2）与 Layer 2A（16 槽 B-safe profile 与 resolver，见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md` 第 4.8 节）均已实施并通过自动化验收；等待用户确认后启动 Layer 2B（受控 ThemeBinder 与运行时应用）。
+- 下一步唯一动作：Layer 1（阶段 G/H/H2）、Layer 2A（16 槽 profile 与 resolver）与 Layer 2B（受控 ThemeBinder 与运行时应用，见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md` 第 4.9 节）均已实施并通过自动化与 dev3 设备验证；等待用户确认后启动 Layer 2C（编辑器与实时预览）。
 
 ### 阶段 G（Layer 1 主题来源整合）实施记录（2026-09-21）
 
@@ -53,6 +53,15 @@
 - 契约：`FollowingUiSourceTest` 增加模式极性断言——浅色面板不得含黑纱、暗色面板不得含浅色语义表面，并锁定 20/32% 与 45/60% 四档取值。
 - 残余风险：面板透明度叠加在任意壁纸上无法给出全局保证，浅色模式在极亮壁纸下次要文字对比度会低于 4.5:1；这是仓库既有的壁纸面板取舍（设置页行为相同），如需硬保证需改为不透明面板。
 - 回滚锚点：回退阶段 H2 提交即恢复阶段 H 的 80% 不透明语义表面；`color-night` 变体一并删除，无数据迁移。
+
+### 阶段 J（Layer 2B：受控 ThemeBinder 与运行时应用）实施记录（2026-09-22）
+
+- 任务：`L2B-THEME-BINDER-20260921`；完整契约、设备证据与残余风险见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md` 第 4.9 节。
+- 变更：新增 `ThemeRole`/`ThemeColorIndex`/`ThemeBinder`；`ThemeController` 读取 v2 profile 并暴露 baseline/active 双快照与 `bindTheme`/`bindDialog`；mobile+leanback `BaseActivity` 在 `setContentView` 与 `initView` 后各绑定一次；`BaseBottomSheetDialog` 经共享通道绑定；`RecyclerView` 动态 child 自动绑定。
+- 安全与性能：默认 profile 时零遍历零改写；仅重写与冻结基线精确同色且角色无歧义的颜色；状态化 ColorStateList 用公开构造器重建并保留状态 alpha；播放器/媒体/品牌/健康子树豁免。
+- 设备证据：dev3 `192.168.50.3:5559`（API 28）mobile 覆盖安装后，默认路径无 binder 活动、`FATAL EXCEPTION=0`；注入 profile 后 `bound=10`、6–7ms，列表滚动与对话框正常。
+- 本轮修复的设备专属缺陷：API 28 上 `Class.getRecordComponents()` 不存在曾导致启动崩溃，已移除；`ColorStateList.createFromXml()` 的平台解析器限制已改用公开构造器规避。
+- 回滚锚点：回退阶段 J 提交即恢复 Layer 1 静态主题；v2 profile 数据保留但不再生效。
 
 ### 阶段 I（Layer 2A：B-safe 16 槽 profile 与 resolver）实施记录（2026-09-21）
 

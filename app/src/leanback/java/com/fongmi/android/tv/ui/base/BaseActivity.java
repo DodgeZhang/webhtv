@@ -54,8 +54,10 @@ public abstract class BaseActivity extends AppCompatActivity {
         ThemeController.applyFromPreferences(this);
         registerFragmentLifecycleCallbacks();
         setContentView(getBinding().getRoot());
+        ThemeController.bindTheme(getBinding().getRoot());
         EventBus.getDefault().register(this);
         initView(savedInstanceState);
+        ThemeController.bindTheme(getBinding().getRoot());
         Util.hideSystemUI(this);
         setBackCallback();
         initEvent();
