@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1 已实施并通过自动化与设备验收（见 3.4），尚未提交；Layer 2 未启动。
+- 当前状态：Layer 1 已实施、提交并打 recovery tag（见 3.4）；Layer 2A（B-safe profile 与 resolver）已实施并通过 JVM 验证（见 4.8）；Layer 2B–2D 未启动。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：提交 Layer 1 并生成 recovery tag，随后等待用户对 Layer 1 设备表现确认，再评估启动 Layer 2A。
+- 下一步唯一动作：等待用户确认 Layer 2A 的 profile/resolver 契约后，启动 Layer 2B（受控 ThemeBinder 与运行时应用），把 profile 读取接入 `ThemeController`。
 
 ---
 
@@ -568,6 +568,33 @@ Layer 2 DoD：
 ---
 
 ## 7. 实施任务卡
+
+### 4.8 Layer 2A 实施记录（2026-09-21）
+
+- 任务：`L2A-THEME-PROFILE-20260921`。交付 B-safe 16 槽的数据层与解析层，**不接线编辑器、不改变任何现有页面视觉**；Layer 2B 才负责把 profile 读取接入 `ThemeController` 并绑定视图树。
+- 新增文件：
+  - `ThemeProfile.java`：`SCHEMA_VERSION=2`、`format/id/name/mode/seedSource/seedColor` 与 `light`/`dark` 两个 `SlotSet`，SlotSet 严格只含 13 个颜色槽 + 3 个透明度槽；`copy()` 深拷贝，`null` 表示继承内置/seed。
+  - `ThemeProfileCodec.java`：Gson 编解码 + 128 KiB 字节上限 + 嵌套深度上限 + 危险键（script/css/url/path/intent 等）拒绝；因 Gson 不执行字段初始化，解析后显式回填缺省 `format/schemaVersion/light/dark`。
+  - `ThemeProfileValidator.java`：schema/format 校验、模式与 seed 归一化、颜色只允许**不透明** `#RGB`/`#RRGGBB`、透明度范围 `scrim 0.00–0.85`、`dialog 0.70–1.00`、`overlay 0.05–0.60`（含 `NaN/Inf` 拒绝）、自定义 seed 必须带颜色。
+  - `ThemeProfileStore.java`：v2 独立键 `theme_profile_v2_json` / `theme_profile_v2_last_good` / `theme_profile_v2_schema`；`apply()` 原子写入并同步 `theme_color` 兼容镜像；`load()` 损坏时依次回退 last-good 与旧偏好；`migrateLegacy()` 只从 v1 读取 mode/seedSource/seedColor 与 primary/surface/onSurface/outline/error 五个安全槽。
+  - `ThemeTokens` 增加 `dialogOpacity` 分量（默认两套 palette 均为 `1.0f`），使 dialog 透明度成为不可变 token 契约而不是散落常量。
+  - `ThemeResolver.resolve(..., ThemeProfile, systemDark)`：顺序固定为 内置 token → seed 派生 → 该模式 13 个颜色覆盖 → 派生 on*/容器 → 3 个透明度 → 对比度校验；扩展 `lastDiagnostic()` 区分 `default` / `seed` / `profile` / `last-good` / `fallback`。
+- 恒等性保证（本轮最关键的不回归约束）：空 profile 的解析结果与不传 profile **逐字段相同**——只有用户真正覆盖的槽才触发派生，`onPrimary`/`onPrimaryContainer`/`onSecondaryContainer`/`onError`/`onSuccess`/`onWarning`、`onSurface`/`onSurfaceVariant`/`outline`/`focus`、`surfaceDim/Bright/ContainerHighest` 均按“相关槽是否被覆盖”门控，种子派生路径不变。
+- 对比度纠正：用户把文字/描边设到不可读时自动改为黑或白（≥4.5:1，描边/焦点 ≥3:1），不拒绝保存；`surface`/`surfaceContainer`/`surfaceContainerHigh` 相等时按 6% 明度做最小层差，避免面板糊成一片。
+- 播放器与品牌豁免：profile 只能触达 16 槽，`colorPlayerControl*`、`colorPlayerScrim`、`colorHealth*`、`colorOverlayDark`、`focusScale` 在所有测试中保持与默认完全一致。
+- 备份：`Backup.APP_PREFS` 增加 `theme_mode` 与 profile 三键，随“设置”同步走，不随 config/spider 同步走。
+- 自动化证据（本轮，mobile 与 leanback 各自独立执行）：
+  - `:app:testMobileArm64_v8aDebugUnitTest --tests 'com.fongmi.android.tv.theme.*' --tests 'com.fongmi.android.tv.bean.BackupPreferenceFilterTest'` → 69 项 / 0 失败 / 0 错误。
+  - `:app:testLeanbackArm64_v8aDebugUnitTest` 同范围 → 69 项 / 0 失败 / 0 错误。
+  - `bash scripts/check_ui_tokens.sh --strict` → `violations=0 legacy=0`、38 组对比度 0 失败（min=4.28）、`hex_layouts/hex_drawables/hex_colors` 全 0、`allowlisted=191`。
+  - 新增测试类：`ThemeProfileCodecTest`（7 项）、`ThemeProfileValidatorTest`（8 项）、`ThemeProfileMigrationTest`（7 项）、`ThemeResolverOverrideTest`（12 项），并在 `BackupPreferenceFilterTest` 增加外观键用例。
+- 边界与残余风险：
+  - 本轮**未**修改 `ThemeController`、任何 Activity/Dialog/布局/资源，因此运行时页面视觉与 Layer 1 完全一致；profile 只有在 Layer 2B 接线后才会影响界面。
+  - 叠加在壁纸上的透明度仍沿用 Layer 1/H2 的既有取舍：极亮壁纸下浅色模式次要文字无法给出全局 4.5:1 硬保证。
+  - 未覆盖 Android 12+ Dynamic Colors 与显式 profile 的优先级（当前设备 API 28）。
+- 回滚锚点：回退 Layer 2A 提交即回到 Layer 1 的纯 `theme_color` 路径；v2 偏好键成为孤儿数据，旧版本会忽略，不涉及数据库迁移。
+
+---
 
 ### TASK L1：默认主题来源整合
 

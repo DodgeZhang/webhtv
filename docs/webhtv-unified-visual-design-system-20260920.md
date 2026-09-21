@@ -11,7 +11,7 @@
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
 - 当前证据：阶段 A–F 均已独立提交并打 recovery tag，后续回归修复也已提交；新增 `UiLayoutSourceTest` 固化海报/横向卡片比例、TV 卡片圆角族与图片文字 scrim，并补齐 `--webhtv-surface-variant`。
 - 未验证项：播放器长时/字幕/音轨/倍速回归与管理页、reader、WebHome 三页面浏览器视觉逐项人工验收仍需完成；高级主题编辑器按计划继续延后，需独立审批。
-- 下一步唯一动作：Layer 1 主题来源整合（阶段 G）已实施并完成自动化/设备验收，等待用户确认设备表现后启动 Layer 2A。
+- 下一步唯一动作：Layer 1（阶段 G/H/H2）与 Layer 2A（16 槽 B-safe profile 与 resolver，见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md` 第 4.8 节）均已实施并通过自动化验收；等待用户确认后启动 Layer 2B（受控 ThemeBinder 与运行时应用）。
 
 ### 阶段 G（Layer 1 主题来源整合）实施记录（2026-09-21）
 
@@ -53,6 +53,15 @@
 - 契约：`FollowingUiSourceTest` 增加模式极性断言——浅色面板不得含黑纱、暗色面板不得含浅色语义表面，并锁定 20/32% 与 45/60% 四档取值。
 - 残余风险：面板透明度叠加在任意壁纸上无法给出全局保证，浅色模式在极亮壁纸下次要文字对比度会低于 4.5:1；这是仓库既有的壁纸面板取舍（设置页行为相同），如需硬保证需改为不透明面板。
 - 回滚锚点：回退阶段 H2 提交即恢复阶段 H 的 80% 不透明语义表面；`color-night` 变体一并删除，无数据迁移。
+
+### 阶段 I（Layer 2A：B-safe 16 槽 profile 与 resolver）实施记录（2026-09-21）
+
+- 任务：`L2A-THEME-PROFILE-20260921`；完整契约、证据与残余风险见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md` 第 4.8 节，本文件不重复细节。
+- 变更：新增 `ThemeProfile`/`ThemeProfileCodec`/`ThemeProfileValidator`/`ThemeProfileStore`，`ThemeResolver` 增加 profile 重载与 last-good 回退，`ThemeTokens` 增加 `dialogOpacity` 分量，`Backup.APP_PREFS` 纳入 `theme_mode` 与 profile 三键。
+- 关键不回归约束：空 profile 的解析结果与不传 profile 逐字段相同；用户未覆盖的槽一律继承内置 token 或 seed 结果，现有页面视觉与 Layer 1 完全一致。
+- 自动化证据：mobile/leanback 各 69 项定向单测 0 失败；`scripts/check_ui_tokens.sh --strict` 输出 `violations=0 legacy=0`、38 组对比度 0 失败。
+- 边界：本轮不接线编辑器、不修改 `ThemeController` 与任何布局/资源；profile 只有在 Layer 2B 接线后才会影响界面。
+- 回滚锚点：回退阶段 I 提交即回到 Layer 1 的纯 `theme_color` 路径，不涉及数据库迁移。
 
 ### 阶段 A 实施记录（2026-09-20）
 

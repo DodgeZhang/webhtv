@@ -86,6 +86,19 @@ public class BackupPreferenceFilterTest {
     }
 
     @Test
+    public void appearanceModeAndThemeProfileFollowSettingsOption() {
+        SyncOptions settingsOnly = new SyncOptions().config(false).spider(false).webHome(false).settings(true);
+        SyncOptions spiderOnly = new SyncOptions().config(false).spider(true).webHome(false).settings(false);
+
+        for (String key : new String[]{
+                "theme_mode", "theme_profile_v2_json",
+                "theme_profile_v2_last_good", "theme_profile_v2_schema"}) {
+            assertTrue(key, Backup.include(key, settingsOnly));
+            assertFalse(key, Backup.include(key, spiderOnly));
+        }
+    }
+
+    @Test
     public void githubProxyPreferencesFollowSettingsOption() {
         SyncOptions settingsOnly = new SyncOptions().config(false).spider(false).webHome(false).settings(true);
         SyncOptions webHomeOnly = new SyncOptions().config(false).spider(false).webHome(true).settings(false);
