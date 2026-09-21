@@ -230,3 +230,10 @@
 | `A14_Vorbis/Vorbis_2.0_44.1kHz_160kbps.ogg` | Vorbis，44.1 kHz，2.0，160 kbps，Ogg | AndroidX Media3 `2bc207851df311340767e913931ca7b28cab1794` `media.exolist.json`; `https://storage.googleapis.com/exoplayer-test-media-1/ogg/play.ogg` | `d5bdb7257d6b9bb2d22c005685e4fa0984db32ac1963b792414916ee79352f62` |
 
 `samples.ffmpeg.org` 是 MPlayer/FFmpeg 测试样本集合，新增样本仅用于本地/测试设备验证，不对外重新分发。
+
+### 单测门禁修复：夹具脱离 android.os.SystemClock（2026-09-21）
+
+- 问题：合并 `f836d419518d1a93d4ff77414a88558f3854c7e3` 后，以仓库真实单测配置（未开启 `unitTests.returnDefaultValues`）执行 `:app:testMobileArm64_v8aDebugUnitTest` 得到 4765 项 / 12 失败 / 1 跳过，失败全部在 `ExoCompressedAudioDirectPolicyTest`：夹具用 media3 `PlaybackException` 的公开构造函数，其内部调用 `android.os.SystemClock.elapsedRealtime()`，该 native 方法在 JVM 单测桩上抛出 `Method ... not mocked`。上游基线不含本地仓库的严格桩配置，因此该依赖在本地才暴露。
+- 修法：测试夹具改为经 `playbackError(errorCode, cause)` 构造 `TestPlaybackException`（`PlaybackException` 的带时间戳 protected 构造函数，显式 timestamp 0），只影响测试代码；生产路径 `requestPcmFallbackForStuckPlayback(PlaybackException)` 及其读取的 `errorCode`/`getCause()` 语义不变。
+- 拒绝的替代：全局开启 `testOptions.unitTests.returnDefaultValues = true`，会把所有单测的未实现框架方法静默降级为默认值，放宽既有门禁。
+- 验证（真实构建配置，无临时 init 脚本）：`:app:testMobileArm64_v8aDebugUnitTest` 全量 4765 项（失败 0、错误 0、跳过 1）`BUILD SUCCESSFUL`；`:app:testLeanbackArmeabi_v7aDebugUnitTest` 以 `com.fongmi.android.tv.player.exo.*` 与 `FlagSelectionListenerTest` 过滤执行 75 个测试类共 553 项（失败 0、错误 0、跳过 0）`BUILD SUCCESSFUL`，其中含被修复的 `ExoCompressedAudioDirectPolicyTest` 26 项。

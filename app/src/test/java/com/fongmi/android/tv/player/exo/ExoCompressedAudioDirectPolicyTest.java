@@ -313,12 +313,12 @@ public class ExoCompressedAudioDirectPolicyTest {
             assertFalse(fixture.policy.requestPcmFallbackForStuckPlayback(stuck(type)));
         }
         assertFalse(fixture.policy.requestPcmFallbackForStuckPlayback(
-                new PlaybackException("timeout", new IllegalStateException(),
-                        PlaybackException.ERROR_CODE_TIMEOUT)));
+                playbackError(PlaybackException.ERROR_CODE_TIMEOUT,
+                        new IllegalStateException())));
         assertFalse(fixture.policy.requestPcmFallbackForStuckPlayback(
-                new PlaybackException("I/O", new StuckPlayerException(
-                        StuckPlayerException.STUCK_PLAYING_NO_PROGRESS, 10_000),
-                        PlaybackException.ERROR_CODE_IO_UNSPECIFIED)));
+                playbackError(PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                        new StuckPlayerException(
+                                StuckPlayerException.STUCK_PLAYING_NO_PROGRESS, 10_000))));
         assertFalse(fixture.policy.requestPcmFallbackForStuckPlayback(null));
         assertFalse(fixture.policy.consumePcmFallbackRequest());
         assertEquals(AudioOutputProvider.FORMAT_SUPPORTED_DIRECTLY,
@@ -485,8 +485,22 @@ public class ExoCompressedAudioDirectPolicyTest {
     }
 
     private static PlaybackException stuck(int type) {
-        return new PlaybackException("stuck", new StuckPlayerException(type, 10_000),
-                PlaybackException.ERROR_CODE_TIMEOUT);
+        return playbackError(PlaybackException.ERROR_CODE_TIMEOUT,
+                new StuckPlayerException(type, 10_000));
+    }
+
+    private static PlaybackException playbackError(int errorCode, Throwable cause) {
+        // Media3's public PlaybackException constructor reads android.os.SystemClock, which
+        // the JVM unit-test android stub rejects as an unmocked native method. The
+        // timestamped constructor keeps this fixture free of android.os framework calls.
+        return new TestPlaybackException(errorCode, cause);
+    }
+
+    private static final class TestPlaybackException extends PlaybackException {
+
+        TestPlaybackException(int errorCode, Throwable cause) {
+            super("stuck", cause, errorCode, null, 0);
+        }
     }
 
     private static final class DirectOutputFixture {

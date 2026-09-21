@@ -348,3 +348,5 @@
 - 复评新发现（未修复，阻断性）：以提交后的真实构建配置（不加临时 init 脚本）执行 `:app:testMobileArm64_v8aDebugUnitTest` 得到 4765 项 / 12 失败 / 1 跳过，失败全部集中在 `ExoCompressedAudioDirectPolicyTest`；根因为该测试用 media3 `PlaybackException` 的公开构造函数构造夹具，其内部调用 `android.os.SystemClock.elapsedRealtime()`（单元测试桩为 native 方法，抛出 `Method ... not mocked`）。`origin/beta` 不含该类，因此这是本轮合并引入的测试门禁回归；上一轮验证通过靠临时 `unitTests.returnDefaultValues=true` init 脚本掩盖，未写入仓库配置。
 - 未采纳的修法：在 `app/build.gradle` 全局开启 `unitTests.returnDefaultValues=true`，会把整个单测环境的未实现框架方法静默降级为默认值，属于放宽既有门禁，不予采用。
 - 下一动作：在独立的 E11 后续任务中把该测试改为不依赖 `android.os.SystemClock` 的夹具构造方式，并用真实构建配置重跑 mobile 全量单测与 Leanback 定向测试后再交付。
+
+- 修复记录（2026-09-21）：上述 12 项失败已由独立任务 `E11-test-clock-independence` 修复——`ExoCompressedAudioDirectPolicyTest` 的夹具改用 `PlaybackException` 带时间戳的 protected 构造函数，不再触发 `android.os.SystemClock`；未放宽单测门禁。以真实构建配置重跑 mobile 全量单测与 Leanback 定向测试均通过，详见 `docs/E11-exo-compressed-audio-direct.md` 的“单测门禁修复”一节。
