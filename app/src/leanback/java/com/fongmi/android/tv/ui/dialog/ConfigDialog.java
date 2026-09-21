@@ -43,6 +43,7 @@ import java.util.Objects;
 public class ConfigDialog extends BaseAlertDialog {
 
     private DialogConfigBinding binding;
+    private Config config;
     private boolean append = true;
     private boolean edit;
     private String url;
@@ -97,7 +98,7 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected void initView() {
-        Config config = getConfig();
+        config = getConfig();
         binding.name.setText(config.getName());
         binding.text.setText(url = config.getUrl());
         binding.text.setSelection(TextUtils.isEmpty(url) ? 0 : url.length());
@@ -212,7 +213,7 @@ public class ConfigDialog extends BaseAlertDialog {
             if (!TextUtils.isEmpty(url)) Config.delete(url, type);
             return getStoredConfig();
         } else if (edit) {
-            return Config.find(url, type).url(text).name(name).update();
+            return Config.find(config.getId()).url(text).name(name).update();
         } else {
             Config exists = AppDatabase.get().getConfigDao().find(text, type);
             return exists != null ? exists.name(name).update() : Config.create(type).url(text).name(name).update();

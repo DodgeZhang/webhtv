@@ -34,6 +34,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 public class ConfigDialog extends BaseAlertDialog {
 
     private DialogConfigBinding binding;
+    private Config config;
     private boolean append = true;
     private boolean edit;
     private String ori;
@@ -79,7 +80,7 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected void initView() {
-        Config config = getConfig();
+        config = getConfig();
         binding.title.setText(getDialogTitle());
         binding.positive.setText(edit ? R.string.dialog_edit : R.string.dialog_positive);
         binding.name.setText(config.getName());
@@ -190,18 +191,18 @@ public class ConfigDialog extends BaseAlertDialog {
     }
 
     private Config saveConfig(String url, String name) {
-        Config config;
+        Config saved;
         if (url.isEmpty()) {
             if (!edit) return null;
             if (!TextUtils.isEmpty(ori)) Config.delete(ori, type);
             return getStoredConfig();
         } else if (edit) {
-            config = Config.find(ori, type).url(url).name(name).update();
+            saved = Config.find(config.getId()).url(url).name(name).update();
         } else {
             Config exists = AppDatabase.get().getConfigDao().find(url, type);
-            config = exists != null ? exists.name(name).update() : Config.create(type).url(url).name(name).update();
+            saved = exists != null ? exists.name(name).update() : Config.create(type).url(url).name(name).update();
         }
-        return config;
+        return saved;
     }
 
     private void configureWindow() {
