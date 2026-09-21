@@ -73,6 +73,7 @@
 - 新增卡片圆角 dimens：`webhtv_card_radius_default=8dp`、`webhtv_card_radius_large=12dp`，TMDB 卡片、TV 剧集卡片和追更卡片改引共享 dimen。
 - 补齐 `--webhtv-surface-variant` 的 light/dark 与 manage 页面值，修复旧 `--md-surface-variant` 悬空引用。
 - 浏览器截图：Chromium 1600x1200 已生成 `index/manage/reader/webhome/webhome-detail` 的 light/dark 截图于 `~/webhtv-shots/`；reader 在浏览器预览下依赖原生 bridge 占位，最终验收仍需设备内 WebView 场景。
+- 全量回归：`testMobileArm64_v8aDebugUnitTest` 4775 项中仅剩 `TmdbDetailActivityLayoutTest` 对卡片圆角的 raw `8dp` 期望未同步到 `@dimen/webhtv_card_radius_default`；该 source contract 已改为共享 dimen 后单测通过，全量回归随后复核。
 
 ---
 
