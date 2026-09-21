@@ -99,6 +99,11 @@ public class InterfaceEntryInteractionTest {
         assertTrue(config.contains("window.setLayout(width, maxHeight)"));
         assertTrue(layout.contains("<com.fongmi.android.tv.ui.custom.CustomEditText\n            android:id=\"@+id/name\""));
         assertFalse(layout.contains("android:id=\"@+id/name\"\n            android:layout_width=\"wrap_content\""));
+        assertTrue(layout.contains("android:nextFocusDown=\"@id/text\""));
+        assertTrue(layout.contains("android:nextFocusDown=\"@id/addresses\""));
+        assertTrue(layout.contains("android:nextFocusDown=\"@id/choose\""));
+        assertTrue(layout.contains("android:nextFocusRight=\"@id/negative\""));
+        assertTrue(config.contains("binding.name.post(binding.name::requestFocus)"));
     }
 
     private static String read(String file) throws Exception {
