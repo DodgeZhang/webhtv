@@ -89,6 +89,7 @@ public final class ExoCompressedAudioDirectPolicy
     private final Set<DirectKey> failedVendorDirectConfigs;
     private final ExoAudioDirectFailureMemory failureMemory;
     private final OutputEnvironment environment;
+    private volatile boolean audioPassthroughEnabled = true;
     private final AtomicReference<OutputKey> pendingPcmFallback = new AtomicReference<>();
     private final ExoAudioOutputState audioOutputState = new ExoAudioOutputState();
     private final AtomicReference<OutputAttempt> outputAttempt =
@@ -134,9 +135,16 @@ public final class ExoCompressedAudioDirectPolicy
         this.environment = environment;
     }
 
+    /** Configure before exposing the renderer's output provider to the playback thread. */
+    void setAudioPassthroughEnabled(boolean enabled) {
+        audioPassthroughEnabled = enabled;
+        if (!enabled) vendorDirectConfigs.clear();
+    }
+
     @Override
     public AudioOffloadSupport getAudioOffloadSupport(
             Format format, AudioAttributes audioAttributes) {
+        if (!audioPassthroughEnabled) return AudioOffloadSupport.DEFAULT_UNSUPPORTED;
         AudioOffloadSupport standard = standardProvider.getAudioOffloadSupport(
                 format, audioAttributes);
         if (standard.isFormatSupported) {
@@ -180,6 +188,9 @@ public final class ExoCompressedAudioDirectPolicy
             @Override
             public AudioOutputProvider.FormatSupport getFormatSupport(
                     AudioOutputProvider.FormatConfig config) {
+                if (!audioPassthroughEnabled && !MimeTypes.AUDIO_RAW.equals(config.format.sampleMimeType)) {
+                    return AudioOutputProvider.FormatSupport.UNSUPPORTED;
+                }
                 AudioOutputProvider.FormatSupport standard =
                         super.getFormatSupport(config);
                 OutputKey key = OutputKey.from(config.format);
@@ -225,6 +236,9 @@ public final class ExoCompressedAudioDirectPolicy
             public AudioOutputProvider.OutputConfig getOutputConfig(
                     AudioOutputProvider.FormatConfig config)
                     throws AudioOutputProvider.ConfigurationException {
+                if (!audioPassthroughEnabled && !MimeTypes.AUDIO_RAW.equals(config.format.sampleMimeType)) {
+                    throw new AudioOutputProvider.ConfigurationException("Audio passthrough is disabled");
+                }
                 OutputKey key = OutputKey.from(config.format);
                 AudioAttributes attributes = effectiveAttributes(config.audioAttributes);
                 if (config.enableTunneling || key == null
@@ -274,6 +288,11 @@ public final class ExoCompressedAudioDirectPolicy
             @Override
             public AudioOutput getAudioOutput(AudioOutputProvider.OutputConfig config)
                     throws AudioOutputProvider.InitializationException {
+                // Recheck the final config as well: a prior encoded capability/config must not
+                // bypass a disabled setting. PCM still uses the normal output ownership wrapper.
+                if (!audioPassthroughEnabled && !Util.isEncodingLinearPcm(config.encoding)) {
+                    throw new AudioOutputProvider.InitializationException();
+                }
                 OutputAttempt attempt = outputAttempt.get();
                 boolean vendorDirect = usesVendorDirect(config);
                 try {
@@ -353,6 +372,7 @@ public final class ExoCompressedAudioDirectPolicy
     }
 
     boolean usesVendorDirect(int encoding, int sampleRate, int channelMask) {
+        if (!audioPassthroughEnabled) return false;
         OutputKey output = new OutputKey(encoding, sampleRate, channelMask);
         return vendorDirectConfigs.keySet().stream().anyMatch(key -> key.output.equals(output));
     }
@@ -360,7 +380,7 @@ public final class ExoCompressedAudioDirectPolicy
     private boolean usesVendorDirect(AudioOutputProvider.OutputConfig config) {
         // A capability query can cache this encoding while another standard output is being
         // configured. The final output mode, not that cache, owns tunneling and offload.
-        return !config.isTunneling && !config.isOffload
+        return audioPassthroughEnabled && !config.isTunneling && !config.isOffload
                 && vendorDirectConfigs.containsKey(DirectKey.from(config));
     }
 

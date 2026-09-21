@@ -31,6 +31,119 @@ import java.nio.ByteBuffer;
 public class ExoCompressedAudioDirectPolicyTest {
 
     @Test
+    public void passthroughDisabled_doesNotProbeOrCreateVendorOutput() {
+        ExoCompressedAudioDirectPolicy policy = new ExoCompressedAudioDirectPolicy(
+                (format, attributes) -> { throw new AssertionError("Offload query while disabled"); },
+                (format, attributes) -> { throw new AssertionError("Direct query while disabled"); },
+                Clock.DEFAULT,
+                config -> { throw new AssertionError("Vendor output while disabled"); });
+        policy.setAudioPassthroughEnabled(false);
+
+        assertSame(AudioOffloadSupport.DEFAULT_UNSUPPORTED,
+                policy.getAudioOffloadSupport(aacStereo(), AudioAttributes.DEFAULT));
+        AudioOutputProvider provider = wrapped(policy);
+        assertSame(AudioOutputProvider.FormatSupport.UNSUPPORTED,
+                provider.getFormatSupport(formatConfig(aacStereo())));
+        assertThrows(AudioOutputProvider.ConfigurationException.class,
+                () -> provider.getOutputConfig(formatConfig(aacStereo())));
+        assertThrows(AudioOutputProvider.InitializationException.class,
+                () -> provider.getAudioOutput(encodedOutput(false, false)));
+        assertFalse(policy.getAudioOutputSnapshot().initialized());
+        assertFalse(policy.consumePcmFallbackRequest());
+    }
+
+    @Test
+    public void passthroughDisabled_overridesStandardEncodedSupportIncludingOffload() {
+        AudioOutputProvider.FormatSupport standard = new AudioOutputProvider.FormatSupport.Builder()
+                .setFormatSupportLevel(AudioOutputProvider.FORMAT_SUPPORTED_DIRECTLY)
+                .setIsFormatSupportedForOffload(true).build();
+        ExoCompressedAudioDirectPolicy policy = new ExoCompressedAudioDirectPolicy(
+                (format, attributes) -> supported(true, true), (format, attributes) -> true);
+        policy.setAudioPassthroughEnabled(false);
+        AudioOutputProvider provider = policy.wrapOutputProvider(
+                new FixedFormatSupportAudioOutputProvider(standard));
+
+        for (String mime : new String[]{MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG,
+                MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_DTS,
+                MimeTypes.AUDIO_TRUEHD}) {
+            Format format = aacStereo().buildUpon().setSampleMimeType(mime).build();
+            assertSame(AudioOutputProvider.FormatSupport.UNSUPPORTED,
+                    provider.getFormatSupport(formatConfig(format)));
+        }
+        assertSame(AudioOutputProvider.FormatSupport.UNSUPPORTED,
+                provider.getFormatSupport(tunnelingConfig()));
+        assertFalse(policy.getAudioOffloadSupport(aacStereo(), AudioAttributes.DEFAULT).isFormatSupported);
+    }
+
+    @Test
+    public void passthroughDisabled_rejectsPreviouslySelectedEncodedConfigs() throws Exception {
+        ExoCompressedAudioDirectPolicy policy = new ExoCompressedAudioDirectPolicy(
+                (format, attributes) -> AudioOffloadSupport.DEFAULT_UNSUPPORTED,
+                (format, attributes) -> true);
+        AudioOutputProvider vendor = wrapped(policy);
+        vendor.getFormatSupport(formatConfig(aacStereo()));
+        AudioOutputProvider.OutputConfig cached = vendor.getOutputConfig(formatConfig(aacStereo()));
+        policy.setAudioPassthroughEnabled(false);
+
+        assertFalse(policy.usesVendorDirect(C.ENCODING_AAC_LC, cached.sampleRate, cached.channelMask));
+        assertThrows(AudioOutputProvider.ConfigurationException.class,
+                () -> vendor.getOutputConfig(formatConfig(aacStereo())));
+        for (AudioOutputProvider.OutputConfig config : new AudioOutputProvider.OutputConfig[]{
+                cached, encodedOutput(false, true), encodedOutput(true, false)}) {
+            StandardAudioOutputProvider delegate = new StandardAudioOutputProvider(config);
+            assertThrows(AudioOutputProvider.InitializationException.class,
+                    () -> policy.wrapOutputProvider(delegate).getAudioOutput(config));
+            assertEquals(0, delegate.creations);
+        }
+    }
+
+    @Test
+    public void passthroughDisabled_preservesPcmAndTunneledPcmOutputOwnership() throws Exception {
+        for (boolean tunneling : new boolean[]{false, true}) {
+            ExoCompressedAudioDirectPolicy policy = new ExoCompressedAudioDirectPolicy(
+                    (format, attributes) -> AudioOffloadSupport.DEFAULT_UNSUPPORTED,
+                    (format, attributes) -> { throw new AssertionError("PCM direct probe"); });
+            policy.setAudioPassthroughEnabled(false);
+            Format pcm = aacStereo().buildUpon().setSampleMimeType(MimeTypes.AUDIO_RAW)
+                    .setPcmEncoding(C.ENCODING_PCM_16BIT).build();
+            AudioOutputProvider.FormatConfig format = new AudioOutputProvider.FormatConfig.Builder(pcm)
+                    .setEnableTunneling(tunneling).build();
+            AudioOutputProvider.OutputConfig config = new AudioOutputProvider.OutputConfig.Builder()
+                    .setEncoding(C.ENCODING_PCM_16BIT).setSampleRate(48_000)
+                    .setChannelMask(Util.getAudioTrackChannelConfig(pcm))
+                    .setBufferSize(4096).setIsTunneling(tunneling).build();
+            StandardAudioOutputProvider delegate = new StandardAudioOutputProvider(config);
+            AudioOutputProvider provider = policy.wrapOutputProvider(delegate);
+
+            assertSame(delegate.support, provider.getFormatSupport(format));
+            assertSame(config, provider.getOutputConfig(format));
+            AudioOutput output = provider.getAudioOutput(config);
+            assertEquals(1, delegate.creations);
+            assertTrue(policy.getAudioOutputSnapshot().initialized());
+            assertEquals(C.ENCODING_PCM_16BIT, policy.getAudioOutputSnapshot().encoding());
+            assertEquals(tunneling, policy.getAudioOutputSnapshot().tunneling());
+            assertFalse(policy.getAudioOutputSnapshot().offload());
+            output.release();
+            assertFalse(policy.getAudioOutputSnapshot().initialized());
+        }
+    }
+
+    @Test
+    public void passthroughReenabled_restoresDirectAndStandardOffloadCandidates() {
+        AudioOffloadSupport offload = supported(true, true);
+        ExoCompressedAudioDirectPolicy policy = new ExoCompressedAudioDirectPolicy(
+                (format, attributes) -> offload, (format, attributes) -> true);
+        policy.setAudioPassthroughEnabled(false);
+        assertSame(AudioOutputProvider.FormatSupport.UNSUPPORTED,
+                wrapped(policy).getFormatSupport(formatConfig(aacStereo())));
+
+        policy.setAudioPassthroughEnabled(true);
+        assertEquals(AudioOutputProvider.FORMAT_SUPPORTED_DIRECTLY,
+                wrapped(policy).getFormatSupport(formatConfig(aacStereo())).supportLevel);
+        assertSame(offload, policy.getAudioOffloadSupport(aacStereo(), AudioAttributes.DEFAULT));
+    }
+
+    @Test
     public void offloadOnlyFlag_doesNotAuthorizeNonOffloadedBitstream() {
         assertFalse(ExoCompressedAudioDirectPolicy.supportsBitstream(0));
         assertFalse(ExoCompressedAudioDirectPolicy.supportsBitstream(

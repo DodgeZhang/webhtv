@@ -1,6 +1,29 @@
 # E11 Exo 压缩音频输出与跳转生命周期
 
-## Recovery anchor（2026-09-21，首次起播与快速恢复再研究）
+## Recovery anchor（2026-09-21，音频直通开关修复）
+
+- Objective / acceptance：关闭 Exo 音频直通后直接使用 decoder + PCM，不再选择 vendor-direct、标准 encoded passthrough 或 compressed offload；保持 PCM 输出归属、隧道 PCM、开启时正常 direct/offload、失败记忆、音视频同步及用户解码偏好。
+- User decision：用户明确要求顺道修复开关；此前首次快速起播研究已完成，新方案未被冒称已实现。
+- Lane / guard：`quick-fix` / `E11-audio-passthrough-switch`。
+- Branch / baseline：`main` / `e9fef2b90ee8aa634327c2c179eb3dc5d22cb1be`；研究 recovery tag `recovery/E11-first-playback-research/20260921160724-e9fef2b90ee8`。
+- Scope：`ExoUtil.java`、`ExoCompressedAudioDirectPolicy.java`、`ExoCompressedAudioDirectPolicyTest.java`、本文/索引；保护既有 `app/.cxx/` 104 个文件。
+- Completed actions：在 renderer 创建时将真实 Exo 设置传给 policy；track selector 的 offload 偏好同步受控。policy 在 offload/format/config/输出创建处检查设置，清理过时 vendor 能力缓存；保留所有输出的原状态包装。5 项新增用例覆盖禁用时零查询/零建轨、标准 encoded/offload、过时配置、PCM/tunneled PCM 和重新开启。
+- Verification：53 项定向用例通过（policy 46、输出归属 7，0 failure/error/skipped），TV32 Debug 构建一次通过，Gradle 用时 41 秒；测试快照与当前源码一致。APK ZIP CRC、armeabi-v7a 唯一 ABI、包标识和 v2 签名通过。本轮未调整任何超时、实际缓冲或媒体重建方式。
+- Evidence cache：`/private/tmp/webhtv-E11-first-playback-khaovka_/`，新 host init/测试快照与完整 Gradle 日志；native 暂存复用上一轮 `/private/tmp/webhtv-E11-admission-c18ee9ju/cxx`，不触碰预存 app/.cxx。
+- Risk / rollback：开启直通的首次坏路径仍可能等待原 10 秒检测，B/C 仍未实现；开关修复单独 commit/tag，可独立 revert。无设备时不宣称 Sony 实播或性能已验收。
+- Next action：关闭本开关修复 guard 后，用最终 APK 在目标 Sony 关闭直通播放原片，核对 decoder/PCM 与实际推进；开启直通的短窗及局部恢复按下方方案另行继续，不能把本轮开关修复当作 B/C 已完成。
+
+### 开关修复交付记录
+
+- 真实设置到选路：`ExoUtil.buildTrackSelector` 在关闭时使用 `AUDIO_OFFLOAD_MODE_DISABLED`；`buildAudioSink` 把同一 Exo 设置送入 `setAudioPassthroughEnabled`。policy 的标准 offload、encoded format、encoded output config 与最终 AudioTrack 创建均受控；关闭时清除已缓存 vendor 能力，避免旧查询绕过。不是仅修改 UI 标签，也没有全局强制 FFmpeg。
+- PCM 仍经原包装发布/释放 `ExoAudioOutputState`；tunneled PCM、正常开启时的标准 offload/vendor、既有失败记忆与迟到回调保护的测试保持。用户在播放内的配置刷新继续通过已有 `PlaybackPerformanceDialog.refresh` 的 `ConfigEvent.playerPerformance()` 与 callback 处理，本轮不新增热切换状态机。
+- 新增 5 项测试覆盖：关闭时 vendor/offload 查询和 vendor 建轨均零调用；标准 AAC/MP3/AC3/EAC3/DTS/TrueHD encoded 能力被拒绝；先前 cached/standard-offload/tunneled-encoded 配置不能创建；PCM/tunneled PCM 正常委托并维护快照；重新开启恢复候选。其余 41 项 policy 用例和 7 项输出状态用例形成 53 项最终回归。
+- 构建命令：`bash gradlew -I /private/tmp/webhtv-E11-first-playback-khaovka_/switch-tests.init.gradle :app:testLeanbackArmeabi_v7aDebugUnitTest --tests com.fongmi.android.tv.player.exo.ExoCompressedAudioDirectPolicyTest --tests com.fongmi.android.tv.player.exo.ExoAudioOutputStateTest :app:assembleLeanbackArmeabi_v7aDebug --console=plain`。仅执行一次，完整输出 `gradle-switch.log`；对应 JUnit XML 与测试源码快照已比对，没有重跑不相关错误分类/全部 ABI/native 依赖测试。
+- APK：`app/build/outputs/apk/leanbackArmeabi_v7a/debug/app-leanback-armeabi_v7a-debug.apk`，162,518,123 bytes，SHA256 `5a05a6f7009dc1f323d7579053d4ca53437508d56073c57b0d1915a916ca8622`；`com.fongmi.android.tv`，560 / 5.6.0，仅 `armeabi-v7a`。ZIP CRC 和 APK v2 签名通过。证据 `switch-result.json`、`apk-switch-signature.txt`、`apk-switch-badging.txt` 在当前证据目录。
+- APK 在代码提交前构建，诊断基线为研究提交 `e9fef2b90ee8aa634327c2c179eb3dc5d22cb1be` / dirty，应按最终 SHA256 识别。`adb devices -l` 仍无设备，本轮未安装，未验证 Sony 实际秒数或健康设备性能。关闭开关后的控制流已不进入坏 vendor 路线；开启时原 10 秒兜底仍存在，不能声称全部首次起播问题已解决。
+- 本修复源码/测试/本文/索引为一个原子提交，guard `E11-audio-passthrough-switch` 立即创建 annotated recovery tag；具体提交和 tag 以本次 Git 记录为准。保护既有 104 个 `app/.cxx/`，不推送，不发布。
+
+## 历史 Recovery anchor（2026-09-21，首次起播与快速恢复再研究）
 
 - Objective / acceptance：首次播放的选路、实际输出确认和错误切换都计入起播时间；10 秒全局卡死异常不能作为常见音频故障的主恢复机制。保留健康直出、声道/音质、用户偏好、音画同步、隧道、视频手动解码和稳定播放性能。
 - User decision：用户要求继续深度研究跨平台论文、文档、issues 和项目实现，并追加明确实施需求“音频直通开关没起作用，关了还是优先走的直通”。此前 A/B 授权继续有效；新的默认选路/跨媒体经验/音频局部恢复方案在下节分别标出边界。
