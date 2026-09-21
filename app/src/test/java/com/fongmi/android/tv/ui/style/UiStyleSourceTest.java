@@ -86,4 +86,30 @@ public class UiStyleSourceTest {
             throw new IllegalStateException(error);
         }
     }
+
+    @Test
+    public void playerControlsStayIsolatedFromGeneralFocusRoles() throws Exception {
+        String light = Files.readString(Path.of("src/main/res/values/webhtv_tokens.xml"), StandardCharsets.UTF_8);
+        String dark = Files.readString(Path.of("src/main/res/values-night/webhtv_tokens.xml"), StandardCharsets.UTF_8);
+        for (String tokens : new String[]{light, dark}) {
+            String focus = value(tokens, "webhtv_color_focus");
+            String primary = value(tokens, "webhtv_color_primary");
+            String active = value(tokens, "webhtv_color_player_control_active");
+            assertFalse("player active must not reuse the general focus color", active.equals(focus));
+            assertFalse("player active must not reuse the primary color", active.equals(primary));
+        }
+
+        String control = Files.readString(Path.of("src/main/res/color/player_control_text.xml"), StandardCharsets.UTF_8);
+        assertTrue(control.contains("@color/webhtv_color_player_control_active"));
+        assertTrue(control.contains("@color/webhtv_color_player_control"));
+        assertFalse("player controls must not reintroduce raw yellow", control.contains("#FFD700"));
+    }
+
+    private static String value(String source, String name) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("<color name=\\\"" + name + "\\\">(#[0-9A-Fa-f]{6,8})</color>")
+                .matcher(source);
+        assertTrue("missing token " + name, matcher.find());
+        return matcher.group(1);
+    }
 }

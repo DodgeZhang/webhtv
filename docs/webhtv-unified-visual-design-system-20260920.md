@@ -9,9 +9,9 @@
 
 - 目标：按阶段 A–E 完成 WebHTV 原生与内置 Web 的语义视觉统一，阶段 F 仅保留清理与独立审批的高级主题入口。
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
-- 当前证据：阶段 A/B 均已独立提交并打 recovery tag；阶段 C 已迁移首页、搜索、历史、收藏、站点与推荐等列表/卡片布局到共享语义角色，检查器与自动化编译验证通过。
-- 未验证项：阶段 C 尚未提交/tag；阶段 D–E 尚未实施。播放、分页与 Web 页面回归尚未完成。
-- 下一步唯一动作：提交阶段 C 并生成 recovery tag，然后开始阶段 D 的详情与播放器控制层迁移。
+- 当前证据：阶段 A/B/C 均已独立提交并打 recovery tag；阶段 D 已完成 TMDB 详情、卡片、图标、播放器控制与 OSD 的语义 token 迁移，播放器专用色与普通焦点色已隔离。
+- 未验证项：阶段 D 尚未提交/tag；阶段 E 尚未实施。播放器长时播放、字幕/音轨/倍速等完整交互回归与 Web 页面尚未覆盖。
+- 下一步唯一动作：提交阶段 D 并生成 recovery tag，然后开始阶段 E 的 Web 资源统一。
 
 ### 阶段 A 实施记录（2026-09-20）
 
@@ -39,6 +39,15 @@
 - 自动化证据：`UiStyleSourceTest`、`ThemeResolverTest`、`ThemeContractTest` 全部通过；mobile/leanback arm64 debug Java 编译通过。
 - 设备证据：dev3 `192.168.50.3:5559` 重新覆盖安装后进入去广告规则管理 Dialog，列表与卡片正常显示，`FATAL EXCEPTION=0`；截图见 `/tmp/webhtv-c-ad-dialog.png`。
 - 回滚锚点：仅回滚阶段 C 提交即可恢复阶段 B 的列表与卡片视觉，不影响阶段 A/B 的 token 与 Dialog 契约。
+
+### 阶段 D 实施记录（2026-09-21）
+
+- 迁移范围：TMDB 详情、人员、搜索条目、推荐/剧集/照片卡片、详情图标与形状资源，以及 `view_player_osd`、`adapter_player_osd`、移动端/电视端播放控制样式。
+- 播放器隔离：新增 `webhtv_selector_tmdb_*`、`webhtv_tmdb_button_*`，`player_control_text`、`display_option_text`、`selector_display_option` 与旧 `display_option_*` 颜色全部改为消费 `playerControl*`/`focus` 语义 token；测试断言 `playerControlActive` 不等于 `focus` 或 `primary`。
+- 静态证据：`scripts/check_ui_tokens.sh --stage D` 输出 `violations=0 legacy=0`，38 组对比度全部通过；`git diff --check` 通过。
+- 自动化证据：`UiStyleSourceTest` 新增播放器隔离断言后与 `ThemeResolverTest`、`ThemeContractTest` 共 16 项全部通过；mobile/leanback arm64 debug Java 编译通过。
+- 设备证据：dev3 `192.168.50.3:5559` 进入 TMDB 详情并播放第一集，进入 `VideoActivity` 后 OSD 正常显示、控制层可用、`FATAL EXCEPTION=0`；截图见 `/tmp/webhtv-d-detail2.png`、`/tmp/webhtv-d-player-osd.png`。
+- 回滚锚点：仅回滚阶段 D 提交即可恢复阶段 C 的详情与播放器控制视觉，不涉及解码、渲染、字幕、音轨或网络路径。
 
 ---
 
