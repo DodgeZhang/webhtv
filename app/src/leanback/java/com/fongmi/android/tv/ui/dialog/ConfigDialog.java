@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
+import android.view.Window;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -29,6 +31,7 @@ import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.ui.custom.CustomTextListener;
 import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.Notify;
+import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.QRCode;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.utils.Path;
@@ -266,8 +269,18 @@ public class ConfigDialog extends BaseAlertDialog {
     @Override
     public void onStart() {
         super.onStart();
-        setWidth(0.55f);
+        configureWindow();
         EventBus.getDefault().register(this);
+    }
+
+    private void configureWindow() {
+        if (getDialog() == null || getDialog().getWindow() == null) return;
+        Window window = getDialog().getWindow();
+        int screenWidth = ResUtil.getScreenWidth(requireContext());
+        int screenHeight = ResUtil.getScreenHeight(requireContext());
+        int width = Math.min(screenWidth - ResUtil.dp2px(64), Math.max(ResUtil.dp2px(820), Math.round(screenWidth * 0.72f)));
+        int maxHeight = Math.min(screenHeight - ResUtil.dp2px(64), Math.round(screenHeight * 0.84f));
+        window.setLayout(width, maxHeight);
     }
 
     @Override

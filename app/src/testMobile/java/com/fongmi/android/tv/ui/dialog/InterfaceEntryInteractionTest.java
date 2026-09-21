@@ -85,6 +85,22 @@ public class InterfaceEntryInteractionTest {
         }
     }
 
+    @Test
+    public void leanbackInterfaceDialogsUseAdaptiveScreenDimensionsAndEditableName() throws Exception {
+        String history = read("app/src/leanback/java/com/fongmi/android/tv/ui/dialog/HistoryDialog.java");
+        String config = read("app/src/leanback/java/com/fongmi/android/tv/ui/dialog/ConfigDialog.java");
+        String layout = read("app/src/leanback/res/layout/dialog_config.xml");
+
+        assertTrue(history.contains("ResUtil.getScreenWidth(requireContext())"));
+        assertTrue(history.contains("ResUtil.getScreenHeight(requireContext())"));
+        assertTrue(history.contains("window.setLayout(width, height)"));
+        assertTrue(config.contains("ResUtil.getScreenWidth(requireContext())"));
+        assertTrue(config.contains("ResUtil.getScreenHeight(requireContext())"));
+        assertTrue(config.contains("window.setLayout(width, maxHeight)"));
+        assertTrue(layout.contains("<com.fongmi.android.tv.ui.custom.CustomEditText\n            android:id=\"@+id/name\""));
+        assertFalse(layout.contains("android:id=\"@+id/name\"\n            android:layout_width=\"wrap_content\""));
+    }
+
     private static String read(String file) throws Exception {
         Path root = Files.exists(Path.of("app")) ? Path.of("") : Path.of("..");
         return Files.readString(root.resolve(file), StandardCharsets.UTF_8).replace("\r\n", "\n");

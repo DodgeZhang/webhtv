@@ -1,6 +1,8 @@
 package com.fongmi.android.tv.ui.dialog;
 
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
 
 import androidx.fragment.app.FragmentActivity;
 import androidx.annotation.NonNull;
@@ -18,6 +20,7 @@ import com.fongmi.android.tv.impl.ConfigListener;
 import com.fongmi.android.tv.ui.adapter.ConfigAdapter;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
 import com.fongmi.android.tv.utils.Notify;
+import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnClickListener {
@@ -168,6 +171,21 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
     public void onStart() {
         super.onStart();
         if (adapter.getItemCount() == 0 && !manage) dismiss();
-        else setWidth(0.4f);
+        else configureWindow();
+    }
+
+    private void configureWindow() {
+        if (getDialog() == null || getDialog().getWindow() == null) return;
+        Window window = getDialog().getWindow();
+        int screenWidth = ResUtil.getScreenWidth(requireContext());
+        int screenHeight = ResUtil.getScreenHeight(requireContext());
+        int width = Math.min(screenWidth - ResUtil.dp2px(64), Math.max(ResUtil.dp2px(720), Math.round(screenWidth * 0.68f)));
+        int height = Math.min(screenHeight - ResUtil.dp2px(64), Math.max(ResUtil.dp2px(420), Math.round(screenHeight * 0.76f)));
+        window.setLayout(width, height);
+        binding.getRoot().setMinimumHeight(height);
+        ViewGroup.LayoutParams recyclerParams = binding.recycler.getLayoutParams();
+        recyclerParams.height = 0;
+        if (recyclerParams instanceof androidx.appcompat.widget.LinearLayoutCompat.LayoutParams params) params.weight = 1;
+        binding.recycler.setLayoutParams(recyclerParams);
     }
 }

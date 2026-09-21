@@ -33,11 +33,18 @@
             android:textSize="18sp"
             tools:text="@string/push_info" />
 
-        <com.google.android.material.textview.MaterialTextView
+        <com.fongmi.android.tv.ui.custom.CustomEditText
             android:id="@+id/name"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:visibility="gone" />
+            android:layout_marginTop="8dp"
+            android:hint="@string/dialog_config_name_hint"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:singleLine="true"
+            android:textColor="#202124"
+            android:textColorHint="#8A8F98"
+            android:textSize="18sp" />
 
         <com.fongmi.android.tv.ui.custom.CustomEditText
             android:id="@+id/text"
