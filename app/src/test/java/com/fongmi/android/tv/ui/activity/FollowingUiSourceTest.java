@@ -58,7 +58,9 @@ public class FollowingUiSourceTest {
         String layout = read("app/src/main/res/layout/activity_following.xml");
         assertFalse("根布局必须保持透明，否则壁纸被整页盖住",
                 layout.contains("android:background=\"?attr/colorSurface\""));
-        assertTrue("顶栏与空态需要半透明面板承载文字",
+        assertTrue("顶栏必须使用与首页按钮同源的 20% 黑纱",
+                layout.contains("android:background=\"@drawable/shape_following_bar\""));
+        assertTrue("空态需要半透明面板承载文字",
                 layout.contains("android:background=\"@drawable/shape_following_panel\""));
         assertTrue("空态图标不能再是无条件白色 tint",
                 layout.contains("android:tint=\"?attr/colorOnSurfaceVariant\""));
@@ -68,8 +70,25 @@ public class FollowingUiSourceTest {
                 item.contains("app:cardBackgroundColor=\"@color/following_panel_bg\""));
 
         String panel = read("app/src/main/res/color/following_panel_bg.xml");
-        assertTrue("面板必须半透明", panel.contains("android:alpha="));
-        assertTrue("面板必须跟随明暗模式的语义表面", panel.contains("?attr/colorSurfaceContainerHigh"));
+        assertTrue("浅色模式卡片面板必须半透明", panel.contains("android:alpha=\"0.60\""));
+        assertTrue("浅色模式卡片面板必须用语义浅色承载深色正文",
+                panel.contains("?attr/colorSurfaceContainerHigh"));
+
+        String bar = read("app/src/main/res/color/following_bar_bg.xml");
+        assertTrue("浅色模式顶栏必须半透明", bar.contains("android:alpha=\"0.45\""));
+        assertTrue("浅色模式顶栏必须用语义浅色", bar.contains("?attr/colorSurfaceContainerHigh"));
+
+        // 暗色模式必须回到与首页按钮同源的黑纱，否则深色模式下浅色面板会重新变成“贴板”。
+        String darkPanel = read("app/src/main/res/color-night/following_panel_bg.xml");
+        assertTrue("暗色模式卡片必须是低透明度黑纱",
+                darkPanel.contains("android:alpha=\"0.32\"") && darkPanel.contains("@color/black"));
+        String darkBar = read("app/src/main/res/color-night/following_bar_bg.xml");
+        assertTrue("暗色模式顶栏黑纱必须与首页按钮 black_20 对齐",
+                darkBar.contains("android:alpha=\"0.20\"") && darkBar.contains("@color/black"));
+
+        // 面板极性必须跟随模式，否则浅色深色会各坏一边。
+        assertFalse("浅色面板不能使用黑纱", panel.contains("@color/black"));
+        assertFalse("暗色面板不能使用浅色语义表面", darkPanel.contains("colorSurfaceContainerHigh"));
     }
 
     @Test
