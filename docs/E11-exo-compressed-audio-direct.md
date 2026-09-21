@@ -1,6 +1,145 @@
 # E11 Exo 压缩音频输出与跳转生命周期
 
-## Recovery anchor（2026-09-20）
+## Recovery anchor（2026-09-21，起播速度与成功率研究）
+
+- Objective / acceptance：为 AAC/MP3 厂商直出形成兼顾起播时间与成功率的决策方案；保留正常直出、标准 offload/HDMI passthrough、音画同步、用户偏好、视频手动解码和既有格式能力。研究须覆盖平台合同、实际发货源码、上游问题、成熟播放器与相关性能实践，并明确实施阶段、验收和回滚。
+- User decision：研究方案形成后，用户于 2026-09-21 明确要求“继续实施”，授权推荐的准入一致、确认失败后有限记忆及具备安全门槛的较早恢复；保留“当前功能不被破坏、性能不会降低”的验收条件。先实施 A；B 仍须满足真实启动门槛与输出状态证据；C 不进入本轮生产变更。
+- Lane / guard：`assessment` / `E11-audio-startup-research`；只修改本文和主评估索引，临时证据 `/private/tmp/webhtv-E11-startup-research.o62jzZ/`。
+- Branch / baseline：`main` / `fa09d226f9f3763bc0f50167d6485178438fad52`；保护原有 `app/.cxx/` 下 104 个未跟踪文件。
+- Recovery reconciliation：2026-09-20 回退修复已提交为 `f836d419518d1a93d4ff77414a88558f3854c7e3`；2026-09-18 所有权/隧道修复为 `ee216d8ba7dee9637e9b79478d819532c846691c`。下方旧 anchor 的待提交措辞仅保留为历史，不是当前下一步。
+- Completed evidence：用户 2026-09-21 第二份日志含 7 次同片播放；5 次 AAC vendor-direct 的音频 head 均为 0，4 次在 10 秒无进度后回退 PCM，1 次在超时前释放；2 次 FFmpeg 音频软解可正常推进。回退已经提高成功率，但首帧至音频推进仍需约 13.3–19.3 秒。
+- Plan status：平台合同、发货源码、上游问题、mpv/VLC/Kodi 和跨领域延迟实践已复核；下节记录推荐方案、拒绝项及分阶段验收。仅本文和索引有研究记录修改，尚无生产代码改动；本轮只执行文档校验，不能记为设备性能验证。
+- Risk / limit：应用日志不能区分平台直出实现、输出封装与播放位置反馈的底层责任；查询支持不等于目标 AudioTrack 模式实播成功。速度目标待候选包与相同设备对照验证。
+- Rollback：本轮仅文档，可整体 revert 本研究提交；后续实施需另开 guard 和独立原子提交，不改现有锁/ABI/native 制品。
+- Next action：校验并关闭恢复的研究 guard，随后为已获批的阶段 A 启动实现 guard；研究提交和 recovery tag 以本次 guard 的 Git 记录为准，不为回填 ID 另开文档提交。
+
+## 2026-09-21 起播速度与成功率：证据、决定与实施边界
+
+### 问题与实际能力
+
+本轮决策问题：如何缩短厂商 AAC/MP3 压缩直出没有播放进度时的等待，同时保留能正常工作的 DSP、标准 offload、HDMI 直通、手动解码及音画同步。推荐补充 WebHTV 的实播健康判断和有限故障记忆，继续使用 Media3 的解码候选和同步机制。没有推荐升级依赖、移植其它播放器的时钟或默认并发运行多个音频输出。
+
+当前任务为既有 E11 的 Exo/App 优化；不是另一项上游合并任务，也不更改 E11 的原始 DSP 能力目标。研究开始于 2026-09-21 11:12 Asia/Shanghai，目标约 11:37 完成（日志/调用链约 8 分钟，外部裁决约 10 分钟，文档/校验/收尾约 7 分钟）。本轮允许路径仅本文和主评估索引；预存 app/.cxx/ 104 个文件受保护。最便宜的决定性验证为源码合同对照及一次文档校验，无需构建 APK。
+
+### 日志事实与因果边界
+
+来源：用户提供的 `webhtv-debug-log (3) (3).txt` 和 `webhtv-debug-log (4) (3).txt`，均在 `/Users/macbookpro/Downloads/`。第二份包含前面的部分记录及后续会话；按 `(processRunId, seq)` / `logSeq` 去重，按事件时间还原，不能把置顶片段的文本位置当作发生顺序。设备为 Sony BRAVIA 4K VH2 / Android 12 / API 31 / armeabi-v7a，片源为同一 Wogg/Quark MP4，AAC-LC 44.1 kHz 双声道。
+
+| 播放 trace | 实际音频路径 | 首帧到音频时钟开始推进 |
+| --- | --- | --- |
+| `p-d8zas-q` | vendor-direct → 平台软件 AAC → PCM | 13.298 秒 |
+| `p-dgqaa-r` | vendor-direct → 平台软件 AAC → PCM | 13.958 秒 |
+| `p-doclo-s` | FFmpeg → PCM | 0.292 秒 |
+| `p-dptk9-t` | FFmpeg → PCM | 0.364 秒 |
+| `p-dqqzo-u` | vendor-direct，超时前退出 | 未观察到推进，不计入成功时延 |
+| `p-drxix-v` | vendor-direct → PCM | 19.349 秒，其中恢复重新缓冲约 8.53 秒 |
+| `p-du2hp-w` | vendor-direct → 平台软件 AAC → PCM | 13.643 秒 |
+
+五次 direct 都是写入已接受但 raw playback head 为 0；四次出现 `StuckPlayerException: Player stuck playing with no progress for 10000 ms` 后回退，一次提前退出。两次 FFmpeg 解码器初始化为 51/72 ms；回退的平台 `c2.android.aac.decoder` 为 146–213 ms。这不是仅仅等 UI 更新“软解”标签，而是真实输出路径在等待后发生了切换。这里的时间是首帧到日志中的音频推进，不是点击到首帧，也不能当作实测扬声器发声时刻。
+
+最后完整会话：10:38:08.829 创建 AAC encoded AudioTrack（encoding=10，offload=false），08.998 首帧；19.210 媒体位置 71.772 s、buffered position 94.714 s，约有 22.942 s 数据在前，下载速率约 4.82–5.05 MiB/s；约 734,864 音频 bytes 已接受、writeErrors=0、head=0。19.232 无进度异常；21.862 软件 AAC 初始化（171 ms）；22.127 PCM Track；22.641 音频推进。后续 PCM 连续推进约 95 秒。
+
+因此，反复出现的 10 秒静帧主要与厂商直出/输出时钟链路不前进吻合，不能用“单纯下载慢”解释；恢复时的重新取数仍可能受网络影响。日志不能证明设备整体不支持 AAC，也不能在 HAL 解码、原始帧封装、输出模式/属性、启动填充和位置反馈之间最终定责。Android 的声明是格式/模式能力查询，不是每个时刻、每种参数组合的实播保证，不能据此称厂商“虚假声明”。
+
+特别注意：现有 256 KiB 是请求的 buffer size，不是已读出的真实 AudioTrack capacity/start threshold。即使接受的总字节数更大，也不能用它替代未采集的 HAL 启动门槛或设备侧声音证据。暂不添加 ADTS，也不凭本日志调整所有 direct buffer。
+
+### 本地调用链与已经具备的能力
+
+基线 `fa09d226f9f3763bc0f50167d6485178438fad52`；实际发货 Media3 源锁 `e3e922d5c01bc0b564849940fe589daf37360d15`，版本 `1.11.0-alpha01-fongmi`。读取的是仓库内 sources.jar，SHA256 为 `4d158d63ab0a99688880d6acfdc73ed340f09fa9ac9dd1934fbaa0babfcad086`，不是拿互联网最新版替代运行实现。
+
+| 位置/符号 | 已有实现、缺口与决定 |
+| --- | --- |
+| `app/src/main/java/com/fongmi/android/tv/player/exo/ExoCompressedAudioDirectPolicy.java`：`getFormatSupport`、`platformSupportsDirectPlayback`、`createVendorDirectAudioOutput` | 标准 offload/隧道已有保护。API 33+ 把模式位 `!=0` 当成普通 direct；查询使用原始属性，创建时把 UNKNOWN 内容类型变为 MUSIC。应先让查询、决策缓存及实际建轨采用一致的有效属性，并保留模式位。Sony API 31 没有这些细分位，不能声称单改位判断就能修复它。 |
+| 同文件：`VendorDirectAudioOutput`、`requestPcmFallbackForStuckPlayback` | 已按实际输出观察写入和位置，2 秒证据窗只供 10 秒 Media3 异常确认；failed set 只活在单个 engine。应保留输出/attempt 隔离，补齐启动门槛、确认后记忆和较早恢复。 |
+| `engine/ExoPlayerEngine.java`：`handleError`、`retryAudioOutputWithPcm`、`startInternal` | 上轮已能成功回退。当前通过重新 prepare 当前媒体项恢复，会停止预缓存并重建播放准备过程；额外 3–9 秒不能全归为音频解码慢。 |
+| `exo/ExoUtil.java`：`buildAudioSink`、`FfmpegRenderersFactory`；Media3 `MediaCodecRenderer.maybeInitCodecWithFallback` | 已有硬件/平台软件/FFmpeg 候选及 decoder fallback。候选查询和真正实例化是两回事；选中路径后初始化失败再试下一个，不需要默认把所有 codec 同时初始化。保留音频偏好及视频手动选择。 |
+| `exo/ExoAudioOutputState.java` | 输出状态按真实实例归属，旧实例 release 不能清新状态。跨 engine 的经验缓存只能存已确认结果，不能替代当前输出所有权。 |
+| `player/PlaybackErrorClassifier.java`：`exactStage` | 通用 `ERROR_CODE_TIMEOUT` 被标成 NETWORK_IO；当前日志中的 typed stuck 并非网络证据。将来应先按类型区分；单独 StuckPlayerException 也不一定证明是音频，只有结合本实例证据才称音频输出停滞。其它真正网络错误保持原分类。 |
+| `engine/PlaySpec.java`：`getKey`、`getUrl` | 有 key 和 URL，但仅凭字段名不能认定 key 是稳定的单集资源 ID。首版故障记忆可用完整 URL 的进程内摘要作保守媒体隔离；签名变化造成未命中可接受，不擅自去掉查询参数归并不同资源。 |
+
+音频和视频有各自的样本队列和解码器，设备可以并行执行它们；播放器的 render 调度和同步时间轴仍共同协调。Media3 音频 renderer 提供主媒体时钟，视频按它决定帧何时显示。首帧可以先显示，音频时钟为 0 时后续画面会等待；强行让视频自由前进会把静帧换成音画错位。
+
+`AudioOutputProvider.Listener.onFormatSupportChanged` 能把变化传到 sink/renderer/track selector，但当前 `ExoPlayerImplInternal.reselectTracksInternalAndSeek` 会附加当前位置 seek，且同轨同 renderer 的等价 selection 可能根本不重建 decoder。`AudioOutput.isStalled` 的现有 sink 处理是 flush，不代表切到 PCM；直接复用它可能再次打开同一失败路径。这两点是“只重启音频”必须证明的合同，不能只开一个开关就宣称无损恢复。
+
+### 外部研究与来源处置
+
+访问日期均为 **2026-09-21**，网络读取使用已配置的 `127.0.0.1:7897` 代理。原始全文、API 响应及带 URL/时间/SHA256 的元数据保存在 `/private/tmp/webhtv-E11-startup-research.o62jzZ/`；下面保留可重新访问的定位，不以临时目录存在作为唯一依据。A 为实际代码/正式合同，B 为维护者解释或可核对的案例，C 为未确认线索/跨场景推论。
+
+| 来源与固定版本 | 等级、已读取的证据 | WebHTV 适用范围、限制与决定影响 |
+| --- | --- | --- |
+| [AOSP AudioTrack](https://github.com/aosp-mirror/platform_frameworks_base/blob/cebf5c06997b64f4e47a1611edb5f97044509d76/media/java/android/media/AudioTrack.java)，Android 12 `cebf5c06997b64f4e47a1611edb5f97044509d76`；`isDirectPlaybackSupported`、`getStartThresholdInFrames` | A：能力查询不保证此刻有足够资源；streaming 在 play 后仍需达到启动门槛。压缩格式在 buffer/threshold API 中一 frame 按一 byte 计，不能拿这个单位直接除 sample rate 算音频秒数。 | 创建时读取实际 capacity/threshold；不在首个写入后无条件开始 2 秒故障倒计时。路由可能改变门槛；低 API/未知门槛走保守旧兜底。 |
+| [AOSP AudioManager](https://github.com/aosp-mirror/platform_frameworks_base/blob/0d3ff311e6e80dee7fe88a2a2cfa272ce231c3c6/media/java/android/media/AudioManager.java)，Android 13 `0d3ff311e6e80dee7fe88a2a2cfa272ce231c3c6`；[官方 API](https://developer.android.com/reference/android/media/AudioManager#getDirectPlaybackSupport(android.media.AudioFormat,android.media.AudioAttributes)) | A：OFFLOAD、GAPLESS_OFFLOAD、BITSTREAM 是不同支持位；查询必须针对将用于播放的属性。 | non-offload vendor-bitstream 准入不能用任意非零位替代，标准 offload 继续委托原 provider。仅修合同，不把 API 33+ 差异当作 Sony API 31 根因。 |
+| [AOSP NuPlayerDecoderPassThrough](https://android.googlesource.com/platform/frameworks/av/+/android-12.0.0_r1/media/libmediaplayerservice/nuplayer/NuPlayerDecoderPassThrough.cpp)，`android-12.0.0_r1`，`aggregateBuffer` / `fetchInputData` | A：此标准 offload 路径可以聚合 extractor access unit 后写入，并非在这里统一追加 ADTS。 | 它使用不同的标准 offload 配置，不能证明 Sony non-offload 能接受当前数据；足以否决“所有 AAC direct 都必须补 ADTS”这类无证据改动。 |
+| [Media3 #2258](https://github.com/androidx/media/issues/2258)，包括 2025-05-20 至 05-27 维护者及复测评论 | B：HDMI 刷新率/热插拔后能力恢复与 PCM fallback 状态不同步；capabilities receiver 覆盖及 DecoderAudioRenderer 通知缺口已在当时提交。重选可短暂中断。 | 学习路由世代和故障状态失效；不是本轮新移植项。不永久拉黑设备，也不把 capability invalidation 当成音频局部重置证明。 |
+| [Media3 #3122](https://github.com/androidx/media/issues/3122)；[提交](https://github.com/androidx/media/commit/418aaeaf395751c56be09b561699cb0bef608727) `418aaeaf395751c56be09b561699cb0bef608727` | A/B：短片循环/倍速时下个 period 的供数被视频阻塞，音频未填够而卡住；维护者否决随意切 standalone clock。提交提供实验性 per-stream media progression。 | **已有 API、此例不适用**：发货 sources.jar 已有 `enablePerStreamMediaProgression`，App 未启用；它解决跨媒体项推进，不是有大量当前项数据的厂商 AAC 输出停滞。本轮不启用、不 cherry-pick。 |
+| [Media3 #3269](https://github.com/androidx/media/issues/3269)，问题及评论 | C：其它 MediaTek/Hisense API 31 设备的 AC3/EAC3 seek 后 playback head 异常，尚无确认的通用修复。 | 提醒 seek/flush/时钟 epoch 风险；触发条件、设备、格式都不同，不能推导 Sony 的根因或照搬社区实验补丁。 |
+| [mpv AudioTrack](https://github.com/mpv-player/mpv/blob/e76a35ec95b27f5cf2d27b043b5e2e0d90e468ae/audio/out/ao_audiotrack.c)，`e76a35ec95b27f5cf2d27b043b5e2e0d90e468ae` | A：分离 PCM/IEC 输出，处理时间戳/播放头 wrap 与 flush，DEAD_OBJECT 可局部重建 AudioTrack。 | 借鉴实际输出状态和有类型恢复；不是同样的 AAC vendor-direct，不能把其线程/时钟算法复制进 Media3。引用，不集成。 |
+| [VLC AudioTrack](https://github.com/videolan/vlc/blob/5751b4a48706db62f74f6c5fffcdc66ca7b9f3ea/modules/audio_output/android/audiotrack.c)，`5751b4a48706db62f74f6c5fffcdc66ca7b9f3ea`；`StartPassthrough`、`AudioTrack_Write`、`AudioTrack_ReportTiming` | A：IEC61937 → raw 兼容模式按优先级逐个尝试；写入成功与有效非零 timing 分开；DEAD_OBJECT 尝试重建。旧 Android 阻塞 workaround 另有条件。 | 支持“有序尝试、按实播确认、只恢复失败层”的原则，不支持默认三路同时占用输出。旧系统 workaround 不适用于直接照搬。引用，不集成。 |
+| [Kodi AudioTrack](https://github.com/xbmc/xbmc/blob/a2468936c07367799cd82957b858fda35b7e5e58/xbmc/cores/AudioEngine/Sinks/AESinkAUDIOTRACK.cpp)，`a2468936c07367799cd82957b858fda35b7e5e58`；`GetDelay`、`AddPackets` | A：区分 PCM/raw/IEC；部分模式按原始 buffer 时长监督播放头，达到条件请求 reopen。明确有 sink 需要额外数据才启动。 | 支持把 buffer 和状态纳入监督；其 watchdog 排除 raw passthrough，不能复制其 400 ms 或两倍 buffer 常量用来判断 AAC。引用，不集成。 |
+| [RFC 8305](https://www.rfc-editor.org/rfc/rfc8305.html)，2017-12，§4–5 | A 规范，跨领域应用为 C：按历史和优先级排序候选、分批延迟尝试、成功后取消其它连接，控制额外负荷。 | 只借鉴有界尝试和失败经验；音频输出有共享硬件/时钟及不可重复消费样本，不能照搬网络竞速或时间参数。 |
+| [The Tail at Scale](https://research.google/pubs/the-tail-at-scale/)，Dean/Barroso，2013 | C：仅读 Google 摘要，全文镜像 404、CACM 页面 403；未取得并审阅论文全文。 | 不将摘要当作并发解码或具体期限的依据，也不宣称完成论文全文评估。本题的平台/播放器事实与已读 RFC 足以决定是否默认竞速，全文不构成本方案的必需门槛。 |
+
+证据类别：精确源码/相关提交、正式平台合同、issues/维护者讨论、成熟播放器实际实现均已覆盖；本轮没有移植候选，因此没有要重建的上游测试矩阵。性能/现场报告以用户七次会话及公开 issue 的复现/维护者反馈为依据，不能当作统一基准。未找到直接验证这条 Sony AAC non-offload 链路的论文或受控 benchmark；不制造这种证据。对每个引用的不同模式保留适用限制，研究结论是设计选择，不是性能已经达标。
+
+本地相关完整提交处置：`3fdf9f82f37843699a2545ed97d4a2dd17b8ead5`（已有 vendor-direct 能力，保留）、`cf0a5dabc77fb2bbdc3e0f2cc867a9eac86060b8`（已有硬件优先，保留）、`ee216d8ba7dee9637e9b79478d819532c846691c`（已有实例所有权/隧道修复，保留）、`f836d419518d1a93d4ff77414a88558f3854c7e3`（已有 10 秒后 PCM 回退，保留为兜底并补充）。上表 mpv/VLC/Kodi/AOSP 修订仅作固定引用，均不合并；唯一具体评估的 Media3 新特性提交已给出“API 已有、当前问题不适用”处置。
+
+### 方案比较
+
+| 方案 | 速度、成功率和当前能力影响 | 决定 |
+| --- | --- | --- |
+| 不改 | 四次恢复证明可播，但首次失败要等 10 秒，新 engine 又重新踩同一路径。 | 不推荐。 |
+| 只使用标准 Media3 行为，移除 vendor-direct | 标准 decoder/offload/HDMI 的合同简单；但会丢掉原 E11 在 vivo 等设备验证过的 DSP 入口，也没有自动解决上层重建成本。 | 拒绝整体替换，标准路径作为正常委托和恢复基础。 |
+| 所有 AAC 强制 FFmpeg/按 Sony 品牌拉黑 | 可绕过样例问题，但改变正常 DSP、功耗和既有偏好；日志不能支持这种范围。 | 拒绝全局默认。用户已有的手动软解可作为临时规避方式。 |
+| 直通、硬解、软解同时运行，最快者胜 | 增加 codec/HAL 争用、内存/CPU、样本副本和取消时序；优先级选中一个“声明支持”路径也不能证明其音频时钟会走。 | 不作为默认方案。轻量能力查询/候选元数据可复用缓存，真正初始化、解码与输出仍保持有界。 |
+| 所有超时改成 1–2 秒或把视频切系统时钟 | 可能误判填充、网络、暂停/seek、HDMI 变化；自由视频时钟可能损害 A/V sync。 | 拒绝。 |
+| WebHTV 窄适配：查询/建轨一致，确认失败后有限记忆，满足数据及生命周期条件时较早回退 | 正常路径沿用原能力和优先级；失败路径减少无效尝试和等待。需控制误判与记忆范围。 | **推荐，分 A/B 两个可回滚单元实施。** |
+| 完整音频局部重建、共享保留现有媒体队列 | 理论上可减少剩余重新 prepare 成本，但标准能力重选可能 seek 或无动作，存在样本丢失/重复、旧回调及同步风险。 | C 阶段条件研究；不阻塞 A/B，也不提前承诺效果。 |
+
+### 推荐设计及最小阶段
+
+**阶段 A：先阻止已确认失败的重复尝试，纠正准入与诊断。建议实施。**
+
+1. 为 vendor-direct 计算一次有效 AudioAttributes，查询、决策 key、OutputConfig 与建轨用同一结果；保留现有 UNKNOWN → MUSIC 的兼容意图。API 33+ 保留具体支持位，non-offload vendor 路径需要 BITSTREAM；标准 offload 原样委托。API 29–32 的布尔查询只表示可尝试，不能作为已验证成功。保持原格式白名单。
+2. 在真实 AudioTrack 创建处读取并保存实际 buffer capacity、effective start threshold、输出模式及可用的路由身份。API 31+ 有正式启动门槛接口，异常或旧 API 不猜测成确定值。记录 play、首次接受数据、首次有效推进、回退原因及回退后推进的单次时间点；日志关闭时不做逐帧字符串格式化，不新增音频数据复制、常驻计时线程或网络取样。
+3. 首版只增加**进程内、容量有界、短期的失败记忆**，建议最多 32 项、10 分钟有效期（初始设计值，非实测最优）。记录前须满足“本实例 vendor 失败，且同媒体/同输出环境下 PCM 已连续推进”，未成功恢复的不成为跨 engine 经验。新 engine 在相同媒体和配置下可跳过这一路 vendor-direct；原 engine 现有失败保护保留。
+4. key 必须包含媒体身份、音频编码/profile/采样率/声道及初始化数据摘要、有效属性、输出模式、路由世代。首版可用完整媒体 URL 的摘要保守隔离；不存 URL/token 明文、不使用尚未证明唯一的 PlaySpec.key，也不去掉查询参数猜同资源。签名变化未命中仍走正常检测。路由/能力变化（HDMI、蓝牙、音频设备）即清除对应经验；无法识别实际路由就不启用跨 engine 命中。进程结束自然清空，固件/版本变化不会沿用磁盘黑名单。
+5. 网络断流、用户暂停、seek/切轨/退出、无音频、其它 renderer 故障及未确认为该输出的超时不写入经验。有效期结束只在下一次自然起播重新尝试；不在正常播放中强行切回 direct。对健康 direct 不预热备用 decoder、不增加等待。真正标准 offload/HDMI 不受 vendor 故障记忆影响。
+6. 在错误分类处区分 typed playback stuck 与明确的网络 IO；只有带当前 vendor 输出证据的事件才归因于音频。不要把全部 StuckPlayerException 标成音频，也不要通过错误文本猜类型。
+
+阶段 A 拟允许的生产路径：`app/src/main/java/com/fongmi/android/tv/player/exo/ExoCompressedAudioDirectPolicy.java`、`exo/ExoAudioOutputState.java`（仅在现有实例快照需要承载新状态时）、同目录新 `ExoAudioDirectFailureMemory.java`、`engine/ExoPlayerEngine.java`、`player/PlaybackErrorClassifier.java`；每个缩写路径均相对 `app/src/main/java/com/fongmi/android/tv/player/`，其中 `player/PlaybackErrorClassifier.java` 的实际路径为该根下的 `PlaybackErrorClassifier.java`。测试限定相应 `ExoCompressedAudioDirectPolicyTest`、`ExoAudioOutputStateTest`、新 `ExoAudioDirectFailureMemoryTest`、`PlaybackErrorClassifierTest`，以及本文和索引。实施前 guard 使用真实完整路径，不按这一段的展示缩写声明目录通配范围。无锁、AAR、JNI、.so、Gradle 或 MPV/IJK 改动。
+
+**阶段 B：缩短第一次失败的等待。建议在 A 的实际门槛证据上实施。**
+
+- 将初次输出分成“填充中 → 可运行但待确认 → 已推进”；只有 active attempt、当前输出、play 意图有效、未暂停/缓冲/seek/释放，且已写入足够越过真实启动门槛的数据、存在应播放的未消费音频时，才累计短期无进度观察。门槛以真实单位判断，不用整体视频 buffered duration 或压缩 bytes/sampleRate 代替音频可播放量。
+- 候选观察窗为满足上述条件后的 2 秒，而非首次写入后 2 秒；数值必须由健康 direct 与 Sony 对照数据裁决。暂停、flush、seek、路由变化及新 output 重置世代，旧事件不得触发新播放回退；EOS/短片和未知数据门槛保留原通用检测，不做激进判断。
+- 复用已有 position/write 调度观察；满足条件后只投递一次带 attempt/output 身份的恢复事件，由现有播放器线程模型处理，接收侧再次验证身份及当前状态。实现时必须证明写入暂时停止后仍能触发，以及退出/新播放不会被迟到通知重启；不在 AudioTrack 回调中阻塞等待另一个线程。
+- 首版沿用已经实测能成功的 PCM 原位重新准备流程，保持播放位置、音轨和用户 play/pause 意图；Media3 10 秒通用 stuck detector 继续作为未覆盖状态的最后兜底。不伪造普通网络超时，也不扩大视频自动软解。
+- 能节省的是已确认输出停滞后的观察时间；若从 10 秒变为 2 秒，理论可少等约 8 秒，但仍有恢复 prepare/网络时间。本日志的 3–9 秒恢复成本尚未消除，不能承诺所有片源在 2 秒内播放。
+
+**阶段 C：仅在 B 后仍有明显重建成本时，验证局部音频恢复。暂缓生产实施。**
+
+先以发货 Media3 的真实 renderer/sink/track selection 做一个可证伪验证，记录 media source prepare 次数、HTTP 请求/读取量、video decoder 初始化次数、音频样本位置及 A/V 偏差，证明 direct → decoder PCM 可以保持媒体队列且没有丢样/重样。若 capability invalidation 会 seek、同 selection 不重建，或须 fork Media3，更新本任务设计并另行批准；不得默认用全局重选或切 standalone clock冒充音频局部恢复。没有这一证据就保留 A/B 的可靠回退。
+
+### 验收、性能边界与回滚
+
+| 合同 | 最便宜且有决定性的验证 |
+| --- | --- |
+| A 准入/记忆正确 | 用实际 policy 包装和可控 provider 做定向主机测试：offload-only/bitstream/组合位、属性一致、API 31 布尔查询、健康进度、失败后 PCM 成功才记忆、TTL/容量、不同媒体/格式/路由/engine、旧回调隔离。失效/过期允许新起播尝试；同片同配置可跳过已失败 vendor 路径。 |
+| 错误归因 | typed stuck 无网络 cause 不标 NETWORK_IO；未知类型不冒充音频；真正 HTTP/socket/connect 错误和 MPV 现有 marker 维持。 |
+| B 不误伤 | threshold 未满足、零写入、慢供数、未知位置、暂停/恢复、seek/flush、EOS、短片、路由变化、被替换/释放的 output 均不得触发快速恢复；持续有足够音频但不推进应只恢复一次。 |
+| 真实故障速度/成功率 | 反馈 Sony 同音轨/相同起点，基线和候选交替各至少 5 次（冷启动与重复播放分别记录）；记录点击→首帧、首帧→实际音频推进、回退→推进、失败次数及全部样本。样本少时报告中位数/最坏值，不声称统计显著或可靠 p95。先看 A 重复起播不重复 10 秒等待，再看 B 第一次等待减少。 |
+| 健康路径与既有功能 | 能正常 vendor-direct 的 vivo/同类设备、一个已有 HDMI AC3/EAC3/DTS passthrough 场景、标准 offload/隧道门禁、平台硬件/平台软件/FFmpeg 偏好、原有 AAC/MP3 及其它格式路由；定向验证暂停、seek、切轨、倍速资格和退出。无需重跑无关全格式/ABI 矩阵。 |
+| 性能不回退 | 健康设备相同片源/路线做候选与基线交替；正常路径的 codec/AudioTrack 数量、请求/读取量、CPU、内存、首帧和稳定播放掉帧不出现可归因于改动的增加；A/V sync 不恶化。若波动大到无法裁决，只追加能区分该问题的样本。源码中无双 decoder/新线程并不等于实测性能保证。 |
+
+每阶段只运行受影响的主机测试与一个 Leanback armeabi-v7a 编译目标；现有同类编译/定向测试最近为约 38–92 秒，不能当作新阶段实际用时。需要设备时才打包对应候选，不提前重建 native 或全 ABI。实施时间按当时设备与 Gradle 状态重新声明；本轮未构建/安装/实测候选包。受影响 Sony 与正常 direct/HDMI 的现场对照未完成前，不能宣称“所有现有功能和性能均已确保”。
+
+兼容性/质量：保留当前音画同步、声道/采样率、手动偏好、视频路径、隧道、AV3A 及其它格式；通过同音轨 PCM 恢复，不自动挑低质量替代音轨。维护/生命周期：采用现有 provider 包装和实例世代，故障记忆有界且不持有播放器/Activity。安全/数据所有权：仅进程内技术状态，不持久化用户 URL/token 或上传诊断；不增加网络接口。ABI/体积/许可证/供应链：阶段 A/B 只改 App Java 与定向测试，依赖锁/native ABI/二进制及许可均不变，外部代码只引用原则而不复制到制品。
+
+落地顺序为 A → B → 按实測决定是否 C；每阶段独立 guard、验证记录、原子提交和 annotated recovery tag。先用目标设备候选包对照，满足合同再推广；若健康路径降级、音画异常、重复恢复或性能回退，停止推广并 revert 对应单提交，进程内记忆随进程结束清空。生产行为不得为满足速度指标而跳过门槛/路由/所有权保护。
+
+本研究单元交付决策记录；文档校验与原子提交/tag 由 `E11-audio-startup-research` guard 收尾，无生产变更或推送。用户已于恢复后明确批准继续实施，后续按 A → 具备证据的 B 推进；C 的局部恢复暂缓。实施自 2026-09-21 13:52 Asia/Shanghai 起预计 50–70 分钟（核对/研究收尾约 8 分钟，实现/定向测试约 35–50 分钟，验证/记录/提交约 7–12 分钟），实际硬件验证另按可用设备记录，不能把主机测试写成设备验收。
+
+## 历史 Recovery anchor（2026-09-20）
 
 - Objective / acceptance：修复 AAC/MP3 厂商压缩直出已接收音频却无播放进度、最终被 Media3 判定超时后未自动回退 PCM 的缺口；仅恢复失败配置，保留视频解码、正常直出、标准 offload、隧道和用户设置。
 - User decision：用户在收到日志/源码定位与最小修复建议后明确要求“修复Bug”。

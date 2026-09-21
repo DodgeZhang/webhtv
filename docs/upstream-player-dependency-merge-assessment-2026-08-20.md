@@ -62,7 +62,7 @@
 
 | 顺序 | 任务 ID | 类别 | 功能/能力 | 状态 | 唯一文档 |
 | ---: | --- | --- | --- | --- | --- |
-| 既有任务续修 | `E11` | Exo/App | 压缩音频输出、跳转释放状态与隧道一致性 | 2026-09-18 输出所有权/调速/隧道修复已验证；2026-09-20 补齐压缩直出无进度后的定向 PCM 回退，Leanback armeabi-v7a 编译与 33 项测试通过，随本次原子提交/tag 闭环；反馈 Sony 同片源回归未实测 | [E11-exo-compressed-audio-direct.md](E11-exo-compressed-audio-direct.md) |
+| 既有任务续修 | `E11` | Exo/App | 压缩音频输出、跳转释放状态、隧道一致性与起播恢复 | 2026-09-20 PCM 回退已提交 `f836d419518d1a93d4ff77414a88558f3854c7e3`；2026-09-21 Sony 日志证实回退可恢复，但直出先卡住 10 秒且重入重复。研究完成，用户已明确继续实施：A 准入一致/确认失败后有限记忆，B 按真实填充和实例状态快速恢复；C 音频局部重建暂缓。保留健康 DSP/HDMI/偏好；方案、来源处置、验收/回滚见 E11 唯一文档 | [E11-exo-compressed-audio-direct.md](E11-exo-compressed-audio-direct.md) |
 | 插入修复 | `P11` | MPV/App | AV3A 直播使用 `.m3u8?ts=…` 媒体端点时保持分片语义，修复代理误报 HTTP 400 | 已修复；19 项定向测试、Debug/快速 Release 构建和手机同源实播通过，持续超过 6 分钟、AV3A 音频输出无写入错误；Release 已安装，视频手动解码合同保持；源内迅雷插件 Debug JNI 问题独立记录 | [P11-mpv-live-av3a.md](P11-mpv-live-av3a.md) |
 | 插入需求 | `P10` | MPV/App | 全局智能去广开关接入，复用Exo识别并保持HLS时间轴/跳转 | 已实现并续修误跳正文、广告闪帧及Surface复用；原生输出边界fixture零广告帧，原链接正常跨广告；25项广告测试与4项Surface测试通过，Mobile64已安装且用户确认正常；原生库保持 | [P10-mpv-smart-adblock.md](P10-mpv-smart-adblock.md) |
 | 插入需求 | `C-AVS3` | 通用，Exo → MPV | AVS3 视频解码，基准档次与 High profile 分阶段验证 | baseline/0x32软件后端及MPV MediaCodec接入已交付；手机不具备AVS3硬件，硬解实际出帧与性能待目标设备验证 | [C-AVS3-video-decoding.md](C-AVS3-video-decoding.md) |
