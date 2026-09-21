@@ -120,6 +120,7 @@ public class ExoPlayerEngine implements PlayerEngine {
 
         @Override
         public void onIsPlayingChanged(boolean isPlaying) {
+            if (isPlaying) compressedAudioDirectPolicy.setSelectedAudioFormat(player.getAudioFormat());
             if (isPlaying && firstFrameRendered) {
                 armTunnelingProgressWatchdog();
                 armDecoderRuntimeStableWindow();
@@ -127,6 +128,11 @@ public class ExoPlayerEngine implements PlayerEngine {
                 cancelTunnelingProgressWatchdog();
                 cancelDecoderRuntimeStableWindow();
             }
+        }
+
+        @Override
+        public void onTracksChanged(Tracks tracks) {
+            compressedAudioDirectPolicy.setSelectedAudioFormat(player.getAudioFormat());
         }
 
         @Override
@@ -1023,7 +1029,7 @@ public class ExoPlayerEngine implements PlayerEngine {
             long position = Math.max(0, player.getCurrentPosition());
             boolean shouldPlay = playWhenReady;
             preCache.stop("audio-output-pcm-fallback");
-            startInternal(position, shouldPlay);
+            startInternal(position, shouldPlay, true);
             if (SpiderDebug.isEnabled()) {
                 SpiderDebug.log(
                         "exo-audio-direct",
@@ -1135,8 +1141,12 @@ public class ExoPlayerEngine implements PlayerEngine {
     }
 
     private void startInternal(long position, boolean playWhenReady) {
+        startInternal(position, playWhenReady, false);
+    }
+
+    private void startInternal(long position, boolean playWhenReady, boolean pcmRetry) {
         audioOutputAttemptGeneration++;
-        compressedAudioDirectPolicy.resetOutputProgress();
+        compressedAudioDirectPolicy.prepareForPlayback(spec.getUrl(), pcmRetry);
         preCache.setPlaylistPreloadDurationMs(player, 0);
         queuedSpec = null;
         queuedMediaId = null;
