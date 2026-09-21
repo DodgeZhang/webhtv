@@ -53,7 +53,7 @@
         android:marqueeRepeatLimit="marquee_forever"
         android:scrollHorizontally="true"
         android:singleLine="true"
-        android:textColor="?attr/colorOnSurface"
+        android:textColor="@color/white"
         android:textSize="12sp"
         tools:text="1080p" />
 
@@ -70,7 +70,7 @@
         android:marqueeRepeatLimit="marquee_forever"
         android:scrollHorizontally="true"
         android:singleLine="true"
-        android:textColor="?attr/colorOnSurface"
+        android:textColor="@color/white"
         app:autoSizeMaxTextSize="14sp"
         app:autoSizeMinTextSize="12sp"
         app:autoSizeStepGranularity="1sp"

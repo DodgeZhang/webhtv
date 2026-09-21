@@ -127,15 +127,11 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/extractCurrentDomain"
-                    style="@style/Widget.Material3.Button.TextButton"
+                    style="@style/Widget.WebHTV.Button.Outlined"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
                     android:minWidth="0dp"
-                    android:text="@string/multi_thread_proxy_extract_domain"
-                    android:textColor="@color/dialog_outlined_button_text"
-                    app:backgroundTint="@color/dialog_outlined_button_bg"
-                    app:strokeColor="?attr/colorOutline"
-                    app:strokeWidth="1dp" />
+                    android:text="@string/multi_thread_proxy_extract_domain" />
 
             </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -186,14 +182,10 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/cancel"
-            style="@style/Widget.Material3.Button.TextButton"
+            style="@style/Widget.WebHTV.Button.Outlined"
             android:layout_width="wrap_content"
             android:layout_height="42dp"
-            android:text="@string/dialog_negative"
-            android:textColor="@color/dialog_outlined_button_text"
-            app:backgroundTint="@color/dialog_outlined_button_bg"
-            app:strokeColor="?attr/colorOutline"
-            app:strokeWidth="1dp" />
+            android:text="@string/dialog_negative" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/save"
@@ -201,8 +193,7 @@
             android:layout_height="42dp"
             android:layout_marginStart="8dp"
             android:text="@string/dialog_positive"
-            android:textColor="@color/dialog_tonal_button_text"
-            app:backgroundTint="@color/dialog_tonal_button_bg" />
+            style="@style/Widget.WebHTV.Button.Tonal" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 

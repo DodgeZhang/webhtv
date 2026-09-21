@@ -24,7 +24,7 @@
         android:layout_alignTop="@+id/image"
         android:layout_alignEnd="@+id/image"
         android:layout_alignBottom="@+id/image"
-        android:background="?attr/colorSurfaceContainerLow"
+        android:background="@color/webhtv_color_player_scrim"
         android:scaleType="center"
         android:src="@drawable/ic_vod_delete"
         android:visibility="gone"

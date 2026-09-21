@@ -2219,7 +2219,7 @@ public class TmdbDetailActivityLayoutTest {
                 layout.contains("<com.google.android.material.card.MaterialCardView")
                         && layout.contains("app:cardCornerRadius=\"8dp\"")
                         && layout.contains("app:strokeWidth=\"1dp\"")
-                        && layout.contains("app:strokeColor=\"#33FFFFFF\""));
+                        && layout.contains("app:strokeColor=\"?attr/colorOutlineVariant\""));
         assertTrue("photo cards should not stack the old selector or platform focus highlight over the card radius",
                 layout.contains("android:defaultFocusHighlightEnabled=\"false\"")
                         && layout.contains("android:stateListAnimator=\"@null\"")
