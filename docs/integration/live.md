@@ -18,7 +18,7 @@
 | `name` | string | `""` | 直播源唯一名称 |
 | `url` | string | `""` | 列表 URL；`api` 为空时直接请求 |
 | `type` | number | `0` | 常规直播列表写 `0` |
-| `playerType` | number | `0` | `0` 系统、`1` IJK、`2` EXO；站点注入默认 `2` |
+| `playerType` | number | `0` | 保留的播放器类型元数据；站点注入默认写 `2`，当前播放内核选择不读取此字段 |
 | `api` | string | `""` | 直播 Spider 入口 |
 | `ext` | string/object | `""` | 直播 Spider 扩展参数 |
 | `jar` | string | `""` | 直播专用 JAR，为空时继承顶层 `spider` |

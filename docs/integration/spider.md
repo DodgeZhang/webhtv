@@ -66,7 +66,7 @@ JS 全局能力：
 | `getPort()` / `getProxy(local)` | 本地端口/代理地址 |
 | `js2Proxy(dynamic, siteType, siteKey, url, headers)` | CatVod 兼容代理 URL |
 | `setTimeout` / `clearTimeout` | QuickJS 定时器 |
-| `local.get/set/delete(rule, key)` | Native Prefers 存储 |
+| `local.get(rule, key)` / `local.set(rule, key, value)` / `local.delete(rule, key)` | Native Prefers 存储 |
 
 JS `req/http` options：
 

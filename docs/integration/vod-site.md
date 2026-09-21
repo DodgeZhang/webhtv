@@ -11,7 +11,7 @@
 | `type` | number | `0` | 是 | 协议/运行时类型，取值见下表 |
 | `api` | string | `""` | 是 | HTTP API 地址或 Spider 类名/脚本入口 |
 | `jar` | string | `""` | 否 | 站点专用 JAR，为空时继承顶层 `spider` |
-| `ext` | string/object | `""` | 否 | 传给 Spider `init` 的扩展参数；远程 URL 会在初始化前拉取文本 |
+| `ext` | string/object | `""` | 否 | 传给 Spider `init` 的扩展参数；`type=4` HTTP 源会在首页请求前拉取远程 URL 文本，Spider 模式直接传递原始字符串 |
 | `click` | string | `""` | 否 | WebView 解析点击脚本 |
 | `playUrl` | string | `""` | 否 | 站点级播放前缀或解析辅助 |
 | `homePage` | string | `""` | 否 | WebHome 首页；别名 `home_page`、`webHome`、`web_home` |

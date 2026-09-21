@@ -106,7 +106,7 @@ GET/POST /action?do=control&type=play
 ```
 
 `refresh.type`：`home`、`live`、`detail`、`player`、`category`、`subtitle`、`danmaku`、`vod`。
-`control.type`：`play`、`pause`、`stop`、`prev`、`next`、`loop`、`replay`。
+`control.type`：`play`、`pause`、`stop`、`prev`、`next`、`repeat`、`replay`。
 
 ## 安全要求
 

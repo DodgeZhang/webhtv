@@ -12,8 +12,9 @@
 | `ext` | object | `{}` | 解析扩展，结构见下文 |
 | `ext.flag` | string[] | `[]` | 适用播放 flag；空数组表示不过滤 |
 | `ext.header` | object | `{}` | 解析请求 header |
-| `header` | object | `{}` | 简写 header，合并到 `ext.header` |
 | `click` | string | `""` | WebView 点击脚本 |
+
+解析器请求 header 只从 `ext.header` 读取；顶层 `header` 字段不会反序列化为解析器配置。
 
 ## 解析类型
 
@@ -22,7 +23,7 @@
 | `0` | Web 解析 | 打开解析 WebView 嗅探真实播放地址 |
 | `1` | JSON 解析 | 请求 `url + webUrl`，读取返回 JSON 的 `url` 或 `data.url` |
 | `2` | JAR Json 扩展 | 调用 JAR 中 `com.github.catvod.parser.Json{url}.parse(jxs, webUrl)` |
-| `3` | JAR Mix 扩展 | 调用 JAR 中 `com.github.catvod.parser.Mix{url}.parse(jxs, flag, parseName, webUrl)` |
+| `3` | JAR Mix 扩展 | 调用 JAR 中 `com.github.catvod.parser.Mix{url}.parse(jxs, parseName, flag, webUrl)` |
 | `4` | 聚合解析 | 并发尝试符合 flag 的 JSON 和 Web 解析器 |
 
 当 `url` 已含 `?` 且 `ext` 非空时，App 追加 `cat_ext={base64(ext)}`。
