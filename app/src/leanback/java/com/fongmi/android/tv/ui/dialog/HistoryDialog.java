@@ -84,7 +84,7 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
         binding.recycler.setItemAnimator(null);
         binding.recycler.setHasFixedSize(false);
         binding.recycler.addItemDecoration(new SpaceItemDecoration(1, 16));
-        binding.recycler.setAdapter(adapter.readOnly(readOnly).addAll(type, manage ? null : getConfig()));
+        binding.recycler.setAdapter(adapter.readOnly(readOnly).protectCurrent(manage).addAll(type, getConfig()));
         binding.add.setVisibility(manage ? View.VISIBLE : View.GONE);
         binding.add.setOnClickListener(v -> onAdd());
         if (type == 0 && !readOnly) attachSortHelper();

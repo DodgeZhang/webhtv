@@ -18,9 +18,25 @@ public class InterfaceEntryInteractionTest {
                 "app/src/leanback/java/com/fongmi/android/tv/ui/dialog/HistoryDialog.java"}) {
             String source = read(file);
             assertTrue(file, source.contains("public HistoryDialog manage()"));
-            assertTrue(file, source.contains("addAll(type, manage ? null : getConfig())"));
+            assertTrue(file, source.contains("protectCurrent(manage).addAll(type, getConfig())"));
             assertTrue(file, source.contains("binding.add.setVisibility(manage ? View.VISIBLE : View.GONE)"));
             assertTrue(file, source.contains("private void onAdd()"));
+        }
+    }
+
+    @Test
+    public void managerKeepsCurrentConfigVisibleButProtectsUseAndDelete() throws Exception {
+        for (String file : new String[]{
+                "app/src/mobile/java/com/fongmi/android/tv/ui/dialog/HistoryDialog.java",
+                "app/src/leanback/java/com/fongmi/android/tv/ui/dialog/HistoryDialog.java"}) {
+            assertTrue(file, read(file).contains("protectCurrent(manage).addAll(type, getConfig())"));
+        }
+        for (String file : new String[]{
+                "app/src/mobile/java/com/fongmi/android/tv/ui/adapter/ConfigAdapter.java",
+                "app/src/leanback/java/com/fongmi/android/tv/ui/adapter/ConfigAdapter.java"}) {
+            String source = read(file);
+            assertTrue(file, source.contains("holder.binding.delete.setVisibility(readOnly || current ? View.GONE : View.VISIBLE);"));
+            assertTrue(file, source.contains("if (!current) listener.onTextClick(item);"));
         }
     }
 
