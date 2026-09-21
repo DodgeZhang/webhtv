@@ -3,6 +3,7 @@ package com.fongmi.android.tv.player.exo;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -19,6 +20,9 @@ import androidx.media3.common.util.Util;
 import androidx.media3.exoplayer.audio.AudioOffloadSupport;
 import androidx.media3.exoplayer.audio.AudioOutput;
 import androidx.media3.exoplayer.audio.AudioOutputProvider;
+import androidx.media3.exoplayer.ExoPlaybackException;
+import androidx.media3.exoplayer.Renderer;
+import androidx.media3.exoplayer.analytics.PlayerId;
 
 import org.junit.Test;
 
@@ -29,6 +33,247 @@ import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
 
 public class ExoCompressedAudioDirectPolicyTest {
+
+    @Test
+    public void firstPlayback_fullStartupBufferRecoversAt800MsOnlyOnce() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        f.write(4096, 10);
+        assertNull(f.poll(0, true));
+        assertNull(f.poll(799, true));
+        assertSame(f.memory.format, f.poll(1, true));
+        assertNull(f.poll(10_000, true));
+        assertSame(AudioOutputProvider.FormatSupport.UNSUPPORTED,
+                f.memory.provider.getFormatSupport(formatConfig(f.memory.format)));
+        assertTrue(f.memory.policy.consumePcmFallbackRequest());
+        assertFalse(f.memory.policy.consumePcmFallbackRequest());
+    }
+
+    @Test
+    public void startupWaitBeginsAtSufficientData_notFirstWrite() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        f.write(4095, 1);
+        assertNull(f.poll(10_000, true));
+        f.write(1, 1);
+        assertNull(f.poll(0, true));
+        assertNull(f.poll(799, true));
+        assertSame(f.memory.format, f.poll(1, true));
+    }
+
+    @Test
+    public void completeAccessUnitsLowerStartupThresholdWithoutShrinkingCapacity() throws Exception {
+        StartupFixture f = new StartupFixture(256 * 1024);
+        f.memory.environment.adjustThreshold = true;
+        f.write(1024, 8); // 185 ms at 44.1 kHz: not enough yet.
+        assertEquals(0, f.memory.environment.requestedThreshold);
+        f.write(128, 1); // Nine complete AAC LC AUs cover 209 ms.
+        assertEquals(1152, f.memory.environment.requestedThreshold);
+        assertEquals(256 * 1024, f.memory.environment.buffer.capacityBytes());
+        assertEquals(256 * 1024, f.memory.environment.buffer.sizeBytes());
+        assertNull(f.poll(0, true));
+        assertSame(f.memory.format, f.poll(800, true));
+    }
+
+    @Test
+    public void clampedStartupThresholdNeedsMoreDataAndReadbackFailureKeepsOriginal() throws Exception {
+        StartupFixture f = new StartupFixture(8192);
+        f.memory.environment.adjustThreshold = true;
+        f.memory.environment.minimumThreshold = 4096;
+        f.write(1024, 10);
+        assertNull(f.poll(2000, true));
+        f.write(3072, 10);
+        assertNull(f.poll(0, true));
+        assertSame(f.memory.format, f.poll(800, true));
+
+        StartupFixture unsupported = new StartupFixture(8192);
+        unsupported.write(1024, 10);
+        assertNull(unsupported.poll(10_000, true));
+        assertFalse(unsupported.memory.policy.consumePcmFallbackRequest());
+    }
+
+    @Test
+    public void rejectedAndPartialWritesDoNotCountWholeAccessUnits() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        f.memory.environment.adjustThreshold = true;
+        f.memory.directRaw.acceptWrites = false;
+        f.write(4096, 10);
+        assertNull(f.poll(10_000, true));
+        assertEquals(0, f.memory.environment.requestedThreshold);
+        f.memory.directRaw.acceptWrites = true;
+        f.memory.directRaw.maxWriteBytes = 512;
+        ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
+        assertFalse(f.output.write(buffer, 10, 0));
+        assertEquals(0, f.memory.environment.requestedThreshold);
+        assertTrue(f.output.write(buffer, 10, 0));
+        assertEquals(1024, f.memory.environment.requestedThreshold);
+    }
+
+    @Test
+    public void unknownThresholdOrRawHeadDoesNotDeclareStartupFailure() throws Exception {
+        StartupFixture f = new StartupFixture(0);
+        f.write(256 * 1024, 32);
+        assertNull(f.poll(0, true));
+        assertNull(f.poll(10_000, true));
+        StartupFixture unknownHead = new StartupFixture(4096);
+        unknownHead.memory.environment.rawHead = C.LENGTH_UNSET;
+        unknownHead.write(4096, 10);
+        assertNull(unknownHead.poll(0, true));
+        assertNull(unknownHead.poll(800, true));
+    }
+
+    @Test
+    public void validPositionOrRawHeadRetiresStartupProbe() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        f.write(4096, 10);
+        assertNull(f.poll(0, true));
+        f.memory.directRaw.positionUs = 1;
+        assertNull(f.poll(800, true));
+        assertEquals(Long.MAX_VALUE, f.memory.policy.startupProgressIntervalUs());
+        f.memory.directRaw.positionUs = 0;
+        assertNull(f.poll(10_000, true));
+
+        StartupFixture timestampLag = new StartupFixture(4096);
+        timestampLag.write(4096, 10);
+        assertNull(timestampLag.poll(0, true));
+        timestampLag.memory.environment.rawHead = 128;
+        assertNull(timestampLag.poll(800, true));
+        assertEquals(Long.MAX_VALUE, timestampLag.memory.policy.startupProgressIntervalUs());
+    }
+
+    @Test
+    public void pauseAndBufferingRestartObservationWithoutCountingSuspendedTime() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        f.write(4096, 10);
+        assertNull(f.poll(0, true));
+        f.output.pause();
+        assertNull(f.poll(5000, false));
+        f.output.play();
+        assertNull(f.poll(0, true));
+        assertNull(f.poll(799, true));
+        assertNull(f.poll(1, false));
+        assertNull(f.poll(0, true));
+        assertSame(f.memory.format, f.poll(800, true));
+    }
+
+    @Test
+    public void flushStopReleaseAndNewAttemptCannotUseOldStartupEvidence() throws Exception {
+        for (String operation : new String[]{"flush", "stop", "release", "prepare"}) {
+            StartupFixture f = new StartupFixture(4096);
+            f.write(4096, 10);
+            assertNull(f.poll(0, true));
+            switch (operation) {
+                case "flush" -> f.output.flush();
+                case "stop" -> f.output.stop();
+                case "release" -> f.output.release();
+                case "prepare" -> f.memory.policy.prepareForPlayback("new", false);
+            }
+            f.memory.nowMs.addAndGet(800);
+            assertNull(operation, f.memory.policy.maybeRequestStartupPcmFallback(true));
+        }
+    }
+
+    @Test
+    public void routeOrCapabilityChangeInvalidatesStartupEvidence() throws Exception {
+        StartupFixture routeChange = new StartupFixture(4096);
+        routeChange.write(4096, 10);
+        assertNull(routeChange.poll(0, true));
+        routeChange.memory.environment.actual = route(2);
+        assertNull(routeChange.poll(800, true));
+        StartupFixture capabilities = new StartupFixture(4096);
+        capabilities.write(4096, 10);
+        assertNull(capabilities.poll(0, true));
+        capabilities.memory.memory.invalidate();
+        assertNull(capabilities.poll(800, true));
+    }
+
+    @Test
+    public void growingRealThresholdIsRecheckedBeforeRecovery() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        f.write(4096, 10);
+        assertNull(f.poll(0, true));
+        f.memory.environment.buffer = new ExoCompressedAudioDirectPolicy.StartupBuffer(8192, 8192, 8192);
+        assertNull(f.poll(800, true));
+        f.write(4096, 10);
+        assertNull(f.poll(0, true));
+        assertSame(f.memory.format, f.poll(800, true));
+    }
+
+    @Test
+    public void internalPcmRecoveryConfirmsWithoutNewMediaPreparation() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        f.memory.policy.setSelectedAudioFormat(f.memory.format);
+        f.write(4096, 10);
+        assertNull(f.poll(0, true));
+        assertSame(f.memory.format, f.poll(800, true));
+        f.output.release();
+        f.memory.createPcm(); // No prepareForPlayback, as in Media3's internal recovery.
+        f.memory.advancePcm();
+        assertFalse(f.memory.policy.consumePcmFallbackRequest());
+        assertFalse(f.memory.freshEngineUsesDirect(f.memory.url, f.memory.format, AudioAttributes.DEFAULT));
+    }
+
+    @Test
+    public void earlyFailureIsNotSharedBeforePcmProgressAndRetiredAttemptCannotDisableNewOutput() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        f.write(4096, 10);
+        assertNull(f.poll(0, true));
+        f.memory.environment.onExpectedRoute = () -> f.memory.policy.prepareForPlayback("new", false);
+        assertNull(f.poll(800, true));
+        f.memory.environment.onExpectedRoute = null;
+        assertFalse(f.memory.policy.consumePcmFallbackRequest());
+        assertTrue(f.memory.freshEngineUsesDirect(f.memory.url, f.memory.format, AudioAttributes.DEFAULT));
+    }
+
+    @Test
+    public void rendererEmitsTypedRecoverableErrorAndPreservesOriginalRenderCall() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        AtomicInteger renders = new AtomicInteger();
+        Renderer delegate = renderer(Renderer.STATE_STARTED, renders);
+        Renderer wrapped = new ExoStartupAudioRenderer(delegate, f.memory.policy);
+        wrapped.init(3, PlayerId.UNSET, Clock.DEFAULT);
+        f.write(4096, 10);
+        f.output.getPositionUs();
+        wrapped.render(0, 0);
+        assertEquals(50_000, wrapped.getDurationToProgressUs(0, 0));
+        f.memory.nowMs.set(800);
+        f.output.getPositionUs();
+        ExoPlaybackException error = assertThrows(ExoPlaybackException.class, () -> wrapped.render(0, 800_000));
+        assertTrue(error.isRecoverable);
+        assertEquals(ExoPlaybackException.TYPE_RENDERER, error.type);
+        assertEquals(PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED, error.errorCode);
+        assertTrue(error.getCause() instanceof ExoStartupAudioRenderer.StartupStallException);
+        assertEquals(3, error.rendererIndex);
+        assertSame(f.memory.format, error.rendererFormat);
+        wrapped.render(0, 900_000);
+        assertEquals(3, renders.get());
+        assertEquals(Long.MAX_VALUE, wrapped.getDurationToProgressUs(0, 0));
+    }
+
+    @Test
+    public void rendererDoesNotEmitStartupErrorWhileEnabledButNotPlaying() throws Exception {
+        StartupFixture f = new StartupFixture(4096);
+        Renderer wrapped = new ExoStartupAudioRenderer(renderer(Renderer.STATE_ENABLED, new AtomicInteger()),
+                f.memory.policy);
+        f.write(4096, 10);
+        f.output.getPositionUs();
+        wrapped.render(0, 0);
+        f.memory.nowMs.set(10_000);
+        f.output.getPositionUs();
+        wrapped.render(0, 10_000_000);
+        assertFalse(f.memory.policy.consumePcmFallbackRequest());
+    }
+
+    private static Renderer renderer(int state, AtomicInteger renders) {
+        return (Renderer) Proxy.newProxyInstance(Renderer.class.getClassLoader(), new Class<?>[]{Renderer.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "render" -> { renders.incrementAndGet(); yield null; }
+                    case "getState" -> state;
+                    case "isReady" -> true;
+                    case "isEnded" -> false;
+                    case "getName" -> "original-audio-renderer";
+                    case "getDurationToProgressUs" -> Long.MAX_VALUE;
+                    default -> null;
+                });
+    }
 
     @Test
     public void passthroughDisabled_doesNotProbeOrCreateVendorOutput() {
@@ -828,11 +1073,44 @@ public class ExoCompressedAudioDirectPolicyTest {
         ExoAudioDirectFailureMemory.Route expected = route(1);
         ExoAudioDirectFailureMemory.Route actual = route(1);
         Runnable onExpectedRoute;
+        ExoCompressedAudioDirectPolicy.StartupBuffer buffer = ExoCompressedAudioDirectPolicy.StartupBuffer.UNKNOWN;
+        boolean adjustThreshold;
+        int requestedThreshold;
+        int minimumThreshold;
+        long rawHead;
         @Override public ExoAudioDirectFailureMemory.Route expectedRoute(AudioAttributes attributes) {
             if (onExpectedRoute != null) onExpectedRoute.run();
             return expected;
         }
         @Override public ExoAudioDirectFailureMemory.Route actualRoute(AudioOutput output) { return actual; }
+        @Override public ExoCompressedAudioDirectPolicy.StartupBuffer startupBuffer(AudioOutput output) { return buffer; }
+        @Override public long rawPlaybackHead(AudioOutput output) { return rawHead; }
+        @Override public ExoCompressedAudioDirectPolicy.StartupBuffer setStartThresholdBytes(AudioOutput output, int bytes) {
+            if (!adjustThreshold) return ExoCompressedAudioDirectPolicy.StartupBuffer.UNKNOWN;
+            requestedThreshold = bytes;
+            buffer = new ExoCompressedAudioDirectPolicy.StartupBuffer(buffer.capacityBytes(),
+                    buffer.sizeBytes(), Math.max(bytes, minimumThreshold));
+            return buffer;
+        }
+    }
+
+    private static final class StartupFixture {
+        final MemoryFixture memory = new MemoryFixture();
+        final AudioOutput output;
+        StartupFixture(int threshold) throws Exception {
+            memory.environment.buffer = new ExoCompressedAudioDirectPolicy.StartupBuffer(
+                    threshold, threshold, threshold);
+            memory.policy.prepareForPlayback(memory.url, false);
+            memory.provider.getFormatSupport(formatConfig(memory.format));
+            output = memory.provider.getAudioOutput(memory.provider.getOutputConfig(formatConfig(memory.format)));
+            output.play();
+        }
+        void write(int bytes, int units) throws Exception { output.write(ByteBuffer.allocateDirect(bytes), units, 0); }
+        Format poll(long elapsedMs, boolean playing) {
+            memory.nowMs.addAndGet(elapsedMs);
+            output.getPositionUs();
+            return memory.policy.maybeRequestStartupPcmFallback(playing);
+        }
     }
 
     private static final class MemoryFixture {
@@ -876,6 +1154,10 @@ public class ExoCompressedAudioDirectPolicyTest {
         void preparePcm(boolean retry) throws Exception {
             policy.prepareForPlayback(url, retry);
             policy.setSelectedAudioFormat(format);
+            createPcm();
+        }
+
+        void createPcm() throws Exception {
             pcmRaw = new FakeAudioOutput();
             AudioOutputProvider.OutputConfig config = new AudioOutputProvider.OutputConfig.Builder()
                     .setEncoding(C.ENCODING_PCM_16BIT).setSampleRate(44_100)
@@ -965,6 +1247,7 @@ public class ExoCompressedAudioDirectPolicyTest {
     private static final class FakeAudioOutput {
         long positionUs;
         boolean acceptWrites = true;
+        int maxWriteBytes = Integer.MAX_VALUE;
         boolean released;
         AudioOutput.WriteException writeFailure;
         final AudioOutput output = (AudioOutput) Proxy.newProxyInstance(
@@ -977,7 +1260,7 @@ public class ExoCompressedAudioDirectPolicyTest {
                         case "write":
                             if (writeFailure != null) throw writeFailure;
                             ByteBuffer buffer = (ByteBuffer) args[0];
-                            if (acceptWrites) buffer.position(buffer.limit());
+                            if (acceptWrites) buffer.position(buffer.position() + Math.min(buffer.remaining(), maxWriteBytes));
                             return !buffer.hasRemaining();
                         case "release":
                             released = true;

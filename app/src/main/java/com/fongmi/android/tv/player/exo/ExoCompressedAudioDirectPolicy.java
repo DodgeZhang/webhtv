@@ -24,6 +24,8 @@ import androidx.media3.exoplayer.audio.DefaultAudioOffloadSupportProvider;
 import androidx.media3.exoplayer.audio.DefaultAudioSink;
 import androidx.media3.exoplayer.audio.ForwardingAudioOutput;
 import androidx.media3.exoplayer.audio.ForwardingAudioOutputProvider;
+import androidx.media3.extractor.AacUtil;
+import androidx.media3.extractor.MpegAudioUtil;
 
 import com.github.catvod.crawler.SpiderDebug;
 
@@ -42,6 +44,8 @@ public final class ExoCompressedAudioDirectPolicy
     private static final int VENDOR_DIRECT_BUFFER_SIZE = 256 * 1024;
     private static final long OUTPUT_STALL_CONFIRMATION_MS = 2_000;
     private static final long PCM_CONFIRMATION_MS = 2_000;
+    static final long STARTUP_STALL_MS = 800;
+    private static final long STARTUP_AUDIO_US = 200_000;
     private static AudioDeviceCallback processDeviceCallback;
 
     interface DirectPlaybackSupport {
@@ -59,6 +63,14 @@ public final class ExoCompressedAudioDirectPolicy
 
         default StartupBuffer startupBuffer(AudioOutput output) {
             return StartupBuffer.UNKNOWN;
+        }
+
+        default StartupBuffer setStartThresholdBytes(AudioOutput output, int bytes) {
+            return StartupBuffer.UNKNOWN;
+        }
+
+        default long rawPlaybackHead(AudioOutput output) {
+            return C.LENGTH_UNSET;
         }
     }
 
@@ -305,7 +317,8 @@ public final class ExoCompressedAudioDirectPolicy
                     attempt.output.set(directOutput);
                     if (directOutput != null) {
                         output = directOutput;
-                    } else if (attempt.recovery != null && Util.isEncodingLinearPcm(config.encoding)
+                    } else if ((attempt.recovery != null || attempt.startupRecoveryUsed)
+                            && Util.isEncodingLinearPcm(config.encoding)
                             && !config.isTunneling && !config.isOffload) {
                         output = new PcmRecoveryAudioOutput(output, raw, attempt);
                     }
@@ -418,12 +431,45 @@ public final class ExoCompressedAudioDirectPolicy
     public void setSelectedAudioFormat(Format format) {
         synchronized (outputAttempt) {
             OutputAttempt attempt = outputAttempt.get();
-            if (attempt.recovery == null || format == null) return;
+            if (format == null) return;
             attempt.selectedFormat = ExoAudioDirectFailureMemory.formatId(format);
-            if (!attempt.recovery.key.format().equals(attempt.selectedFormat)) {
+            if (attempt.recovery != null
+                    && !attempt.recovery.key.format().equals(attempt.selectedFormat)) {
                 attempt.recovery.cancelled = true;
             }
         }
+    }
+
+    /** Called only by the active audio renderer on its existing playback thread. */
+    Format maybeRequestStartupPcmFallback(boolean rendererPlaying) {
+        OutputAttempt attempt = outputAttempt.get();
+        VendorDirectAudioOutput output = attempt.output.get();
+        if (output == null || attempt.startupRecoveryUsed) return null;
+        if (!rendererPlaying) {
+            output.startupWindowAtMs = C.TIME_UNSET;
+            return null;
+        }
+        if (!output.isStartupStalled()) return null;
+        synchronized (outputAttempt) {
+            if (outputAttempt.get() != attempt || attempt.currentOutput.get() != output
+                    || attempt.startupRecoveryUsed || !output.playing || output.startupComplete
+                    || !attempt.output.compareAndSet(output, null)) return null;
+            attempt.startupRecoveryUsed = true;
+            attempt.fallbackAtMs = clock.elapsedRealtime();
+            rememberPendingFailure(output);
+            if (outputAttempt.get() != attempt || attempt.currentOutput.get() != output) return null;
+            attempt.recovery = attempt.failure;
+            disableVendorDirect(output.config, "startup-no-progress");
+            output.logProgress("startup-fallback", attempt.fallbackAtMs);
+            return output.format;
+        }
+    }
+
+    /** Keep dynamic scheduling awake only while a vendor output still needs startup validation. */
+    long startupProgressIntervalUs() {
+        VendorDirectAudioOutput output = outputAttempt.get().output.get();
+        return output != null && output.playing && !output.startupComplete
+                ? 50_000 : Long.MAX_VALUE;
     }
 
     public boolean requestPcmFallbackForStuckPlayback(PlaybackException error) {
@@ -597,6 +643,30 @@ public final class ExoCompressedAudioDirectPolicy
                     return StartupBuffer.UNKNOWN;
                 }
             }
+
+            @Override
+            public StartupBuffer setStartThresholdBytes(AudioOutput output, int bytes) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                        || !(output instanceof AudioTrackAudioOutput track)) return StartupBuffer.UNKNOWN;
+                try {
+                    // Compressed AudioTrack's "frames" are bytes. Do not shrink the steady buffer:
+                    // setBufferSizeInFrames is PCM-only, whereas this API controls startup fill.
+                    track.getAudioTrack().setStartThresholdInFrames(bytes);
+                    return startupBuffer(output);
+                } catch (RuntimeException unavailable) {
+                    return StartupBuffer.UNKNOWN;
+                }
+            }
+
+            @Override
+            public long rawPlaybackHead(AudioOutput output) {
+                if (!(output instanceof AudioTrackAudioOutput track)) return C.LENGTH_UNSET;
+                try {
+                    return track.getAudioTrack().getPlaybackHeadPosition() & 0xffffffffL;
+                } catch (RuntimeException unavailable) {
+                    return C.LENGTH_UNSET;
+                }
+            }
         };
     }
 
@@ -671,9 +741,11 @@ public final class ExoCompressedAudioDirectPolicy
         final AtomicReference<VendorDirectAudioOutput> output = new AtomicReference<>();
         final AtomicReference<AudioOutput> currentOutput = new AtomicReference<>();
         final String media;
-        final Recovery recovery;
+        volatile Recovery recovery;
         volatile Recovery failure;
         volatile String selectedFormat;
+        boolean startupRecoveryUsed;
+        long fallbackAtMs = C.TIME_UNSET;
 
         OutputAttempt() {
             this(null, null);
@@ -713,7 +785,14 @@ public final class ExoCompressedAudioDirectPolicy
         private final AudioOutput raw;
         private final OutputAttempt attempt;
         private final Format format;
-        private final StartupBuffer startupBuffer;
+        private StartupBuffer startupBuffer;
+        private boolean thresholdAdjusted;
+        private boolean startupComplete;
+        private int framesPerAccessUnit;
+        private long acceptedFrames;
+        private long startupWindowAtMs = C.TIME_UNSET;
+        private long startupGeneration;
+        private ExoAudioDirectFailureMemory.Route startupRoute;
         private boolean playing;
         private boolean acceptedData;
         private long acceptedBytes;
@@ -745,6 +824,9 @@ public final class ExoCompressedAudioDirectPolicy
         public boolean write(ByteBuffer buffer, int accessUnitCount, long presentationTimeUs)
                 throws AudioOutput.WriteException {
             int position = buffer.position();
+            if (!startupComplete && framesPerAccessUnit == 0 && buffer.hasRemaining()) {
+                framesPerAccessUnit = startupFramesPerAccessUnit(config.encoding, buffer);
+            }
             try {
                 boolean handled = super.write(buffer, accessUnitCount, presentationTimeUs);
                 if (buffer.position() > position) {
@@ -753,6 +835,10 @@ public final class ExoCompressedAudioDirectPolicy
                     if (firstWriteAtMs == C.TIME_UNSET) {
                         firstWriteAtMs = clock.elapsedRealtime();
                         logProgress("first-write", firstWriteAtMs);
+                    }
+                    if (!startupComplete && handled && accessUnitCount > 0) {
+                        acceptedFrames += (long) framesPerAccessUnit * accessUnitCount;
+                        maybeLowerStartThreshold();
                     }
                 }
                 return handled;
@@ -782,6 +868,7 @@ public final class ExoCompressedAudioDirectPolicy
                         firstProgressAtMs = nowMs;
                         logProgress("first-progress", nowMs);
                     }
+                    if (positionUs > 0) startupComplete = true;
                     if (positionUs != lastPositionUs) {
                         lastPositionUs = positionUs;
                         unchangedSinceMs = nowMs;
@@ -810,6 +897,7 @@ public final class ExoCompressedAudioDirectPolicy
         @Override
         public void pause() {
             playing = false;
+            startupWindowAtMs = C.TIME_UNSET;
             super.pause();
         }
 
@@ -817,6 +905,10 @@ public final class ExoCompressedAudioDirectPolicy
         public void flush() {
             acceptedData = false;
             acceptedBytes = 0;
+            acceptedFrames = 0;
+            // A seek/flush is not a fresh first-playback probe. Keep the established generic
+            // stall recovery for these epochs instead of replaying stale startup evidence.
+            startupComplete = true;
             resetObservation();
             super.flush();
         }
@@ -826,6 +918,8 @@ public final class ExoCompressedAudioDirectPolicy
             playing = false;
             acceptedData = false;
             acceptedBytes = 0;
+            acceptedFrames = 0;
+            startupComplete = true;
             resetObservation();
             super.stop();
         }
@@ -833,6 +927,7 @@ public final class ExoCompressedAudioDirectPolicy
         @Override
         public void release() {
             playing = false;
+            startupWindowAtMs = C.TIME_UNSET;
             // Media3 posts stop to the playback thread before notifying the App of a timeout.
             // Keep already observed evidence for that error; the next output/attempt replaces it.
             super.release();
@@ -843,6 +938,58 @@ public final class ExoCompressedAudioDirectPolicy
             unchangedSinceMs = C.TIME_UNSET;
             stalled = false;
             routeAtStall = null;
+            startupWindowAtMs = C.TIME_UNSET;
+        }
+
+        private void maybeLowerStartThreshold() {
+            if (thresholdAdjusted || config.sampleRate <= 0
+                    || acceptedFrames * 1_000_000L < STARTUP_AUDIO_US * config.sampleRate) return;
+            thresholdAdjusted = true;
+            int threshold = startupBuffer.effectiveThresholdBytes();
+            if (threshold == 0 || acceptedBytes <= 0 || acceptedBytes >= threshold) return;
+            StartupBuffer adjusted = environment.setStartThresholdBytes(raw, (int) acceptedBytes);
+            // Read-back is the only authority, including a vendor's clamping of the request.
+            if (adjusted.effectiveThresholdBytes() > 0) startupBuffer = adjusted;
+        }
+
+        private boolean isStartupStalled() {
+            if (!playing || startupComplete || format == null || lastPositionUs != 0
+                    || !acceptedData || startupBuffer.effectiveThresholdBytes() == 0
+                    || acceptedBytes < startupBuffer.effectiveThresholdBytes()) {
+                startupWindowAtMs = C.TIME_UNSET;
+                return false;
+            }
+            long nowMs = clock.elapsedRealtime();
+            if (startupWindowAtMs == C.TIME_UNSET) {
+                startupWindowAtMs = nowMs;
+                startupGeneration = failureMemory.generation();
+                startupRoute = environment.actualRoute(raw);
+                return false;
+            }
+            if (nowMs - startupWindowAtMs < STARTUP_STALL_MS) return false;
+            // Query the raw head and route only at the decision boundary, not every render.
+            // A working head with stale timestamp feedback must not be replayed as silent audio.
+            long head = environment.rawPlaybackHead(raw);
+            if (head > 0) {
+                startupComplete = true;
+                return false;
+            }
+            ExoAudioDirectFailureMemory.Route route = environment.actualRoute(raw);
+            if (head < 0 || startupRoute == null || !startupRoute.equals(route)
+                    || startupGeneration != failureMemory.generation()) {
+                startupComplete = true;
+                return false;
+            }
+            // Re-read the real threshold: routing/HAL changes can alter it after construction.
+            StartupBuffer current = environment.startupBuffer(raw);
+            if (current.effectiveThresholdBytes() == 0
+                    || acceptedBytes < current.effectiveThresholdBytes()) {
+                startupBuffer = current;
+                startupWindowAtMs = C.TIME_UNSET;
+                return false;
+            }
+            routeAtStall = route;
+            return true;
         }
 
         private void logProgress(String event, long nowMs) {
@@ -854,7 +1001,21 @@ public final class ExoCompressedAudioDirectPolicy
         }
     }
 
-    /** Installed only for an explicit PCM recovery, never on healthy PCM playback. */
+    // Same frame counts as the shipped DefaultAudioSink; inspect only the first complete header.
+    private static int startupFramesPerAccessUnit(int encoding, ByteBuffer buffer) {
+        return switch (encoding) {
+            case C.ENCODING_AAC_LC -> AacUtil.AAC_LC_AUDIO_SAMPLE_COUNT;
+            case C.ENCODING_AAC_HE_V1, C.ENCODING_AAC_HE_V2 -> AacUtil.AAC_HE_AUDIO_SAMPLE_COUNT;
+            case C.ENCODING_AAC_XHE -> AacUtil.AAC_XHE_AUDIO_SAMPLE_COUNT;
+            case C.ENCODING_AAC_ELD -> AacUtil.AAC_LD_AUDIO_SAMPLE_COUNT;
+            case C.ENCODING_MP3 -> buffer.remaining() < 4 ? 0
+                    : Math.max(0, MpegAudioUtil.parseMpegAudioFrameSampleCount(
+                            Util.getBigEndianInt(buffer, buffer.position())));
+            default -> 0;
+        };
+    }
+
+    /** Installed only for PCM recovery, never on healthy PCM playback. */
     private final class PcmRecoveryAudioOutput extends ForwardingAudioOutput {
         private final AudioOutput raw;
         private final OutputAttempt attempt;
@@ -862,6 +1023,7 @@ public final class ExoCompressedAudioDirectPolicy
         private boolean playing;
         private boolean acceptedData;
         private boolean finished;
+        private boolean reportedProgress;
         private long windowAtMs = C.TIME_UNSET;
         private long windowPositionUs;
         private long lastPositionUs;
@@ -886,11 +1048,27 @@ public final class ExoCompressedAudioDirectPolicy
         @Override
         public long getPositionUs() {
             long positionUs = super.getPositionUs();
-            if (finished || !playing || !acceptedData || recovery.cancelled
+            if (finished || !playing || !acceptedData || (recovery != null && recovery.cancelled)
                     || outputAttempt.get() != attempt || attempt.currentOutput.get() != this) {
                 return positionUs;
             }
             long nowMs = clock.elapsedRealtime();
+            if (!reportedProgress && positionUs > 0) {
+                reportedProgress = true;
+                synchronized (outputAttempt) {
+                    if (outputAttempt.get() == attempt && attempt.currentOutput.get() == this) {
+                        pendingPcmFallback.set(null);
+                    }
+                }
+                if (attempt.fallbackAtMs != C.TIME_UNSET && SpiderDebug.isEnabled()) {
+                    SpiderDebug.log("exo-audio-direct", "event=pcm-first-progress sinceFallbackMs=%d",
+                            nowMs - attempt.fallbackAtMs);
+                }
+            }
+            if (recovery == null) {
+                finished = reportedProgress;
+                return positionUs;
+            }
             if (positionUs < 0 || (windowAtMs != C.TIME_UNSET && positionUs < lastPositionUs)) {
                 recovery.cancelled = true;
                 return positionUs;
@@ -944,17 +1122,17 @@ public final class ExoCompressedAudioDirectPolicy
         }
 
         @Override public void flush() {
-            recovery.cancelled = true;
+            if (recovery != null) recovery.cancelled = true;
             super.flush();
         }
 
         @Override public void stop() {
-            recovery.cancelled = true;
+            if (recovery != null) recovery.cancelled = true;
             super.stop();
         }
 
         @Override public void release() {
-            recovery.cancelled = true;
+            if (recovery != null) recovery.cancelled = true;
             super.release();
         }
     }

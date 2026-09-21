@@ -1,6 +1,33 @@
 # E11 Exo 压缩音频输出与跳转生命周期
 
-## Recovery anchor（2026-09-21，音频直通开关修复）
+## Recovery anchor（2026-09-21，首次起播快速恢复实施）
+
+- Objective / acceptance：首次新视频也能受益；厂商压缩输出已具备启动供数却不推进时，用短观察窗触发 PCM，并复用当前媒体与样本队列。保留开关修复、标准 offload/HDMI、用户解码偏好、音画同步与正常播放性能。
+- User decision：用户明确“根据最佳实践方案进行优化”，随后限定“仅优化，不联机测试。尽快落地最佳实践方案”；2026-09-21 续接时明确“测试忽略”“继续”，因此跳过剩余策略测试，使用已有集成测试与构建结果完成代码交付，不连接设备、不把硬件时延写成已验证。
+- Lane / guard：`upstream` / `E11-first-playback-recovery`；开始实施 17:22 Asia/Shanghai，预计实现 15 分钟、定向故障注入/TV32 构建 10 分钟、闭合 5 分钟，目标约 17:52。
+- Branch / baseline：`main` / `24fa078d2dc8a404fad23fc30972e5fc4a8a1b5b`；回滚锚点 `recovery/E11-audio-passthrough-switch/20260921163519-24fa078d2dc8`。保护预存 `app/.cxx/` 104 个文件；会话恢复后新增的 `.codex-resume/` 与 `codex-resume` 同样保持原样并排除出提交。
+- Scope：`ExoCompressedAudioDirectPolicy.java`、`ExoUtil.java`、新增 `ExoStartupAudioRenderer.java`、对应 policy/renderer 主机测试及 `testLeanback` 恢复集成测试、本文/索引；不改依赖、native、网络或视频选路。
+- Decision：沿用下方已完成的跨项目研究，选择 Media3 现有 recoverable renderer error 的恢复入口；不伪造 AudioTrack DEAD_OBJECT，也不复制整套 renderer factory。用 `ForwardingRenderer` 包装原平台音频 renderer，保留其构造选项/排序。800 ms 是有充分供数和有效 play 意图后的初始观察值，不是无条件起播等待。
+- Startup fill：API 31+ 仅对自定义 vendor 输出，在完整 AU 已交付约 200 ms 音频后，允许降低实际启动门槛至已交付字节数并读回，保持 256 KiB 稳态容量。沿用发货 Media3 的 AAC/MP3 每 AU 帧数定义；未知/失败读回不当作填满，暂停、flush、stop、换路由及旧 attempt 不可触发提前恢复。
+- Source proof：发货 Media3 `e3e922d5c01bc0b564849940fe589daf37360d15` 的 `ForwardingRenderer` 完整委托；`ExoPlayerImplInternal.attemptRendererErrorRecovery → reselectTracksInternalAndSeek → seekToPeriodPosition` 复用当前 prepared MediaPeriod；`ProgressiveMediaPeriod.seekInsideBufferUs` 能在现有样本队列定位。该恢复会 disable/enable renderer，**不是音频独占重启**；缓存不足、live 或 keyframe 不在队列时仍可能重新加载。WebHTV 正常 back-buffer 设置保留关键帧，最终以真实 Media3 故障注入核验同 period/读取复用。
+- Alternatives / risk：维持 10 秒只作通用兜底无法满足首次体验；直接 App prepare 已被日志证明额外消耗 3–9 秒；自建压缩 AU 重放/直接操作内部 renderer 生命周期引入额外拷贝与状态风险，本轮采用现有恢复合同。短启动门槛不缩容量或改变稳态写入节奏；不做跨媒体永久禁用或并行建轨。
+- Completed implementation：policy 已实现完整 AU 供数统计、启动门槛调整与读回、800 ms 窗口、原始播放头/实际路由复核及每 attempt 一次恢复；`ExoStartupAudioRenderer` 包装原平台音频 renderer，在原播放线程发出明确类型的可恢复异常。内部恢复后的 PCM 进度继续用于确认既有失败记忆，不再要求 App 整项重新 prepare。
+- Verification：已有 3 项真实 Media3 播放流程集成用例通过（首次停滞、断点起播停滞、健康直出），TV32 Debug 构建通过（44 秒），APK v2 签名与包/ABI 检查通过。集成用例使用受控 extractor/renderers/audio outputs；不能替代真实解码器或 HAL 验收。策略补跑因临时测试 source set 未发现目标用例而未执行，用户已要求忽略剩余测试，不能记录为全量回归通过。
+- Evidence / artifact：`/private/tmp/webhtv-E11-recovery-wx7chb0j/` 保存 `gradle-tested.log`、3 项用例的 JUnit XML、`gradle-policy.log` 及 APK 检查记录；集成测试快照与当前源码一致。TV32 APK 为 162,518,123 bytes，SHA256 `15c31a01404a1e1678020cecb20df5085508b67ccd880904fb9ef02072654fd5`。
+- Closure / limitations：代码实现和已有构建完成，按用户要求跳过剩余测试，以本 guard 一次原子提交及 annotated recovery tag 收尾，不推送。800 ms 是数据和状态条件成立后的判错窗口，未知门槛/路由、正常缓冲或 seek 等仍保留原通用兜底；不宣称真实 Sony 2 秒恢复或性能不回退已经实测。跨媒体失败记忆扩展和音频独占重启未纳入本次实现。
+- Next action：使用已有证据关闭 `E11-first-playback-recovery` guard，提交本轮源码、测试及任务记录并创建本地恢复标签；不再运行测试或构建。
+
+### 首次起播快速恢复交付记录
+
+- `ExoUtil` 将同一个 policy 交给 sink 与 renderer 包装，只包装已有平台音频 renderer，保留原构造参数、扩展 renderer 排序、解码器偏好和直通开关。没有修改依赖、native 库、视频选路或网络实现。
+- 自定义压缩输出在完整 access unit 对应至少约 200 ms 音频时，可降低实际启动门槛至已接收数据量，并以读回值为准；不缩小稳态容量。满足供数、播放状态、位置仍为零等条件后观察 800 ms，再检查原始播放头、路由和实际门槛。进度已推进、暂停、flush/stop、输出替换、路由失效或读回未知时不会按旧证据提前切换。
+- 恢复通过 Media3 recoverable renderer error 复用现有 MediaPeriod 和可定位的样本队列，避免 App `startInternal` 重新准备媒体源。该入口会重新启用音视频 renderer，不能称为“只重启音频”；缓存不足、live 或缺少关键帧时仍可能重新加载。已有 10 秒通用检测保留为不满足早期判定条件时的兜底。
+- 3 项集成用例已验证：首次和断点起播的静止输出均切换到 PCM，媒体源 prepare 与 period 创建各一次，恢复不新增数据源打开，首段待播音频会被重放；健康直出不创建 PCM、不重选 renderer。用例还断言受控场景在 2 秒以内进入 PCM，**不等同于实际电视在 2 秒以内恢复出声**。
+- `gradle-policy.log` 的失败是 `No tests found for given includes`，属于临时测试目录配置问题，没有策略断言结果。此前“定向测试通过”应仅理解为上述 3 项集成用例；策略/失败记忆/输出归属的剩余回归依用户最新要求跳过，保留测试源码供后续使用。
+- APK 路径：`app/build/outputs/apk/leanbackArmeabi_v7a/debug/app-leanback-armeabi_v7a-debug.apk`，`com.fongmi.android.tv`，560 / 5.6.0，唯一 ABI 为 `armeabi-v7a`。在本次提交前构建，应按上方 SHA256 识别；没有安装或联机测试。
+- 代码、测试与本记录在 guard `E11-first-playback-recovery` 内原子提交，紧接着创建唯一 annotated local recovery tag；完整提交与 tag 以 guard 的 Git 记录为准。回滚可 revert 该单一提交，恢复到已修好直通开关的 `24fa078d2dc8a404fad23fc30972e5fc4a8a1b5b` 行为。
+
+## 历史 Recovery anchor（2026-09-21，音频直通开关修复）
 
 - Objective / acceptance：关闭 Exo 音频直通后直接使用 decoder + PCM，不再选择 vendor-direct、标准 encoded passthrough 或 compressed offload；保持 PCM 输出归属、隧道 PCM、开启时正常 direct/offload、失败记忆、音视频同步及用户解码偏好。
 - User decision：用户明确要求顺道修复开关；此前首次快速起播研究已完成，新方案未被冒称已实现。
