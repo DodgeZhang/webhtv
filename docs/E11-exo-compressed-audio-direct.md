@@ -1,6 +1,82 @@
 # E11 Exo 压缩音频输出与跳转生命周期
 
-## Recovery anchor（2026-09-21，起播优化实施）
+## Recovery anchor（2026-09-21，首次起播与快速恢复再研究）
+
+- Objective / acceptance：首次播放的选路、实际输出确认和错误切换都计入起播时间；10 秒全局卡死异常不能作为常见音频故障的主恢复机制。保留健康直出、声道/音质、用户偏好、音画同步、隧道、视频手动解码和稳定播放性能。
+- User decision：用户要求继续深度研究跨平台论文、文档、issues 和项目实现，并追加明确实施需求“音频直通开关没起作用，关了还是优先走的直通”。此前 A/B 授权继续有效；新的默认选路/跨媒体经验/音频局部恢复方案在下节分别标出边界。
+- Lane / guard：`assessment` / `E11-first-playback-research`；仅本文和主索引。研究从 15:17 Asia/Shanghai 预计 25 分钟，后因调用链复核及追加开关修复延长；15:52 收敛查询，研究和开关修复的合并目标约 16:15。
+- Branch / baseline：`main` / `123d871c027eb686702766bca995f616e8d2bd1e`；A 已提交，恢复 tag `recovery/E11-audio-startup-admission/20260921150255-123d871c027e`。保护原有 `app/.cxx/` 104 个文件。
+- Completed evidence：A 只有同媒体/音轨/路由确认失败记忆，首次故障仍有 10 秒检测和约 3–9 秒重建成本；`ExoUtil.buildAudioSink/buildTrackSelector` 只把 passthrough=false 转为空 Context，仍安装 vendor policy 且启用 offload，已建立开关失效原因。下节已补读 Chromium/mpv 早期输入重放、GStreamer preroll/候选、Android 启动门槛、Envoy 分层失败隔离、AWS 超时文章及《The Tail at Scale》作者版正文。
+- Evidence cache：`/private/tmp/webhtv-E11-first-playback-khaovka_/`，全文/源码、URL/时间/SHA256 元数据；此前证据继续保留，不重新评估已完成的上游范围。
+- Plan status：研究方案已收敛；本 guard 没有生产改动、构建或设备测试。追加的开关修复将在本研究闭合后用独立 `quick-fix` guard 实施，范围见下节。B 的短窗和 C 的数据保留仍不是已实现能力。
+- Rollback：本文/索引为独立研究提交；当前可执行生产基线仍为 A。追加开关修复独立提交，可单独 revert。
+- Next action：关闭本研究 guard，随即实施已获明确授权的音频直通开关准入修复并运行对应主机回归与 TV32 构建。
+
+## 2026-09-21 首次播放必须快速成功：补充证据与修订方案
+
+### 纠正目标与当前缺口
+
+旧方案 A 提升了准入一致性和部分重复播放的成功率，但没有完成首次起播优化。旧 B 即使把等待从 10 秒变成 2 秒，仍可能叠加日志中约 3–9 秒的媒体重建，不能据此交付“快速起播”。最终验收须覆盖**首次新视频、首次新音频配置、选错路径后的恢复全过程**，同时记录点击到播放的总时延与各阶段时延；不能只报首帧或解码器初始化速度。
+
+最新用户追加的开关故障与原日志直接关联。现基线 `ExoUtil.buildAudioSink` 读取 `PlayerSetting.isAudioPassThrough(EXO)` 后只决定 `AudioTrackAudioOutputProvider.Builder` 的 Context 是否为空；之后仍无条件注册 `ExoCompressedAudioDirectPolicy` 的 offload provider、builder modifier 和输出包装。`buildTrackSelector` 又无条件设置 `AUDIO_OFFLOAD_MODE_ENABLED`。因此 `passthrough=false` 不是最终压缩输出的准入条件。修复应让关闭设置直接选择解码后 PCM，保留平台硬件/平台软件/FFmpeg 的现有优先级；这能在控制流上消除该设置下的首次 vendor 试错，尚不能用主机测试宣称 Sony 实际起播耗时已经测得。
+
+### 新增来源与适用限制
+
+访问日期均为 **2026-09-21**。等级沿用 Skill：A 为正式合同/准确源码，B 为维护者或成熟项目设计，C/D 为类比或未验证现场线索。本轮未选取新的依赖合并提交；下列固定修订全部只作研究引用，不 cherry-pick。
+
+| 来源与版本 | 已读证据与等级 | 对 WebHTV 的决定影响及限制 |
+| --- | --- | --- |
+| [Chromium DecoderStream](https://chromium.googlesource.com/chromium/src/+/c52f26bf4995863398cbdd1a7cabc3dd45aad973/media/filters/decoder_stream.cc) 与 [DecoderSelector](https://chromium.googlesource.com/chromium/src/+/c52f26bf4995863398cbdd1a7cabc3dd45aad973/media/filters/decoder_selector.cc)，`c52f26bf4995863398cbdd1a7cabc3dd45aad973` | A/B：`Decode` 在首个成功解码输出前保留 `pending_buffers_`；初始化成功仍不是最终成功。初始解码报错后作废旧异步回调，继续有限候选，向备用 decoder 重放缓冲，首个有效输出才 `FinalizeDecoderSelection` 并清保留数据。另读同修订 `audio_decoder_stream_unittest.cc` 的配置变更/flush 测试。 | 借鉴“暂定选择→实证成功→提交选择”和旧回调隔离/输入重放。该测试不是 AudioTrack 停滞恢复测试，Chromium 的成功点是解码输出，不是扬声器实际发声；本项目必须把确认延伸到音频输出时钟。模板源码也适用于视频，但不据此改变本项目视频手动软解合同。 |
+| [mpv vd_lavc.c](https://github.com/mpv-player/mpv/blob/e76a35ec95b27f5cf2d27b043b5e2e0d90e468ae/video/decode/vd_lavc.c)，`e76a35ec95b27f5cf2d27b043b5e2e0d90e468ae` | A/B：`send_packet` 在硬解探测期有界保留至多 32 个输入 packet；`receive_frame` 在失败后尝试下一候选，重放 `requeue_packets`；首个交付帧后结束 probing 并释放保留 packet。 | 支持有界保留“已做的工作”，无需从 URL 再启动整个解封装。32 个视频包不是适合 AAC 的容量或时限；此代码不解决 Android 压缩 sink 未报告错误的情况，不能直接移植或声称本项目已能音频局部切换。 |
+| [GStreamer preroll](https://gstreamer.freedesktop.org/documentation/additional/design/preroll.html) / [decodebin](https://gstreamer.freedesktop.org/documentation/playback/decodebin.html)，访问日官方页面 | A/B：preroll 先准备样本，收到 buffer/GAP/EOS 分别处理；flush/状态变化有明确解除等待语义。候选可按 rank/应用规则过滤与排序，逐个 TRY/SKIP。 | 以实际阶段就绪替代把 READY/首帧当作整条链成功；候选提前准备，不默认同时启动三个占硬件的输出。EOS/短片不能永远等“填够”或被当成坏设备。 |
+| [Android 12 AudioTrack](https://github.com/aosp-mirror/platform_frameworks_base/blob/cebf5c06997b64f4e47a1611edb5f97044509d76/media/java/android/media/AudioTrack.java)，`cebf5c06997b64f4e47a1611edb5f97044509d76`；[当前正式 API](https://developer.android.com/reference/android/media/AudioTrack#setStartThresholdInFrames(int)) | A：初始 start threshold 默认是实际 capacity；压缩输出这些 API 的 frame 单位是 byte。API 31+ 可单独 `setStartThresholdInFrames`；而 `setBufferSizeInFrames` 明确仅支持 PCM。实际值可能被钳制、随路由变更，必须读回。 | **新增可选方向：分别管理起播门槛和稳态容量**。不要把固定 256 KiB 当作必须填完才配享有早回退的产品条件，也不要通过不支持的压缩 buffer setter 硬缩容量。短启动门槛须根据完整音频 access unit/可播放时长设定并实测 underrun/功耗，不全格式写死字节数。 |
+| [The Tail at Scale 作者全文](https://www.barroso.org/publications/TheTailAtScale.pdf)，Dean/Barroso，CACM 2013，DOI `10.1145/2408776.2408794` | B，跨场景迁移为 C：本轮已取得并读作者 PDF 正文 pp.74–80，SHA256 `fffb9132a10c001692f3017ad2ef6fd872a96851638554497ebd23dfbefcc0da`。区分单次请求的立即适应与跨请求长期适应；讨论延迟启动备用、取消重复工作及 latency-induced probation；强调竞速仅在拖慢因素不同时影响副本时有效。 | 失败记忆不能代替首次快速恢复；只看均值或少量成功快路径会遗漏长尾。音频的多条路径共用 CPU/HAL，且输出有不可重复的声音副作用，不具备论文副本独立假设，因此不以论文授权无条件三路竞速。旧研究“仅读摘要”限制由本轮补读解除，论文中的网络数值不转成音频阈值。 |
+| [AWS Builders' Library：超时、重试和抖动回退](https://aws.amazon.com/cn/builders-library/timeouts-retries-and-backoff-with-jitter/)，Marc Brooker，访问日全文 | B/C：从可接受误报率和健康延迟分布选超时；端到端超时必须覆盖实际工作；多层独立重试会放大负载，最高层重试又会浪费已做工作。文章也明确警告断路器的模态行为与额外测试成本。 | 一个播放 attempt 共用恢复预算和恢复 owner；不能每换一条音频路径重新拿 10 秒，也不能音频/engine/网盘各自盲重试。借鉴预算与分层归因，不为单机音频恢复增加指数退避、随机延迟或后台联网。 |
+| [Envoy outlier detection](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/outlier)，访问日官方页面 | A/B，音频类比为 C：区分请求本身的错误与本地链路错误；有界暂时摘除/恢复；共享实例的失败状态会影响其它调用方；只通过浅层 active health check 可能错误地提前恢复流量。 | 媒体解码/内容错误保留媒体级隔离；只有充分的输出层证据才能提升为 route+format 经验。重新查询“支持”不能清除已实证的失败；恢复资格须由实播重新验证。 |
+| [NuvioTV PR #3107](https://github.com/NuvioMedia/NuvioTV/pull/3107)，读取 PR 正文及 diff 快照，SHA256 `c1ac441f93f640ad1303828131f34184aa3e41b6e8d27985a4167ece7c4bc066` | C/D：访问时为 DRAFT；报告大压缩 buffer 与某些 IEC AudioTrack 创建耗时，提出按格式 buffer 上限、后台 probe、内容时间 pacing 等多个改变。 | 仅作为现场线索，不作为成熟修复或合并候选。它排除 AAC 的 pacing，涉及不同 HDMI 格式/模式；不能复制 200 ms、buffer 上限、时钟钳制或后台真建轨来修 Sony。按引用快照保留，不把未固定最终 commit 的草稿当成可移植基线。 |
+
+启动门槛还交叉核对了 `android-12.0.0_r1` 的 [native AudioTrack::setStartThresholdInFrames](https://android.googlesource.com/platform/frameworks/av/+/android-12.0.0_r1/media/libaudioclient/AudioTrack.cpp) 和 [AudioFlinger Track::isReady](https://android.googlesource.com/platform/frameworks/av/+/android-12.0.0_r1/services/audioflinger/Tracks.cpp)：setter 调用共享 proxy 并在降低门槛时处理 disabled 状态；服务端按 `min(startThreshold, bufferSize)` 再钳制到实际 capacity 判断填充。这里没有在 setter 处禁止 compressed/direct 的分支。这证明它不同于仅 PCM 可用的 buffer-size setter，但不证明 Sony HAL 无额外缓冲/锁定延迟；只改 API 门槛不能冒称必然有声。
+
+本轮普通 Bing RSS 返回与查询不相干的结果，未用作证据；Google 搜索页没有可用结果；GitHub 部分 core API 达到匿名限额。已改用官方 Gitiles、原始固定源码、项目文档、GitHub issue/PR 页面与作者 PDF。未获取的页面不算已审阅。旧 Media3 #2258/#3122/#3269 与 mpv/VLC/Kodi 音频输出证据继续适用；没有证据支持用跨 period 实验开关、任意 ADTS 包装或独立视频时钟解决本例。
+
+### 推荐的完整方案
+
+1. **用户开关先于能力与性能偏好。** 关闭直通时压缩 passthrough、标准 compressed offload 和自定义 vendor-direct 都不准入；选现有 decoder 输出 PCM。开启时保留正常直通/硬件/DSP 候选和用户软解偏好。开关不改视频选择，不在播放中额外造第二个音频输出。
+2. **先形成候选，再按实际输出提交选择。** 轻量的格式解析、已有能力/经验查询可提前复用；不让常见 AAC 起播等待与它无关的 HDMI 格式探测。一个候选区分“初始化成功、收到样本、满足起播条件、首次实际推进”，最后一项才代表输出链可用。明确初始化/写入/解码错误立即进入下一可用候选，不等全局 stuck 异常。
+3. **把填充与运行分开，并让填充本身有设计目标。** 读取实际 capacity/start threshold、累计完整 AU 的供数和时间戳，区分没数据与有数据不走。API 31+ 对受测 vendor 路径可评估设置较小的 start threshold，同时保留稳态容量；读回实际值，发生路由变化重建门槛证据。普通 AAC 的候选起播数据窗可从约 100–250 ms 的完整 AU 开始设备对照，这是实验范围而非已经安全的全局参数。短片/EOS 使用明确结束语义，不为凑阈值多读几秒或补造静音。
+4. **首次恢复使用短而有条件的预算。** 对本实例、本路由、play 意图有效、无 pause/buffering/seek/EOS、实际供数已足够且应消费的音频，观察 raw head/有效 position 的推进；无进度时投递一次带 attempt/output 身份的恢复事件，在接收线程再次验证。短窗由健康设备冷启动/恢复分布和可接受误报率裁决；建议以 300–800 ms 做故障注入对照、把判断预算控制在 1 秒内。不是把所有 timeout 改成该数值，也不能把未知门槛当作已填满。新起播会产生新 budget，失败候选切换不重置同一 attempt 的总预算。
+5. **恢复尽量不丢已经读到的内容。** 首次成功输出前，只为有风险的 vendor 尝试有界保留压缩 AU 及其时间戳/配置；失败时释放旧输出，向同音轨备用 decoder 重放，视频 renderer 与 media source 保持。确认输出后立即释放保留数据；DRM、seek/flush、切轨、异步回调和队列水位有独立世代，不重复播放声音。先验证发货 Media3 是否能通过现有 renderer/recoverable-error 接口完成；不能就把局部 sink/renderer 扩展作为明确的新阶段，而不冒称 capability invalidation 已实现。**若全媒体重建仍花 3–9 秒，整体速度验收不通过；C 或等效避免重建的方案不再是最终目标的可忽略项。**
+6. **分层记忆故障，让新视频也受益。** A 的 exact-media 记录继续用于内容相关或证据不足的失败；另建议 route+模式+编码/profile+采样率+声道+有效属性+firmware/policy version 的短期经验。可重复的输出初始化/模式拒绝可归输出层；零 head 这类存在内容歧义的失败，至少需不同媒体的同配置失败、各自 PCM 成功，才能提升范围。这个“至少两媒体”只是保守候选规则，未标作统计证明。未知路由不合并，不按 Sony 品牌禁用 AAC，不仅去掉 URL key 就扩大旧缓存。过期后只允许下一次自然起播一次试探，健康播放中不切回，不永久拉黑。
+7. **一个恢复控制点与准确归因。** 音频输出失败、codec 失败、无视频关键帧/无视频输出、网络供数不足各有证据，避免错误地重试网盘或切视频软解。视频候选只在用户既定解码模式内处理已有允许的回退；优化本音频问题不扩大视频自动软解。10 秒 Media3 全局检测可以保留作未覆盖故障的最后告警/恢复，但受支持的正常起播和常见坏 vendor 路径不能依赖它。
+
+### 备选、产品预算与阶段
+
+| 方案 | 对首次错误路径的效果与代价 | 决定 |
+| --- | --- | --- |
+| 不改 / 只保留 A | 首次仍等 10 秒，换媒体/路由不明可能每次重复；不满足目标。 | 拒绝作为任务完成状态。 |
+| 完全退回上游标准路径 | 避免自定义 vendor 风险，但一概移除原 E11 的可用 DSP 路径。 | 不全局采用；关闭用户开关时正应选择标准 PCM 能力。 |
+| 所有 AAC 先软解，稍后自动换直出 | 可能快速首播，但改变健康设备功耗/既有偏好，并增加一次运行中切换。 | 不作默认；不把临时规避冒充保留功能的最终方案。 |
+| 只把 10 秒改成 2 秒 | 仍受实际填充/重建成本影响，误判可能制造更多重建。 | 不单独交付为最终优化。 |
+| 默认并发直通/硬解/软解 | 可能减少独立初始化尾延迟，但共享 HAL、双声音副作用、解码资源和取消复杂度不符合当前性能要求。 | 不默认启用；先准备候选元数据和失败后的输入可重放性。 |
+| 受控起播门槛 + 快速实播确认 + 同轨局部恢复 + 分层经验 | 同时处理首次、切换、下一新视频；需要验证 underrun/资源与样本/时钟连续性。 | 推荐，按下面最小单元推进。 |
+
+**建议产品验收目标（尚无候选实测，不是已达成或跨设备保证）**：在音视频所需样本已可读取的受控场景，健康路径无新增人为等待；已供数的坏音频路径在 1 秒内决定恢复，判断与切换到真实稳定推进合计以 **不超过 2 秒** 为目标。两次候选失败共用这份预算，不能各自获得 2/10 秒。网盘点击到播放另报全量时间，网络等待不能从用户体验指标中删除；同时以分段日志识别是否由 App 额外造成。局部恢复暂未实现时，应明确报告离 2 秒目标还有多少，不能只统计 detector。
+
+最小实施顺序：
+
+- **本轮追加开关修复，已明确授权**：仅 `app/src/main/java/com/fongmi/android/tv/player/exo/ExoUtil.java`、`ExoCompressedAudioDirectPolicy.java`、对应 `app/src/test/java/com/fongmi/android/tv/player/exo/ExoCompressedAudioDirectPolicyTest.java`、本文/索引；独立 quick-fix guard。关闭时在 track selector、offload support、format/output config 和真实输出创建处一致拒绝 encoded 输出，继续用原包装记录 PCM 输出所有权；开启时原能力/失败保护不变。不改默认值、设置 UI、native、网络或视频。
+- **B 已授权方向**：带真实供数/身份/生命周期门控的提前恢复，可先做故障注入和实际 policy/provider 测试；数值必须用 healthy cold-start 与 Sony 验证，不能因暂缺设备就把 10 秒设计成最终默认体验。单独缩时只是过渡候选，不满足总目标即继续推进。
+- **启动门槛调整、跨媒体经验与 C**：本节完成推荐与约束；改变默认尝试范围、共享健康范围或实际 renderer/依赖所有权时，需按具体最小设计另行实施批准。当前用户追加只要求开关修复，不把这些新架构改动混进修复。
+
+### 最便宜的决定性验证与回滚
+
+开关修复：真实 policy/provider 定向测试证明关闭时 vendor 查询/建轨零调用、offload 不支持、标准 encoded passthrough 同样被拒绝、缓存的 encoded config 不能绕过、PCM 及 tunneled PCM 正常委托且输出快照仍准确、重新开启可选正常 direct；现有失败记忆/生命周期用例继续通过。一次受影响 TV32 主机测试和 Debug 构建，保护已有 native 暂存；无设备时不伪称实播通过。
+
+后续 B/C：可控 fake clock/输出重现足量供数但 head=0、刚好低于/达到门槛、慢供数/未写满、head 先走后停、未知 position、pause/resume、seek/flush、EOS、路由变更、退出后迟到通知；验证恢复只一次、旧样本不跨 attempt。局部恢复进一步核验 media prepare 次数/HTTP 新请求/视频 decoder 初始化均不因音频切换增加，重放时间戳不丢不重、AV sync 不劣化。设备对照至少覆盖 Sony AAC、已知健康 vivo vendor、一条健康 HDMI 多声道；冷/暖首次与不同新视频分开，基线/候选交替并保留全部样本，少量样本只报中位数/最差值，不伪报稳定 p99。
+
+正常路线的 CPU/内存/功耗、AudioTrack/codec 数量、网络读取、underrun、丢帧、A/V 偏差不能出现可归因于改动的回退。API 31 的 setter 可用并不等于 HAL 兼容/低门槛性能已证明；未知/未测路径保留现行行为直至有证据的独立候选，而不能声称最终任务已经完成。开关修复与后续每个行为独立 commit/tag/revert；无新 ABI/包依赖、不持久化 URL/音轨内容、不新增长期轮询/双 decoder/网络流。本轮不推送或发布。
+
+## 历史 Recovery anchor（2026-09-21，起播优化实施）
 
 - Objective / acceptance：实施获批 A 的直出准入一致、已确认失败配置的短期记忆和准确错误分类；保留正常 DSP、标准 offload/HDMI、用户偏好、音画同步、隧道、视频解码及已有失败回退。B 只在真实启动门槛和状态证据满足后推进，C 暂缓。
 - User decision：恢复后用户明确“继续实施”；不再重复请求同一阶段批准。
