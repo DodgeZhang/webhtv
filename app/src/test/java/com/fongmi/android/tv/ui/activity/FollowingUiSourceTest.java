@@ -49,6 +49,30 @@ public class FollowingUiSourceTest {
     }
 
     @Test
+    public void followingScreenFollowsTheGlobalWallpaperLikeOtherContentPages() throws Exception {
+        String activity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
+        assertTrue("追更页必须复用全局壁纸视图", activity.contains("new CustomWallView(this, null)"));
+        assertTrue("壁纸必须插在内容根视图之下", activity.contains("content.addView("));
+        assertTrue("壁纸必须早于页面初始化", activity.indexOf("addWallpaper();") < activity.indexOf("initView();"));
+
+        String layout = read("app/src/main/res/layout/activity_following.xml");
+        assertFalse("根布局必须保持透明，否则壁纸被整页盖住",
+                layout.contains("android:background=\"?attr/colorSurface\""));
+        assertTrue("顶栏与空态需要半透明面板承载文字",
+                layout.contains("android:background=\"@drawable/shape_following_panel\""));
+        assertTrue("空态图标不能再是无条件白色 tint",
+                layout.contains("android:tint=\"?attr/colorOnSurfaceVariant\""));
+
+        String item = read("app/src/main/res/layout/item_following.xml");
+        assertTrue("卡片必须改用半透明面板而不是不透明表面",
+                item.contains("app:cardBackgroundColor=\"@color/following_panel_bg\""));
+
+        String panel = read("app/src/main/res/color/following_panel_bg.xml");
+        assertTrue("面板必须半透明", panel.contains("android:alpha="));
+        assertTrue("面板必须跟随明暗模式的语义表面", panel.contains("?attr/colorSurfaceContainerHigh"));
+    }
+
+    @Test
     public void followingHasUpdateFilterAndUserControlledSchedulerSwitch() throws Exception {
         String activity = read("app/src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
         String mobile = read("app/src/mobile/java/com/fongmi/android/tv/ui/fragment/SettingPersonalFragment.java");

@@ -9,7 +9,7 @@
     android:focusable="false"
     android:descendantFocusability="afterDescendants"
     android:foreground="?attr/selectableItemBackground"
-    app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
+    app:cardBackgroundColor="@color/following_panel_bg"
     app:cardCornerRadius="@dimen/webhtv_card_radius_default"
     app:cardElevation="2dp"
     app:strokeColor="?attr/colorOutlineVariant"

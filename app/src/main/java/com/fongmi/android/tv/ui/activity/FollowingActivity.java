@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 
@@ -40,6 +41,7 @@ import com.fongmi.android.tv.following.FollowingUpdateCoordinator;
 import com.fongmi.android.tv.following.FollowingUpdatePolicy;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.adapter.FollowingAdapter;
+import com.fongmi.android.tv.ui.custom.CustomWallView;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
@@ -115,11 +117,23 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         }
         binding = ActivityFollowingBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        addWallpaper();
         focusIdentity = getIntent().getStringExtra(EXTRA_IDENTITY_KEY);
         FollowingNotifier.createChannel();
         FollowingScheduler.ensurePeriodic(this);
         initView();
         FollowingScheduler.enqueueDueNow(this);
+    }
+
+    /**
+     * 与其它内容页保持一致：全局壁纸作为页面背景，壁纸视图插在内容根视图之下。
+     * 页面根布局保持透明，顶栏与卡片用半透明面板承载文字，动效跟随全局壁纸设置。
+     */
+    private void addWallpaper() {
+        ViewGroup content = findViewById(android.R.id.content);
+        if (content == null || content.getChildCount() == 0) return;
+        content.addView(new CustomWallView(this, null), 0,
+                new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
     private void initView() {

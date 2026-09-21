@@ -3,8 +3,10 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
     android:fitsSystemWindows="true">
+
+    <!-- 根布局保持透明：全局壁纸由 FollowingActivity 插入到内容根视图之下，
+         页面只提供半透明面板，避免出现整页不透明底色与其它内容页不一致。 -->
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -18,8 +20,10 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/shape_following_panel"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:padding="8dp">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/check"
@@ -92,17 +96,21 @@
 
             <LinearLayout
                 android:id="@+id/empty"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="@drawable/shape_following_panel"
                 android:gravity="center"
                 android:orientation="vertical"
+                android:padding="24dp"
                 android:visibility="gone">
 
                 <ImageView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
                     android:importantForAccessibility="no"
-                    android:src="@drawable/ic_home_following" />
+                    android:src="@drawable/ic_home_following"
+                    android:tint="?attr/colorOnSurfaceVariant" />
 
                 <TextView
                     android:id="@+id/emptyText"

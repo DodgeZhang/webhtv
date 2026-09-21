@@ -25,6 +25,22 @@
 - 残余风险：未在真实播放器音频面板上确认 alpha 变体的渲染效果；未覆盖 Android 12+ 的 Dynamic Colors 优先级。
 - 回滚锚点：回退阶段 G 提交即可恢复原 `Theme.Base` 继承；无数据迁移。
 
+### 阶段 H（追更页壁纸化）实施记录（2026-09-21）
+
+- 任务：`FOLLOWING-WALLPAPER-20260921`；用户确认方案 A（壁纸背景 + 与其它内容页一致的半透明面板），动效跟随全局壁纸，mobile/leanback 两端同时生效。
+- 问题：`FollowingActivity` 在 `main` 源集且继承 `AppCompatActivity`，拿不到 `BaseActivity` 插入的 `CustomWallView`；其根布局又写死 `android:background="?attr/colorSurface"`，卡片用不透明 `colorSurfaceContainerHigh`。实测整页为 `#F8FAFD`（`(248,250,253)`），与首页/设置页的壁纸观感割裂；空态图标 `ic_home_following` 还是无条件白色 tint，压在近白底上几乎不可见。
+- 变更：`FollowingActivity` 在 `setContentView` 后把 `CustomWallView` 插到 `android.R.id.content` 的 index 0（动效沿用全局设置，未强制关闭）；根布局去掉不透明底色；顶栏与空态容器改用新增的半透明面板 `shape_following_panel`；卡片背景改为 `@color/following_panel_bg`；空态图标 tint 改为 `?attr/colorOnSurfaceVariant`。
+- 面板取值：`app/src/main/res/color/following_panel_bg.xml` 用 `android:alpha="0.80"` 叠加 `?attr/colorSurfaceContainerHigh`，明暗模式各自取当前 mode 语义表面，避免了固定 hex 与新增 token 造成的 49 色契约冲突。
+- 文字色不变：仍使用 `?attr/colorOnSurface` / `?attr/colorOnSurfaceVariant`，与设置页行面板一致（实测设置页行文字最深像素即 `#1A1C1E`，为 light mode 的 `colorOnSurface`）。
+- 静态证据：新文件不含 hex，`scripts/check_ui_tokens.sh --strict` 仍为 `violations=0 legacy=0`、38 组对比度 0 失败、`hex_layouts/hex_drawables/hex_colors=0`；计数变为 `drawables=550 colors=53`。
+- 自动化证据：新增 `FollowingUiSourceTest#followingScreenFollowsTheGlobalWallpaperLikeOtherContentPages`（壁纸插入顺序、根布局透明、面板可达、卡片半透明、alpha 契约）；同步更新 `ThemeControllerContractTest` 中写死“根布局必须是 `colorSurface`”的旧断言。mobile/leanback 定向单测分别通过。
+- 设备证据：dev3 `192.168.50.3:5559`（API 28）覆盖安装 mobile 与 leanback，`FATAL EXCEPTION=0`。
+  - mobile 追更页：面板外像素 `(88,78,113)`（壁纸透出），面板内 `(208,207,217)`（80% 表面叠加壁纸）。
+  - leanback 追更页：深色模式下壁纸透出，顶栏与空态面板为半透明深色，空态图标可见。
+  - 截图：`/tmp/following-wallpaper-mobile.png`、`/tmp/following-current.png`（改造前对照）、`/tmp/tv-following-final.png`。
+- TV 入口说明：leanback 首页按钮受 `HomeButton.getVisibleButtons()` + `FollowingSettings` 门控，设备当时“首页按钮”仅启用 7/10、不含“追更”。为完成 TV 视觉验收曾临时勾选该按钮，验收后已恢复为 7/10，未留下设置改动。
+- 回滚锚点：回退阶段 H 提交即可恢复追更页的原不透明底色与卡片表面；无数据迁移。
+
 ### 阶段 A 实施记录（2026-09-20）
 
 - 新增资源：`webhtv_tokens.xml`（light/`values-night` 各 49 色）、attrs、dimens、type、shapes、styles、4 个交互 selector。

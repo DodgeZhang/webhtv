@@ -70,7 +70,9 @@ public class ThemeControllerContractTest {
     @Test
     public void followingAndDetailSurfacesUseSemanticAttributes() throws Exception {
         String following = read("src/main/res/layout/activity_following.xml");
-        assertTrue(following.contains("android:background=\"?attr/colorSurface\""));
+        // 追更页改为壁纸背景：根布局必须透明，靠半透明面板承载文字。
+        assertFalse(following.contains("android:background=\"?attr/colorSurface\""));
+        assertTrue(following.contains("@drawable/shape_following_panel"));
         assertTrue(following.contains("app:backgroundTint=\"?attr/colorPrimary\""));
         assertTrue(following.contains("android:textColor=\"?attr/colorOnSurfaceVariant\""));
         String card = read("src/leanback/java/com/fongmi/android/tv/ui/presenter/TmdbCastPresenter.java");
