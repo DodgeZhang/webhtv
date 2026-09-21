@@ -1528,6 +1528,7 @@
     <string name="dialog_config_choose_failed">Could not read the selected item, please pick the package folder or zip again</string>
     <string name="dialog_config_name">Please enter the name…</string>
     <string name="dialog_config_url">Please enter the url…</string>
+    <string name="dialog_config_addresses">Backup addresses, one per line…</string>
 
     <!-- Error -->
     <string name="error_config_get">Configuration get failed</string>

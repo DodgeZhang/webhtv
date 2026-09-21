@@ -38,6 +38,8 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 public class ConfigDialog extends BaseAlertDialog {
@@ -102,6 +104,7 @@ public class ConfigDialog extends BaseAlertDialog {
         binding.name.setText(config.getName());
         binding.text.setText(url = config.getUrl());
         binding.text.setSelection(TextUtils.isEmpty(url) ? 0 : url.length());
+        binding.addresses.setText(addressesText(config));
         binding.positive.setText(edit ? R.string.dialog_edit : R.string.dialog_positive);
         binding.code.setImageBitmap(QRCode.getLightBitmap(Server.get().getAddress(4), 200, 0));
         binding.info.setText(ResUtil.getString(R.string.push_info, Server.get().getAddress()).replace("\uff0c", "\n"));
@@ -197,7 +200,7 @@ public class ConfigDialog extends BaseAlertDialog {
     private void onPositive(View view) {
         String name = binding.name.getText().toString().trim();
         String text = binding.text.getText().toString().trim();
-        Config config = saveConfig(text, name);
+        Config config = saveConfig(text, name, binding.addresses.getText().toString());
         if (config == null) {
             Notify.show(R.string.remote_trust_config_url_required);
             binding.text.requestFocus();
@@ -207,17 +210,32 @@ public class ConfigDialog extends BaseAlertDialog {
         dismiss();
     }
 
-    private Config saveConfig(String text, String name) {
+    private Config saveConfig(String text, String name, String addresses) {
+        Config saved;
         if (text.isEmpty()) {
             if (!edit) return null;
             if (!TextUtils.isEmpty(url)) Config.delete(url, type);
             return getStoredConfig();
         } else if (edit) {
-            return Config.find(config.getId()).url(text).name(name).update();
+            saved = Config.find(config.getId()).url(text).name(name).update();
         } else {
             Config exists = AppDatabase.get().getConfigDao().find(text, type);
-            return exists != null ? exists.name(name).update() : Config.create(type).url(text).name(name).update();
+            saved = exists != null ? exists.name(name).update() : Config.create(type).url(text).name(name).update();
         }
+        return saved.urls(addresses(text, addresses)).update();
+    }
+
+    private List<String> addresses(String primary, String text) {
+        List<String> result = new ArrayList<>();
+        result.add(primary);
+        for (String item : text.split("\\R")) if (!TextUtils.isEmpty(item.trim())) result.add(item.trim());
+        return result;
+    }
+
+    private String addressesText(Config config) {
+        List<String> addresses = new ArrayList<>(config.getUrls());
+        addresses.remove(config.getUrl());
+        return TextUtils.join("\n", addresses);
     }
 
     private void onNegative(View view) {
@@ -256,7 +274,7 @@ public class ConfigDialog extends BaseAlertDialog {
         App.post(() -> {
             if (activity.isFinishing() || activity.isDestroyed()) return;
             dismissAllowingStateLoss();
-            App.post(() -> ((ConfigListener) activity).setConfig(saveConfig("file:/" + path.replace(Path.rootPath(), ""), binding.name.getText().toString().trim())), 100);
+            App.post(() -> ((ConfigListener) activity).setConfig(saveConfig("file:/" + path.replace(Path.rootPath(), ""), binding.name.getText().toString().trim(), binding.addresses.getText().toString())), 100);
         }, 100);
     });
 }

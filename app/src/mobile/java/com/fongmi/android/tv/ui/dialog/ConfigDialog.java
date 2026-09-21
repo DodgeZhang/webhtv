@@ -31,6 +31,9 @@ import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.utils.Path;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class ConfigDialog extends BaseAlertDialog {
 
     private DialogConfigBinding binding;
@@ -86,6 +89,7 @@ public class ConfigDialog extends BaseAlertDialog {
         binding.name.setText(config.getName());
         binding.url.setText(ori = config.getUrl());
         binding.url.setSelection(TextUtils.isEmpty(ori) ? 0 : ori.length());
+        binding.addresses.setText(addressesText(config));
     }
 
     @Override
@@ -180,7 +184,7 @@ public class ConfigDialog extends BaseAlertDialog {
     private void onPositive() {
         String url = binding.url.getText().toString().trim();
         String name = binding.name.getText().toString().trim();
-        Config config = saveConfig(url, name);
+        Config config = saveConfig(url, name, binding.addresses.getText().toString());
         if (config == null) {
             Notify.show(R.string.remote_trust_config_url_required);
             binding.url.requestFocus();
@@ -190,7 +194,7 @@ public class ConfigDialog extends BaseAlertDialog {
         dismiss();
     }
 
-    private Config saveConfig(String url, String name) {
+    private Config saveConfig(String url, String name, String addresses) {
         Config saved;
         if (url.isEmpty()) {
             if (!edit) return null;
@@ -202,7 +206,20 @@ public class ConfigDialog extends BaseAlertDialog {
             Config exists = AppDatabase.get().getConfigDao().find(url, type);
             saved = exists != null ? exists.name(name).update() : Config.create(type).url(url).name(name).update();
         }
-        return saved;
+        return saved.urls(addresses(url, addresses)).update();
+    }
+
+    private List<String> addresses(String primary, String text) {
+        List<String> result = new ArrayList<>();
+        result.add(primary);
+        for (String item : text.split("\\R")) if (!TextUtils.isEmpty(item.trim())) result.add(item.trim());
+        return result;
+    }
+
+    private String addressesText(Config config) {
+        List<String> addresses = new ArrayList<>(config.getUrls());
+        addresses.remove(config.getUrl());
+        return TextUtils.join("\n", addresses);
     }
 
     private void configureWindow() {
@@ -229,7 +246,7 @@ public class ConfigDialog extends BaseAlertDialog {
             return;
         }
         String url = "file:/" + path.replace(Path.rootPath(), "");
-        ((ConfigListener) requireParentFragment()).setConfig(saveConfig(url, name));
+        ((ConfigListener) requireParentFragment()).setConfig(saveConfig(url, name, binding.addresses.getText().toString()));
         dismiss();
     });
 }
