@@ -172,6 +172,14 @@ public class Migrations {
         }
     };
 
+    public static final Migration MIGRATION_46_47 = new Migration(46, 47) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            addColumnIfMissing(database, "History", "sourceBindingKey",
+                    "ALTER TABLE History ADD COLUMN `sourceBindingKey` TEXT DEFAULT ''");
+        }
+    };
+
     private static void addColumnIfMissing(
             SupportSQLiteDatabase database,
             String table,

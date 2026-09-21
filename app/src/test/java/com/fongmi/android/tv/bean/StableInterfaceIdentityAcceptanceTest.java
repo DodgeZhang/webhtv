@@ -50,6 +50,20 @@ public class StableInterfaceIdentityAcceptanceTest {
         assertTrue(identity.contains("keyForUrl(config.getUrl())"));
     }
 
+    @Test
+    public void playbackHistoryPersistsItsStableInterfaceBinding() throws Exception {
+        String history = read("app/src/main/java/com/fongmi/android/tv/bean/History.java");
+        String migration = read("app/src/main/java/com/fongmi/android/tv/db/Migrations.java");
+        String database = read("app/src/main/java/com/fongmi/android/tv/db/AppDatabase.java");
+
+        assertTrue(history.contains("@SerializedName(\"sourceBindingKey\")"));
+        assertTrue(history.contains("@ColumnInfo(defaultValue = \"\")\n    private String sourceBindingKey;"));
+        assertTrue(migration.contains("MIGRATION_46_47"));
+        assertTrue(migration.contains("ALTER TABLE History ADD COLUMN `sourceBindingKey` TEXT DEFAULT ''"));
+        assertTrue(database.contains("VERSION = 47"));
+        assertTrue(database.contains("addMigrations(Migrations.MIGRATION_46_47)"));
+    }
+
     private static String read(String file) throws Exception {
         Path root = Files.exists(Path.of("app")) ? Path.of("") : Path.of("..");
         return Files.readString(root.resolve(file), StandardCharsets.UTF_8).replace("\r\n", "\n");
