@@ -9,9 +9,9 @@
 
 - 目标：按阶段 A–E 完成 WebHTV 原生与内置 Web 的语义视觉统一，阶段 F 仅保留清理与独立审批的高级主题入口。
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
-- 当前证据：阶段 A–D 均已独立提交并打 recovery tag；阶段 E 已把 `ui.css`、reader HTML 与内置 Eclipse WebHome 页面接入 `--webhtv-*` 语义 token，并让 `theme.info` 返回只读 token 快照。
-- 未验证项：阶段 E 尚未提交/tag；阶段 F 清理尚未执行。管理页、reader、WebHome 的浏览器三页面截图对比仍未完成，仅完成静态检查、单元测试与模拟器 App 启动验证。
-- 下一步唯一动作：提交阶段 E 并生成 recovery tag，然后执行阶段 F 的冗余资源清理与最终全量 strict 检查。
+- 当前证据：阶段 A–E 均已独立提交并打 recovery tag；阶段 F 已把剩余可语义化的 13 个颜色状态列表与 6 个布局迁到 token，并对 189 个品牌图标、lab、播放器/沉浸层旧 drawable 做逐文件精确 allowlist，strict 检查达到零未豁免。
+- 未验证项：管理页、reader、WebHome 的浏览器三页面截图对比与播放器长时/字幕/音轨/倍速回归仍未完整覆盖；高级主题编辑器按计划继续延后，需独立审批。
+- 下一步唯一动作：提交阶段 F 并生成 recovery tag，随后按验收矩阵补充人工视觉回归与高级主题独立审批。
 
 ### 阶段 A 实施记录（2026-09-20）
 
@@ -57,6 +57,15 @@
 - 自动化证据：新增 `WebThemeTokenSourceTest` 并连同 `WebTheme*`、`Theme*` 测试全部通过；mobile/leanback arm64 debug Java 编译通过。
 - 设备证据：dev3 `192.168.50.3:5559` 覆盖安装后启动 `HomeActivityCurrent`，`FATAL EXCEPTION=0`；截图见 `/tmp/webhtv-e-home.png`。管理页与 reader 的真实浏览器截图仍作为最终人工验收项记录。
 - 回滚锚点：仅回滚阶段 E 提交即可恢复阶段 D 的原生视觉与旧 Web CSS；不影响原生 token、播放器或数据。
+
+### 阶段 F 实施记录（2026-09-21）
+
+- 静态清理：将 `about_*`、`selector_card`、`selector_*`、`site_button_*`、`sync_device_*` 等 13 个颜色状态列表，以及 lab/cat-web/reader/remote-trust/TV video 等 6 个布局中的业务色迁到共享语义 attr。
+- 资产豁免：为 189 个无法在阶段 F 安全语义化的历史 drawable 逐文件登记 allowlist，分类为品牌/图标矢量、lab 开发工具色、播放器/沉浸层半透明覆盖、旧状态列表和待拆分的旧 shape；不使用目录通配，新增文件仍会被 strict 检查拦截。
+- 静态证据：`scripts/check_ui_tokens.sh --strict` 输出 `violations=0 legacy=0`、`hex_layouts=0 hex_drawables=0 hex_colors=0`、allowlisted=191，38 组对比度全部通过；`git diff --check` 通过。
+- 自动化证据：`UiStyleSourceTest`、`WebThemeTokenSourceTest`、`ThemeResolverTest`、`ThemeContractTest` 全部通过；mobile/leanback arm64 debug Java 编译通过。
+- 高级主题：按设计文档继续延后，需独立审批；本阶段没有引入可写主题编辑器、远程 CSS 覆盖或新的原生主题写入接口。
+- 回滚锚点：仅回滚阶段 F 提交即可恢复阶段 E 的残余 drawable 样式与检查器 allowlist；不涉及数据、播放器内核或依赖。
 
 ---
 
