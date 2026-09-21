@@ -1,8 +1,12 @@
 package com.fongmi.android.tv.ui.dialog;
 
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
 
 import androidx.fragment.app.FragmentActivity;
 import androidx.annotation.NonNull;
@@ -179,13 +183,20 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
         Window window = getDialog().getWindow();
         int screenWidth = ResUtil.getScreenWidth(requireContext());
         int screenHeight = ResUtil.getScreenHeight(requireContext());
-        int width = Math.min(screenWidth - ResUtil.dp2px(64), Math.max(ResUtil.dp2px(720), Math.round(screenWidth * 0.68f)));
-        int height = Math.min(screenHeight - ResUtil.dp2px(64), Math.max(ResUtil.dp2px(420), Math.round(screenHeight * 0.76f)));
-        window.setLayout(width, height);
+        int width = screenWidth - ResUtil.dp2px(64);
+        int height = screenHeight - ResUtil.dp2px(64);
+        WindowManager.LayoutParams params = window.getAttributes();
+        params.width = width;
+        params.height = height;
+        params.gravity = Gravity.CENTER;
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        window.getDecorView().setPadding(0, 0, 0, 0);
+        window.setAttributes(params);
+        window.setLayout(params.width, params.height);
         binding.getRoot().setMinimumHeight(height);
         ViewGroup.LayoutParams recyclerParams = binding.recycler.getLayoutParams();
         recyclerParams.height = 0;
-        if (recyclerParams instanceof androidx.appcompat.widget.LinearLayoutCompat.LayoutParams params) params.weight = 1;
+        if (recyclerParams instanceof androidx.appcompat.widget.LinearLayoutCompat.LayoutParams linearParams) linearParams.weight = 1;
         binding.recycler.setLayoutParams(recyclerParams);
     }
 }

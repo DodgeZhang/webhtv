@@ -93,10 +93,14 @@ public class InterfaceEntryInteractionTest {
 
         assertTrue(history.contains("ResUtil.getScreenWidth(requireContext())"));
         assertTrue(history.contains("ResUtil.getScreenHeight(requireContext())"));
-        assertTrue(history.contains("window.setLayout(width, height)"));
+        assertTrue(history.contains("int width = screenWidth - ResUtil.dp2px(64)"));
+        assertTrue(history.contains("window.getDecorView().setPadding(0, 0, 0, 0)"));
+        assertTrue(history.contains("window.setLayout(params.width, params.height)"));
         assertTrue(config.contains("ResUtil.getScreenWidth(requireContext())"));
         assertTrue(config.contains("ResUtil.getScreenHeight(requireContext())"));
-        assertTrue(config.contains("window.setLayout(width, maxHeight)"));
+        assertTrue(config.contains("int width = screenWidth - ResUtil.dp2px(64)"));
+        assertTrue(config.contains("window.getDecorView().setPadding(0, 0, 0, 0)"));
+        assertTrue(config.contains("window.setLayout(params.width, params.height)"));
         assertTrue(layout.contains("<com.fongmi.android.tv.ui.custom.CustomEditText\n            android:id=\"@+id/name\""));
         assertFalse(layout.contains("android:id=\"@+id/name\"\n            android:layout_width=\"wrap_content\""));
         assertTrue(layout.contains("android:nextFocusDown=\"@id/text\""));

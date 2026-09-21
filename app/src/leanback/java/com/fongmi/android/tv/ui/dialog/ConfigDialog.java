@@ -3,11 +3,15 @@ package com.fongmi.android.tv.ui.dialog;
 import android.app.Dialog;
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -279,9 +283,16 @@ public class ConfigDialog extends BaseAlertDialog {
         Window window = getDialog().getWindow();
         int screenWidth = ResUtil.getScreenWidth(requireContext());
         int screenHeight = ResUtil.getScreenHeight(requireContext());
-        int width = Math.min(screenWidth - ResUtil.dp2px(64), Math.max(ResUtil.dp2px(820), Math.round(screenWidth * 0.72f)));
-        int maxHeight = Math.min(screenHeight - ResUtil.dp2px(64), Math.round(screenHeight * 0.84f));
-        window.setLayout(width, maxHeight);
+        int width = screenWidth - ResUtil.dp2px(64);
+        int height = screenHeight - ResUtil.dp2px(64);
+        WindowManager.LayoutParams params = window.getAttributes();
+        params.width = width;
+        params.height = height;
+        params.gravity = Gravity.CENTER;
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        window.getDecorView().setPadding(0, 0, 0, 0);
+        window.setAttributes(params);
+        window.setLayout(params.width, params.height);
     }
 
     @Override
