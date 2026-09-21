@@ -1497,6 +1497,7 @@
     <string name="dialog_config_choose_failed">读不到所选内容，请重新选择包目录或 zip</string>
     <string name="dialog_config_name">请输入名称…</string>
     <string name="dialog_config_url">请输入地址…</string>
+    <string name="dialog_config_addresses">备用地址，每行一个…</string>
 
     <!-- Error -->
     <string name="error_config_get">配置取得失败</string>
