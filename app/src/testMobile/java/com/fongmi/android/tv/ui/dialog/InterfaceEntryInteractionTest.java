@@ -35,7 +35,8 @@ public class InterfaceEntryInteractionTest {
                 "app/src/mobile/java/com/fongmi/android/tv/ui/adapter/ConfigAdapter.java",
                 "app/src/leanback/java/com/fongmi/android/tv/ui/adapter/ConfigAdapter.java"}) {
             String source = read(file);
-            assertTrue(file, source.contains("holder.binding.delete.setVisibility(readOnly || current ? View.GONE : View.VISIBLE);"));
+            assertTrue(file, source.contains("holder.binding.delete.setVisibility(readOnly ? View.GONE : View.VISIBLE);"));
+            assertTrue(file, source.contains("holder.binding.delete.setAlpha(current ? 0.38f : 1f);"));
             assertTrue(file, source.contains("if (!current) listener.onTextClick(item);"));
         }
     }

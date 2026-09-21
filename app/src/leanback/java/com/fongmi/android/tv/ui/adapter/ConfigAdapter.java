@@ -67,6 +67,10 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
                 && TextUtils.equals(current.getInterfaceKey(), item.getInterfaceKey());
     }
 
+    public boolean isProtectedCurrent(Config item) {
+        return isCurrent(item);
+    }
+
     public int remove(Config item) {
         int position = mItems.indexOf(item);
         if (position == -1) return -1;
@@ -110,7 +114,8 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         holder.binding.text.setOnLongClickListener(v -> !current && listener.onTextLongClick(holder));
         holder.binding.edit.setVisibility(readOnly ? View.GONE : View.VISIBLE);
         holder.binding.edit.setOnClickListener(v -> listener.onEditClick(item));
-        holder.binding.delete.setVisibility(readOnly || current ? View.GONE : View.VISIBLE);
+        holder.binding.delete.setVisibility(readOnly ? View.GONE : View.VISIBLE);
+        holder.binding.delete.setAlpha(current ? 0.38f : 1f);
         holder.binding.delete.setOnClickListener(v -> listener.onDeleteClick(item));
     }
 

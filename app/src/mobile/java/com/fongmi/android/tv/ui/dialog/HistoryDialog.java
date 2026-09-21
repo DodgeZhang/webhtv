@@ -24,6 +24,7 @@ import com.fongmi.android.tv.databinding.DialogHistoryBinding;
 import com.fongmi.android.tv.impl.ConfigListener;
 import com.fongmi.android.tv.ui.adapter.ConfigAdapter;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
+import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -164,6 +165,10 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
 
     @Override
     public void onDeleteClick(Config item) {
+        if (adapter.isProtectedCurrent(item)) {
+            Notify.show(R.string.config_current_delete_message);
+            return;
+        }
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.config_delete_title)
                 .setMessage(getString(R.string.config_delete_message, item.getDesc()))
