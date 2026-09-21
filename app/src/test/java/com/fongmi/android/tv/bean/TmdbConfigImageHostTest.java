@@ -68,4 +68,14 @@ public class TmdbConfigImageHostTest {
         assertEquals("https://img.mirror.test", reloaded.getImageHost());
         assertTrue(saved.contains("img.mirror.test"));
     }
+    @Test
+    public void proxyBaseOverridesApiRequestBaseWithoutChangingConfiguredBase() {
+        TmdbConfig config = TmdbConfig.objectFrom("{\"apiBase\":\"https://api.tmdb.org/3\",\"proxyBase\":\"https://proxy.example.com/tmdb\",\"apiKey\":\"test-key\"}");
+
+        assertEquals("https://proxy.example.com/tmdb/3", config.getApiBase());
+        assertEquals("https://api.tmdb.org/3", config.getConfiguredApiBase());
+        assertEquals("https://proxy.example.com/tmdb", config.getProxyBase());
+        assertTrue(config.isProxyEnabled());
+    }
+
 }

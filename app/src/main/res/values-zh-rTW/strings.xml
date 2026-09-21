@@ -1833,6 +1833,8 @@
     <string name="dialog_tmdb_language_hint">例如 zh-CN</string>
     <string name="dialog_tmdb_api_host_label">API 域名</string>
     <string name="dialog_tmdb_api_host_hint">例如 https://api.tmdb.org</string>
+    <string name="dialog_tmdb_proxy_host_label">TMDB 代理位址（可選）</string>
+    <string name="dialog_tmdb_proxy_host_hint">例如 https://tmdb-proxy.example.com；填寫後 API 請求走此位址</string>
     <string name="dialog_tmdb_image_host_label">圖片域名</string>
     <string name="dialog_tmdb_image_host_hint">例如 https://images.tmdb.org</string>
     <string name="dialog_tmdb_section_data">數據源</string>

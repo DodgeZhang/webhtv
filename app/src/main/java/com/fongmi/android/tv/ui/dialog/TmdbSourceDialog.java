@@ -47,6 +47,7 @@ public class TmdbSourceDialog {
     private EditText apiKeyInput;
     private EditText languageInput;
     private EditText apiHostInput;
+    private EditText proxyHostInput;
     private EditText imageHostInput;
     private EditText omdbApiKeyInput;
     private Runnable onDismiss;
@@ -78,6 +79,7 @@ public class TmdbSourceDialog {
         apiKeyInput = view.findViewById(R.id.apiKeyInput);
         languageInput = view.findViewById(R.id.languageInput);
         apiHostInput = view.findViewById(R.id.apiHostInput);
+        proxyHostInput = view.findViewById(R.id.proxyHostInput);
         imageHostInput = view.findViewById(R.id.imageHostInput);
         omdbApiKeyInput = view.findViewById(R.id.omdbApiKeyInput);
         EditText ruleInput = view.findViewById(R.id.ruleInput);
@@ -105,6 +107,7 @@ public class TmdbSourceDialog {
         apiKeyInput.setText(TextUtils.isEmpty(config.getAccessToken()) ? config.getApiKey() : config.getAccessToken());
         languageInput.setText(config.getLanguage());
         apiHostInput.setText(config.getApiHost());
+        proxyHostInput.setText(config.getProxyBase());
         imageHostInput.setText(config.getImageHost());
         omdbApiKeyInput.setText(config.getOmdbApiKey());
         updateChipsDisplay();
@@ -260,6 +263,7 @@ public class TmdbSourceDialog {
         }
         if (!TextUtils.isEmpty(apiHost)) {
             sb.append("\"apiBase\":\"").append(escape(apiHost)).append("\",");
+            sb.append("\"proxyBase\":\"").append(escape(text(proxyHostInput))).append("\",");
         }
         // Always persist image host when provided so sanitize can normalize scheme/size.
         if (!TextUtils.isEmpty(imageHost)) {

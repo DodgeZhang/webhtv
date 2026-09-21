@@ -2005,6 +2005,8 @@
     <string name="dialog_tmdb_language_hint">For example zh-CN</string>
     <string name="dialog_tmdb_api_host_label">API host</string>
     <string name="dialog_tmdb_api_host_hint">For example https://api.tmdb.org</string>
+    <string name="dialog_tmdb_proxy_host_label">TMDB proxy address (optional)</string>
+    <string name="dialog_tmdb_proxy_host_hint">For example https://tmdb-proxy.example.com; when set, API requests use this address</string>
     <string name="dialog_tmdb_image_host_label">Image host</string>
     <string name="dialog_tmdb_image_host_hint">For example https://images.tmdb.org</string>
     <string name="dialog_tmdb_section_data">Data source</string>

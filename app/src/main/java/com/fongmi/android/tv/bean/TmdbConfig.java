@@ -40,6 +40,8 @@ public class TmdbConfig {
 
     @SerializedName("apiBase")
     private String apiBase;
+    @SerializedName(value = "proxyBase", alternate = {"proxyHost", "tmdbProxy", "tmdbProxyBase"})
+    private String proxyBase;
     @SerializedName("apiKey")
     private String apiKey;
     @SerializedName(value = "apikey", alternate = {"api_key", "tmdbApiKey", "key"})
@@ -108,6 +110,7 @@ public class TmdbConfig {
     public TmdbConfig sanitize() {
         if (TextUtils.isEmpty(credentialOrigin)) credentialOrigin = ORIGIN_USER;
         apiBase = normalizeApiBase(trimOr(apiBase, DEFAULT_API_BASE));
+        proxyBase = normalizeOptionalBase(proxyBase);
         apiKey = trimOr(apiKey, trimOr(apiKeyCompat, ""));
         apiKeyCompat = apiKey;
         accessToken = trimOr(accessToken, "");
@@ -134,7 +137,19 @@ public class TmdbConfig {
     }
 
     public String getApiBase() {
+        return TextUtils.isEmpty(proxyBase) ? apiBase : normalizeApiBase(proxyBase);
+    }
+
+    public String getConfiguredApiBase() {
         return apiBase;
+    }
+
+    public String getProxyBase() {
+        return proxyBase;
+    }
+
+    public boolean isProxyEnabled() {
+        return !TextUtils.isEmpty(proxyBase);
     }
 
     public String getApiHost() {
@@ -285,6 +300,13 @@ public class TmdbConfig {
 
     private static String trimOr(String value, String fallback) {
         return TextUtils.isEmpty(value) ? fallback : value.trim();
+    }
+
+    private static String normalizeOptionalBase(String value) {
+        String normalized = trimOr(value, "");
+        if (TextUtils.isEmpty(normalized)) return "";
+        normalized = ensureHttpScheme(normalized);
+        return isHttpUrl(normalized) ? trimTrailingSlash(normalized) : "";
     }
 
     private static String normalizeApiBase(String value) {
