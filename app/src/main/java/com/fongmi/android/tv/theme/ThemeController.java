@@ -1,5 +1,6 @@
 package com.fongmi.android.tv.theme;
 
+import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Build;
@@ -42,6 +43,19 @@ public final class ThemeController {
 
     public static ThemeTokens current() {
         return current;
+    }
+
+    /**
+     * Single source of truth for "the current app appearance is dark".
+     *
+     * <p>The Activity configuration already reflects a forced {@code theme_mode}, so
+     * ordinary UI must ask this method instead of reading the raw system night bit,
+     * which would contradict an explicit light/dark choice.
+     */
+    public static boolean isNight(Context context) {
+        Configuration configuration = context == null ? Resources.getSystem().getConfiguration()
+                : context.getResources().getConfiguration();
+        return (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     public static void refresh() {

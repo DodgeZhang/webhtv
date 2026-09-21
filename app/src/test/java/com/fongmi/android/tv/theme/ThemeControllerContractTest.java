@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.theme;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -81,6 +82,27 @@ public class ThemeControllerContractTest {
         String dialog = read("src/mobile/java/com/fongmi/android/tv/ui/dialog/AppearanceDialog.java");
         assertTrue(dialog.contains("ThemeController.current().colorOnSurface()"));
         assertTrue(dialog.contains("ThemeController.current().colorOnSurfaceVariant()"));
+    }
+
+    @Test
+    public void snapshotIsResolvedBeforeTheFirstContentView() throws Exception {
+        for (String flavour : new String[]{"mobile", "leanback"}) {
+            String source = read("src/" + flavour + "/java/com/fongmi/android/tv/ui/base/BaseActivity.java");
+            int apply = source.indexOf("ThemeController.applyFromPreferences(this);");
+            int content = source.indexOf("setContentView(");
+            assertTrue(flavour + " must apply the persisted snapshot", apply > 0);
+            assertTrue(flavour + " must set a content view", content > 0);
+            assertTrue(flavour + " must resolve the theme snapshot before its first content view", apply < content);
+        }
+    }
+
+    @Test
+    public void ordinaryUiNightDecisionComesFromTheThemeController() throws Exception {
+        String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
+        assertTrue(controller.contains("public static boolean isNight(Context context)"));
+        String chrome = read("src/mobile/java/com/fongmi/android/tv/ui/activity/WebHomeChromeController.java");
+        assertTrue(chrome.contains("ThemeController.isNight(activity)"));
+        assertFalse(chrome.contains("UI_MODE_NIGHT_MASK"));
     }
 
     private static String read(String path) throws Exception {

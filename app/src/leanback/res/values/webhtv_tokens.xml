@@ -32,6 +32,11 @@
     <color name="webhtv_color_surface_container_highest">#34393E</color>
     <color name="webhtv_color_on_surface">#E2E2E9</color>
     <color name="webhtv_color_on_surface_variant">#C4C6D0</color>
+    <!-- Alpha variants of webhtv_color_on_surface; keep the RGB in sync with the token. -->
+    <color name="webhtv_on_surface_20">#33E2E2E9</color>
+    <color name="webhtv_on_surface_70">#B3E2E2E9</color>
+    <color name="webhtv_on_surface_80">#CCE2E2E9</color>
+    <color name="webhtv_on_surface_90">#E6E2E2E9</color>
     <color name="webhtv_color_outline">#8E9099</color>
     <color name="webhtv_color_outline_variant">#44474F</color>
     <color name="webhtv_color_inverse_surface">#E2E2E9</color>

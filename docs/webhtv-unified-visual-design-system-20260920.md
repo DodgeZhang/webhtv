@@ -11,7 +11,19 @@
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
 - 当前证据：阶段 A–F 均已独立提交并打 recovery tag，后续回归修复也已提交；新增 `UiLayoutSourceTest` 固化海报/横向卡片比例、TV 卡片圆角族与图片文字 scrim，并补齐 `--webhtv-surface-variant`。
 - 未验证项：播放器长时/字幕/音轨/倍速回归与管理页、reader、WebHome 三页面浏览器视觉逐项人工验收仍需完成；高级主题编辑器按计划继续延后，需独立审批。
-- 下一步唯一动作：提交本轮布局契约与 surface-variant 修复并生成 recovery tag，随后按验收矩阵执行人工视觉回归记录。
+- 下一步唯一动作：Layer 1 主题来源整合（阶段 G）已实施并完成自动化/设备验收，等待用户确认设备表现后启动 Layer 2A。
+
+### 阶段 G（Layer 1 主题来源整合）实施记录（2026-09-21）
+
+- 任务：`L1-THEME-INTEGRATE-20260921`；详细设计、DoD 与验收证据见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md`。
+- 变更：mobile `Theme.Base` 继承 `Theme.WebHTV.Mobile`、leanback `Theme.Base` 继承 `Theme.WebHTV.TV` 并删除写死的白色 primary；`Theme.WebHTV` 补齐布局实际使用的 Material 角色（tertiary、surfaceDim/Bright、五级 surfaceContainer、surfaceVariant、inverse 三色、controlNormal、onBackground、windowBackground），Dialog/Overlay 同步补齐，页面与弹窗同源。
+- 修复既有缺陷：`3f3ab82b1f` 在 `app/src/leanback/res/layout/activity_video.xml` 引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 leanback 资源链接失败；本阶段新增这 4 个 attr 与对应 palette 资源（RGB 跟随 `onSurface` token，alpha `0x33/0xB3/0xCC/0xE6`），leanback 资源链接恢复通过。
+- 统一夜间判断：新增 `ThemeController.isNight(Context)`，`WebHomeChromeController.useDarkIcons()` 不再直读系统 night 位。
+- 静态证据：`scripts/check_ui_tokens.sh --strict` 输出 `violations=0 legacy=0`，38 组对比度 0 失败（min=4.28），`hex_layouts/hex_drawables/hex_colors` 均为 0，`allowlisted=191`。
+- 自动化证据：mobile 705 套件 / 4790 项 0 失败；leanback 614 套件 / 3917 项 0 失败；新增 `ThemeBaseWiringTest`（5 项）与 `ThemeControllerContractTest` 增补 2 项契约。
+- 设备证据：dev3 `192.168.50.3:5559`（API 28）按 `scripts/build_arm64_debug_install.sh` 覆盖安装 mobile 与 leanback，均冷启动成功、`FATAL EXCEPTION=0`；mobile 主色为 token 蓝 `#0B57D0`，leanback 为 `#A8C7FA`，不再回落 Material 基线紫。
+- 残余风险：未在真实播放器音频面板上确认 alpha 变体的渲染效果；未覆盖 Android 12+ 的 Dynamic Colors 优先级。
+- 回滚锚点：回退阶段 G 提交即可恢复原 `Theme.Base` 继承；无数据迁移。
 
 ### 阶段 A 实施记录（2026-09-20）
 

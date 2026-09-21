@@ -1,4 +1,8 @@
 <resources>
+    <!-- Single source of truth for Activity themes. Every Material color role that
+         layouts resolve through ?attr/color* must be mapped onto a webhtv token here,
+         otherwise the screen silently falls back to the Material baseline palette.
+         The flavour Theme.Base styles only inherit this theme and add window flags. -->
     <style name="Theme.WebHTV" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/webhtv_color_primary</item>
         <item name="colorOnPrimary">@color/webhtv_color_on_primary</item>
@@ -8,18 +12,37 @@
         <item name="colorOnSecondary">@color/webhtv_color_on_secondary</item>
         <item name="colorSecondaryContainer">@color/webhtv_color_secondary_container</item>
         <item name="colorOnSecondaryContainer">@color/webhtv_color_on_secondary_container</item>
+        <item name="colorTertiary">@color/webhtv_color_tertiary</item>
+        <item name="colorOnTertiary">@color/webhtv_color_on_tertiary</item>
         <item name="colorError">@color/webhtv_color_error</item>
         <item name="colorOnError">@color/webhtv_color_on_error</item>
         <item name="colorErrorContainer">@color/webhtv_color_error_container</item>
         <item name="colorOnErrorContainer">@color/webhtv_color_on_error_container</item>
         <item name="colorSurface">@color/webhtv_color_surface</item>
+        <item name="colorSurfaceDim">@color/webhtv_color_surface_dim</item>
+        <item name="colorSurfaceBright">@color/webhtv_color_surface_bright</item>
+        <item name="colorSurfaceContainerLowest">@color/webhtv_color_surface_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/webhtv_color_surface_container_low</item>
+        <item name="colorSurfaceContainer">@color/webhtv_color_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/webhtv_color_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/webhtv_color_surface_container_highest</item>
         <item name="colorOnSurface">@color/webhtv_color_on_surface</item>
         <item name="colorSurfaceVariant">@color/webhtv_color_surface_container</item>
         <item name="colorOnSurfaceVariant">@color/webhtv_color_on_surface_variant</item>
         <item name="colorOutline">@color/webhtv_color_outline</item>
         <item name="colorOutlineVariant">@color/webhtv_color_outline_variant</item>
+        <item name="colorSurfaceInverse">@color/webhtv_color_inverse_surface</item>
+        <item name="colorOnSurfaceInverse">@color/webhtv_color_inverse_on_surface</item>
+        <item name="colorPrimaryInverse">@color/webhtv_color_inverse_primary</item>
+        <item name="colorControlNormal">@color/webhtv_color_on_surface_variant</item>
         <item name="colorControlActivated">@color/webhtv_color_primary</item>
+        <item name="colorOnBackground">@color/webhtv_color_on_surface</item>
+        <item name="colorOnSurface_20">@color/webhtv_on_surface_20</item>
+        <item name="colorOnSurface_70">@color/webhtv_on_surface_70</item>
+        <item name="colorOnSurface_80">@color/webhtv_on_surface_80</item>
+        <item name="colorOnSurface_90">@color/webhtv_on_surface_90</item>
         <item name="android:colorBackground">@color/webhtv_color_surface</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
         <item name="android:navigationBarColor">@color/webhtv_color_surface</item>
         <item name="android:statusBarColor">@color/webhtv_color_surface</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.WebHTV.Dialog</item>
@@ -43,6 +66,19 @@
         <item name="colorOnSurface">@color/webhtv_color_on_surface</item>
         <item name="colorOnSurfaceVariant">@color/webhtv_color_on_surface_variant</item>
         <item name="colorPrimary">@color/webhtv_color_primary</item>
+        <item name="colorOnPrimary">@color/webhtv_color_on_primary</item>
+        <item name="colorSecondaryContainer">@color/webhtv_color_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/webhtv_color_on_secondary_container</item>
+        <item name="colorError">@color/webhtv_color_error</item>
+        <item name="colorOnError">@color/webhtv_color_on_error</item>
+        <item name="colorErrorContainer">@color/webhtv_color_error_container</item>
+        <item name="colorOnErrorContainer">@color/webhtv_color_on_error_container</item>
+        <item name="colorSurfaceContainer">@color/webhtv_color_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/webhtv_color_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/webhtv_color_surface_container_highest</item>
+        <item name="colorSurfaceVariant">@color/webhtv_color_surface_container</item>
+        <item name="colorOutline">@color/webhtv_color_outline</item>
+        <item name="colorOutlineVariant">@color/webhtv_color_outline_variant</item>
         <item name="colorControlNormal">@color/webhtv_color_on_surface_variant</item>
         <item name="colorControlActivated">@color/webhtv_color_primary</item>
     </style>
@@ -53,7 +89,20 @@
         <item name="colorOnSurfaceVariant">@color/webhtv_color_on_surface_variant</item>
         <item name="colorPrimary">@color/webhtv_color_primary</item>
         <item name="colorOnPrimary">@color/webhtv_color_on_primary</item>
+        <item name="colorSecondaryContainer">@color/webhtv_color_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/webhtv_color_on_secondary_container</item>
+        <item name="colorError">@color/webhtv_color_error</item>
+        <item name="colorOnError">@color/webhtv_color_on_error</item>
+        <item name="colorErrorContainer">@color/webhtv_color_error_container</item>
+        <item name="colorOnErrorContainer">@color/webhtv_color_on_error_container</item>
+        <item name="colorSurfaceContainer">@color/webhtv_color_surface_container</item>
         <item name="colorSurfaceContainerHigh">@color/webhtv_color_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/webhtv_color_surface_container_highest</item>
+        <item name="colorSurfaceVariant">@color/webhtv_color_surface_container</item>
+        <item name="colorOutline">@color/webhtv_color_outline</item>
+        <item name="colorOutlineVariant">@color/webhtv_color_outline_variant</item>
+        <item name="colorControlNormal">@color/webhtv_color_on_surface_variant</item>
+        <item name="colorControlActivated">@color/webhtv_color_primary</item>
         <item name="android:colorBackground">@color/webhtv_color_surface_container_high</item>
         <item name="android:textColorPrimary">@color/webhtv_color_on_surface</item>
         <item name="android:textColorSecondary">@color/webhtv_color_on_surface_variant</item>

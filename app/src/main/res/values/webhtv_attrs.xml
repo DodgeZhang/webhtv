@@ -48,4 +48,11 @@
     <attr name="webhtvColorHealthBad" format="color" />
     <attr name="webhtvColorOverlayLight" format="color" />
     <attr name="webhtvColorOverlayDark" format="color" />
+    <!-- onSurface at 20/70/80/90% alpha for text and strokes drawn directly over video.
+         Declared here because the player overlay cannot rely on ?attr/colorOnSurface alpha,
+         and the alpha variants must stay tied to the onSurface token per light/dark mode. -->
+    <attr name="colorOnSurface_20" format="color" />
+    <attr name="colorOnSurface_70" format="color" />
+    <attr name="colorOnSurface_80" format="color" />
+    <attr name="colorOnSurface_90" format="color" />
 </resources>
