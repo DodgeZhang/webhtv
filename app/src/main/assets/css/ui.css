@@ -6,6 +6,7 @@
     --webhtv-secondary-container: #DFE2E6;
     --webhtv-on-secondary-container: #191C1E;
     --webhtv-surface: #F8FAFD;
+    --webhtv-surface-variant: #E3E3DC;
     --webhtv-surface-container: #ECEEF4;
     --webhtv-surface-container-high: #E7E8EF;
     --webhtv-on-surface: #1A1C1E;
@@ -66,6 +67,7 @@
         --webhtv-secondary-container: #44474A;
         --webhtv-on-secondary-container: #E2E2E6;
         --webhtv-surface: #101418;
+        --webhtv-surface-variant: #414942;
         --webhtv-surface-container: #1F2428;
         --webhtv-surface-container-high: #2A2F34;
         --webhtv-on-surface: #E2E2E9;

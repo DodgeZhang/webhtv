@@ -9,5 +9,7 @@
     <dimen name="webhtv_size_button">48dp</dimen>
     <dimen name="webhtv_size_input_min_height">56dp</dimen>
     <dimen name="webhtv_size_tv_card_gap">20dp</dimen>
+    <dimen name="webhtv_card_radius_default">8dp</dimen>
+    <dimen name="webhtv_card_radius_large">12dp</dimen>
     <dimen name="webhtv_size_dialog_corner">22dp</dimen>
 </resources>

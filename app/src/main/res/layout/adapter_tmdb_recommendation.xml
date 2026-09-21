@@ -11,7 +11,7 @@
     android:focusableInTouchMode="true"
     android:stateListAnimator="@null"
     app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-    app:cardCornerRadius="8dp"
+    app:cardCornerRadius="@dimen/webhtv_card_radius_default"
     app:cardElevation="2dp"
     app:rippleColor="@android:color/transparent"
     app:strokeColor="?attr/colorOutlineVariant"

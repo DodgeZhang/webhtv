@@ -9,7 +9,7 @@
     android:focusable="true"
     android:stateListAnimator="@null"
     app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-    app:cardCornerRadius="14dp"
+    app:cardCornerRadius="@dimen/webhtv_card_radius_large"
     app:cardElevation="0dp"
     app:rippleColor="@android:color/transparent"
     app:strokeColor="?attr/colorOutlineVariant"

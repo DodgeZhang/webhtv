@@ -13,7 +13,7 @@
     android:foreground="@drawable/selector_episode_card"
     android:stateListAnimator="@null"
     app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-    app:cardCornerRadius="8dp"
+    app:cardCornerRadius="@dimen/webhtv_card_radius_default"
     app:cardElevation="0dp">
 
     <FrameLayout

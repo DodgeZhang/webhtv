@@ -9,9 +9,9 @@
 
 - 目标：按阶段 A–E 完成 WebHTV 原生与内置 Web 的语义视觉统一，阶段 F 仅保留清理与独立审批的高级主题入口。
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
-- 当前证据：阶段 A–E 均已独立提交并打 recovery tag；阶段 F 已把剩余可语义化的 13 个颜色状态列表与 6 个布局迁到 token，并对 189 个品牌图标、lab、播放器/沉浸层旧 drawable 做逐文件精确 allowlist，strict 检查达到零未豁免。
-- 未验证项：管理页、reader、WebHome 的浏览器三页面截图对比与播放器长时/字幕/音轨/倍速回归仍未完整覆盖；高级主题编辑器按计划继续延后，需独立审批。
-- 下一步唯一动作：提交阶段 F 并生成 recovery tag，随后按验收矩阵补充人工视觉回归与高级主题独立审批。
+- 当前证据：阶段 A–F 均已独立提交并打 recovery tag，后续回归修复也已提交；新增 `UiLayoutSourceTest` 固化海报/横向卡片比例、TV 卡片圆角族与图片文字 scrim，并补齐 `--webhtv-surface-variant`。
+- 未验证项：播放器长时/字幕/音轨/倍速回归与管理页、reader、WebHome 三页面浏览器视觉逐项人工验收仍需完成；高级主题编辑器按计划继续延后，需独立审批。
+- 下一步唯一动作：提交本轮布局契约与 surface-variant 修复并生成 recovery tag，随后按验收矩阵执行人工视觉回归记录。
 
 ### 阶段 A 实施记录（2026-09-20）
 
@@ -66,6 +66,13 @@
 - 自动化证据：`UiStyleSourceTest`、`WebThemeTokenSourceTest`、`ThemeResolverTest`、`ThemeContractTest` 全部通过；mobile/leanback arm64 debug Java 编译通过。
 - 高级主题：按设计文档继续延后，需独立审批；本阶段没有引入可写主题编辑器、远程 CSS 覆盖或新的原生主题写入接口。
 - 回滚锚点：仅回滚阶段 F 提交即可恢复阶段 E 的残余 drawable 样式与检查器 allowlist；不涉及数据、播放器内核或依赖。
+
+### 验收契约补强（2026-09-21）
+
+- 新增 `UiLayoutSourceTest`：固化 `adapter_tmdb_recommendation`、`adapter_tmdb_rail_item` 海报比例，`adapter_tmdb_recommendation_landscape`、`adapter_tmdb_video`、`adapter_episode_card` 横向比例，TV 卡片圆角族，以及卡片文字 scrim。
+- 新增卡片圆角 dimens：`webhtv_card_radius_default=8dp`、`webhtv_card_radius_large=12dp`，TMDB 卡片、TV 剧集卡片和追更卡片改引共享 dimen。
+- 补齐 `--webhtv-surface-variant` 的 light/dark 与 manage 页面值，修复旧 `--md-surface-variant` 悬空引用。
+- 浏览器截图：Chromium 1600x1200 已生成 `index/manage/reader/webhome/webhome-detail` 的 light/dark 截图于 `~/webhtv-shots/`；reader 在浏览器预览下依赖原生 bridge 占位，最终验收仍需设备内 WebView 场景。
 
 ---
 
