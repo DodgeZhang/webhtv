@@ -9,9 +9,9 @@
 
 - 目标：按阶段 A–E 完成 WebHTV 原生与内置 Web 的语义视觉统一，阶段 F 仅保留清理与独立审批的高级主题入口。
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
-- 当前证据：阶段 A/B/C 均已独立提交并打 recovery tag；阶段 D 已完成 TMDB 详情、卡片、图标、播放器控制与 OSD 的语义 token 迁移，播放器专用色与普通焦点色已隔离。
-- 未验证项：阶段 D 尚未提交/tag；阶段 E 尚未实施。播放器长时播放、字幕/音轨/倍速等完整交互回归与 Web 页面尚未覆盖。
-- 下一步唯一动作：提交阶段 D 并生成 recovery tag，然后开始阶段 E 的 Web 资源统一。
+- 当前证据：阶段 A–D 均已独立提交并打 recovery tag；阶段 E 已把 `ui.css`、reader HTML 与内置 Eclipse WebHome 页面接入 `--webhtv-*` 语义 token，并让 `theme.info` 返回只读 token 快照。
+- 未验证项：阶段 E 尚未提交/tag；阶段 F 清理尚未执行。管理页、reader、WebHome 的浏览器三页面截图对比仍未完成，仅完成静态检查、单元测试与模拟器 App 启动验证。
+- 下一步唯一动作：提交阶段 E 并生成 recovery tag，然后执行阶段 F 的冗余资源清理与最终全量 strict 检查。
 
 ### 阶段 A 实施记录（2026-09-20）
 
@@ -48,6 +48,15 @@
 - 自动化证据：`UiStyleSourceTest` 新增播放器隔离断言后与 `ThemeResolverTest`、`ThemeContractTest` 共 16 项全部通过；mobile/leanback arm64 debug Java 编译通过。
 - 设备证据：dev3 `192.168.50.3:5559` 进入 TMDB 详情并播放第一集，进入 `VideoActivity` 后 OSD 正常显示、控制层可用、`FATAL EXCEPTION=0`；截图见 `/tmp/webhtv-d-detail2.png`、`/tmp/webhtv-d-player-osd.png`。
 - 回滚锚点：仅回滚阶段 D 提交即可恢复阶段 C 的详情与播放器控制视觉，不涉及解码、渲染、字幕、音轨或网络路径。
+
+### 阶段 E 实施记录（2026-09-21）
+
+- 迁移范围：`assets/css/ui.css` 建立 `--webhtv-*` 基准 token、light/dark 与显式 `data-theme` 切换，旧 `--md-*` 保留为兼容别名；reader 与 Eclipse WebHome 页面将样式色值迁移为页面受控变量。
+- 原生桥接：`theme.info` 新增只读 `tokens` 字段，由 `ThemeWebBridge.snapshotJson(ThemeController.current())` 生成；Eclipse 首页/详情调用 `applyNativeTokens` 后设置 `data-theme-source="native"`，不提供写回原生主题的入口。
+- 静态证据：修正检查器使其真正扫描 `assets/**/*.{css,html}`；`scripts/check_ui_tokens.sh --stage E` 输出 `violations=0 legacy=0`、allowlist 2 项（reader TTS 主题数据与 Eclipse 占位海报渐变），对比度 38 组全部通过。
+- 自动化证据：新增 `WebThemeTokenSourceTest` 并连同 `WebTheme*`、`Theme*` 测试全部通过；mobile/leanback arm64 debug Java 编译通过。
+- 设备证据：dev3 `192.168.50.3:5559` 覆盖安装后启动 `HomeActivityCurrent`，`FATAL EXCEPTION=0`；截图见 `/tmp/webhtv-e-home.png`。管理页与 reader 的真实浏览器截图仍作为最终人工验收项记录。
+- 回滚锚点：仅回滚阶段 E 提交即可恢复阶段 D 的原生视觉与旧 Web CSS；不影响原生 token、播放器或数据。
 
 ---
 

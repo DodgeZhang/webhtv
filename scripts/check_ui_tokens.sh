@@ -164,11 +164,16 @@ resource_roots = [
     root / "app/src/main/res/layout", root / "app/src/mobile/res/layout", root / "app/src/leanback/res/layout",
     root / "app/src/main/res/drawable", root / "app/src/mobile/res/drawable", root / "app/src/leanback/res/drawable",
     root / "app/src/main/res/color",
+    root / "app/src/main/assets",
 ]
 resource_files = []
 for directory in resource_roots:
     if directory.is_dir():
-        resource_files.extend(directory.rglob("*.xml"))
+        if directory == root / "app/src/main/assets":
+            resource_files.extend(directory.rglob("*.css"))
+            resource_files.extend(directory.rglob("*.html"))
+        else:
+            resource_files.extend(directory.rglob("*.xml"))
 resource_files = sorted(set(resource_files))
 
 def in_stage(path):
@@ -193,12 +198,32 @@ layout_files = [p for p in resource_files if "/res/layout/" in relative(p)]
 drawable_files = [p for p in resource_files if "/res/drawable" in relative(p)]
 color_files = [p for p in resource_files if "/res/color/" in relative(p)]
 
+def asset_has_hex(path):
+    """Raw hex is only allowed on controlled token declarations and theme-color metadata."""
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if not hex_pattern.search(line):
+            continue
+        stripped = line.strip()
+        if stripped.startswith("--") and ":" in stripped:
+            continue
+        if '<meta name="theme-color"' in stripped:
+            continue
+        return True
+    return False
+
+
+def has_hex(path):
+    if path.suffix.lower() in {".css", ".html"} and "app/src/main/assets/" in relative(path):
+        return asset_has_hex(path)
+    return bool(hex_pattern.search(path.read_text(encoding="utf-8", errors="ignore")))
+
+
 def scan(files):
     hits = []
     for path in files:
         if path in {tokens_path, night_tokens_path} or allowed(path):
             continue
-        if hex_pattern.search(path.read_text(encoding="utf-8", errors="ignore")):
+        if has_hex(path):
             hits.append(relative(path))
     return hits
 
