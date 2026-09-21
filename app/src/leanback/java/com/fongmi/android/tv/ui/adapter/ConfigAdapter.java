@@ -30,6 +30,8 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
 
         boolean onTextLongClick(ViewHolder holder);
 
+        void onEditClick(Config item);
+
         void onDeleteClick(Config item);
     }
 
@@ -85,6 +87,8 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         holder.binding.text.setText(item.getDesc());
         holder.binding.text.setOnClickListener(v -> listener.onTextClick(item));
         holder.binding.text.setOnLongClickListener(v -> listener.onTextLongClick(holder));
+        holder.binding.edit.setVisibility(readOnly ? View.GONE : View.VISIBLE);
+        holder.binding.edit.setOnClickListener(v -> listener.onEditClick(item));
         holder.binding.delete.setVisibility(readOnly ? View.GONE : View.VISIBLE);
         holder.binding.delete.setOnClickListener(v -> listener.onDeleteClick(item));
     }

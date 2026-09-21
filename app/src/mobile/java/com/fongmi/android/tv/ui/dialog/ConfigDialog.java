@@ -14,6 +14,7 @@ import android.view.inputmethod.EditorInfo;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
@@ -40,6 +41,7 @@ public class ConfigDialog extends BaseAlertDialog {
     private Config config;
     private boolean append = true;
     private boolean edit;
+    private ConfigListener listener;
     private String ori;
     private int type;
 
@@ -67,8 +69,19 @@ public class ConfigDialog extends BaseAlertDialog {
         return this;
     }
 
+    public ConfigDialog target(Config config) {
+        this.config = config;
+        return this;
+    }
+
     public void show(Fragment fragment) {
+        listener = fragment instanceof ConfigListener ? (ConfigListener) fragment : null;
         show(fragment.getChildFragmentManager(), null);
+    }
+
+    public void show(FragmentActivity activity) {
+        listener = activity instanceof ConfigListener ? (ConfigListener) activity : null;
+        show(activity.getSupportFragmentManager(), null);
     }
 
     @Override
@@ -83,7 +96,7 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected void initView() {
-        config = getConfig();
+        if (config == null) config = edit ? getConfig() : Config.create(type);
         binding.title.setText(getDialogTitle());
         binding.positive.setText(edit ? R.string.dialog_edit : R.string.dialog_positive);
         binding.name.setText(config.getName());
@@ -190,7 +203,10 @@ public class ConfigDialog extends BaseAlertDialog {
             binding.url.requestFocus();
             return;
         }
-        ((ConfigListener) requireParentFragment()).setConfig(config);
+        ConfigListener target = listener;
+        if (target == null && getParentFragment() instanceof ConfigListener) target = (ConfigListener) getParentFragment();
+        if (target == null && requireActivity() instanceof ConfigListener) target = (ConfigListener) requireActivity();
+        if (target != null) target.setConfig(config);
         dismiss();
     }
 

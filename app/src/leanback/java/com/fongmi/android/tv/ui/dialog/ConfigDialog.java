@@ -75,8 +75,17 @@ public class ConfigDialog extends BaseAlertDialog {
         return this;
     }
 
+    public ConfigDialog target(Config config) {
+        this.config = config;
+        return this;
+    }
+
     public void show(FragmentActivity activity) {
         show(activity.getSupportFragmentManager(), null);
+    }
+
+    public void show(androidx.fragment.app.Fragment fragment) {
+        show(fragment.getChildFragmentManager(), null);
     }
 
     @Override
@@ -100,7 +109,7 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected void initView() {
-        config = getConfig();
+        if (config == null) config = edit ? getConfig() : Config.create(type);
         binding.name.setText(config.getName());
         binding.text.setText(url = config.getUrl());
         binding.text.setSelection(TextUtils.isEmpty(url) ? 0 : url.length());

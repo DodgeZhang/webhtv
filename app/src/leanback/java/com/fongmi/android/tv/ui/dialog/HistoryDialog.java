@@ -1,5 +1,7 @@
 package com.fongmi.android.tv.ui.dialog;
 
+import android.view.View;
+
 import androidx.fragment.app.FragmentActivity;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.ItemTouchHelper;
@@ -23,6 +25,7 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
     private ConfigAdapter adapter;
     private ConfigListener listener;
     private boolean readOnly;
+    private boolean manage;
     private int type;
     private ItemTouchHelper sortTouchHelper;
 
@@ -47,6 +50,11 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
 
     public HistoryDialog readOnly() {
         readOnly = true;
+        return this;
+    }
+
+    public HistoryDialog manage() {
+        manage = true;
         return this;
     }
 
@@ -76,8 +84,20 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
         binding.recycler.setItemAnimator(null);
         binding.recycler.setHasFixedSize(false);
         binding.recycler.addItemDecoration(new SpaceItemDecoration(1, 16));
-        binding.recycler.setAdapter(adapter.readOnly(readOnly).addAll(type, getConfig()));
+        binding.recycler.setAdapter(adapter.readOnly(readOnly).addAll(type, manage ? null : getConfig()));
+        binding.add.setVisibility(manage ? View.VISIBLE : View.GONE);
+        binding.add.setOnClickListener(v -> onAdd());
         if (type == 0 && !readOnly) attachSortHelper();
+    }
+
+    private void onAdd() {
+        ConfigDialog dialog = ConfigDialog.create();
+        if (type == 0) dialog.vod();
+        else if (type == 1) dialog.live();
+        else dialog.wall();
+        if (getParentFragment() != null) dialog.show(getParentFragment());
+        else dialog.show(requireActivity());
+        dismiss();
     }
 
     private void attachSortHelper() {
@@ -115,6 +135,17 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
     }
 
     @Override
+    public void onEditClick(Config item) {
+        ConfigDialog dialog = ConfigDialog.create().target(item).edit();
+        if (type == 0) dialog.vod();
+        else if (type == 1) dialog.live();
+        else dialog.wall();
+        if (getParentFragment() != null) dialog.show(getParentFragment());
+        else dialog.show(requireActivity());
+        dismiss();
+    }
+
+    @Override
     public void onDeleteClick(Config item) {
         androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.config_delete_title)
@@ -131,7 +162,7 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
     @Override
     public void onStart() {
         super.onStart();
-        if (adapter.getItemCount() == 0) dismiss();
+        if (adapter.getItemCount() == 0 && !manage) dismiss();
         else setWidth(0.4f);
     }
 }
