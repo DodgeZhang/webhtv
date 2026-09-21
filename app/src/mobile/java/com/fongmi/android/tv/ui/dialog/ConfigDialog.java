@@ -206,7 +206,7 @@ public class ConfigDialog extends BaseAlertDialog {
             Config exists = AppDatabase.get().getConfigDao().find(url, type);
             saved = exists != null ? exists.name(name).update() : Config.create(type).url(url).name(name).update();
         }
-        return saved.urls(addresses(url, addresses)).update();
+        return config = saved.urls(addresses(url, addresses)).update();
     }
 
     private List<String> addresses(String primary, String text) {

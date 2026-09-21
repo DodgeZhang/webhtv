@@ -28,6 +28,17 @@ public class ConfigDialogNamePersistenceTest {
         assertAddressEditor("app/src/leanback/java/com/fongmi/android/tv/ui/dialog/ConfigDialog.java");
     }
 
+    @Test
+    public void newlySavedConfigBecomesTheDialogPrefillSource() throws Exception {
+        assertSavedConfigBecomesCurrent("app/src/mobile/java/com/fongmi/android/tv/ui/dialog/ConfigDialog.java");
+        assertSavedConfigBecomesCurrent("app/src/leanback/java/com/fongmi/android/tv/ui/dialog/ConfigDialog.java");
+    }
+
+    private static void assertSavedConfigBecomesCurrent(String file) throws Exception {
+        String source = read(file);
+        assertTrue(file, source.contains("return config = saved.urls(addresses("));
+    }
+
     private static void assertAddressEditor(String file) throws Exception {
         String source = read(file);
         assertTrue(file, source.contains("binding.addresses.setText(addressesText(config));"));
