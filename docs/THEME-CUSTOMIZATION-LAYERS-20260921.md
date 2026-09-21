@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）已提交并打 recovery tag；Layer 2C 编辑器与预览已实施并通过自动化门禁（见 4.10）；Layer 2D（Web/备份收口）未启动。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。**设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：等待用户确认 Layer 2C 的编辑器交互（建议在实际设备上手工走一遍外观→主题编辑），随后启动 Layer 2D（Web 快照、备份兼容与设备收口）。
+- 下一步唯一动作：在可进入原生“外观”页的环境中执行第 4.7 节设备功能矩阵（模式/预设/单槽/透明度/取消/应用/重启/TV 遥控/WebHome/播放回归/连续 30 次切换），并把结果补入本节；在此之前 Layer 2 只能标记为“代码完成、设备验收未完成”。
 
 ---
 
@@ -632,6 +632,21 @@ Layer 2 DoD：
   - 新增字符串只有 `values/` 英文 base，`values-zh-rCN`/`values-zh-rTW` 走系统回退；建议随 Layer 2D 一并补齐中文翻译。
   - 颜色选择器与滑杆布局在小屏手机上的滚动/触控体验未实测。
 - 回滚锚点：回退 Layer 2C 提交即恢复原 14 色圆点 `ThemeDialog`；v2 profile 数据不受影响，Layer 2B 的运行时绑定继续可用。
+
+---
+
+### 4.11 Layer 2D 实施记录（2026-09-22）
+
+- 任务：`L2D-THEME-CLOSURE-20260922`。完成 Web 只读快照扩展、备份键闭环与文档收口；设备矩阵未完成（见下）。
+- Web 只读快照：`ThemeWebBridge.snapshotJson()` 在保留原 13 个字段与原 key 名不变的前提下，追加 `scrimOpacity` / `dialogOpacity` / `overlayOpacity` 三个两位小数字段。`HomeWebController` 通过既有 `root.add("tokens", ...)` 通道把快照交给内置与远程 WebTheme 页面，仍为**只读**，不新增任何 Web→native 写回能力。
+- 新增 `ThemeWebBridgeTokenTest`（5 项）：原 13 字段完整保留、`focusScale` 格式不变、三个透明度字段存在且格式稳定（两位小数、无本地化分隔符）、取值与 `ThemeTokens` 一致、快照不泄漏 profile/seed 内部结构（不含 seed/wallpaper/profile/webhtv-theme 字样）、null 输入回退 light。
+- 备份兼容：`Backup.APP_PREFS` 已含 `theme_mode`、`theme_profile_v2_json`、`theme_profile_v2_last_good`、`theme_profile_v2_schema`（Layer 2A 落地），随“设置”同步走；`BackupPreferenceFilterTest` 在 Layer 2A 与 Layer 2D 均覆盖。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*' --tests 'com.fongmi.android.tv.bean.BackupPreferenceFilterTest'` 全部通过；`scripts/check_ui_tokens.sh --strict` → `violations=0 legacy=0`、38 组对比度 0 失败。
+- **未完成项（Layer 2 收口的唯一缺口）**：4.7 节设备功能矩阵未执行。dev3 `192.168.50.3:5559` 的首页由内置 WebHome 接管（`web_home_fullscreen`/`web_home_theme_enabled` 两种偏好组合、`nav_position=1/2/4` 直接启动、底部导航点击均已尝试），原生“外观→主题色”入口在自动化路径下持续不可达；因此编辑器交互、WebHome 快照实测、备份恢复实测、重启保持与连续 30 次切换均**未验证**。
+- 残余风险：
+  - 新增编辑器字符串仅提供 `values/` 英文 base，中文本地化随设备验收一并补齐。
+  - 设备端未验证意味着 Layer 1–2 的“无播放回归”结论仍只有 Layer 1 的历史证据，Layer 2 绑定对播放器路径的实际影响未在设备上确认。
+- 回滚锚点：回退 Layer 2D 提交仅撤销 Web 快照的三个附加字段；旧 Web 页面按 key 读取，缺失即忽略，无数据迁移。
 
 ---
 

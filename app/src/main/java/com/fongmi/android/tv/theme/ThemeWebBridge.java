@@ -21,10 +21,22 @@ public final class ThemeWebBridge {
                 + ",\"success\":\"" + hex(safe.colorSuccess()) + "\""
                 + ",\"warning\":\"" + hex(safe.colorWarning()) + "\""
                 + ",\"focus\":\"" + hex(safe.colorFocus()) + "\""
-                + ",\"focusScale\":" + safe.focusScale() + "}";
+                + ",\"focusScale\":" + decimal(safe.focusScale())
+                + ",\"scrimOpacity\":" + decimal(alpha(safe.colorScrim()))
+                + ",\"dialogOpacity\":" + decimal(safe.dialogOpacity())
+                + ",\"overlayOpacity\":" + decimal(alpha(safe.colorOverlayLight())) + "}";
     }
 
     private static String hex(int color) {
         return String.format(java.util.Locale.US, "#%08X", color);
+    }
+
+    /** Alpha channel of a colour as a stable 2-decimal fraction. */
+    private static float alpha(int color) {
+        return ((color >>> 24) & 0xFF) / 255f;
+    }
+
+    private static String decimal(float value) {
+        return String.format(java.util.Locale.US, "%.2f", value);
     }
 }

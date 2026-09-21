@@ -11,7 +11,7 @@
 - 验收标准：每阶段满足对应 DoD、静态检查和编译；有设备要求的阶段完成代表场景且保持播放、分页、点击、网络和数据行为不回退；每阶段独立提交并生成 recovery tag。
 - 当前证据：阶段 A–F 均已独立提交并打 recovery tag，后续回归修复也已提交；新增 `UiLayoutSourceTest` 固化海报/横向卡片比例、TV 卡片圆角族与图片文字 scrim，并补齐 `--webhtv-surface-variant`。
 - 未验证项：播放器长时/字幕/音轨/倍速回归与管理页、reader、WebHome 三页面浏览器视觉逐项人工验收仍需完成；高级主题编辑器按计划继续延后，需独立审批。
-- 下一步唯一动作：Layer 1、Layer 2A、Layer 2B 与 Layer 2C（主题编辑器与实时预览，见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md` 第 4.10 节）均已实施并通过自动化门禁；Layer 2C 的真机交互验收因 dev3 首页被 WebHome 接管而尚未完成，待用户确认后启动 Layer 2D（Web/备份收口）。
+- 下一步唯一动作：Layer 1、Layer 2A–2D 的代码与自动化门禁均已落地（Layer 2D 见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md` 第 4.11 节）；Layer 2 的设备功能矩阵仍未执行，需在可进入原生“外观”页的环境中补做后才能宣称全局主题自定义完成。
 
 ### 阶段 G（Layer 1 主题来源整合）实施记录（2026-09-21）
 
@@ -53,6 +53,14 @@
 - 契约：`FollowingUiSourceTest` 增加模式极性断言——浅色面板不得含黑纱、暗色面板不得含浅色语义表面，并锁定 20/32% 与 45/60% 四档取值。
 - 残余风险：面板透明度叠加在任意壁纸上无法给出全局保证，浅色模式在极亮壁纸下次要文字对比度会低于 4.5:1；这是仓库既有的壁纸面板取舍（设置页行为相同），如需硬保证需改为不透明面板。
 - 回滚锚点：回退阶段 H2 提交即恢复阶段 H 的 80% 不透明语义表面；`color-night` 变体一并删除，无数据迁移。
+
+### 阶段 L（Layer 2D：Web 快照、备份与收口）实施记录（2026-09-22）
+
+- 任务：`L2D-THEME-CLOSURE-20260922`；完整契约与残余风险见 `docs/THEME-CUSTOMIZATION-LAYERS-20260921.md` 第 4.11 节。
+- 变更：`ThemeWebBridge.snapshotJson()` 在保持原 13 字段与 key 名不变的前提下追加 `scrimOpacity`/`dialogOpacity`/`overlayOpacity`；备份键由 Layer 2A 已纳入 `Backup.APP_PREFS`；新增 `ThemeWebBridgeTokenTest` 5 项。
+- 自动化证据：mobile/leanback theme + 备份定向单测全部通过；`scripts/check_ui_tokens.sh --strict` → `violations=0 legacy=0`、38 组对比度 0 失败。
+- 未完成项：Layer 2 设备功能矩阵未执行。dev3 首页被内置 WebHome 接管，原生外观入口在自动化路径下不可达；编辑器交互、WebHome 快照实测、备份恢复、重启保持与连续 30 次切换均未验证。
+- 回滚锚点：回退阶段 L 提交仅撤销 Web 快照三个附加字段，无数据迁移。
 
 ### 阶段 K（Layer 2C：主题编辑器与实时预览）实施记录（2026-09-22）
 
