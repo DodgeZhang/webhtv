@@ -89,4 +89,17 @@ public class TmdbConfigImageHostTest {
         assertEquals("https://cdn.example.com", config.getImageHost());
     }
 
+    @Test
+    public void customImageAndAutoRoutesArePersistedAndResolved() {
+        TmdbConfig custom = TmdbConfig.objectFrom("{\"apiBase\":\"https://custom-api.example/3\",\"imageBase\":\"https://custom-image.example/t/p/w342\",\"apiKey\":\"k\"}");
+        assertEquals("https://custom-api.example/3", custom.getApiBase());
+        assertEquals("https://custom-image.example/t/p/w342", custom.getImageBase());
+
+        TmdbConfig auto = TmdbConfig.objectFrom("{\"apiBase\":\"https://api.tmdb.org/3\",\"apiAuto\":true,\"imageBase\":\"https://images.tmdb.org/t/p/w342\",\"imageAuto\":true,\"apiKey\":\"k\"}");
+        assertTrue(auto.isApiAuto());
+        assertTrue(auto.isImageAuto());
+        assertEquals("https://api.tmdb.org/3", auto.getApiBase());
+        assertTrue(auto.getImageBase().contains("/t/p/w342"));
+    }
+
 }

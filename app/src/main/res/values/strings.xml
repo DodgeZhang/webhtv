@@ -2008,8 +2008,11 @@
     <string name="dialog_tmdb_image_direct">Official images (direct)</string>
     <string name="dialog_tmdb_api_itv666">itv666 API mirror</string>
     <string name="dialog_tmdb_api_direct">Official API (direct)</string>
+    <string name="dialog_tmdb_api_auto">Auto (latency priority, failover)</string>
+    <string name="dialog_tmdb_image_auto">Auto (latency priority)</string>
+    <string name="dialog_tmdb_image_wsrv">wsrv.nl image proxy</string>
     <string name="dialog_tmdb_api_host_hint">https://api.tmdb.org or choose a built-in mirror</string>
-    <string name="dialog_tmdb_proxy_host_help">API and image routes can be selected independently. The itv666 route has been tested with both TMDB JSON and image responses; custom endpoints are also supported.</string>
+    <string name="dialog_tmdb_proxy_host_help">API and image routes can be selected independently. Auto ranks the verified routes by latency and switches after failure; itv666 and wsrv.nl are included, and custom endpoints are supported.</string>
     <string name="dialog_tmdb_image_host_label">TMDB image route</string>
     <string name="dialog_tmdb_image_host_hint">For example https://images.tmdb.org</string>
     <string name="dialog_tmdb_section_data">Data source</string>

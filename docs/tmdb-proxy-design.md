@@ -83,3 +83,47 @@
 - 聚焦测试通过：`TmdbProxyTest`、`TmdbConfigImageHostTest`、`TmdbConfigEffectiveTest`、`TmdbConfigTestServiceTest`、`TmdbSourceDialogInflationContractTest`；最终 `BUILD SUCCESSFUL`。
 - 已使用 `scripts/build_arm64_debug_install.sh --flavor mobile --abi arm64-v8a --serial 192.168.50.3:5557` 构建 Debug 包；一次脚本守护进程在构建后被外部停止，随后使用同一 APK 通过 `adb install -r` 覆盖安装到 192.168.50.3:5557；运行时确认 API/图片为两个独立线路输入，并实际打开下拉查看线路；未卸载已有包，未生成正式包。
 - 已停止 Gradle 守护进程并清理临时截图、XML、上游临时仓库；当前状态：待本任务原子提交和恢复标签。
+
+## 自动线路与图片代理决策（2026-09-22）
+
+### 研究证据
+
+- OkHttp 官方 Calls 文档（`https://raw.githubusercontent.com/square/okhttp/master/docs/features/calls.md`，2026-09-22 访问）：OkHttp 会在连接失败时尝试可用的备用 route，但这里的 route 是同一 URL 的网络路径/IP，不会把一个 TMDB hostname 自动切换成另一个代理 hostname。结论：跨官方域名与 itv666 的故障切换必须由 WebHTV 的 TMDB 服务层实现。
+- 当前代码：`TmdbService.execute` 只对一个已经构造的 URL 发起一次请求；`TmdbConfig` 只提供单一 API/图片基址；`TmdbConfigTestService` 已有 API JSON、图片签名探测，可复用其响应判定。
+- 当前可用线路探测：官方 API/图片与 itv666 API/图片均已实测可用；Worker 池 TLS 连接 EOF，NAStool API 为 HTML 且图片 404，不进入自动候选池。
+
+### 方案比较与选择
+
+| 方案 | 结果 |
+| --- | --- |
+| 不增加自动 | 保持最小改动，但用户需要手动判断线路，无法处理运行中线路故障。 |
+| 只在 UI 测试时排序 | 能展示延迟，但运行中的请求失败仍不会切换，不能满足自动恢复。 |
+| 依赖 OkHttp 内置 retry | 只能覆盖同一 hostname 的备用 IP/route，不能覆盖 TMDB 官方与 itv666 两个不同域名。 |
+| **自动候选池 + 延迟排序 + 服务层故障切换** | 选择自动时探测官方/itv666，按成功延迟排序并缓存；请求失败按排序尝试下一个，失败线路短暂冷却，成功线路恢复健康。API 与图片各自独立，避免图片故障影响 API。 |
+
+### 约束、接受标准与回滚
+
+- API 自动候选：官方 API、itv666 API；图片自动候选：官方图片、itv666 图片；不重新加入 Worker/NAStool。
+- 自动探测必须验证有效响应：API 要求 TMDB configuration JSON，图片要求已知 PNG 签名；不能只以 HTTP 200 判断。
+- 探测/排序结果使用短 TTL 内存缓存，避免每次请求产生额外网络开销；失败线路使用短冷却，冷却后允许重新探测。
+- 非自动的官方、自定义和 itv666 线路保持单线路行为；自定义输入不得被归一化为空而静默回落官方。
+- `wsrv.nl/?url=https://image.tmdb.org` 作为图片 URL 包装代理处理：最终图片 URL 必须把 `/t/p/<size>/<path>` 放入 `url` 查询值，而不是追加到代理 URL 查询串之后。
+- 回滚路径：删除本任务提交即可恢复上一版 API/图片独立线路；历史 `apiBase`、`imageBase`、`proxyBase` 字段仍可读取。
+- 最小验证：自动候选 selector 的延迟排序/失败切换单测；MockWebServer 验证 API/图片 URL；聚焦 Debug 单测和 Android 9 覆盖安装检查。
+
+## 自动线路与 wsrv 实施记录（2026-09-22）
+
+- API 新增“自动（低延迟优先，失败切换）”：候选为官方 API 与 itv666；实际请求成功记录耗时，失败线路进入 30 秒冷却，自动请求按健康状态/延迟排序。
+- 图片新增“自动（低延迟优先）”：候选为官方图片、itv666、wsrv.nl；`ImgUtil` 加载失败时自动生成下一个候选 URL 重试，并记录图片线路健康状态。
+- 新增 `wsrv.nl` 图片预设，正确生成 `https://wsrv.nl/?url=https://image.tmdb.org/t/p/<size>/<path>`，不会把路径错误地拼到代理域名之后。
+- 修复自定义线路保存：API 自定义值写入 `apiBase`，图片自定义值写入 `imageBase`；自动状态由 `apiAuto`/`imageAuto` 持久化，重新打开配置仍能显示原选择。
+- 自动配置保存后在后台执行一次 API/图片有效响应探测，用于初始化延迟排序；不会阻塞配置保存。
+- 聚焦测试通过：线路排序/冷却、wsrv URL、自动配置和既有 TMDB 配置测试；Mobile ARM64 Debug 构建和 192.168.50.3:5557 覆盖安装通过。
+
+## 自动与 wsrv 最终验证记录（2026-09-22）
+
+- API/图片自动选项已加入下拉；保存为 `apiAuto`/`imageAuto`，重新打开配置仍显示自动选项。
+- API 自动：官方 API 与 itv666 之间按成功延迟排序；TMDB 服务请求遇到网络异常、非 2xx（401/403 除外）会切换下一个候选；成功/失败写入短期健康缓存。
+- 图片自动：官方图片、itv666、wsrv.nl 按探测延迟排序；图片加载失败时生成下一候选 URL 重试，并记录短期冷却。
+- 自定义 API/图片线路仍直接保存到 `apiBase`/`imageBase`，不再被静默丢弃。
+- wsrv 实测 URL：`https://wsrv.nl/?url=https://image.tmdb.org/t/p/w342/wwemzKWzjKYJFfCeiB57q3r4Bcm.png` 返回 `200 image/png`。

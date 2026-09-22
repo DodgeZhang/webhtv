@@ -26,10 +26,13 @@ public class TmdbProxyTest {
 
     @Test
     public void exposesOnlyTestedBuiltInApiAndImageRoutes() {
-        assertEquals(2, TmdbProxy.apiOptions().size());
-        assertEquals(2, TmdbProxy.imageOptions().size());
+        assertEquals(3, TmdbProxy.apiOptions().size());
+        assertEquals(4, TmdbProxy.imageOptions().size());
         assertEquals(TmdbProxy.ITV666, TmdbProxy.valueForInput("itv666 API 代理", TmdbProxy.apiOptions()));
-        assertEquals("itv666 图片代理", TmdbProxy.displayFor(TmdbProxy.ITV666, TmdbProxy.imageOptions()));
+        assertEquals("itv666 图片代理", TmdbProxy.displayImage(TmdbProxy.ITV666));
+        assertEquals("wsrv.nl 图片代理", TmdbProxy.displayImage(TmdbProxy.WSRV_IMAGE));
+        assertEquals("https://wsrv.nl/?url=https://image.tmdb.org/t/p/w342/poster.png",
+                TmdbProxy.imageUrl(TmdbProxy.imageBaseFor(TmdbProxy.WSRV_IMAGE, "w342"), "/poster.png"));
     }
 
     @Test
@@ -40,4 +43,12 @@ public class TmdbProxyTest {
         assertFalse(TmdbProxy.isOfficialApiHost("https://mirror.example.com"));
         assertFalse(TmdbProxy.isOfficialImageHost("https://mirror.example.com"));
     }
+    @Test
+    public void autoAndWsrvRoutesNormalizeForRuntime() {
+        assertTrue(TmdbProxy.isAuto(TmdbProxy.AUTO));
+        assertEquals("https://api.tmdb.org/3", TmdbProxy.apiBaseFor(TmdbProxy.OFFICIAL_API));
+        assertEquals("https://wsrv.nl/?url=https://image.tmdb.org/t/p/w342/poster.png",
+                TmdbProxy.imageUrl(TmdbProxy.imageBaseFor(TmdbProxy.WSRV_IMAGE, "w342"), "/poster.png"));
+    }
+
 }

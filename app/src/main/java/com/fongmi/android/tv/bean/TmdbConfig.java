@@ -41,6 +41,8 @@ public class TmdbConfig {
 
     @SerializedName("apiBase")
     private String apiBase;
+    @SerializedName("apiAuto")
+    private Boolean apiAuto;
     @SerializedName(value = "proxyBase", alternate = {"proxyHost", "tmdbProxy", "tmdbProxyBase"})
     private String proxyBase;
     @SerializedName("apiKey")
@@ -55,6 +57,8 @@ public class TmdbConfig {
     private String language;
     @SerializedName("imageBase")
     private String imageBase;
+    @SerializedName("imageAuto")
+    private Boolean imageAuto;
     @SerializedName("backdropBase")
     private String backdropBase;
     @SerializedName(value = "enabledSites", alternate = {"siteKeys", "sites", "matchSites"})
@@ -99,6 +103,8 @@ public class TmdbConfig {
         if (snapshot != null && !snapshot.isEmpty() && isOfficialApiBase(DEFAULT_API_BASE)) {
             effective.apiBase = DEFAULT_API_BASE;
             effective.proxyBase = "";
+            effective.apiAuto = false;
+            effective.imageAuto = false;
             effective.resolvedProxyApiBase = null;
             effective.resolvedProxyImageBase = null;
             effective.apiKey = snapshot.getApiKey();
@@ -115,7 +121,22 @@ public class TmdbConfig {
 
     public TmdbConfig sanitize() {
         if (TextUtils.isEmpty(credentialOrigin)) credentialOrigin = ORIGIN_USER;
-        apiBase = normalizeApiBase(trimOr(apiBase, DEFAULT_API_BASE));
+        String rawApiBase = trimOr(apiBase, DEFAULT_API_BASE);
+        if (TmdbProxy.isAuto(rawApiBase)) {
+            apiBase = DEFAULT_API_BASE;
+            apiAuto = true;
+        } else {
+            apiBase = normalizeApiBase(rawApiBase);
+            if (apiAuto == null) apiAuto = false;
+        }
+        String rawImageBase = trimOr(imageBase, DEFAULT_IMAGE_BASE);
+        if (TmdbProxy.isAuto(rawImageBase)) {
+            imageBase = DEFAULT_IMAGE_BASE;
+            imageAuto = true;
+        } else {
+            imageBase = normalizeImageInput(rawImageBase);
+            if (imageAuto == null) imageAuto = false;
+        }
         String normalizedProxyBase = TmdbProxy.normalizeConfig(proxyBase);
         if (!TextUtils.equals(proxyBase, normalizedProxyBase)) {
             proxyBase = normalizedProxyBase;
@@ -128,12 +149,16 @@ public class TmdbConfig {
         if (!TextUtils.isEmpty(accessToken) && accessToken.equals(apiKey) && !isAccessToken(accessToken)) accessToken = "";
         omdbApiKey = trimOr(omdbApiKey, "");
         language = trimOr(language, DEFAULT_LANGUAGE);
-        imageBase = normalizeImageInput(trimOr(imageBase, DEFAULT_IMAGE_BASE));
         backdropBase = normalizeImageInput(trimOr(backdropBase, ""));
-        if (TextUtils.isEmpty(backdropBase) && isImageHost(imageBase)) backdropBase = imageBase(imageBase, "w780");
-        if (isImageHost(imageBase)) imageBase = imageBase(imageBase, "w342");
+        if (TmdbProxy.isImageWrapper(imageBase)) imageBase = TmdbProxy.imageWrapperBase(imageBase, "w342");
+        else {
+            if (TextUtils.isEmpty(backdropBase) && isImageHost(imageBase)) backdropBase = imageBase(imageBase, "w780");
+            if (isImageHost(imageBase)) imageBase = imageBase(imageBase, "w342");
+        }
+        if (TextUtils.isEmpty(backdropBase) && TmdbProxy.isImageWrapper(imageBase)) backdropBase = TmdbProxy.imageWrapperBase(imageBase, "w780");
         backdropBase = trimOr(backdropBase, DEFAULT_BACKDROP_BASE);
-        if (isImageHost(backdropBase) && !backdropBase.contains("/t/p/")) backdropBase = imageBase(backdropBase, "w780");
+        if (TmdbProxy.isImageWrapper(backdropBase)) backdropBase = TmdbProxy.imageWrapperBase(backdropBase, "w780");
+        else if (isImageHost(backdropBase) && !backdropBase.contains("/t/p/")) backdropBase = imageBase(backdropBase, "w780");
         enabledSites = cleanList(enabledSites);
         disabledSites = mergeList(cleanList(excludeKeywords), cleanList(disabledSites));
         excludeKeywords = null;
@@ -148,6 +173,10 @@ public class TmdbConfig {
     }
 
     public String getApiBase() {
+        if (isApiAuto()) {
+            String route = TmdbProxy.RouteSelector.preferred(TmdbProxy.RouteSelector.Kind.API, TmdbProxy.autoApiCandidates());
+            return TmdbProxy.apiBaseFor(route);
+        }
         String proxy = resolvedProxyApiBase();
         return TextUtils.isEmpty(proxy) ? apiBase : normalizeApiBase(proxy);
     }
@@ -160,11 +189,36 @@ public class TmdbConfig {
         return proxyBase;
     }
 
+    public boolean isApiAuto() {
+        return Boolean.TRUE.equals(apiAuto) || TmdbProxy.isAuto(proxyBase);
+    }
+
+    public List<String> getApiCandidates() {
+        if (isApiAuto()) {
+            List<String> routes = new ArrayList<>();
+            for (String candidate : TmdbProxy.RouteSelector.order(TmdbProxy.RouteSelector.Kind.API, TmdbProxy.autoApiCandidates())) {
+                routes.add(TmdbProxy.apiBaseFor(candidate));
+            }
+            return routes;
+        }
+        return List.of(getApiBase());
+    }
+
+    public List<String> getImageCandidates() {
+        if (isImageAuto()) return TmdbProxy.RouteSelector.order(TmdbProxy.RouteSelector.Kind.IMAGE, TmdbProxy.autoImageCandidates());
+        return List.of(getImageHost());
+    }
+
+    public boolean isImageAuto() {
+        return Boolean.TRUE.equals(imageAuto);
+    }
+
     public boolean isProxyEnabled() {
         return !TextUtils.isEmpty(proxyBase);
     }
 
     public String getApiHost() {
+        if (isApiAuto()) return TmdbProxy.AUTO;
         String api = TextUtils.isEmpty(apiBase) ? DEFAULT_API_BASE : apiBase;
         api = trimTrailingSlash(api);
         if (api.endsWith("/3")) api = api.substring(0, api.length() - 2);
@@ -188,6 +242,11 @@ public class TmdbConfig {
     }
 
     public String getImageBase() {
+        TmdbProxy.RouteSelector.setAuto(TmdbProxy.RouteSelector.Kind.IMAGE, isImageAuto());
+        if (isImageAuto()) {
+            String route = TmdbProxy.RouteSelector.preferred(TmdbProxy.RouteSelector.Kind.IMAGE, TmdbProxy.autoImageCandidates());
+            return TmdbProxy.imageBaseFor(route, "w342");
+        }
         return effectiveImageBase(imageBase, "w342");
     }
 
@@ -196,6 +255,11 @@ public class TmdbConfig {
     }
 
     public String getBackdropBase() {
+        TmdbProxy.RouteSelector.setAuto(TmdbProxy.RouteSelector.Kind.IMAGE, isImageAuto());
+        if (isImageAuto()) {
+            String route = TmdbProxy.RouteSelector.preferred(TmdbProxy.RouteSelector.Kind.IMAGE, TmdbProxy.autoImageCandidates());
+            return TmdbProxy.imageBaseFor(route, "w780");
+        }
         return effectiveImageBase(backdropBase, "w780");
     }
 
@@ -290,6 +354,7 @@ public class TmdbConfig {
     private TmdbConfig copy() {
         TmdbConfig copy = new TmdbConfig();
         copy.apiBase = apiBase;
+        copy.apiAuto = apiAuto;
         copy.proxyBase = proxyBase;
         copy.apiKey = apiKey;
         copy.apiKeyCompat = apiKeyCompat;
@@ -297,6 +362,7 @@ public class TmdbConfig {
         copy.omdbApiKey = omdbApiKey;
         copy.language = language;
         copy.imageBase = imageBase;
+        copy.imageAuto = imageAuto;
         copy.backdropBase = backdropBase;
         copy.enabledSites = copyList(enabledSites);
         copy.excludeKeywords = copyList(excludeKeywords);
@@ -338,6 +404,8 @@ public class TmdbConfig {
     }
 
     private static String imageHostFrom(String configured) {
+        if (TmdbProxy.isAuto(configured)) return TmdbProxy.AUTO;
+        if (TmdbProxy.isImageWrapper(configured)) return TmdbProxy.imageWrapperHost(configured);
         String base = TextUtils.isEmpty(configured) ? DEFAULT_IMAGE_BASE : configured;
         base = stripImageSize(base);
         if (base.endsWith("/t/p")) base = base.substring(0, base.length() - 4);
@@ -399,6 +467,7 @@ public class TmdbConfig {
     }
 
     private static String imageBase(String value, String size) {
+        if (TmdbProxy.isImageWrapper(value)) return TmdbProxy.imageWrapperBase(value, size);
         String image = stripImageSize(value);
         if (image.endsWith("/t/p")) return joinUrl(image, size);
         return joinUrl(joinUrl(image, "t/p"), size);
