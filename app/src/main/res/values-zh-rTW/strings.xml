@@ -1450,6 +1450,7 @@
     <string name="dialog_config_choose_failed">讀不到所選內容，請重新選擇包目錄或 zip</string>
     <string name="dialog_config_name">請輸入名稱…</string>
     <string name="dialog_config_url">請輸入網址…</string>
+    <string name="dialog_config_addresses">備用網址，每行一個…</string>
 
     <!-- Error -->
     <string name="error_config_get">配置取得失敗</string>
@@ -2447,6 +2448,7 @@
     <string name="dialog_delete_global_history">確定刪除所有點播設定的歷史記錄嗎？</string>
     <string name="config_delete_title">刪除播放源？</string>
     <string name="config_delete_message">確定刪除「%1$s」嗎？相關播放歷史也可能遺失，此操作無法復原。</string>
+    <string name="config_current_delete_message">目前接口正在使用中，請先切換到其他接口再刪除。</string>
     <string name="setting_home_history">首頁最近觀看</string>
     <string name="site_health_report_ad_blocked">播放 %1$d 次 / 廣告攔截 %2$d 次</string>
     <string name="setting_custom_csp_sort">排序</string>
