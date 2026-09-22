@@ -661,7 +661,8 @@ Layer 2 DoD：
   - Light `Primary=#FF0000` 可写入；点击 `Cancel` 后持久化 profile 未改变；点击 `Apply` 后写入，强杀重启后重新打开编辑器仍显示 `#FF0000`。
   - `Dialog opacity` 上界 `1.0` 可写入并持久化；Dark 编辑模式可切换，Dark `Primary=#00FF00` 写入后强杀重启仍保留。
   - 测试结束执行 `Reset to default`，profile 回到 `seedSource=none`、槽位为 `null`；设备 `FATAL EXCEPTION=0`。
-- 验证边界：本次修复的是主题编辑器入口和编辑器核心写盘/取消/重启路径，**不等于完成 4.7 节完整矩阵**。TV 遥控、WebHome 快照、备份恢复、动态 UI、播放回归和连续 30 次应用/取消仍需继续执行。
+  - 非法输入：`Primary` 选择器中输入 `#GGGGGG` 并点击 `Use this hex` 后不关闭、不写入，保留 `Enter #RRGGBB` 提示；随后取消编辑器，持久化 profile 仍为默认值。设置页 TAB/方向键焦点可连续移动经过点播、直播、壁纸、增强、TMDB、AI、个性、播放、去广告、弹幕、字幕、无痕、DoH、缓存、恢复和版本行，未出现崩溃。
+- 验证边界：本次修复的是主题编辑器入口和编辑器核心写盘/取消/重启/非法输入路径，**不等于完成 4.7 节完整矩阵**。TV 遥控焦点颜色、WebHome 快照、备份恢复、动态 UI、播放回归和连续 30 次应用/取消仍需继续执行。
 - 回滚锚点：回退本任务的 3 行 `HomeActivity` 改动即恢复原导航初始化行为；profile 数据格式和 Layer 2A–2D 逻辑不变。
 
 ---
