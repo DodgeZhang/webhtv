@@ -59,6 +59,8 @@ https://<你的 Worker 域名>/api/playback/sync
 
 内置服务端要求 `X-WebHTV-Token` 和 `X-WebHTV-Config-Key`。token 只用于计算不可逆的 Durable Object 分区名，不会以明文写入 SQLite 或日志；同一 token 下仍按 `configKey` 隔离不同点播接口。
 
+> **新版 App 的 configKey 变化**：自"稳定身份与多地址配置"功能起，App 不再用 `SHA-256(接口URL)` 作为 `configKey`，改为发送稳定的 `interfaceKey`（UUID 格式，如 `550e8400-e29b-41d4-a716-446655440000`）。Dashboard 和测试脚本已支持自动识别 UUID / 旧 SHA-256 / URL 三种格式。旧版 App 升级后，历史数据仍存储在旧 `SHA-256(url)` 命名空间下，新数据将写入 `interfaceKey` 命名空间。如需迁移，请在 App 中查看当前接口的 `interfaceKey` 并在 Dashboard 中直接粘贴。
+
 ### curl 联调
 
 写入一条进度：

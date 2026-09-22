@@ -341,10 +341,10 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     <div class="form-group">
       <label>Config Key 或 点播接口 URL</label>
       <div style="display:flex;gap:8px;">
-        <input type="text" id="loginConfigKey" class="form-input" placeholder="接口 URL 或 configKey (sha256)" value="" style="flex:1;">
+        <input type="text" id="loginConfigKey" class="form-input" placeholder="interfaceKey (UUID) 或 接口 URL" value="" style="flex:1;">
         <button type="button" class="btn" onclick="toggleConfigMode()" id="configModeBtn" style="white-space:nowrap;">URL→Key</button>
       </div>
-      <div class="form-hint" id="configKeyHint">App 中点播接口的 URL，控制台自动计算 configKey（与 App 自动携带的 X-WebHTV-Config-Key 一致）</div>
+      <div class="form-hint" id="configKeyHint">新版 App 发送稳定 interfaceKey（UUID 格式），直接粘贴即可。旧版可输入接口 URL 自动计算 SHA-256 configKey</div>
     </div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="doLogin()">
       🔗 连接
@@ -525,11 +525,11 @@ function updateConfigModeUI() {
   if (configKeyMode === 'url') {
     btn.textContent = 'URL→Key';
     input.placeholder = 'https://example.com/config.json';
-    hint.textContent = 'App 中点播接口的 URL，控制台自动计算 configKey（与 App 自动携带的 X-WebHTV-Config-Key 一致）';
+    hint.textContent = '旧版模式：输入接口 URL 自动计算 SHA-256 configKey。新版 App 推荐直接粘贴 interfaceKey';
   } else {
     btn.textContent = 'Key模式';
-    input.placeholder = 'a1b2c3d4...（64位 sha256）';
-    hint.textContent = '直接输入 configKey（sha256 哈希值），与 App 发送的 X-WebHTV-Config-Key 头完全一致';
+    input.placeholder = 'interfaceKey (UUID) 或 sha256 configKey';
+    hint.textContent = '直接输入 App 发送的 X-WebHTV-Config-Key 值。新版 App 为 interfaceKey（UUID），旧版为 64 位 SHA-256';
   }
 }
 
@@ -545,6 +545,10 @@ async function computeConfigKey(url) {
 // 判断输入是否已经是 configKey（64位十六进制 = sha256 结果）
 function isSha256Hex(value) {
   return /^[0-9a-f]{64}$/.test((value || '').trim().toLowerCase());
+}
+// 判断输入是否是 interfaceKey（UUID 格式，新版 App 稳定身份标记）
+function isInterfaceKey(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test((value || '').trim().toLowerCase());
 }
 
 function showLogin() {
@@ -562,14 +566,18 @@ async function doLogin() {
   // Token 留空时给出提示（无数据隔离，与其他无 Token 用户共享命名空间）
   if (!token) { showToast('当前使用无 Token 模式：与其他未配置 Token 的用户共享命名空间（无数据隔离）', 'warn'); }
 
-  // 智能识别：如果输入已经是 64 位 sha256，直接使用；否则按 URL 计算
+  // 智能识别：interfaceKey (UUID) > 旧 sha256 configKey > URL→sha256 计算 > 直接使用
   let configKey;
-  if (isSha256Hex(rawInput)) {
+  if (isInterfaceKey(rawInput)) {
+    // 新版 App 稳定身份标记（interfaceKey），直接使用
+    configKey = rawInput.toLowerCase();
+    showToast('已识别 interfaceKey: ' + configKey.substring(0, 13) + '...', 'info');
+  } else if (isSha256Hex(rawInput)) {
     configKey = rawInput.toLowerCase();
   } else if (configKeyMode === 'url' || rawInput.startsWith('http')) {
     configKey = await computeConfigKey(rawInput);
     if (!configKey) { showToast('Config Key 计算失败', 'error'); return; }
-    showToast('已从 URL 计算 configKey: ' + configKey.substring(0, 12) + '...', 'info');
+    showToast('已从 URL 计算 configKey（旧模式）: ' + configKey.substring(0, 12) + '...', 'warn');
   } else {
     // key 模式下输入了非 sha256 的值，当作普通 configKey 使用
     configKey = rawInput.toLowerCase();

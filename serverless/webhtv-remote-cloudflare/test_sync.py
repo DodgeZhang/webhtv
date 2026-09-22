@@ -1069,6 +1069,22 @@ def _compute_config_key(url):
 def _is_sha256_hex(value):
     return len(value) == 64 and all(c in '0123456789abcdef' for c in value.lower())
 
+def _is_interface_key(value):
+    """检测新版 App 的稳定身份标记 (interfaceKey, UUID 格式)"""
+    import re
+    return bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', (value or '').strip().lower()))
+
+def _smart_config_key(raw):
+    """智能识别 configKey：interfaceKey(UUID) > 旧 sha256 > URL→sha256 > 直接使用"""
+    raw = raw.strip()
+    if _is_interface_key(raw):
+        return raw.lower()
+    if _is_sha256_hex(raw):
+        return raw.lower()
+    if raw.startswith('http'):
+        return _compute_config_key(raw)
+    return raw.lower()
+
 def _load_config():
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -1176,8 +1192,11 @@ def run_gui():
         if not raw:
             messagebox.showinfo('提示', '请在 Config Key 输入框中填入点播接口 URL')
             return
+        if _is_interface_key(raw):
+            messagebox.showinfo('提示', f'输入已是新版 interfaceKey:\n{raw}')
+            return
         if _is_sha256_hex(raw):
-            messagebox.showinfo('提示', f'输入已经是 configKey:\n{raw}')
+            messagebox.showinfo('提示', f'输入已经是旧版 configKey:\n{raw}')
             return
         key = _compute_config_key(raw)
         configkey_var.set(key)
@@ -1185,7 +1204,7 @@ def run_gui():
 
     ttk.Button(config_frame, text='URL→SHA256', command=compute_key).grid(row=2, column=4, padx=4, pady=3)
 
-    ttk.Label(config_frame, text='（输入点播接口URL点"URL→SHA256"自动计算，或直接粘贴64位configKey）',
+    ttk.Label(config_frame, text='（新版 App: 直接粘贴 interfaceKey (UUID)；旧版: 输入URL点"URL→SHA256"计算）',
               foreground=FG_MUTED, font=('Microsoft YaHei UI', 8)).grid(row=3, column=1, columnspan=4, sticky='w', pady=(0, 2))
 
     ttk.Label(config_frame, text='（Token 留空 = 无 Token 模式，使用公共命名空间 user-no-token，与其他无 Token 用户共享数据）',
@@ -1242,17 +1261,14 @@ def run_gui():
             ):
                 return
 
-        # 智能识别：如果是 URL 则自动计算
-        if _is_sha256_hex(raw_ck):
-            config_key = raw_ck.lower()
-        elif raw_ck.startswith('http'):
-            config_key = _compute_config_key(raw_ck)
-            if not config_key:
-                messagebox.showerror('错误', 'Config Key 计算失败')
-                return
+        # 智能识别：interfaceKey(UUID) > 旧 sha256 > URL→sha256 > 直接使用
+        config_key = _smart_config_key(raw_ck)
+        if not config_key:
+            messagebox.showerror('错误', 'Config Key 识别失败')
+            return
+        # 如果是 URL 自动计算的，更新输入框
+        if raw_ck.startswith('http') and not _is_sha256_hex(raw_ck) and not _is_interface_key(raw_ck):
             configkey_var.set(config_key)
-        else:
-            config_key = raw_ck.lower()
 
         # 保存配置
         if save_cfg_var.get():
@@ -1524,11 +1540,16 @@ def _interactive_cli_mode():
         print('  ✗ Config Key 不能为空')
         sys.exit(1)
 
-    # 如果输入的是 URL，自动计算 SHA-256
-    if not _is_sha256_hex(config_key) and config_key.startswith('http'):
+    # 智能识别：interfaceKey(UUID) > 旧 sha256 > URL→sha256 > 直接使用
+    if _is_interface_key(config_key):
+        config_key = config_key.lower()
+        print(f'  → 已识别 interfaceKey: {config_key}')
+    elif not _is_sha256_hex(config_key) and config_key.startswith('http'):
         original = config_key
         config_key = _compute_config_key(config_key)
-        print(f'  → 已从 URL 计算 configKey: {config_key}')
+        print(f'  → 已从 URL 计算 configKey (旧模式): {config_key}')
+    else:
+        config_key = config_key.lower()
 
     # 保存配置
     try:
@@ -1578,9 +1599,14 @@ def main():
         parser.error('CLI 模式需要 --url, --config-key 参数（--token 可选，留空使用公共命名空间；无参数运行将启动 GUI）')
 
     config_key = args.config_key
-    if not _is_sha256_hex(config_key) and config_key.startswith('http'):
+    if _is_interface_key(config_key):
+        config_key = config_key.lower()
+        print(f'已识别 interfaceKey: {config_key}')
+    elif not _is_sha256_hex(config_key) and config_key.startswith('http'):
         config_key = _compute_config_key(config_key)
-        print(f'已从 URL 计算 configKey: {config_key}')
+        print(f'已从 URL 计算 configKey (旧模式): {config_key}')
+    else:
+        config_key = config_key.lower()
 
     tester = SyncTester(args.url, args.token, config_key.lower())
     ok = tester.run_all()
