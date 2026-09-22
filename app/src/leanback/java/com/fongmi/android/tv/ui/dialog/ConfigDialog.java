@@ -11,6 +11,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 
@@ -37,7 +38,6 @@ import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.QRCode;
-import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.utils.Path;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -293,6 +293,32 @@ public class ConfigDialog extends BaseAlertDialog {
         window.getDecorView().setPadding(0, 0, 0, 0);
         window.setAttributes(params);
         window.setLayout(params.width, params.height);
+        expandContentToWindow(width, height);
+    }
+
+    private void expandContentToWindow(int width, int height) {
+        View content = binding == null ? null : binding.getRoot();
+        if (content == null) return;
+        content.setMinimumWidth(width);
+        content.setMinimumHeight(height);
+        ViewGroup.LayoutParams contentParams = content.getLayoutParams();
+        if (contentParams != null) {
+            contentParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            contentParams.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            content.setLayoutParams(contentParams);
+        }
+        ViewParent parent = content.getParent();
+        while (parent instanceof ViewGroup group) {
+            group.setMinimumWidth(width);
+            group.setMinimumHeight(height);
+            ViewGroup.LayoutParams params = group.getLayoutParams();
+            if (params != null) {
+                params.width = ViewGroup.LayoutParams.MATCH_PARENT;
+                params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+                group.setLayoutParams(params);
+            }
+            parent = group.getParent();
+        }
     }
 
     @Override

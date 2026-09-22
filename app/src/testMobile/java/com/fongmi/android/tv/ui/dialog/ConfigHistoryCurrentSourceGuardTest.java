@@ -33,6 +33,11 @@ public class ConfigHistoryCurrentSourceGuardTest {
         assertTrue(source.contains("mItems.removeIf(item -> TextUtils.equals(item.getUrl(), currentUrl));"));
         assertTrue(source.contains("holder.binding.delete.setVisibility(readOnly ? View.GONE : View.VISIBLE);"));
         assertTrue(source.contains("holder.binding.delete.setAlpha(current ? 0.38f : 1f);"));
+        if (file.contains("leanback")) {
+            assertTrue(source.contains("holder.binding.text.setFocusable(true)"));
+            assertTrue(source.contains("KEYCODE_DPAD_DOWN"));
+            assertFalse(source.contains("holder.binding.text.setFocusable(!current)"));
+        }
         assertTrue(source.contains("if (!current) listener.onTextClick(item);"));
         assertFalse(source.contains("if (type != 0 && !readOnly && !TextUtils.isEmpty(currentUrl))"));
     }

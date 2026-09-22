@@ -42,6 +42,18 @@ public class InterfaceEntryInteractionTest {
     }
 
     @Test
+    public void leanbackCurrentConfigRemainsFocusableWithoutAllowingReuse() throws Exception {
+        String source = read("app/src/leanback/java/com/fongmi/android/tv/ui/adapter/ConfigAdapter.java");
+
+        assertTrue(source.contains("holder.binding.text.setEnabled(true)"));
+        assertTrue(source.contains("holder.binding.text.setFocusable(true)"));
+        assertTrue(source.contains("if (!current) listener.onTextClick(item);"));
+        assertTrue(source.contains("bindVerticalFocus(holder.binding.text, position)"));
+        assertTrue(source.contains("KEYCODE_DPAD_DOWN"));
+        assertFalse(source.contains("holder.binding.text.setFocusable(!current)"));
+    }
+
+    @Test
     public void newConfigStartsBlankWhileEditingKeepsTheSelectedConfig() throws Exception {
         for (String file : new String[]{
                 "app/src/mobile/java/com/fongmi/android/tv/ui/dialog/ConfigDialog.java",
@@ -108,6 +120,9 @@ public class InterfaceEntryInteractionTest {
         assertTrue(layout.contains("android:nextFocusDown=\"@id/choose\""));
         assertTrue(layout.contains("android:nextFocusRight=\"@id/negative\""));
         assertTrue(config.contains("binding.name.post(binding.name::requestFocus)"));
+        assertTrue(config.contains("expandContentToWindow(width, height)"));
+        assertTrue(config.contains("contentParams.width = ViewGroup.LayoutParams.MATCH_PARENT"));
+        assertTrue(config.contains("contentParams.height = ViewGroup.LayoutParams.MATCH_PARENT"));
     }
 
     private static String read(String file) throws Exception {

@@ -1,13 +1,16 @@
 package com.fongmi.android.tv.ui.adapter;
 
 import android.text.TextUtils;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewParent;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.setting.InterfaceOrderStore;
 import com.fongmi.android.tv.databinding.AdapterConfigBinding;
@@ -106,17 +109,57 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         Config item = mItems.get(position);
         boolean current = isCurrent(item);
         holder.binding.text.setText(item.getDesc());
-        holder.binding.text.setEnabled(!current);
-        holder.binding.text.setFocusable(!current);
+        // 当前接口不能重复执行“使用”，但必须保持可聚焦，否则遥控器向下移动时会
+        // 跳过整行，用户既看不到当前项焦点，也无法继续到它右侧的编辑/删除操作。
+        holder.binding.text.setEnabled(true);
+        holder.binding.text.setFocusable(true);
+        bindVerticalFocus(holder.binding.text, position);
         holder.binding.text.setOnClickListener(v -> {
             if (!current) listener.onTextClick(item);
         });
         holder.binding.text.setOnLongClickListener(v -> !current && listener.onTextLongClick(holder));
         holder.binding.edit.setVisibility(readOnly ? View.GONE : View.VISIBLE);
+        bindVerticalFocus(holder.binding.edit, position);
         holder.binding.edit.setOnClickListener(v -> listener.onEditClick(item));
         holder.binding.delete.setVisibility(readOnly ? View.GONE : View.VISIBLE);
         holder.binding.delete.setAlpha(current ? 0.38f : 1f);
+        bindVerticalFocus(holder.binding.delete, position);
         holder.binding.delete.setOnClickListener(v -> listener.onDeleteClick(item));
+    }
+
+    private void bindVerticalFocus(View view, int position) {
+        view.setOnKeyListener((source, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) return moveFocus(source, position + 1);
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return moveFocus(source, position - 1);
+            return false;
+        });
+    }
+
+    private boolean moveFocus(View source, int position) {
+        if (position < 0 || position >= getItemCount()) return false;
+        RecyclerView recycler = findRecycler(source);
+        if (recycler == null) return false;
+        requestFocus(recycler, position);
+        return true;
+    }
+
+    private void requestFocus(RecyclerView recycler, int position) {
+        Runnable focus = () -> {
+            RecyclerView.ViewHolder holder = recycler.findViewHolderForAdapterPosition(position);
+            if (holder == null) return;
+            View target = holder.itemView.findViewById(R.id.text);
+            if (target != null && target.getVisibility() == View.VISIBLE && target.isFocusable()) target.requestFocus();
+            else holder.itemView.requestFocus();
+        };
+        if (recycler.findViewHolderForAdapterPosition(position) == null) recycler.smoothScrollToPosition(position);
+        recycler.post(focus);
+    }
+
+    private RecyclerView findRecycler(View source) {
+        ViewParent parent = source.getParent();
+        while (parent != null && !(parent instanceof RecyclerView)) parent = parent.getParent();
+        return parent instanceof RecyclerView ? (RecyclerView) parent : null;
     }
 
     public class ViewHolder extends RecyclerView.ViewHolder {
