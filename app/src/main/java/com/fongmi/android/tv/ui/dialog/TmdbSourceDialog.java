@@ -184,8 +184,8 @@ public class TmdbSourceDialog {
 
     private String[] apiOptionLabels() {
         return new String[]{
-                activity.getString(R.string.dialog_tmdb_api_direct),
                 activity.getString(R.string.dialog_tmdb_api_auto),
+                activity.getString(R.string.dialog_tmdb_api_direct),
                 activity.getString(R.string.dialog_tmdb_api_itv666)
         };
     }
