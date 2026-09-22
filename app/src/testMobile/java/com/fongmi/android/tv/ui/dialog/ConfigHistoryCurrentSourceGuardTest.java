@@ -37,7 +37,11 @@ public class ConfigHistoryCurrentSourceGuardTest {
             assertTrue(source.contains("holder.binding.text.setFocusable(true)"));
             assertTrue(source.contains("KEYCODE_DPAD_DOWN"));
             assertFalse(source.contains("holder.binding.text.setFocusable(!current)"));
-            if (file.contains("leanback")) assertTrue(source.contains("recycler.postDelayed(focus, 120)"));
+            if (file.contains("leanback")) {
+                assertTrue(source.contains("recycler.stopScroll()"));
+                assertTrue(source.contains("recycler.postOnAnimation(focus)"));
+                assertFalse(source.contains("postDelayed(focus"));
+            }
         }
         assertTrue(source.contains("if (!current) listener.onTextClick(item);"));
         assertFalse(source.contains("if (type != 0 && !readOnly && !TextUtils.isEmpty(currentUrl))"));

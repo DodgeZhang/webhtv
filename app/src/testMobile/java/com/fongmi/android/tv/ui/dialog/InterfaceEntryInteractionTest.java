@@ -50,7 +50,11 @@ public class InterfaceEntryInteractionTest {
         assertTrue(source.contains("if (!current) listener.onTextClick(item);"));
         assertTrue(source.contains("bindVerticalFocus(holder.binding.text, position)"));
         assertTrue(source.contains("KEYCODE_DPAD_DOWN"));
-        assertTrue(source.contains("recycler.postDelayed(focus, 120)"));
+        assertTrue(source.contains("recycler.stopScroll()"));
+        assertTrue(source.contains("scrollToPositionWithOffset(position, recycler.getPaddingTop())"));
+        assertTrue(source.contains("recycler.postOnAnimation(focus)"));
+        assertFalse(source.contains("smoothScrollToPosition(position)"));
+        assertFalse(source.contains("postDelayed(focus"));
         assertFalse(source.contains("holder.binding.text.setFocusable(!current)"));
     }
 

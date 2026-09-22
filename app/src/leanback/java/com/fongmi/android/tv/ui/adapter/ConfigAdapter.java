@@ -8,6 +8,7 @@ import android.view.ViewParent;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.fongmi.android.tv.R;
@@ -152,10 +153,17 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
             if (target != null && target.getVisibility() == View.VISIBLE && target.isFocusable()) target.requestFocus();
             else holder.itemView.requestFocus();
         };
-        if (recycler.findViewHolderForAdapterPosition(position) == null) recycler.smoothScrollToPosition(position);
-        recycler.post(focus);
-        recycler.postDelayed(focus, 120);
-        recycler.postDelayed(focus, 260);
+        recycler.stopScroll();
+        if (recycler.findViewHolderForAdapterPosition(position) == null) {
+            RecyclerView.LayoutManager layoutManager = recycler.getLayoutManager();
+            if (layoutManager instanceof LinearLayoutManager linearLayoutManager) {
+                linearLayoutManager.scrollToPositionWithOffset(position, recycler.getPaddingTop());
+            } else if (layoutManager != null) {
+                layoutManager.scrollToPosition(position);
+            }
+        }
+        // 只在布局完成后请求一次焦点，避免平滑滚动和多次延迟回调互相抢焦点造成闪烁。
+        recycler.postOnAnimation(focus);
     }
 
     private RecyclerView findRecycler(View source) {
