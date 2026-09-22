@@ -277,7 +277,12 @@ export class WebHTVPlaybackSyncDO {
   }
 
   pull(request, url) {
-    const configKey = this.resolveAlias(requireConfigKey(request));
+    // rawConfigKey 是请求方声明的 configKey（可能是已被合并的别名）。
+    // 数据存储在别名目标空间，但返回给客户端时必须把 payload 中的 configKey
+    // 改写成客户端自己的 key——否则 APP 的 cidForKey(payload.configKey) 找不到
+    // 本机 Config，对方设备的记录会被判定为"接口不匹配"而丢弃。
+    const rawConfigKey = requireConfigKey(request);
+    const configKey = this.resolveAlias(rawConfigKey);
     const since = parseCursor(request.headers.get('x-webhtv-since') || url.searchParams.get('since'));
     const limit = parseLimit(request.headers.get('x-webhtv-limit') || url.searchParams.get('limit'));
 
@@ -304,7 +309,15 @@ export class WebHTVPlaybackSyncDO {
     const changes = [];
     for (const row of selected) {
       try {
-        changes.push(JSON.parse(row.payload));
+        const item = JSON.parse(row.payload);
+        // 把记录归属接口改写为请求方自己的 configKey。alias 场景下，存储的
+        // config_key 是别名目标，但客户端只认自己本机的 interfaceKey。
+        // config_key / interfaceKey / sourceConfigKey 一并改写以兼容不同字段名。
+        item.configKey = rawConfigKey;
+        if (typeof item.config_key !== 'undefined') item.config_key = rawConfigKey;
+        if (typeof item.interfaceKey !== 'undefined') item.interfaceKey = rawConfigKey;
+        if (typeof item.sourceConfigKey !== 'undefined') item.sourceConfigKey = rawConfigKey;
+        changes.push(item);
       } catch {
         // Ignore an individually corrupted row without breaking all other records.
       }
