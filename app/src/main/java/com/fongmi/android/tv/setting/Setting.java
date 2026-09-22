@@ -36,6 +36,7 @@ import com.github.catvod.crawler.DebugLogStore;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Trans;
 import com.github.catvod.utils.Prefers;
+import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
@@ -105,7 +106,10 @@ public class Setting {
     public static final int UI_SCALE_SMALLER = 3;
     public static final int UI_SCALE_MILD_COMPACT = 4;
     public static final int UI_SCALE_MORE_COMPACT = 5;
-    private static final int[] UI_SCALE_OPTIONS = {UI_SCALE_FOLLOW_SYSTEM, UI_SCALE_STANDARD, UI_SCALE_MILD_COMPACT, UI_SCALE_COMPACT, UI_SCALE_MORE_COMPACT, UI_SCALE_SMALLER};
+    public static final int UI_SCALE_LARGE = 6;
+    public static final int UI_SCALE_LARGER = 7;
+    public static final int UI_SCALE_LARGEST = 8;
+    private static final int[] UI_SCALE_OPTIONS = {UI_SCALE_FOLLOW_SYSTEM, UI_SCALE_SMALLER, UI_SCALE_MORE_COMPACT, UI_SCALE_COMPACT, UI_SCALE_MILD_COMPACT, UI_SCALE_STANDARD, UI_SCALE_LARGE, UI_SCALE_LARGER, UI_SCALE_LARGEST};
 
     public static final int WALL_CINEMA = 5;
     public static final int WALL_CINEMA_WARM = 6;
@@ -486,8 +490,11 @@ public class Setting {
         float factor = getUiScaleFactor(scale);
         Configuration config = new Configuration(context.getResources().getConfiguration());
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
-        int stableDensity = DisplayMetrics.DENSITY_DEVICE_STABLE > 0 ? DisplayMetrics.DENSITY_DEVICE_STABLE : metrics.densityDpi;
-        int densityDpi = Math.max(DisplayMetrics.DENSITY_LOW, Math.round(stableDensity * factor));
+        // Scale from the density currently selected by the system. Using the device's
+        // stable density makes the same option behave differently on phones, head units
+        // and virtual machines whose default display size overrides the stable density.
+        int baseDensity = metrics.densityDpi;
+        int densityDpi = Math.max(DisplayMetrics.DENSITY_LOW, Math.round(baseDensity * factor));
         config.densityDpi = densityDpi;
         config.fontScale = 1.0f;
         config.screenWidthDp = pxToDp(metrics.widthPixels, densityDpi);
@@ -498,11 +505,14 @@ public class Setting {
 
     public static float getUiScaleFactor(int scale) {
         return switch (scale) {
-            case UI_SCALE_STANDARD -> 0.8f;
-            case UI_SCALE_MILD_COMPACT -> 0.75f;
-            case UI_SCALE_COMPACT -> 0.7f;
-            case UI_SCALE_MORE_COMPACT -> 0.65f;
-            case UI_SCALE_SMALLER -> 0.6f;
+            case UI_SCALE_SMALLER -> 0.8f;
+            case UI_SCALE_MORE_COMPACT -> 0.85f;
+            case UI_SCALE_COMPACT -> 0.9f;
+            case UI_SCALE_MILD_COMPACT -> 0.95f;
+            case UI_SCALE_STANDARD -> 1.0f;
+            case UI_SCALE_LARGE -> 1.1f;
+            case UI_SCALE_LARGER -> 1.2f;
+            case UI_SCALE_LARGEST -> 1.3f;
             default -> 1.0f;
         };
     }
@@ -669,6 +679,20 @@ public class Setting {
 
     public static void logDebugEnvironment(String reason) {
         boolean hardwareAccelerated = (App.get().getApplicationInfo().flags & ApplicationInfo.FLAG_HARDWARE_ACCELERATED) != 0;
+        DebugLogStore.event(new com.github.catvod.crawler.diagnostics.DiagnosticEvent("env.device", "none", "process", 0, 0)
+                .observed("reason", reason).observed("appVersion", BuildConfig.VERSION_NAME).observed("versionCode", BuildConfig.VERSION_CODE)
+                .observed("buildTime", BuildConfig.BUILD_TIME).observed("buildTag", BuildConfig.BUILD_TAG)
+                .observed("gitRevision", BuildConfig.GIT_REVISION).observed("state", BuildConfig.GIT_STATE)
+                .observed("fingerprintDigest", com.fongmi.android.tv.player.NativeLibraryDiagnostics.digestText(Build.FINGERPRINT))
+                .observed("media3Version", BuildConfig.MEDIA3_VERSION).observed("flavor", BuildConfig.FLAVOR_mode)
+                .observed("abi", BuildConfig.FLAVOR_abi).observed("process64Bit", android.os.Process.is64Bit())
+                .observed("android", Build.VERSION.RELEASE).observed("api", Build.VERSION.SDK_INT)
+                .observed("targetSdk", App.get().getApplicationInfo().targetSdkVersion)
+                .observed("manufacturer", Build.MANUFACTURER).observed("model", Build.MODEL)
+                .observed("device", Build.DEVICE).observed("hardwareAccelerated", hardwareAccelerated)
+                .pin("device"));
+        com.fongmi.android.tv.player.NativeLibraryDiagnostics.request();
+        com.fongmi.android.tv.player.PlaybackDiagnosticSession.captureActive(android.os.SystemClock.elapsedRealtime());
         SpiderDebug.log("env", "reason=%s app=%s(%s) mode=%s abi=%s debug=%s hardware=%s android=%s sdk=%s incremental=%s manufacturer=%s brand=%s model=%s device=%s product=%s supportedAbis=%s",
                 reason,
                 BuildConfig.VERSION_NAME,
@@ -1130,6 +1154,10 @@ public class Setting {
         return isTmdbMode(getDetailOpenMode()) && getTmdbModel() == TMDB_MODEL_NATIVE && TmdbConfig.objectFrom(getTmdbConfig()).isReady();
     }
 
+    public static boolean isTmdbDetailModeConfigured() {
+        return isTmdbMode(getDetailOpenMode()) && getTmdbModel() == TMDB_MODEL_NATIVE;
+    }
+
     public static int getDetailOpenMode() {
         int mode;
         if (Prefers.getPrefers().contains("detail_open_mode")) {
@@ -1151,7 +1179,7 @@ public class Setting {
             mode = isTmdbEnabled() ? DETAIL_OPEN_ORIGINAL_ENHANCED : DETAIL_OPEN_DIRECT;
             migrateCurrentDetailTheme(mode);
         }
-        return isTmdbMode(mode) && !isTmdbReady() ? DETAIL_OPEN_DIRECT : mode;
+        return mode;
     }
 
     public static void putDetailOpenMode(int mode) {
@@ -1441,12 +1469,51 @@ public class Setting {
             case null, default -> false;
         };
     }
-    public static String getSubtitleAssrtToken() {
-        return Prefers.getString("subtitle_assrt_token");
+    public static String getSubtitleSourceEnvironment() {
+        String environment = Prefers.getString("subtitle_source_environment");
+        if (!environment.isEmpty()) return environment;
+        String legacyToken = Prefers.getString("subtitle_assrt_token");
+        if (legacyToken.isEmpty()) return "";
+        JsonObject migrated = new JsonObject();
+        migrated.addProperty("ASSRT_TOKEN", legacyToken);
+        environment = migrated.toString();
+        Prefers.put("subtitle_source_environment", environment);
+        Prefers.put("subtitle_assrt_token", "");
+        return environment;
     }
 
-    public static void putSubtitleAssrtToken(String token) {
-        Prefers.put("subtitle_assrt_token", token);
+    public static void putSubtitleSourceEnvironment(String environment) {
+        Prefers.put("subtitle_source_environment", environment == null ? "" : environment.trim());
+    }
+
+    public static String getSubtitleSourceEnvironment(String sourceKey) {
+        if (sourceKey == null || sourceKey.trim().isEmpty()) return "";
+        try {
+            JsonObject root = com.google.gson.JsonParser.parseString(getSubtitleSourceEnvironment()).getAsJsonObject();
+            if (root.has(sourceKey) && root.get(sourceKey).isJsonObject()) return root.getAsJsonObject(sourceKey).toString();
+            if ("assrt".equals(sourceKey) && root.has("ASSRT_TOKEN")) {
+                JsonObject migrated = new JsonObject();
+                migrated.add("ASSRT_TOKEN", root.get("ASSRT_TOKEN").deepCopy());
+                return migrated.toString();
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return "";
+    }
+
+    public static void putSubtitleSourceEnvironment(String sourceKey, String environment) {
+        if (sourceKey == null || sourceKey.trim().isEmpty()) return;
+        JsonObject root;
+        try {
+            root = com.google.gson.JsonParser.parseString(getSubtitleSourceEnvironment()).getAsJsonObject();
+        } catch (RuntimeException ignored) {
+            root = new JsonObject();
+        }
+        if ("assrt".equals(sourceKey)) root.remove("ASSRT_TOKEN");
+        String value = environment == null ? "" : environment.trim();
+        if (value.isEmpty()) root.remove(sourceKey);
+        else root.add(sourceKey, com.google.gson.JsonParser.parseString(value).getAsJsonObject());
+        putSubtitleSourceEnvironment(root.size() == 0 ? "" : root.toString());
     }
 
     public static int getSubtitleAiMaxConcurrency() {

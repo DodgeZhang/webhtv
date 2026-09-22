@@ -31,8 +31,6 @@ import com.github.catvod.crawler.SpiderDebug;
 public class PlaybackAnalyticsListener implements AnalyticsListener {
 
     private static volatile Snapshot snapshot = Snapshot.empty();
-    private static volatile AudioOutputSnapshot audioOutputSnapshot =
-            AudioOutputSnapshot.empty();
     private static volatile String playbackTraceId = PlaybackTrace.NONE;
     private static volatile long totalDroppedFrames;
     private static volatile long lastBandwidthLogMs;
@@ -73,10 +71,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
 
     public static Snapshot getSnapshot() {
         return snapshot;
-    }
-
-    public static AudioOutputSnapshot getAudioOutputSnapshot() {
-        return audioOutputSnapshot;
     }
 
     public static void beginSession(String traceId) {
@@ -209,7 +203,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     public static void reset() {
         snapshot = Snapshot.empty();
-        audioOutputSnapshot = AudioOutputSnapshot.empty();
         totalDroppedFrames = 0;
         lastBandwidthLogMs = 0;
         loading = false;
@@ -340,7 +333,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
 
     @Override
     public void onAudioTrackInitialized(EventTime eventTime, AudioSink.AudioTrackConfig config) {
-        audioOutputSnapshot = AudioOutputSnapshot.from(config);
         if (!SpiderDebug.isEnabled()) return;
         traceLog("audio track initialized encoding=%s(%d) sampleRate=%d channelMask=0x%X channels=%d tunneling=%s offload=%s buffer=%d",
                 audioEncodingName(config.encoding), config.encoding, config.sampleRate,
@@ -350,9 +342,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
 
     @Override
     public void onAudioTrackReleased(EventTime eventTime, AudioSink.AudioTrackConfig config) {
-        if (audioOutputSnapshot.matches(config)) {
-            audioOutputSnapshot = AudioOutputSnapshot.empty();
-        }
         if (!SpiderDebug.isEnabled()) return;
         traceLog("audio track released encoding=%s(%d) sampleRate=%d channelMask=0x%X channels=%d tunneling=%s offload=%s buffer=%d",
                 audioEncodingName(config.encoding), config.encoding, config.sampleRate,
@@ -757,30 +746,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
             long burstBitrateBitsPerSecond,
             String burstSource,
             String burstConfidence) {
-    }
-
-    public record AudioOutputSnapshot(int encoding, int sampleRate,
-                                      int channels, boolean tunneling,
-                                      boolean offload, boolean initialized) {
-
-        static AudioOutputSnapshot from(AudioSink.AudioTrackConfig config) {
-            if (config == null) return empty();
-            return new AudioOutputSnapshot(config.encoding, config.sampleRate,
-                    Integer.bitCount(config.channelConfig), config.tunneling,
-                    config.offload, true);
-        }
-
-        boolean matches(AudioSink.AudioTrackConfig config) {
-            return config != null && initialized && encoding == config.encoding
-                    && sampleRate == config.sampleRate
-                    && channels == Integer.bitCount(config.channelConfig)
-                    && tunneling == config.tunneling && offload == config.offload;
-        }
-
-        public static AudioOutputSnapshot empty() {
-            return new AudioOutputSnapshot(C.ENCODING_INVALID, 0, 0,
-                    false, false, false);
-        }
     }
 
     public record DisplayFrameRateEstimate(float frameRate, int sampleCount) {

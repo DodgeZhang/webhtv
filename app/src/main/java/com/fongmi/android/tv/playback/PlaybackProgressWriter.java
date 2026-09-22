@@ -13,6 +13,7 @@ import com.fongmi.android.tv.bean.TmdbSeasonProgress;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.db.dao.HistoryDao;
 import com.fongmi.android.tv.event.RefreshEvent;
+import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.setting.Setting;
 
 import java.util.List;
@@ -252,6 +253,7 @@ public final class PlaybackProgressWriter {
             TmdbSeasonProgressStore.write(history);
             return null;
         });
+        FollowingStore.project(history);
         RefreshEvent.history();
         return local == null ? PlaybackProgressApplyResult.created(input, history.getKey()) : PlaybackProgressApplyResult.updated(input, history.getKey());
         }

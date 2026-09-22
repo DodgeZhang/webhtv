@@ -1,5 +1,7 @@
 package com.fongmi.android.tv.bean;
 
+import android.text.TextUtils;
+
 import com.fongmi.android.tv.api.loader.BaseLoader;
 
 import android.content.SharedPreferences;
@@ -14,6 +16,10 @@ import com.fongmi.android.tv.api.config.WallConfig;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
+import com.fongmi.android.tv.following.Following;
+import com.fongmi.android.tv.following.FollowingBackupCodec;
+import com.fongmi.android.tv.following.FollowingDatabase;
+import com.fongmi.android.tv.following.FollowingSource;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.web.HomeWebController;
 import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
@@ -41,6 +47,7 @@ public class Backup {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static final Set<String> APP_PREFS = Set.of("doh", "ua", "wall", "wall_type", "reset", "site_mode", "site_block_keys", "search_column", "sync_mode", "sync_paths", "incognito", "drive_check", "drive_check_cache", "compact_episode_title", "web_home_fullscreen", "viewing_record_sync_enabled", "viewing_record_sync_local_write", "playback_remote_sync_config", "playback_webhook_config", "playback_webhook_privacy_accepted", "shell_proxy", "shell_proxy_rules", "shell_proxy_url", "shell_proxy_hosts", "update", "adblock", "zhuyin", "theme_color", "wall_color", "crash", "render", "pad_live_mode", "size", "scale", "buffer", "buffer_bytes", "back_buffer", "play_cache", "preload", "preload_threads", "preload_size", "preload_time", "player_auto_change", "background", "speed", "play_speed", "caption", "tunnel", "exo_4k_compat", "playback_performance_profile", "playback_performance_initialized", "perf_codec_async_queueing", "perf_dynamic_scheduling", "perf_video_duration_progress", "perf_late_drop_input", "perf_track_limit", "perf_adaptive_downgrade", "perf_load_only_selected_tracks", "perf_surface_fixed_size", "perf_decoder_fallback", "perf_soft_video_tune", "perf_high_buffer", "perf_bandwidth_meter", "player_button_order", "player_button_hidden", "audio_prefer", "video_prefer", "prefer_aac", "subtitle_text_size", "subtitle_position", "player_osd_title", "player_osd_resolution", "player_osd_time", "player_osd_progress", "player_osd_traffic", "player_osd_mini", "player_osd_diagnostics", "boot_live", "across", "change", "invert", "scale_live", "live_epg_url", "live_epg_history");
 =======
     private static final Set<String> APP_PREFS = Set.of("doh", "ua", "wall", "wall_type", "reset", "site_mode", "site_block_keys", "site_names", "search_column", "sync_mode", "sync_paths", "incognito", "drive_check", "drive_check_cache", "compact_episode_title", "web_home_fullscreen", "web_home_theme_enabled", "web_home_theme_url", "audio_config", "short_drama_config", "tmdb_enabled", "tmdb_config", "tmdb_model", "ai_config", "ai_title_extraction", "ai_ad_detection", "user_ad_rules", "user_group_rules", "disabled_group_rule_ids", "disabled_default_rule_ids", "builtin_hls_rule_overrides", "subtitle_ai_max_concurrency", "subtitle_ai_chunk_count", "detail_open_mode", "detail_interaction_mode", "detail_theme_mode", "tmdb_detail_theme", "tmdb_detail_backdrop_slide", "personal_recommendation", "episode_history", "global_history_mode", "history_aggregation_by_tmdb", "ai_recommendation", "auto_skip_intro_outro", "viewing_record_sync_enabled", "viewing_record_sync_local_write", "playback_remote_sync_config", "playback_webhook_config", "playback_webhook_privacy_accepted", "shell_proxy", "shell_proxy_rules", "shell_proxy_url", "shell_proxy_hosts", "github_proxy", "github_proxy_enabled", "update", "adblock", "zhuyin", "theme_color", "wall_color", "crash", "render", "ffmpeg_mode", "pad_live_mode", "size", "scale", "custom_aspect_width", "custom_aspect_height", "buffer", "buffer_bytes", "back_buffer", "play_cache", "preload", "preload_threads", "preload_size", "preload_time", "player_auto_change", "player_failure_fallback", "background", "speed", "play_speed", "caption", "tunnel", "exo_4k_compat", "playback_performance_profile", "playback_performance_initialized", "perf_codec_async_queueing", "perf_dynamic_scheduling", "perf_video_duration_progress", "perf_late_drop_input", "perf_track_limit", "perf_adaptive_downgrade", "perf_load_only_selected_tracks", "perf_surface_fixed_size", "perf_decoder_fallback", "perf_soft_video_tune", "perf_high_buffer", "perf_bandwidth_meter", "perf_exo_network_protection_mode", "player_button_order", "player_button_hidden", "audio_prefer", "video_prefer", "prefer_aac", "subtitle_text_size", "subtitle_position", "display_time", "display_traffic", "display_size", "display_progress", "display_mini", "display_title", "player_osd_title", "player_osd_resolution", "player_osd_time", "player_osd_progress", "player_osd_traffic", "player_osd_mini", "player_osd_diagnostics", "boot_live", "across", "change", "invert", "scale_live", "live_epg_url", "live_epg_history");
@@ -53,6 +60,9 @@ public class Backup {
 >>>>>>> upstream/beta
 =======
     private static final Set<String> APP_PREFS = Set.of("doh", "ua", "wall", "wall_type", "speech_ad_rules_v1", "speech_ad_rules_source", "speech_ad_builtin_enabled", "reset", "site_mode", "site_block_keys", "site_names", "search_column", "sync_mode", "sync_paths", "incognito", "touch_optimized", "playback_overlay_enabled", "drive_check", "drive_check_cache", "compact_episode_title", "web_home_fullscreen", "web_home_theme_enabled", "web_home_theme_url", "audio_config", "short_drama_config", "tmdb_enabled", "tmdb_config", "tmdb_model", "ai_config", "ai_title_extraction", "ai_ad_detection", "user_ad_rules", "user_group_rules", "disabled_group_rule_ids", "disabled_default_rule_ids", "builtin_hls_rule_overrides", "subtitle_ai_max_concurrency", "subtitle_ai_chunk_count", "detail_open_mode", "detail_interaction_mode", "detail_theme_mode", "tmdb_detail_theme", "tmdb_detail_backdrop_slide", "personal_recommendation", "episode_history", "global_history_mode", "history_aggregation_by_tmdb", "ai_recommendation", "auto_skip_intro_outro", "viewing_record_sync_enabled", "viewing_record_sync_local_write", "playback_remote_sync_config", "playback_webhook_config", "playback_webhook_privacy_accepted", "shell_proxy", "shell_proxy_rules", "shell_proxy_url", "shell_proxy_hosts", "github_proxy", "github_proxy_enabled", "github_proxy_mode", "update", "adblock", "zhuyin", "theme_color", "wall_color", "crash", "render", "pad_live_mode", "size", "scale", "custom_aspect_width", "custom_aspect_height", "buffer", "buffer_bytes", "back_buffer", "play_cache", "preload", "preload_threads", "preload_size", "preload_time", "player_auto_change", "player_failure_fallback", "background", "speed", "play_speed", "caption", "tunnel", "exo_4k_compat", "playback_performance_profile", "playback_performance_initialized", "perf_codec_async_queueing", "perf_dynamic_scheduling", "perf_video_duration_progress", "perf_late_drop_input", "perf_load_only_selected_tracks", "perf_surface_fixed_size", "perf_decoder_fallback", "perf_soft_video_tune", "perf_high_buffer", "perf_bandwidth_meter", "perf_exo_network_protection_mode", "player_button_order", "player_button_hidden", "audio_prefer", "video_prefer", "prefer_aac", "subtitle_text_size", "subtitle_position", "display_time", "display_traffic", "display_size", "display_progress", "display_mini", "display_title", "player_osd_title", "player_osd_resolution", "player_osd_time", "player_osd_progress", "player_osd_traffic", "player_osd_mini", "player_osd_diagnostics", "boot_live", "across", "change", "invert", "scale_live", "live_epg_url", "live_epg_history", "update_source", "update_github_proxy", "update_github_proxy_url", "update_github_proxy_mode", "update_oci_mirror", "update_oci_mirror_url", "playback_bluray_menu", "perf_track_limit", "perf_adaptive_downgrade", "interface_failover_mode", "interface_order_vod");
+>>>>>>> upstream/beta
+=======
+    private static final Set<String> APP_PREFS = Set.of("doh", "ua", "wall", "wall_type", "speech_ad_rules_v1", "speech_ad_rules_source", "speech_ad_builtin_enabled", "reset", "site_mode", "site_block_keys", "site_names", "search_column", "sync_mode", "sync_paths", "incognito", "touch_optimized", "playback_overlay_enabled", "drive_check", "drive_check_cache", "compact_episode_title", "web_home_fullscreen", "web_home_theme_enabled", "web_home_theme_url", "audio_config", "short_drama_config", "tmdb_enabled", "tmdb_config", "tmdb_model", "ai_config", "ai_title_extraction", "ai_ad_detection", "user_ad_rules", "user_group_rules", "disabled_group_rule_ids", "disabled_default_rule_ids", "builtin_hls_rule_overrides", "subtitle_ai_max_concurrency", "subtitle_ai_chunk_count", "detail_open_mode", "detail_interaction_mode", "detail_theme_mode", "tmdb_detail_theme", "tmdb_detail_backdrop_slide", "personal_recommendation", "episode_history", "global_history_mode", "history_aggregation_by_tmdb", "ai_recommendation", "auto_skip_intro_outro", "viewing_record_sync_enabled", "viewing_record_sync_local_write", "playback_remote_sync_config", "playback_webhook_config", "playback_webhook_privacy_accepted", "shell_proxy", "shell_proxy_rules", "shell_proxy_url", "shell_proxy_hosts", "github_proxy", "github_proxy_enabled", "github_proxy_mode", "update", "adblock", "zhuyin", "theme_color", "wall_color", "crash", "render", "pad_live_mode", "size", "scale", "custom_aspect_width", "custom_aspect_height", "buffer", "buffer_bytes", "back_buffer", "play_cache", "preload", "preload_threads", "preload_size", "preload_time", "player_auto_change", "player_failure_fallback", "background", "speed", "play_speed", "caption", "tunnel", "exo_4k_compat", "playback_performance_profile", "playback_performance_initialized", "perf_codec_async_queueing", "perf_dynamic_scheduling", "perf_video_duration_progress", "perf_late_drop_input", "perf_load_only_selected_tracks", "perf_surface_fixed_size", "perf_decoder_fallback", "perf_soft_video_tune", "perf_high_buffer", "perf_bandwidth_meter", "perf_exo_network_protection_mode", "player_button_order", "player_button_hidden", "audio_prefer", "video_prefer", "prefer_aac", "subtitle_text_size", "subtitle_position", "display_time", "display_traffic", "display_size", "display_progress", "display_mini", "display_title", "player_osd_title", "player_osd_resolution", "player_osd_time", "player_osd_progress", "player_osd_traffic", "player_osd_mini", "player_osd_diagnostics", "boot_live", "across", "change", "invert", "scale_live", "live_epg_url", "live_epg_history", "update_source", "update_github_proxy", "update_github_proxy_url", "update_github_proxy_mode", "update_oci_mirror", "update_oci_mirror_url", "playback_bluray_menu", "perf_track_limit", "perf_adaptive_downgrade", "interface_failover_mode", "interface_order_vod", "following_enabled", "following_notifications", "following_source_probe", "following_server_import");
 >>>>>>> upstream/beta
 
     @SerializedName("site")
@@ -67,6 +77,12 @@ public class Backup {
     private List<History> history;
     @SerializedName("tmdbSeasonProgress")
     private List<TmdbSeasonProgress> tmdbSeasonProgress;
+    @SerializedName("following")
+    private List<Following> following;
+    @SerializedName("followingSource")
+    private List<FollowingSource> followingSource;
+    @SerializedName("followingSchemaVersion")
+    private Integer followingSchemaVersion;
     @SerializedName("track")
     private List<Track> track;
     @SerializedName("device")
@@ -83,6 +99,10 @@ public class Backup {
         backup.setConfig(AppDatabase.get().getConfigDao().findAll());
         backup.setHistory(AppDatabase.get().getHistoryDao().findAll());
         backup.setTmdbSeasonProgress(AppDatabase.get().getTmdbSeasonProgressDao().findAll());
+        FollowingBackupCodec.Payload payload = FollowingBackupCodec.capture();
+        backup.setFollowing(payload.following());
+        backup.setFollowingSource(payload.sources());
+        backup.setFollowingSchemaVersion(FollowingDatabase.VERSION);
         backup.setTrack(AppDatabase.get().getTrackDao().findAll());
         backup.setDevice(AppDatabase.get().getDeviceDao().findAll());
         return backup;
@@ -99,6 +119,12 @@ public class Backup {
         if (options.isHistory()) {
             backup.setHistory(AppDatabase.get().getHistoryDao().findAll());
             backup.setTmdbSeasonProgress(AppDatabase.get().getTmdbSeasonProgressDao().findAll());
+        }
+        if (options.isFollow()) {
+            FollowingBackupCodec.Payload payload = FollowingBackupCodec.capture();
+            backup.setFollowing(payload.following());
+            backup.setFollowingSource(payload.sources());
+            backup.setFollowingSchemaVersion(FollowingDatabase.VERSION);
         }
         backup.setPrefers(filter(Prefers.getPrefers().getAll(), options));
         return backup;
@@ -128,6 +154,7 @@ public class Backup {
         restoreTmdbSeasonProgress(Collections.emptyMap());
         AppDatabase.get().getTrackDao().insertOrUpdate(getTrack());
         AppDatabase.get().getDeviceDao().insertOrUpdate(getDevice());
+        if (hasFollowingPayload()) FollowingBackupCodec.restoreFull(following, followingSource);
         restorePrefers(getPrefers(), true, preserveMissingWebHomePrefs);
     }
 
@@ -155,6 +182,7 @@ public class Backup {
             AppDatabase.get().getHistoryDao().insertOrUpdate(getHistory());
             restoreTmdbSeasonProgress(cids);
         }
+        if (options.isFollow() && hasFollowingPayload()) FollowingBackupCodec.merge(following, followingSource);
         Map<String, ?> prefers = filter(getPrefers(), options);
         if (options.isMpvConfig()) clearMpvConfigPreferences();
         restorePrefers(prefers, false, false);
@@ -169,7 +197,7 @@ public class Backup {
     private void reloadConfig() {
         VodConfig.get().clear("sync-restore").init().load(new Callback());
         LiveConfig.get().clear().init().load();
-        WallConfig.get().init().load();
+        WallConfig.get().initPreservingSelection().load();
         ConfigEvent.common();
     }
 
@@ -177,7 +205,14 @@ public class Backup {
         Map<Integer, Integer> cids = new HashMap<>();
         for (Config item : getConfig()) {
             int source = item.getId();
-            Config current = AppDatabase.get().getConfigDao().find(item.getUrl(), item.getType());
+            Config current = TextUtils.isEmpty(item.getInterfaceKey()) ? null
+                    : AppDatabase.get().getConfigDao().findByInterfaceKey(item.getInterfaceKey(), item.getType());
+            if (current == null) current = AppDatabase.get().getConfigDao().find(item.getUrl(), item.getType());
+            if (current != null) {
+                item.interfaceKey(current.getInterfaceKey()).mergeUrls(current.getUrls());
+            } else {
+                item.ensureInterfaceKey();
+            }
             item.setId(current == null ? 0 : current.getId());
             long id = AppDatabase.get().getConfigDao().insert(item);
             if (id == -1) AppDatabase.get().getConfigDao().update(item);
@@ -395,6 +430,34 @@ public class Backup {
 
     public void setTmdbSeasonProgress(List<TmdbSeasonProgress> progress) {
         this.tmdbSeasonProgress = progress;
+    }
+
+    public List<Following> getFollowing() {
+        return following == null ? Collections.emptyList() : following;
+    }
+
+    public void setFollowing(List<Following> following) {
+        this.following = following;
+    }
+
+    public List<FollowingSource> getFollowingSource() {
+        return followingSource == null ? Collections.emptyList() : followingSource;
+    }
+
+    public void setFollowingSource(List<FollowingSource> followingSource) {
+        this.followingSource = followingSource;
+    }
+
+    public Integer getFollowingSchemaVersion() {
+        return followingSchemaVersion;
+    }
+
+    public void setFollowingSchemaVersion(Integer followingSchemaVersion) {
+        this.followingSchemaVersion = followingSchemaVersion;
+    }
+
+    public boolean hasFollowingPayload() {
+        return following != null && followingSchemaVersion != null && followingSchemaVersion > 0;
     }
 
     public List<Track> getTrack() {

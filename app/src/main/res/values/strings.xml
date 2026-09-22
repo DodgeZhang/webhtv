@@ -259,6 +259,9 @@
     <string name="history_record_missing">The history record no longer exists</string>
     <string name="history_config_changed">VOD configuration changed. Please try again.</string>
     <string name="dialog_delete_global_history">Delete history from all VOD configurations?</string>
+    <string name="config_delete_title">Delete source?</string>
+    <string name="config_delete_message">Delete “%1$s”? Related playback history may also be lost. This cannot be undone.</string>
+    <string name="config_current_delete_message">This interface is currently in use. Switch to another interface before deleting it.</string>
     <string name="setting_home_history">Home recent history</string>
     <string name="setting_personal_recommendation">Personal recommendations</string>
     <string name="setting_recommendation_feedback">Not interested management</string>
@@ -522,7 +525,7 @@
     <string name="site_health_report_summary_reason">%1$d sites · %2$d samples · %3$d failures · %4$d degraded · Top %5$s x%6$d</string>
     <string name="site_health_report_setting_summary">%1$d sites · %2$d samples</string>
     <string name="site_health_report_row_meta">%1$d samples · %2$d failures</string>
-    <string name="site_health_report_ad_blocked">Ads blocked · %1$d</string>
+    <string name="site_health_report_ad_blocked">Playback %1$d / Ad blocks %2$d</string>
     <string name="site_health_report_stage">%1$s · %2$s · %3$d/%4$d</string>
     <string name="site_health_report_rate">%1$d%%</string>
     <string name="site_health_report_no_data">No data</string>
@@ -539,6 +542,8 @@
     <string name="site_health_clear_all">Clear all samples</string>
     <string name="site_health_clear_all_title">Clear all site health samples?</string>
     <string name="site_health_clear_all_message">This will delete all playback-chain health samples. This action cannot be undone.</string>
+    <string name="site_health_stage_home">Home</string>
+    <string name="site_health_stage_category">Category</string>
     <string name="site_health_stage_search">Search</string>
     <string name="site_health_stage_detail">Detail</string>
     <string name="site_health_stage_parse">Parse</string>
@@ -1241,7 +1246,11 @@
     <string name="player_preload_pause_wifi">Wi-Fi only</string>
     <string name="player_preload_pause_always">Always</string>
     <string name="player_auto_play">Auto play VOD</string>
+<<<<<<< HEAD
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
+=======
+    <string name="player_live_source_fallback">Switch live source on failure</string>
+>>>>>>> upstream/beta
     <string name="player_auto_change">Auto source change</string>
     <string name="player_remember_brightness">Remember playback brightness</string>
     <string name="player_failure_fallback">Failure fallback</string>
@@ -1250,7 +1259,11 @@
     <string name="player_osd">On-screen display</string>
     <string name="player_subtitle_auto_match">Auto subtitle match</string>
     <string name="player_subtitle_language">Preferred subtitle language</string>
-    <string name="player_subtitle_assrt_token">ASSRT token</string>
+    <string name="player_subtitle_source_environment">Environment variables (JSON)</string>
+    <string name="player_subtitle_source_environment_invalid">Enter a valid JSON object</string>
+    <string name="player_subtitle_source">Subtitle sources</string>
+    <string name="player_subtitle_source_count">%1$d loaded</string>
+    <string name="player_subtitle_source_empty">No subtitle sources available</string>
     <string name="player_subtitle_ai_max_concurrency">AI subtitle max concurrency</string>
     <string name="player_subtitle_ai_chunk_count">AI subtitle chunks</string>
     <string name="subtitle_auto_match_hit">Subtitle matched: %1$s</string>
@@ -1441,6 +1454,7 @@
     <string name="dialog_config_choose_failed">Could not read the selected item, please pick the package folder or zip again</string>
     <string name="dialog_config_name">Please enter the name…</string>
     <string name="dialog_config_url">Please enter the url…</string>
+    <string name="dialog_config_addresses">Backup addresses, one per line…</string>
 
     <!-- Error -->
     <string name="error_config_get">Configuration get failed</string>
@@ -1549,8 +1563,9 @@
     <string name="update_download_source_unavailable">The selected update source is not available for this release.</string>
 
     <!-- Crash -->
-    <string name="crash_info">An unexpected error occurred.\nSorry for the inconvenience.</string>
+    <string name="crash_info">An unexpected error occurred.\nRestarting automatically without reloading the interface.</string>
     <string name="crash_restart">Restart app</string>
+    <string name="crash_silent_restart">Silent restart</string>
     <string name="crash_details">Error details</string>
     <string name="crash_details_title">Error details</string>
     <string name="crash_details_message">App version: %1$s\n\n%2$s</string>
@@ -1743,11 +1758,14 @@
 
     <string-array name="select_ui_scale">
         <item>Follow system</item>
-        <item>Standard</item>
-        <item>Mild compact</item>
+        <item>Smallest</item>
         <item>Compact</item>
-        <item>More compact</item>
-        <item>Smaller</item>
+        <item>Slightly compact</item>
+        <item>Standard</item>
+        <item>Slightly large</item>
+        <item>Large</item>
+        <item>Larger</item>
+        <item>Largest</item>
     </string-array>
 
     <string-array name="select_language">
@@ -1912,9 +1930,17 @@
     <string name="dialog_tmdb_api_key_tip">Get your free API key at: https://www.themoviedb.org/settings/api</string>
     <string name="dialog_tmdb_language_label">TMDB language</string>
     <string name="dialog_tmdb_language_hint">For example zh-CN</string>
-    <string name="dialog_tmdb_api_host_label">API host</string>
-    <string name="dialog_tmdb_api_host_hint">For example https://api.tmdb.org</string>
-    <string name="dialog_tmdb_image_host_label">Image host</string>
+    <string name="dialog_tmdb_api_host_label">TMDB API route</string>
+    <string name="dialog_tmdb_image_itv666">itv666 image mirror</string>
+    <string name="dialog_tmdb_image_direct">Official images (direct)</string>
+    <string name="dialog_tmdb_api_itv666">itv666 API mirror</string>
+    <string name="dialog_tmdb_api_direct">Official API (direct)</string>
+    <string name="dialog_tmdb_api_auto">Auto (latency priority, failover)</string>
+    <string name="dialog_tmdb_image_auto">Auto (latency priority, failover)</string>
+    <string name="dialog_tmdb_image_wsrv">wsrv.nl image proxy</string>
+    <string name="dialog_tmdb_api_host_hint">https://api.tmdb.org or choose a built-in mirror</string>
+    <string name="dialog_tmdb_proxy_host_help">API and image routes can be selected independently. Auto ranks the verified routes by latency and switches after failure; itv666 and wsrv.nl are included, and custom endpoints are supported.</string>
+    <string name="dialog_tmdb_image_host_label">TMDB image route</string>
     <string name="dialog_tmdb_image_host_hint">For example https://images.tmdb.org</string>
     <string name="dialog_tmdb_section_data">Data source</string>
     <string name="dialog_tmdb_section_ratings">Ratings</string>
@@ -2190,12 +2216,42 @@
     <string name="ad_block_total">Total blocked</string>
     <string name="ad_feedback_count">AI reports</string>
     <string name="ad_ai_success_rate">AI success rate</string>
-    <string name="ad_site_rank">Top blocked sites</string>
-    <string name="ad_rule_rank">Top matching rules</string>
+    <string name="ad_site_rank">Sites</string>
+    <string name="ad_rule_rank">Rules</string>
+    <string name="ad_pipeline_rank">Pipelines</string>
+    <string name="site_health_report_ad_summary">Ad blocking: %1$d total · %2$s</string>
     <string name="ad_stats_reset">Reset stats</string>
     <string name="ad_stats_reset_confirm">Reset all statistics?</string>
     <string name="ad_stats_empty">No statistics yet</string>
+    <string name="ad_stats_filter_empty">No logs match the filters</string>
     <string name="ad_stats_overview">Overview</string>
+    <string name="ad_stats_log">Block log</string>
+    <string name="ad_stats_chart">Charts</string>
+    <string name="ad_log_site_name">Site name</string>
+    <string name="ad_log_site_domain">Site domain</string>
+    <string name="ad_log_rule_domain">Block rule</string>
+    <string name="ad_log_ad_domain">Ad domain</string>
+    <string name="ad_log_blocked_at">Blocked at</string>
+    <string name="ad_log_segment_start">Segment start time</string>
+    <string name="ad_log_segment_end">Segment end time</string>
+    <string name="ad_log_segment_duration">Segment duration</string>
+    <string name="ad_log_playback_context">Title</string>
+    <string name="ad_log_line_name">Line name</string>
+    <string name="ad_log_episode_name">Episode name</string>
+    <string name="ad_log_pipeline">Pipeline</string>
+    <string name="ad_log_unknown">Unknown</string>
+    <string name="ad_log_filter_hint">Filter</string>
+    <string name="ad_log_filter_search_hint">Search filter values</string>
+    <string name="ad_log_filter_all">Select all</string>
+    <string name="ad_log_filter_clear">Clear selection</string>
+    <string name="ad_log_filter_apply">Apply</string>
+    <string name="ad_log_filter_cancel">Cancel</string>
+    <string name="ad_log_filter_options_empty">No filter values</string>
+    <string name="ad_log_filter_selected">%d selected</string>
+    <string name="ad_site_overview">Site overview</string>
+    <string name="ad_site_count">Sites involved</string>
+    <string name="ad_top_site">Most blocked site</string>
+    <string name="ad_top_site_share">Share of blocks</string>
     <string name="ad_stats_times">times</string>
     <string name="ad_stats_percent">%.1f%%</string>
     <string name="ad_stats_site_name">Site</string>
@@ -2653,4 +2709,66 @@
     <string name="setting_ad_probe_revision">Revision %1$d · %2$d rules</string>
     <string name="setting_ad_probe_never">Never fetched</string>
     <string name="setting_ad_probe_url_invalid">The rule source must start with https://</string>
-    <string name="setting_ad_probe_source_disabled">Set a community rule source first</string></resources>
+    <string name="setting_ad_probe_source_disabled">Set a community rule source first</string>
+    <string name="dialog_tmdb_test_config">Test configuration</string>
+    <string name="dialog_tmdb_test_result_title">Configuration test</string>
+    <string name="dialog_tmdb_test_api_success">TMDB API: connected and returned valid data (%1$d ms)</string>
+    <string name="dialog_tmdb_test_api_failed">TMDB API: failed (%1$s, %2$d ms)</string>
+    <string name="dialog_tmdb_test_image_success">Image domain: connected and returned a valid image (%1$d ms)</string>
+    <string name="dialog_tmdb_test_image_failed">Image domain: failed (%1$s, %2$d ms)</string>
+    <string name="dialog_tmdb_test_omdb_success">OMDb API: connected and returned valid data (%1$d ms)</string>
+    <string name="dialog_tmdb_test_omdb_failed">OMDb API: failed (%1$s, %2$d ms)</string>
+    <string name="site_health_report_search_hint">Search by site name</string>
+    <string name="nav_following">Following</string>
+    <string name="home_following">Following</string>
+    <string name="sync_item_follow">Following</string>
+    <string name="following">Follow</string>
+    <string name="following_add">Add to following</string>
+    <string name="following_added">Following</string>
+    <string name="following_channel_name">Following updates</string>
+    <string name="following_channel_description">New episode updates for followed shows</string>
+    <string name="following_notification_title">%1$s has a new episode</string>
+    <string name="following_notification_text">Official release: episode %1$d; current source: episode %2$d</string>
+    <string name="following_check_all">Check updates</string>
+    <string name="following_check">Check</string>
+    <string name="following_checking">Checking…</string>
+    <string name="following_check_done">Update check complete</string>
+    <string name="following_check_failed">Update check failed. Previous data was kept.</string>
+    <string name="following_empty">No followed shows yet. Open a series detail page and tap “Add to following”.</string>
+    <string name="following_summary">%1$d followed · %2$d unread</string>
+    <string name="following_continue">Continue</string>
+    <string name="following_read">Mark read</string>
+    <string name="following_notify_on">Notify on</string>
+    <string name="following_notify_off">Notify off</string>
+    <string name="following_change_source">Source</string>
+    <string name="following_cancel">Unfollow</string>
+    <string name="following_delete_title">Unfollow this show?</string>
+    <string name="following_delete_message">The viewing history and TMDB progress will be kept.</string>
+    <string name="following_official">Official: episode %1$d</string>
+    <string name="following_official_unknown">Official status unknown</string>
+    <string name="following_source">Current source: episode %1$d</string>
+    <string name="following_source_unknown">Current source not checked</string>
+    <string name="following_watched">Watched to episode %1$d</string>
+    <string name="following_unwatched">%1$d episodes remaining</string>
+    <string name="following_unwatched_none">Up to date</string>
+    <string name="following_new_count">New %1$d</string>
+    <string name="following_enabled_hint">Following is currently disabled.</string>
+    <string name="following_notification_permission_hint">Notifications were not authorized; in-app badges still work.</string>
+    <string name="following_server_import">Import subscriptions</string>
+    <string name="following_server_url">Server address (http/https)</string>
+    <string name="following_server_token">Token (not stored)</string>
+    <string name="following_server_preview">Preview</string>
+    <string name="following_server_import_action">Import</string>
+    <string name="following_server_invalid">Enter a valid http/https server address</string>
+    <string name="following_server_empty">No importable subscriptions found</string>
+    <string name="following_server_preview_title">Subscriptions to import</string>
+    <string name="following_server_result">Imported %1$d, updated %2$d</string>
+    <string name="following_filter_updates">Updates only</string>
+    <string name="following_filter_all">Show all</string>
+    <string name="following_filter_empty">No followed shows have unwatched updates.</string>
+    <string name="following_filter_unwatched">Unfinished</string>
+    <string name="following_filter_ended">Ended</string>
+    <string name="following_filter_failed">Check failed</string>
+    <string name="setting_following">Following updates</string>
+    <string name="following_next_season">Follow new season S%1$d</string>
+</resources>

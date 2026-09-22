@@ -9,6 +9,7 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.CatSource;
 import com.fongmi.android.tv.api.CspWarmup;
 import com.fongmi.android.tv.api.Decoder;
+import com.fongmi.android.tv.api.TmdbSourceCredentialIngress;
 import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.bean.Depot;
@@ -17,6 +18,7 @@ import com.fongmi.android.tv.bean.HlsAdRule;
 import com.fongmi.android.tv.bean.Parse;
 import com.fongmi.android.tv.bean.Rule;
 import com.fongmi.android.tv.bean.Site;
+import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
@@ -33,6 +35,7 @@ import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.bean.Header;
 import com.github.catvod.bean.Proxy;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Json;
 import com.google.gson.JsonObject;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -122,6 +125,7 @@ public class VodConfig extends BaseConfig {
     }
 
     public VodConfig config(Config config) {
+        if (config != null) SubscriptionTmdbCredentialStore.beginSubscription(config.getId(), config.getUrl(), "vod-config");
         this.config = config;
         return this;
     }
@@ -171,8 +175,40 @@ public class VodConfig extends BaseConfig {
         // 猫源填的是 bundle 地址（.js.md5），要先在本机把 Node 服务跑起来，再读它的 /config
         String url = CatSource.isBundle(config.getUrl()) ? CatSource.serve(config.getUrl()) : UrlUtil.convert(config.getUrl());
         String json = Decoder.getJson(url, TAG);
-        checkJson(config, CatSource.normalize(url, Json.parse(json)));
+        TmdbSourceCredentialIngress.Ingress ingress = TmdbSourceCredentialIngress.extractRootAndStrip(json);
+        checkJson(config, CatSource.normalize(url, Json.parse(ingress.getSanitizedJson())));
         if (!isLoaded()) throw new Exception("VOD sites is empty");
+        acceptSubscriptionCredential(ingress.getCandidateKey(), config);
+    }
+
+    private static void acceptSubscriptionCredential(String candidateApiKey, Config config) {
+        if (candidateApiKey == null || candidateApiKey.isEmpty() || config == null) {
+            SpiderDebug.log("tmdb-credential", "config-candidate skip candidate=%s config=%s", candidateApiKey != null && !candidateApiKey.isEmpty(), config != null);
+            return;
+        }
+        boolean userReady = TmdbConfig.objectFrom(Setting.getTmdbConfig()).isReady();
+        SubscriptionTmdbCredentialStore.Scope scope = SubscriptionTmdbCredentialStore.currentScope();
+        boolean urlMatch = scope.isAvailable() && scope.getConfigUrl().equals(normalizeConfigUrl(config.getUrl()));
+        SpiderDebug.log("tmdb-credential", "config-candidate present=true userReady=%s scopeAvailable=%s scopeId=%d configId=%d urlMatch=%s",
+                userReady, scope.isAvailable(), scope.getConfigId(), config.getId(), urlMatch);
+        if (userReady) {
+            SubscriptionTmdbCredentialStore.discardCredential();
+            return;
+        }
+        if (!scope.isAvailable() || scope.getConfigId() != config.getId() || !scope.getConfigUrl().equals(normalizeConfigUrl(config.getUrl()))) return;
+        if (TmdbConfig.objectFrom(Setting.getTmdbConfig()).isReady()) {
+            SubscriptionTmdbCredentialStore.discardCredential();
+            return;
+        }
+        boolean accepted = SubscriptionTmdbCredentialStore.accept(candidateApiKey, scope.getConfigId(), scope.getConfigUrl(),
+                scope.getEpoch(), "subscription-config", config.getUrl());
+        SpiderDebug.log("tmdb-credential", "config-candidate accept=%s epoch=%d", accepted, scope.getEpoch());
+    }
+
+    private static String normalizeConfigUrl(String value) {
+        String normalized = value == null ? "" : value.trim();
+        while (normalized.endsWith("/")) normalized = normalized.substring(0, normalized.length() - 1);
+        return normalized;
     }
 
     @Override
@@ -238,21 +274,20 @@ public class VodConfig extends BaseConfig {
             return;
         }
 
-        List<Config> configs = InterfaceOrderStore.sortVodConfigs(Config.getAll(VOD));
         String originUrl = config.getUrl();
-        int index = indexOfUrl(configs, originUrl);
-        int limit = InterfaceFailoverPolicy.fallbackLimit(configs.size());
+        List<String> addresses = config.getUrls();
+        int limit = InterfaceFailoverPolicy.fallbackLimit(addresses.size());
         List<Config> remaining = new ArrayList<>();
-        for (int i = Math.max(index + 1, 0); i < configs.size() && remaining.size() < limit; i++) {
-            Config candidate = configs.get(i);
-            if (!TextUtils.equals(candidate.getUrl(), originUrl)) remaining.add(candidate);
+        for (String address : addresses) {
+            if (remaining.size() >= limit || TextUtils.equals(address, originUrl)) continue;
+            remaining.add(copyWithUrl(config, address));
         }
         if (remaining.isEmpty()) {
             App.post(() -> callback.error(message));
             return;
         }
 
-        FailoverRound round = new FailoverRound(config.getDesc(), remaining, callback, message,
+        FailoverRound round = new FailoverRound(config, config.getDesc(), remaining, callback, message,
                 new InterfaceFailoverState(mode, originUrl, urls(remaining)));
         failoverRound = round;
         if (InterfaceFailoverPolicy.isConfirm(mode)) {
@@ -398,6 +433,11 @@ public class VodConfig extends BaseConfig {
 
     private void finishSuccess(FailoverRound round) {
         if (failoverRound != round) return;
+        Config loaded = getConfig();
+        if (loaded != null && round.origin != null && loaded.getId() == round.origin.getId()) {
+            round.origin.url(loaded.getUrl()).update();
+            config(round.origin);
+        }
         failoverRound = null;
         super.postEvent();
         ConfigEvent.vod();
@@ -427,11 +467,6 @@ public class VodConfig extends BaseConfig {
         if (dialog != null) App.post(dialog::dismiss);
     }
 
-    private int indexOfUrl(List<Config> configs, String url) {
-        for (int i = 0; i < configs.size(); i++) if (TextUtils.equals(configs.get(i).getUrl(), url)) return i;
-        return -1;
-    }
-
     private List<String> urls(List<Config> configs) {
         List<String> urls = new ArrayList<>();
         for (Config config : configs) urls.add(config.getUrl());
@@ -443,18 +478,26 @@ public class VodConfig extends BaseConfig {
         return null;
     }
 
+    private Config copyWithUrl(Config source, String url) {
+        Config copy = Config.objectFrom(source.toString());
+        copy.setUrl(url);
+        return copy;
+    }
+
     private static final class FailoverRound {
 
         private final String originDesc;
+        private final Config origin;
         private final List<Config> candidates;
         private final Callback callback;
         private final InterfaceFailoverState state;
         private String lastError;
         private Callback attemptCallback;
 
-        private FailoverRound(String originDesc, List<Config> candidates, Callback callback, String lastError,
+        private FailoverRound(Config origin, String originDesc, List<Config> candidates, Callback callback, String lastError,
                               InterfaceFailoverState state) {
             this.originDesc = originDesc;
+            this.origin = origin;
             this.candidates = candidates;
             this.callback = callback;
             this.lastError = lastError;

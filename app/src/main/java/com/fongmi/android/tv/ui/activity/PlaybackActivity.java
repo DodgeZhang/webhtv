@@ -56,6 +56,8 @@ import com.fongmi.android.tv.player.engine.PlaySpec;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
+import com.fongmi.android.tv.player.exo.ass.ExoAssSession;
+import com.fongmi.android.tv.player.exo.subtitle.ExoSubtitleSession;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.subtitle.RealtimeSubtitleController;
 import com.fongmi.android.tv.ui.base.BaseActivity;
@@ -94,7 +96,14 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     private int requestedAspectMode = VideoAspectMode.ORIGINAL;
     private ExoOutputModeManager exoOutputModeManager;
     private AdSkipPromptPresenter adSkipPromptPresenter;
+<<<<<<< HEAD
 >>>>>>> upstream/dev
+=======
+    private ExoAssSession attachedAssSession;
+    private ExoSubtitleSession attachedSubtitleSession;
+    private final com.fongmi.android.tv.player.SurfaceDiagnosticCollector surfaceDiagnostics =
+            new com.fongmi.android.tv.player.SurfaceDiagnosticCollector();
+>>>>>>> upstream/beta
 
     protected MediaController controller() {
         return mController;
@@ -675,6 +684,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             else hideVideoShutter();
             logSurfaceState("attach after setRender target=" + targetRender);
         }
+        surfaceDiagnostics.bind(getExoView(), player().getPlaybackTraceId());
         if (getExoView().getPlayer() == null) {
             getExoView().setPlayer(player().getPlayer());
             logSurfaceState("attach after setPlayer");
@@ -683,6 +693,22 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             else hideVideoShutter();
             if (player().isNativePlayer()) getExoView().post(this::syncShutter);
         }
+<<<<<<< HEAD
+=======
+        publishRenderTarget(getExoView().getVideoSurfaceView());
+        ExoAssSession assSession = player().getAssSession();
+        if (attachedAssSession != assSession) {
+            detachAssSurface();
+            attachedAssSession = assSession;
+        }
+        if (attachedAssSession != null) attachedAssSession.attach(getExoView());
+        ExoSubtitleSession subtitleSession = player().getSubtitleSession();
+        if (attachedSubtitleSession != subtitleSession) {
+            if (attachedSubtitleSession != null) attachedSubtitleSession.detach();
+            attachedSubtitleSession = subtitleSession;
+        }
+        if (attachedSubtitleSession != null) attachedSubtitleSession.attach(getExoView());
+>>>>>>> upstream/beta
         onSurfaceAttached();
         logSurfaceState("attach done");
     }
@@ -692,6 +718,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         View surface = getExoView().getVideoSurfaceView();
         if (!(surface instanceof SurfaceView surfaceView)) return;
         if (!PlaybackPerformanceSetting.isSurfaceFixedSizeEnabled() || getRender() != PlayerSetting.RENDER_SURFACE || player().isNativePlayer()) {
+            surfaceDiagnostics.resize("layout", -1, -1);
             surfaceView.getHolder().setSizeFromLayout();
             logSurfaceState("syncVideoSurfaceSize layout size=" + (size == null ? "null" : size.width + "x" + size.height));
             return;
@@ -705,6 +732,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             width = Math.max(1, Math.round(width * scale));
             height = Math.max(1, Math.round(height * scale));
         }
+        surfaceDiagnostics.resize("fixed", width, height);
         surfaceView.getHolder().setFixedSize(width, height);
         logSurfaceState("syncVideoSurfaceSize fixed=" + width + "x" + height);
     }
@@ -781,6 +809,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             getExoView().setShutterBackgroundColor(Color.BLACK);
             if (shutter != null) shutter.setVisibility(View.VISIBLE);
         }
+        surfaceDiagnostics.snapshot("shutter-policy");
     }
 
     private void hideVideoShutter() {
@@ -790,10 +819,20 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private void detachSurface() {
+        surfaceDiagnostics.unbind();
+        detachAssSurface();
         getExoView().setPlayer(null);
     }
 
+    private void detachAssSurface() {
+        if (attachedAssSession != null) attachedAssSession.detach();
+        attachedAssSession = null;
+        if (attachedSubtitleSession != null) attachedSubtitleSession.detach();
+        attachedSubtitleSession = null;
+    }
+
     private void resetVideoSurfaceForDecoderSwitch() {
+        detachAssSurface();
         int targetRender = getRender();
         int temporaryRender = targetRender == PlayerSetting.RENDER_TEXTURE ? PlayerSetting.RENDER_SURFACE : PlayerSetting.RENDER_TEXTURE;
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-flow", "reset video surface for decoder switch temp=%d target=%d", temporaryRender, targetRender);
@@ -976,6 +1015,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             if (shutter != null) shutter.setVisibility(View.INVISIBLE);
             getExoView().setShutterBackgroundColor(Color.TRANSPARENT);
             PlaybackActivity.this.onExoFirstFrame();
+            PlaybackActivity.this.onFirstFrameRendered();
         }
 
         @Override
@@ -1051,6 +1091,7 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
 
     @Override
     public void onPlaybackStateChanged(int state) {
+        if (mService != null && isOwner()) surfaceDiagnostics.bind(getExoView(), player().getPlaybackTraceId());
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "state changed state=%d %s", state, lifecycleState());
         syncKeepScreenOn();
         if (!isOwner()) return;
@@ -1071,6 +1112,96 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
         onSizeChanged(size);
     }
 
+<<<<<<< HEAD
+=======
+    private void applyExoOutputMode() {
+        if (mService == null || exoOutputModeManager == null) return;
+        publishRenderTarget(getExoView().getVideoSurfaceView());
+        ExoOutputModeManager.Result result;
+        if (player().isExo() && getRender() == PlayerSetting.RENDER_SURFACE) {
+            Format format = player().getVideoFormat();
+            result = exoOutputModeManager.apply(format);
+        } else {
+            result = exoOutputModeManager.observe("observation-only");
+        }
+        publishDisplayFacts(result);
+        if (SpiderDebug.isEnabled() && result.decision() != null && result.decision().mode() != null) {
+            ExoOutputModePolicy.Mode mode = result.decision().mode();
+            SpiderDebug.log("playback-flow", "exo output mode reason=%s applied=%s target=%dx%d@%.3fHz", result.reason(), result.applied(), mode.width(), mode.height(), mode.refreshRateMilliHz() / 1000f);
+        }
+    }
+
+    private void restoreExoOutputMode() {
+        if (exoOutputModeManager == null) return;
+        ExoOutputModeManager.Result result = exoOutputModeManager.restore();
+        if (mService != null) publishDisplayFacts(result);
+    }
+
+    private void publishDisplayFacts(ExoOutputModeManager.Result result) {
+        if (mService == null || result == null) return;
+        surfaceDiagnostics.snapshot("display-mode-request");
+        surfaceDiagnostics.display(result);
+        player().publishPlaybackDisplayFacts(
+                toDisplayMode(result.currentMode()),
+                toDisplayMode(result.requestedMode()));
+        ExoOutputModePolicy.Decision decision = result.decision();
+        boolean hasTarget = decision != null && decision.mode() != null;
+        PlaybackTelemetry.DecisionOutcome outcome = result.applied()
+                ? PlaybackTelemetry.DecisionOutcome.REQUESTED
+                : !hasTarget ? PlaybackTelemetry.DecisionOutcome.SUPPRESSED
+                : decision.changeRequired() ? PlaybackTelemetry.DecisionOutcome.SELECTED
+                : PlaybackTelemetry.DecisionOutcome.HELD;
+        player().publishPlaybackDecision(new PlaybackTelemetry.DecisionEvent(
+                PlaybackTelemetry.DecisionDomain.DISPLAY_MODE,
+                outcome,
+                displayModeLabel(result.currentMode()),
+                displayModeLabel(result.requestedMode()),
+                result.applied() ? "window-requested" : displayModeLabel(result.currentMode()),
+                result.reason(),
+                result.applied() ? "none" : result.reason(),
+                java.util.List.of(
+                        displayModeInput("current_mode_id", result.currentMode() == null ? null : result.currentMode().id(), PlaybackAutoContext.ValueSource.SYSTEM_API),
+                        displayModeInput("current_width", result.currentMode() == null ? null : result.currentMode().width(), PlaybackAutoContext.ValueSource.SYSTEM_API),
+                        displayModeInput("current_height", result.currentMode() == null ? null : result.currentMode().height(), PlaybackAutoContext.ValueSource.SYSTEM_API),
+                        displayModeInput("current_refresh_millihz", result.currentMode() == null ? null : result.currentMode().refreshRateMilliHz(), PlaybackAutoContext.ValueSource.SYSTEM_API),
+                        displayModeInput("target_mode_id", result.requestedMode() == null ? null : result.requestedMode().id(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER),
+                        displayModeInput("target_width", result.requestedMode() == null ? null : result.requestedMode().width(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER),
+                        displayModeInput("target_height", result.requestedMode() == null ? null : result.requestedMode().height(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER),
+                        displayModeInput("target_refresh_millihz", result.requestedMode() == null ? null : result.requestedMode().refreshRateMilliHz(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER),
+                        PlaybackTelemetry.DecisionInput.bool("change_required", decision != null && decision.changeRequired(),
+                                PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
+                        PlaybackTelemetry.DecisionInput.bool("window_request", result.applied(),
+                                PlaybackAutoContext.ValueSource.SYSTEM_API, PlaybackAutoContext.Confidence.HIGH))));
+    }
+
+    private static PlaybackTelemetry.DecisionInput displayModeInput(
+            String name, Integer value, PlaybackAutoContext.ValueSource source) {
+        return value == null
+                ? PlaybackTelemetry.DecisionInput.unknown(name)
+                : PlaybackTelemetry.DecisionInput.number(name, value,
+                source, PlaybackAutoContext.Confidence.HIGH);
+    }
+
+    private static String displayModeLabel(ExoOutputModePolicy.Mode mode) {
+        return mode == null ? "unknown" : "mode-" + mode.id();
+    }
+
+    private void publishRenderTarget(View surface) {
+        if (mService == null) return;
+        PlaybackAutoContext.RenderTarget target = surface instanceof SurfaceView
+                ? PlaybackAutoContext.RenderTarget.SURFACE_VIEW
+                : surface instanceof TextureView
+                ? PlaybackAutoContext.RenderTarget.TEXTURE_VIEW
+                : PlaybackAutoContext.RenderTarget.UNKNOWN;
+        player().publishPlaybackRenderTarget(target);
+    }
+
+    private static PlaybackAutoContext.DisplayMode toDisplayMode(ExoOutputModePolicy.Mode mode) {
+        return mode == null ? PlaybackAutoContext.DisplayMode.unknown()
+                : new PlaybackAutoContext.DisplayMode(mode.id(), mode.width(), mode.height(), mode.refreshRateMilliHz());
+    }
+
+>>>>>>> upstream/beta
     @Override
     public void onRenderedFirstFrame() {
         if (isOwner()) onFirstFrameRendered();
@@ -1163,6 +1294,8 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
 
     @Override
     protected void onDestroy() {
+        surfaceDiagnostics.unbind();
+        detachAssSurface();
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "activity destroy beforeRelease %s", lifecycleState());
 <<<<<<< HEAD
 =======

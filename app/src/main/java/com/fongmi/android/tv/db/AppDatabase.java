@@ -45,11 +45,15 @@ public abstract class AppDatabase extends RoomDatabase {
 public abstract class AppDatabase extends RoomDatabase {
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     public static final int VERSION = 43;
 >>>>>>> upstream/dev
 =======
     public static final int VERSION = 45;
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
+=======
+    public static final int VERSION = 47;
+>>>>>>> upstream/beta
     public static final String NAME = "tv";
     public static final String SYMBOL = "@@@";
     private static final int BACKUP_KEEP_COUNT = 7;
@@ -193,7 +197,12 @@ public abstract class AppDatabase extends RoomDatabase {
 =======
                 .addMigrations(Migrations.MIGRATION_43_44)
                 .addMigrations(Migrations.MIGRATION_44_45)
+<<<<<<< HEAD
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
+=======
+                .addMigrations(Migrations.MIGRATION_45_46)
+                .addMigrations(Migrations.MIGRATION_46_47)
+>>>>>>> upstream/beta
                 .fallbackToDestructiveMigration(true)
                 .allowMainThreadQueries().build();
     }

@@ -78,8 +78,16 @@ public class IjkPlayerEngine implements PlayerEngine {
     @Override
     public void start(PlaySpec spec, boolean playWhenReady) {
         this.spec = spec;
+<<<<<<< HEAD
         PlaybackTrace.log("player-engine", getPlaybackTraceId(), "start ijk decode=%d play=%s urlLen=%d headers=%d", decode, playWhenReady, spec.getUrl() == null ? 0 : spec.getUrl().length(), spec.getHeaders() == null ? 0 : spec.getHeaders().size());
         player.setMediaItem(ExoUtil.getMediaItem(spec, decode));
+=======
+        player.setDiagnosticTrace(spec.getPlaybackTraceId());
+        PlaybackTrace.log("player-engine", getPlaybackTraceId(), "start ijk decode=%d position=%d play=%s urlLen=%d headers=%d", decode, position, playWhenReady, spec.getUrl() == null ? 0 : spec.getUrl().length(), spec.getHeaders() == null ? 0 : spec.getHeaders().size());
+        MediaItem item = ExoUtil.getMediaItem(spec, decode);
+        if (position > 0) player.setMediaItem(item, position);
+        else player.setMediaItem(item);
+>>>>>>> upstream/beta
         player.prepare();
         if (playWhenReady) player.play();
         else player.pause();

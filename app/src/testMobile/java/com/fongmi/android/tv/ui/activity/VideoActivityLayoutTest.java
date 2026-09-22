@@ -150,6 +150,11 @@ public class VideoActivityLayoutTest {
         for (String requiredId : REQUIRED_FULLSCREEN_CONTROL_IDS) {
             assertTrue(controlLayout + " is missing @+id/" + requiredId, ids.contains(requiredId));
         }
+        assertFalse("the fullscreen overlay must not expose a duplicate danmaku toggle",
+                ids.contains("danmaku"));
+        Path actionLayout = findMobileResPath().resolve(Path.of("layout", "view_control_vod_action.xml"));
+        assertTrue(actionLayout + " must keep the danmaku action-bar button",
+                collectAndroidIds(actionLayout.toFile()).contains("danmaku"));
     }
 
     @Test
@@ -171,7 +176,7 @@ public class VideoActivityLayoutTest {
         Path sourcePath = findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
 
-        // 悬浮/图标按钮（中间上下集、进度条旁全屏、顶部弹幕/投屏）只受集数、锁定、功能可用性控制，
+        // 悬浮/图标按钮（中间上下集、进度条旁全屏、顶部投屏）只受集数、锁定、功能可用性控制，
         // 不受「播放器按钮设置」影响——那是仅面向底部横向动作栏的偏好。锁定这些可见性表达式，
         // 防止有人再次把 PlayerButtonSetting 判断加回悬浮按钮（历史回归点）。
         assertTrue("middle overlay next button must depend only on episode count",
@@ -182,10 +187,8 @@ public class VideoActivityLayoutTest {
                 source.contains("mBinding.control.fullscreen.setVisibility(isLock() || shortDrama ? View.GONE : View.VISIBLE);"));
         assertTrue("top cast button must depend only on fullscreen and playback state",
                 source.contains("mBinding.control.cast.setVisibility(isFullscreen() && mHistory != null && !player().isEmpty() ? View.VISIBLE : View.GONE);"));
-        assertTrue("top danmaku button must depend only on lock and danmaku availability",
-                source.contains("mBinding.control.danmaku.setVisibility(isLock() || !player().haveDanmaku() ? View.GONE : View.VISIBLE);"));
 
-        for (String id : List.of("next", "prev", "fullscreen", "cast", "danmaku")) {
+        for (String id : List.of("next", "prev", "fullscreen", "cast")) {
             int line = source.indexOf("mBinding.control." + id + ".setVisibility(");
             assertTrue("missing overlay visibility line for mBinding.control." + id, line >= 0);
             String stmt = source.substring(line, source.indexOf(';', line));
@@ -233,15 +236,13 @@ public class VideoActivityLayoutTest {
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
         int method = source.indexOf("private void refreshDanmakuControls()");
         int action = source.indexOf("mBinding.control.action.danmaku.setVisibility", method);
-        int quick = source.indexOf("mBinding.control.danmaku.setVisibility", method);
         int apiSearch = source.indexOf("DanmakuApi.search");
         int apiRefresh = source.indexOf("refreshDanmakuControls();", apiSearch);
         int event = source.indexOf("RefreshEvent.Type.DANMAKU");
         int eventRefresh = source.indexOf("refreshDanmakuControls();", event);
 
         assertTrue(sourcePath + " is missing refreshDanmakuControls", method >= 0);
-        assertTrue("late danmaku refresh must update the fullscreen action button", action > method);
-        assertTrue("late danmaku refresh must update the quick toggle button", quick > method);
+        assertTrue("late danmaku refresh must update the action-bar button", action > method);
         assertTrue("auto danmaku search must refresh controls after loading", apiRefresh > apiSearch);
         assertTrue("manual danmaku refresh event must refresh controls after loading", eventRefresh > event);
     }
@@ -1518,7 +1519,7 @@ public class VideoActivityLayoutTest {
 
         assertTrue(sourcePath + " is missing direct native episode predicate", predicate >= 0);
         assertTrue("direct native episode mode must be scoped to the 影视原生 setting",
-                source.indexOf("return Setting.isDirectDetailPage() && !isTmdbMode();", predicate) > predicate);
+                source.indexOf("return isRuntimeDirectMode() && !isTmdbMode();", predicate) > predicate);
         assertTrue("direct native playback must bypass enhanced episode binding",
                 setEpisode >= 0 && source.indexOf("if (shouldUseUpstreamNativeEpisodeModule())", setEpisode) > setEpisode);
         assertTrue("direct native playback should keep upstream grouping while honoring the saved list/grid mode",
@@ -1592,7 +1593,7 @@ public class VideoActivityLayoutTest {
 
         assertTrue(sourcePath + " is missing leanback direct native episode predicate", predicate >= 0);
         assertTrue("leanback direct native episode mode must be scoped to the 影视原生 setting",
-                source.indexOf("return Setting.isDirectDetailPage() && !isTmdbMode();", predicate) > predicate);
+                source.indexOf("return isRuntimeDirectMode() && !isTmdbMode();", predicate) > predicate);
         assertTrue("leanback direct native playback must bypass enhanced episode chrome",
                 setEpisode >= 0 && source.indexOf("if (shouldUseUpstreamNativeEpisodeModule())", setEpisode) > setEpisode);
         assertTrue("leanback direct native playback should keep upstream grouping and vertical episode grid",
@@ -2182,13 +2183,13 @@ public class VideoActivityLayoutTest {
 
         assertTrue(sourcePath + " is missing checkCast", method >= 0);
         assertFalse("original enhanced entry must not blank the whole page before the player window loading layer",
-                body.contains("shouldLoadTmdbDetail() && Setting.isOriginalEnhancedDetailPage()"));
+                body.contains("shouldLoadTmdbDetail() && isRuntimeOriginalEnhancedMode()"));
         assertTrue("original enhanced entry must reveal the initial preview shell", body.contains("hasInitialPreview()) showInitialPreview();"));
         assertTrue("the full-screen TMDB loading overlay must be suppressed while the shell is revealed",
                 overlay.contains("!shouldRevealShellWhileLoading()"));
         assertTrue("shell reveal must be scoped to the original enhanced or direct-native detail page",
-                shell.contains("Setting.isOriginalEnhancedDetailPage()")
-                        && shell.contains("Setting.isDirectDetailPage()"));
+                shell.contains("isRuntimeOriginalEnhancedMode()")
+                        && shell.contains("isRuntimeDirectMode()"));
         assertTrue("shell reveal must show content instead of leaving the page on progress",
                 reveal.contains("mBinding.progressLayout.showContent();"));
         assertTrue("shell reveal must pre-suppress the source text that TMDB later overwrites",
@@ -2225,8 +2226,8 @@ public class VideoActivityLayoutTest {
         assertTrue("the detail area must stop waiting for TMDB before revealing in original enhanced mode",
                 waitReveal.contains("isTmdbDetailEnrichmentPending() && !shouldRevealShellWhileLoading()"));
         assertTrue("shell reveal must be scoped to the original enhanced or direct-native detail page",
-                shell.contains("Setting.isOriginalEnhancedDetailPage()")
-                        && shell.contains("Setting.isDirectDetailPage()"));
+                shell.contains("isRuntimeOriginalEnhancedMode()")
+                        && shell.contains("isRuntimeDirectMode()"));
         assertTrue("source text must still wait for TMDB enrichment so the revealed shell does not swap text",
                 text.contains("if (isTmdbDetailEnrichmentPending()) {"));
     }
@@ -2906,7 +2907,7 @@ public class VideoActivityLayoutTest {
         assertFalse("TmdbHeaderView must not force the theme toggle visible; VideoActivity owns that mode decision",
                 styleFusionBody.contains("themeToggle.setVisibility(View.VISIBLE)"));
         assertTrue("VideoActivity must still show the header theme toggle for the real fusion detail mode",
-                videoSource.contains("DetailThemeVisibility.showFusionThemeButton(Setting.isFusionDetailPage(), isFullscreen(), isInPictureInPictureMode())"));
+                videoSource.contains("DetailThemeVisibility.showFusionThemeButton(isRuntimeFusionMode(), isFullscreen(), isInPictureInPictureMode())"));
     }
 
     @Test
@@ -2965,9 +2966,9 @@ public class VideoActivityLayoutTest {
         assertTrue("fusion playback control retint must cover reverse icon", source.indexOf("mBinding.reverse", method) > method);
         assertTrue("fusion playback control retint must cover grid/list icon", source.indexOf("mBinding.episodeViewMode", method) > method);
         assertTrue("tmdb playback control retint must not depend solely on the global fusion setting",
-                source.indexOf("if (!Setting.isFusionDetailPage()) return;", method) < 0);
+                source.indexOf("if (!isRuntimeFusionMode()) return;", method) < 0);
         assertTrue("TMDB playback controls must not force non-fusion cinema pages into the light palette",
-                source.indexOf("if (!Setting.isFusionDetailPage()) return true;", method) < 0);
+                source.indexOf("if (!isRuntimeFusionMode()) return true;", method) < 0);
         assertTrue("TMDB playback labels and icons must use the header's current detail theme",
                 source.indexOf("mTmdbHeaderView.isCurrentDetailLightTheme()", method) > method);
         assertTrue("dynamic backdrop playback labels must force white text instead of profile dark text",
@@ -3001,7 +3002,7 @@ public class VideoActivityLayoutTest {
                 methodBody.contains("int height = usesOuterEpisodePageScroll() ? 0 : limit;")
                         && methodBody.contains("!usesOuterEpisodePageScroll() && isTmdbEpisodeCardMode()"));
         assertTrue("the outer page scroll contract must cover original enhanced pages and reparented backdrop TMDB playback",
-                outerScrollBody.contains("Setting.isOriginalEnhancedDetailPage()")
+                outerScrollBody.contains("isRuntimeOriginalEnhancedMode()")
                         && outerScrollBody.contains("mTmdbControlsMoved && shouldUseTmdbBackdropSurface()"));
         assertTrue("a reparented outer-scroll episode grid must release vertical gestures to its page",
                 source.contains("mBinding.episode.setOnTouchListener((view, event) -> {")
@@ -3025,7 +3026,7 @@ public class VideoActivityLayoutTest {
 
         assertTrue(sourcePath + " is missing usesOuterEpisodePageScroll", outerScroll >= 0);
         assertTrue("original enhanced playback must remove the inner episode viewport height cap",
-                outerScrollBody.contains("Setting.isOriginalEnhancedDetailPage()"));
+                outerScrollBody.contains("isRuntimeOriginalEnhancedMode()"));
         assertTrue("the first original-enhanced layout pass must replace the XML max-height default",
                 source.contains("private int mEpisodeMaxHeight = -1;"));
     }
@@ -3130,7 +3131,7 @@ public class VideoActivityLayoutTest {
 
         assertTrue(sourcePath + " is missing shouldUseTmdbBackdropSurface", predicate >= 0);
         assertTrue("colorful and native styled TMDB detail must opt into the dynamic backdrop surface",
-                source.indexOf("Setting.getDetailOpenMode() == Setting.DETAIL_OPEN_ENHANCED", predicate) > predicate
+                source.indexOf("runtimeDetailMode() == Setting.DETAIL_OPEN_ENHANCED", predicate) > predicate
                         && source.indexOf("Setting.isTmdbNativeStyle()", predicate) > predicate);
         assertTrue("dynamic backdrop surface must be allowed even when playback artwork wall is disabled",
                 source.indexOf("!shouldUseTmdbBackdropSurface()", setContextWall) > setContextWall);
@@ -3451,7 +3452,8 @@ public class VideoActivityLayoutTest {
             assertTrue(sourcePath + " must persist the identity-first adapter index with quarterly progress",
                     body.contains("mFlagAdapter.indexOf(flag)")
                             && body.contains("TmdbUIAdapter.flagKey(flag, index)")
-                            && body.contains("mHistory.setSourceBindingKey(flagKey)"));
+                            && body.contains("mHistory.setSourceBindingKey(flagKey)")
+                            && body.contains("syncHistory()"));
             assertTrue(sourcePath + " must recover the stable index before the TMDB adapter is bound",
                     body.contains("TmdbUIAdapter.flagIndex(mVod.getFlags(), flag)"));
         }

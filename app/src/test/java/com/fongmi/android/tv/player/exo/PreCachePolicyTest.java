@@ -36,6 +36,14 @@ public class PreCachePolicyTest {
     }
 
     @Test
+    public void preloadWaitsForAStablePlayingWindow() {
+        assertFalse(PreCachePolicy.isPlaybackStableForPreload(4_999, 5_000, true, false));
+        assertFalse(PreCachePolicy.isPlaybackStableForPreload(5_000, 5_000, false, false));
+        assertFalse(PreCachePolicy.isPlaybackStableForPreload(5_000, 5_000, true, true));
+        assertTrue(PreCachePolicy.isPlaybackStableForPreload(5_001, 5_000, true, false));
+    }
+
+    @Test
     public void seekSuppressionRequiresReadyIdleAndSafeBuffer() {
         assertFalse(PreCache.shouldReleaseSeekPreloadSuppression(Player.STATE_BUFFERING, true, false, true));
         assertFalse(PreCache.shouldReleaseSeekPreloadSuppression(Player.STATE_READY, false, false, true));
@@ -71,6 +79,35 @@ public class PreCachePolicyTest {
         assertEquals(3_000, preloadLength(20_000, 3_000, 0, 512));
     }
 
+<<<<<<< HEAD
+=======
+    @Test
+    public void aheadTargetUsesMostOfDiskBudgetWithoutCrossingIt() {
+        assertEquals(300_000, aheadTarget(300_000, -1, 8, 512));
+        assertEquals(34_359, aheadTarget(300_000, -1, 100, 512));
+        assertEquals(68_719, aheadTarget(300_000, -1, 0, 512));
+    }
+
+    @Test
+    public void wholeMediaTargetStillHonorsRemainingDurationAndCapacity() {
+        assertEquals(120_000, aheadTarget(Long.MAX_VALUE, 120_000, 8, 512));
+        assertEquals(429_496, aheadTarget(Long.MAX_VALUE, -1, 8, 512));
+    }
+
+    @Test
+    public void refillWatermarkCreatesAStableHysteresisBand() {
+        assertEquals(240_000, PreCachePolicy.preloadResumeWatermarkMs(300_000, 20_000));
+        assertEquals(40_000, PreCachePolicy.preloadResumeWatermarkMs(60_000, 20_000));
+        assertEquals(0, PreCachePolicy.preloadResumeWatermarkMs(10_000, 20_000));
+    }
+
+    @Test
+    public void completedRangesWaitBeforeStartingAnotherTask() {
+        assertEquals(5_000, PreCachePolicy.nextRangeDelayMs(true));
+        assertEquals(0, PreCachePolicy.nextRangeDelayMs(false));
+    }
+
+>>>>>>> upstream/beta
     private static long target(boolean recovery, long remainingMs, double bitrateMbps, double capacityMib) {
         long bitrate = Math.round(bitrateMbps * 1_000_000);
         int capacity = (int) Math.round(capacityMib * 1024 * 1024);

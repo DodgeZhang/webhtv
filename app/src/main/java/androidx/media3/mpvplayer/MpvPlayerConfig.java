@@ -41,7 +41,11 @@ public final class MpvPlayerConfig {
     private final boolean automaticCacheTime;
     private final boolean automaticHlsVariant;
     private final boolean deferStartupTrackRefresh;
+<<<<<<< HEAD
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
+=======
+    private final boolean restoreFelAutomaticSubtitles;
+>>>>>>> upstream/beta
     private final Map<String, String> extraOptions;
 
     private MpvPlayerConfig(Builder builder) {
@@ -72,7 +76,11 @@ public final class MpvPlayerConfig {
         automaticCacheTime = builder.automaticCacheTime;
         automaticHlsVariant = builder.automaticHlsVariant;
         deferStartupTrackRefresh = builder.deferStartupTrackRefresh;
+<<<<<<< HEAD
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
+=======
+        restoreFelAutomaticSubtitles = builder.restoreFelAutomaticSubtitles;
+>>>>>>> upstream/beta
         extraOptions = Collections.unmodifiableMap(new LinkedHashMap<>(builder.extraOptions));
     }
 
@@ -184,7 +192,14 @@ public final class MpvPlayerConfig {
         return deferStartupTrackRefresh;
     }
 
+<<<<<<< HEAD
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
+=======
+    public boolean restoreFelAutomaticSubtitles() {
+        return restoreFelAutomaticSubtitles;
+    }
+
+>>>>>>> upstream/beta
     public Map<String, String> extraOptions() {
         return extraOptions;
     }
@@ -219,7 +234,11 @@ public final class MpvPlayerConfig {
         private boolean automaticCacheTime;
         private boolean automaticHlsVariant;
         private boolean deferStartupTrackRefresh;
+<<<<<<< HEAD
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
+=======
+        private boolean restoreFelAutomaticSubtitles;
+>>>>>>> upstream/beta
 
         private Builder(Context context) {
             Context app = context.getApplicationContext();
@@ -355,7 +374,15 @@ public final class MpvPlayerConfig {
             return this;
         }
 
+<<<<<<< HEAD
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
+=======
+        public Builder restoreFelAutomaticSubtitles(boolean restore) {
+            restoreFelAutomaticSubtitles = restore;
+            return this;
+        }
+
+>>>>>>> upstream/beta
         public Builder option(String name, String value) {
             extraOptions.put(name, value);
             return this;

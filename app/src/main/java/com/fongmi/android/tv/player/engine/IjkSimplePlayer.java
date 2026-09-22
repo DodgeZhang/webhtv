@@ -112,6 +112,20 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
     private boolean ownsSurface;
     private boolean currentDash;
     private float volume;
+    private final com.fongmi.android.tv.player.PlaybackDiagnosticCollector diagnostics =
+            new com.fongmi.android.tv.player.PlaybackDiagnosticCollector("ijk", "packaged-IjkMediaPlayer");
+    private String diagnosticTrace = "none";
+    private long lastDiagnosticMs;
+
+    void setDiagnosticTrace(String trace) { diagnosticTrace = trace; }
+
+    private void diagnosticEvent(String stage, int what, int extra, boolean error) {
+        diagnostics.emit(diagnostics.context(), "ijk.event", "IMediaPlayer.Listener", "ijk-instance; callback-media-unconfirmed", e -> e
+                .severity(error ? "error" : "info").observed("stage", stage).observed("value", what).observed("errorCode", extra)
+                .observed("state", playbackState).observed("playWhenReady", playWhenReady)
+                .unknown("physicalVideo", com.github.catvod.crawler.diagnostics.DiagnosticEvent.Status.NOT_OBSERVABLE)
+                .unknown("audibility", com.github.catvod.crawler.diagnostics.DiagnosticEvent.Status.NOT_OBSERVABLE));
+    }
 
     IjkSimplePlayer(int decode) {
         super(Looper.getMainLooper());
@@ -247,17 +261,24 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
             if (playWhenReady) ijk.start();
             else ijk.pause();
         }
+<<<<<<< HEAD
+=======
+        if (!playWhenReady) requestPreload(Math.max(0, position()));
+        diagnosticEvent("play-when-ready", playWhenReady ? 1 : 0, 0, false);
+>>>>>>> upstream/beta
         return Futures.immediateVoidFuture();
     }
 
     @Override
     protected ListenableFuture<?> handleStop() {
+        diagnostics.end("stop-request");
         stopInternal(true);
         return Futures.immediateVoidFuture();
     }
 
     @Override
     protected ListenableFuture<?> handleRelease() {
+        diagnostics.end("release-request");
         if (currentDash) {
             releaseDashSafely();
             return Futures.immediateVoidFuture();
@@ -349,6 +370,12 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
 
     @Override
     public void onPrepared(IMediaPlayer mp) {
+<<<<<<< HEAD
+=======
+        diagnosticEvent("prepared; not physical output", 0, 0, false);
+        prepared = true;
+        advanceOpenStage(IjkPlayerEngine.OpenStage.PREPARED);
+>>>>>>> upstream/beta
         playbackState = Player.STATE_READY;
         loading = false;
         playerError = null;
@@ -367,6 +394,7 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
 
     @Override
     public void onCompletion(IMediaPlayer mp) {
+        diagnostics.end("completion");
         setPendingSeek(C.TIME_UNSET);
         playbackState = Player.STATE_ENDED;
         loading = false;
@@ -377,6 +405,18 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
 
     @Override
     public boolean onError(IMediaPlayer mp, int what, int extra) {
+<<<<<<< HEAD
+=======
+        diagnosticEvent(openStage.label(), what, extra, true);
+        lastErrorSnapshot = new IjkPlayerEngine.ErrorSnapshot(
+                what,
+                extra,
+                prepared,
+                openStage,
+                lastHttpStatus,
+                lastNativeOffset,
+                longUrlProxied);
+>>>>>>> upstream/beta
         setPendingSeek(C.TIME_UNSET);
         playbackState = Player.STATE_IDLE;
         loading = false;
@@ -416,6 +456,20 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
 
     @Override
     public void onInfo(IMediaPlayer mp, int what, int extra) {
+<<<<<<< HEAD
+=======
+        diagnosticEvent(what == IMediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START ? "video-rendering-start"
+                : what == IMediaPlayer.MEDIA_INFO_AUDIO_RENDERING_START ? "audio-rendering-start" : "info", what, extra, false);
+        if (what == IMediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) diagnostics.evidence(diagnostics.context(), true, 3);
+        if (what == IMediaPlayer.MEDIA_INFO_AUDIO_RENDERING_START) diagnostics.evidence(diagnostics.context(), false, 3);
+        if (what == IMediaPlayer.MEDIA_INFO_OPEN_INPUT) {
+            advanceOpenStage(IjkPlayerEngine.OpenStage.INPUT_OPENED);
+        } else if (what == IMediaPlayer.MEDIA_INFO_FIND_STREAM_INFO) {
+            advanceOpenStage(IjkPlayerEngine.OpenStage.STREAM_INFO);
+        } else if (what == IMediaPlayer.MEDIA_INFO_COMPONENT_OPEN) {
+            advanceOpenStage(IjkPlayerEngine.OpenStage.COMPONENT_OPENED);
+        }
+>>>>>>> upstream/beta
         if (what == IMediaPlayer.MEDIA_INFO_BUFFERING_START) {
             loading = true;
             playbackState = Player.STATE_BUFFERING;
@@ -428,6 +482,49 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
         invalidateState();
     }
 
+<<<<<<< HEAD
+=======
+    private boolean onNativeInvoke(int event, Bundle bundle) {
+        int httpStatus = bundleNumber(bundle,
+                IjkMediaPlayer.OnNativeInvokeListener.ARG_HTTP_CODE, 0);
+        int nativeError = bundleNumber(bundle,
+                IjkMediaPlayer.OnNativeInvokeListener.ARG_ERROR, 0);
+        int retry = bundleNumber(bundle,
+                IjkMediaPlayer.OnNativeInvokeListener.ARG_RETRY_COUNTER, 0);
+        long offset = bundleLong(bundle,
+                IjkMediaPlayer.OnNativeInvokeListener.ARG_OFFSET, -1);
+        if (event == IjkMediaPlayer.OnNativeInvokeListener.EVENT_WILL_HTTP_OPEN) {
+            advanceOpenStage(IjkPlayerEngine.OpenStage.HTTP_OPENING);
+        } else if (event
+                == IjkMediaPlayer.OnNativeInvokeListener.EVENT_DID_HTTP_OPEN) {
+            if (httpStatus > 0) lastHttpStatus = httpStatus;
+            advanceOpenStage(IjkPlayerEngine.OpenStage.HTTP_OPENED);
+        } else if (event
+                == IjkMediaPlayer.OnNativeInvokeListener.EVENT_DID_HTTP_SEEK) {
+            if (httpStatus > 0) lastHttpStatus = httpStatus;
+            if (offset >= 0) lastNativeOffset = offset;
+        } else if (event
+                == IjkMediaPlayer.OnNativeInvokeListener.EVENT_WILL_HTTP_SEEK
+                && offset >= 0) {
+            lastNativeOffset = offset;
+        }
+        if (SpiderDebug.isEnabled()) {
+            diagnostics.emit("input.open", "ijk-native-invoke", e -> e.observed("value", event)
+                    .observed("stage", openStage.label()).observed("httpCode", httpStatus > 0 ? httpStatus : null)
+                    .observed("errorCode", nativeError).observed("rangeStart", offset < 0 ? null : offset));
+            SpiderDebug.log("ijk",
+                    "native event=%d stage=%s http=%d error=%d offset=%d retry=%d",
+                    event,
+                    openStage.label(),
+                    httpStatus,
+                    nativeError,
+                    offset,
+                    retry);
+        }
+        return false;
+    }
+
+>>>>>>> upstream/beta
     @Override
     public void onBufferingUpdate(IMediaPlayer mp, int percent) {
         bufferingPercent = percent;
@@ -441,6 +538,7 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
 
     @Override
     public void onVideoSizeChanged(IMediaPlayer mp, int width, int height, int sarNum, int sarDen) {
+        diagnostics.emit("video.output.format", "ijk-video-size", e -> e.observed("width", width).observed("height", height));
         videoSize = new VideoSize(width, height);
         refreshTracks();
         invalidateState();
@@ -452,6 +550,8 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
 
     private void openCurrent() {
         if (mediaItem == null || mediaItem.localConfiguration == null) return;
+        diagnostics.begin(diagnosticTrace, "foreground");
+        lastDiagnosticMs = 0;
         try {
             playbackState = Player.STATE_BUFFERING;
             loading = true;
@@ -486,8 +586,30 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
             invalidateState();
             startStateRefresh();
         } catch (Throwable e) {
+<<<<<<< HEAD
             playerError = new PlaybackException(e.getMessage(), e, PlaybackException.ERROR_CODE_IO_UNSPECIFIED);
             SpiderDebug.log("ijk", "open failed uri=%s error=%s", summarizeUri(), e.getMessage());
+=======
+            diagnostics.error(diagnostics.context(), "ijk", "open:" + openStage.label(), e);
+            playerError = new PlaybackException(
+                    "IJK open failed",
+                    e,
+                    PlaybackException.ERROR_CODE_IO_UNSPECIFIED);
+            SpiderDebug.log("ijk",
+                    "open failed errorType=%s stage=%s http=%d longProxy=%s action=notify",
+                    e.getClass().getSimpleName(),
+                    openStage.label(),
+                    lastHttpStatus,
+                    longUrlProxied);
+            lastErrorSnapshot = new IjkPlayerEngine.ErrorSnapshot(
+                    IMediaPlayer.MEDIA_ERROR_IO,
+                    0,
+                    prepared,
+                    openStage,
+                    lastHttpStatus,
+                    lastNativeOffset,
+                    longUrlProxied);
+>>>>>>> upstream/beta
             playbackState = Player.STATE_IDLE;
             loading = false;
 <<<<<<< HEAD
@@ -542,6 +664,7 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
         requestPreload(Math.max(0, position()));
 >>>>>>> upstream/dev
         invalidateState();
+        diagnosticSnapshot();
         startStateRefresh();
     }
 
@@ -579,6 +702,32 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
         if (currentCues.cues.equals(next.cues)) return false;
         currentCues = next;
         return true;
+    }
+
+    private void diagnosticSnapshot() {
+        if (!com.fongmi.android.tv.player.PlaybackDiagnosticCollector.enabled()) return;
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastDiagnosticMs < 5000) return;
+        lastDiagnosticMs = now;
+        diagnostics.baseline();
+        diagnostics.emit("ijk.runtime", "ijk-public-properties", e -> {
+            e.observed("state", playbackState).observed("positionMs", position()).observed("durationMs", duration() == C.TIME_UNSET ? null : duration())
+                    .observed("playWhenReady", playWhenReady).observed("volume", volume).observed("speed", playbackParameters.speed)
+                    .observed("videoSelected", prepared ? selectedVideoFormat != null : null)
+                    .observed("audioSelected", prepared ? selectedAudioFormat != null : null)
+                    .unknown("audioOutput", com.github.catvod.crawler.diagnostics.DiagnosticEvent.Status.NOT_OBSERVABLE)
+                    .observed("nativeHook", "native-hook-required: IJK AudioTrack/OpenSL write/head/actual route");
+            if (prepared) e.observed("decoderName", ijk.getVideoCodecInfo()).observed("decode", ijk.getVideoDecoder());
+        });
+        if (prepared) {
+            diagnostics.emit("video.output.summary", "ijk-public-properties", e -> e
+                    .observed("frameRate", ijk.getVideoOutputFramesPerSecond()).observed("metricScope", "IJK video-output-fps; not display refresh")
+                    .observed("bytes", ijk.getVideoCachedBytes()));
+            diagnostics.emit("audio.decoder.output", "ijk-public-properties", e -> e.observed("decoderName", ijk.getAudioCodecInfo())
+                    .observed("bytes", ijk.getAudioCachedBytes()).observed("metricScope", "cached input bytes; not accepted output")
+                    .unknown("audibility", com.github.catvod.crawler.diagnostics.DiagnosticEvent.Status.NOT_OBSERVABLE));
+        }
+        com.fongmi.android.tv.player.SystemAudioDiagnosticCollector.snapshot(diagnostics, diagnostics.context());
     }
 
     private void requestPreload(long positionMs) {
@@ -946,6 +1095,22 @@ class IjkSimplePlayer extends SimpleBasePlayer implements IMediaPlayer.Listener 
                     else if (type == C.TRACK_TYPE_TEXT) selectedText = true;
                 }
                 Format format = buildFormat(info, type, ++index);
+<<<<<<< HEAD
+=======
+                if (SpiderDebug.isEnabled()) {
+                    boolean actualSelected = type == C.TRACK_TYPE_VIDEO ? info.getStreamIndex() == selectedVideoStream
+                            : type == C.TRACK_TYPE_AUDIO && info.getStreamIndex() == selectedAudioStream;
+                    diagnostics.emit("media.tracks", "ijk-track-info", e -> e.observed("trackId", info.getStreamIndex())
+                            .observed("trackType", type).observed("selected", type == C.TRACK_TYPE_TEXT ? null : actualSelected)
+                            .observed("mime", format.sampleMimeType).observed("codecs", format.codecs)
+                            .observed("sampleRate", format.sampleRate > 0 ? format.sampleRate : null)
+                            .observed("channels", format.channelCount > 0 ? format.channelCount : null));
+                    if (type == C.TRACK_TYPE_VIDEO) diagnostics.evidence(diagnostics.context(), true, 0);
+                    if (type == C.TRACK_TYPE_AUDIO) diagnostics.evidence(diagnostics.context(), false, 0);
+                }
+                if (type == C.TRACK_TYPE_VIDEO && info.getStreamIndex() == selectedVideoStream) actualVideo = format;
+                if (type == C.TRACK_TYPE_AUDIO && info.getStreamIndex() == selectedAudioStream) actualAudio = format;
+>>>>>>> upstream/beta
                 TrackGroup group = new TrackGroup("ijk:" + type + ":" + index, format);
                 groups.add(new Tracks.Group(group, false, new int[]{C.FORMAT_HANDLED}, new boolean[]{selected}));
             }

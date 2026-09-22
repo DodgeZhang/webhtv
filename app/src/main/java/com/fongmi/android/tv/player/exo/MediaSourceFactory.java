@@ -7,6 +7,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PriorityTaskManager;
 import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.datasource.DataSource;
@@ -31,6 +32,12 @@ import androidx.media3.extractor.ExtractorsFactory;
 import androidx.media3.extractor.ts.TsExtractor;
 
 import com.fongmi.android.tv.App;
+<<<<<<< HEAD
+=======
+import com.fongmi.android.tv.player.exo.ass.AssFontSet;
+import com.fongmi.android.tv.player.exo.ass.ExoAssSession;
+import com.fongmi.android.tv.player.cache.DiskCacheCapacityPolicy;
+>>>>>>> upstream/beta
 import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.PreloadSetting;
@@ -72,6 +79,7 @@ public class MediaSourceFactory implements MediaSource.Factory {
     private DataSource.Factory dataSourceFactory;
     private ExtractorsFactory extractorsFactory;
     @Nullable private final ExoDolbyVisionPlaybackState dolbyVisionPlaybackState;
+    @Nullable private final ExoAssSession assSession;
 
     public MediaSourceFactory() {
         this(null);
@@ -79,7 +87,13 @@ public class MediaSourceFactory implements MediaSource.Factory {
 
     MediaSourceFactory(
             @Nullable ExoDolbyVisionPlaybackState dolbyVisionPlaybackState) {
+        this(dolbyVisionPlaybackState, null);
+    }
+
+    MediaSourceFactory(@Nullable ExoDolbyVisionPlaybackState dolbyVisionPlaybackState,
+            @Nullable ExoAssSession assSession) {
         this.dolbyVisionPlaybackState = dolbyVisionPlaybackState;
+        this.assSession = assSession;
         defaultMediaSourceFactory = new DefaultMediaSourceFactory(getDataSourceFactory(), getExtractorsFactory()).setLoadOnlySelectedTracks(PlaybackPerformanceSetting.isLoadOnlySelectedTracksEnabled());
     }
 
@@ -139,13 +153,21 @@ public class MediaSourceFactory implements MediaSource.Factory {
         Map<String, String> headers = ExoUtil.extractHeaders(mediaItem);
         DefaultMediaSourceFactory itemFactory = createItemMediaSourceFactory(headers);
         String url = mediaItem.requestMetadata.mediaUri != null ? mediaItem.requestMetadata.mediaUri.toString() : "";
+        AssFontSet fonts = assSession == null ? null : assSession.beginMediaFonts();
+        if (fonts != null || mediaItem.localConfiguration != null
+                && mediaItem.localConfiguration.tag instanceof com.fongmi.android.tv.player.PlaybackDiagnosticCollector.Context) {
+            itemFactory = createItemMediaSourceFactory(headers, fonts, mediaItem);
+        }
         if (isConcatenatingUrl(url)) return createConcatenatingMediaSource(mediaItem, url, itemFactory);
-        else return itemFactory.createMediaSource(mediaItem);
+        return itemFactory.createMediaSource(mediaItem);
     }
 
     private MediaSource createConcatenatingMediaSource(
             MediaItem mediaItem, String url, DefaultMediaSourceFactory itemFactory) {
         ConcatenatingMediaSource2.Builder builder = new ConcatenatingMediaSource2.Builder();
+        DefaultMediaSourceFactory sourceFactory = new DefaultMediaSourceFactory(getDataSourceFactory(),
+                Media3DiagnosticBridge.extractors(getExtractorsFactory(), mediaItem))
+                .setLoadOnlySelectedTracks(PlaybackPerformanceSetting.isLoadOnlySelectedTracksEnabled());
         for (String split : url.split(CONCAT_SOURCE_SEPARATOR_REGEX)) {
             String[] info = split.split(CONCAT_DURATION_SEPARATOR_REGEX);
             if (info.length >= 2) {
@@ -158,7 +180,11 @@ public class MediaSourceFactory implements MediaSource.Factory {
     }
 
     private ExtractorsFactory getExtractorsFactory() {
-        if (extractorsFactory == null) {
+        if (extractorsFactory == null) extractorsFactory = buildExtractorsFactory(null);
+        return extractorsFactory;
+    }
+
+    private ExtractorsFactory buildExtractorsFactory(@Nullable AssFontSet fonts) {
             ExtractorsFactory defaults = new DefaultExtractorsFactory()
                     .setTsExtractorFlags(FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS)
                     .setTsExtractorTimestampSearchBytes(
@@ -175,10 +201,7 @@ public class MediaSourceFactory implements MediaSource.Factory {
                     return prependApe(defaults.createExtractors(uri, responseHeaders));
                 }
             };
-            extractorsFactory = new DolbyVisionP81ExtractorsFactory(
-                    withApe, dolbyVisionPlaybackState);
-        }
-        return extractorsFactory;
+            return new DolbyVisionP81ExtractorsFactory(withApe, dolbyVisionPlaybackState, fonts);
     }
 
     private static androidx.media3.extractor.Extractor[] prependApe(
@@ -199,7 +222,8 @@ public class MediaSourceFactory implements MediaSource.Factory {
             DataSource.Factory cacheDataSource = getCacheDataSource(
                     new DefaultDataSource.Factory(App.get(), getHttpDataSourceFactory()),
                     Map.of());
-            DataSource.Factory trackedDataSource = new PlaybackBytePositionDataSource.Factory(cacheDataSource);
+            DataSource.Factory adblockDataSource = new ExoHlsAdblockDataSource.Factory(cacheDataSource);
+            DataSource.Factory trackedDataSource = new PlaybackBytePositionDataSource.Factory(adblockDataSource);
             dataSourceFactory = new PriorityTaskDataSource.Factory(trackedDataSource, PLAYBACK_PRIORITY_MANAGER, C.PRIORITY_PLAYBACK, false);
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
         }
@@ -210,13 +234,24 @@ public class MediaSourceFactory implements MediaSource.Factory {
         OkHttpDataSource.Factory httpFactory = createHttpDataSourceFactory(OkHttp.player(), headers);
         DataSource.Factory upstreamFactory = new DefaultDataSource.Factory(App.get(), httpFactory);
         DataSource.Factory cacheDataSource = getCacheDataSource(upstreamFactory, headers);
-        DataSource.Factory trackedDataSource = new PlaybackBytePositionDataSource.Factory(cacheDataSource);
+        DataSource.Factory adblockDataSource = new ExoHlsAdblockDataSource.Factory(cacheDataSource);
+        DataSource.Factory trackedDataSource = new PlaybackBytePositionDataSource.Factory(adblockDataSource);
         return new PriorityTaskDataSource.Factory(
                 trackedDataSource, PLAYBACK_PRIORITY_MANAGER, C.PRIORITY_PLAYBACK, false);
     }
 
     private DefaultMediaSourceFactory createItemMediaSourceFactory(Map<String, String> headers) {
-        return new DefaultMediaSourceFactory(getDataSourceFactory(headers), getExtractorsFactory())
+        return createItemMediaSourceFactory(headers, null, null);
+    }
+
+    private DefaultMediaSourceFactory createItemMediaSourceFactory(
+            Map<String, String> headers, @Nullable AssFontSet fonts, @Nullable MediaItem mediaItem) {
+        ExtractorsFactory itemExtractors = fonts != null || mediaItem != null
+                && mediaItem.localConfiguration != null
+                && mediaItem.localConfiguration.tag instanceof com.fongmi.android.tv.player.PlaybackDiagnosticCollector.Context
+                ? Media3DiagnosticBridge.extractors(buildExtractorsFactory(fonts), mediaItem)
+                : getExtractorsFactory();
+        return new DefaultMediaSourceFactory(getDataSourceFactory(headers), itemExtractors)
                 .setLoadOnlySelectedTracks(PlaybackPerformanceSetting.isLoadOnlySelectedTracksEnabled());
     }
 

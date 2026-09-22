@@ -14,6 +14,33 @@ import static org.junit.Assert.assertTrue;
 public class TmdbDetailActivityLayoutTest {
 
     @Test
+    public void returningFromExternalPlaybackRefreshesTheSelectedEpisodeFromHistory() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String onResume = javaBlockAt(source, "protected void onResume()");
+        String refresh = javaBlockAt(source, "private void refreshSelectionAfterExternalPlayback()");
+
+        assertTrue("onResume must refresh the detail selection after an external VideoActivity returns",
+                onResume.contains("refreshSelectionAfterExternalPlayback();"));
+        assertTrue("external playback refresh must reload history and redraw the episode selection",
+                refresh.contains("history = History.findPlayback(")
+                        && refresh.contains("selectedFlag = TmdbUIAdapter.selectPlaybackFlag(")
+                        && refresh.contains("selectedEpisode = findEpisodeByUrl(history.getEpisodeUrl(), selectedFlag.getEpisodes());")
+                        && refresh.contains("renderFlagSelection();")
+                        && refresh.contains("renderEpisodes();"));
+    }
+
+    @Test
+    public void defaultPosterRailLeavesRoomForTheFullRoundedPosterCard() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String defaultTemplate = javaBlockAt(source, "private void applyDefaultDetailTemplate()");
+
+        assertTrue("default detail modes must leave room for the full 222dp rounded card and focus scaling",
+                defaultTemplate.contains("TmdbDetailLayoutUtils.setHeightDp(binding.posterList, 238);")
+                        && defaultTemplate.contains("binding.posterList.setClipToOutline(false);")
+                        && defaultTemplate.contains("binding.posterList.setClipChildren(false);"));
+    }
+
+    @Test
     public void cinemaPosterRailLeavesRoomForTheFullRoundedPosterCard() throws Exception {
         String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
         String cinemaTemplate = javaBlockAt(source, "private void applyCinemaDetailTemplate()");
@@ -29,9 +56,11 @@ public class TmdbDetailActivityLayoutTest {
         String adapter = readJava("com", "fongmi", "android", "tv", "ui", "adapter", "TmdbEpisodeAdapter.java");
         String cardSize = javaBlockAt(adapter, "private void applyCardSize(");
 
-        assertTrue("the episode grid must align its logical start edge with the other detail rails while keeping a full gap after every card",
-                cardSize.contains("int marginStart = 0;")
-                        && cardSize.contains("int marginEnd = mode == Mode.GRID ? gridSpacing : dp(holder.itemView, 12);"));
+        assertTrue("the episode grid must distribute column margins like the playback grid so both outer edges align and cards keep equal widths",
+                cardSize.contains("int gridColumn = position >= 0 ? position % gridSpanCount : 0;")
+                        && cardSize.contains("int marginStart = mode == Mode.GRID ? gridSpacing * gridColumn / gridSpanCount : 0;")
+                        && cardSize.contains("int marginEnd = mode == Mode.GRID")
+                        && cardSize.contains("? gridSpacing - gridSpacing * (gridColumn + 1) / gridSpanCount"));
     }
 
     @Test
@@ -41,6 +70,23 @@ public class TmdbDetailActivityLayoutTest {
 
         assertTrue("cinema still cards are 124dp high, so their rail must not reserve a larger empty bottom area before posters",
                 cinemaTemplate.contains("TmdbDetailLayoutUtils.setHeightDp(binding.episodePhotoList, 124);"));
+    }
+
+    @Test
+    public void directPlayClearThemeUsesCompactSharedTmdbSectionGap() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String refresh = javaBlockAt(source, "private void bindTmdbSection()");
+
+        assertTrue("direct-play clear theme must compact every populated TMDB rail gap while other themes retain the standard spacing",
+                refresh.contains("int sectionGapDp = isPlayerMode() && !isCinemaMode() ? 12 : 20;")
+                        && refresh.contains("binding.posterTitle, hasPhotos ? sectionGapDp : 0")
+                        && refresh.contains("binding.relatedVideoTitle, hasPhotos || hasPosters ? sectionGapDp : 0")
+                        && refresh.contains("binding.castTitle, hasPhotos || hasPosters || hasRelatedVideos ? sectionGapDp : 0")
+                        && refresh.contains("binding.creatorTitle, hasPhotos || hasPosters || hasRelatedVideos || hasCast ? sectionGapDp : 0")
+                        && refresh.contains("binding.relatedTitle, hasPhotos || hasPosters || hasRelatedVideos || hasCast || hasCreators ? sectionGapDp : 0")
+                        && refresh.contains("binding.personalTmdbTitle, hasPhotos || hasPosters || hasCast || hasCreators || hasRelated || hasRelatedVideos ? sectionGapDp : 0")
+                        && refresh.contains("binding.personalDoubanTitle, hasPhotos || hasPosters || hasCast || hasCreators || hasRelated || hasRelatedVideos || hasPersonalTmdb ? sectionGapDp : 0")
+                        && refresh.contains("binding.personalAiTitle, hasPhotos || hasPosters || hasCast || hasCreators || hasRelated || hasRelatedVideos || hasPersonalTmdb || hasPersonalDouban ? sectionGapDp : 0"));
     }
 
     @Test
@@ -612,7 +658,9 @@ public class TmdbDetailActivityLayoutTest {
 
         assertTrue("detail page must decide whether its mode owns an inline player", method >= 0);
         assertTrue("colorful detail must leave PlaybackService ownership to each standalone VideoActivity",
-                body.contains("return isFusionMode() || isPlayerMode();"));
+                body.contains("return modeController.shouldBindPlaybackService();")
+                        && !body.contains("isFusionMode()")
+                        && !body.contains("isPlayerMode()"));
     }
 
     @Test
@@ -2192,6 +2240,7 @@ public class TmdbDetailActivityLayoutTest {
                 "adapter_tmdb_person_photo.xml",
                 "adapter_tmdb_rail_item.xml",
                 "adapter_tmdb_rail_landscape.xml",
+                "adapter_tmdb_recommendation.xml",
                 "adapter_tmdb_recommendation_landscape.xml",
                 "adapter_tmdb_work.xml",
                 "item_tmdb_person_photo.xml",
@@ -2876,8 +2925,9 @@ public class TmdbDetailActivityLayoutTest {
                 pipBody.contains("restoreInlinePlayerPanelAfterOverlay();")
                         && !pipBody.contains("inlinePiPParent.addView(binding.playerPanel"));
         assertTrue("detail-player fullscreen Back must close playback back to the detail page on TV and mobile, while fusion keeps embedded exit",
-                backFromFullscreenBody.contains("if (isPlayerMode())")
-                        && backFromFullscreenBody.indexOf("exitInlineFullscreen();") < backFromFullscreenBody.indexOf("closeDetailFullscreenPlayer();")
+                backFromFullscreenBody.contains("modeController.onExitFullscreen()")
+                        && !backFromFullscreenBody.contains("if (isPlayerMode())")
+                        && backFromFullscreenBody.indexOf("exitInlineFullscreen();") < backFromFullscreenBody.indexOf("modeController.onExitFullscreen()")
                         && backFromFullscreenBody.contains("return;")
                         && !backFromFullscreenBody.contains("Util.isLeanback() && isPlayerMode()")
                         && !backFromFullscreenBody.contains("finishPlaybackToHome();")
@@ -3079,11 +3129,16 @@ public class TmdbDetailActivityLayoutTest {
         String stopBody = source.substring(stop, start);
         String startBody = source.substring(start, source.indexOf("private void searchInlineDanmaku", start));
 
-        assertTrue("current inline episode clicks must reuse playback before fusion reloads",
-                onPlayBody.indexOf("enterInlineFullscreenIfCurrentInlinePlayback(selectedEpisode)") < onPlayBody.indexOf("if (isFusionMode()) playInline();"));
-        assertTrue("detail-player fullscreen entry must not reload the already playing episode",
+        int reuseCurrentPlayback = onPlayBody.indexOf("enterInlineFullscreenIfCurrentInlinePlayback(selectedEpisode)");
+        int delegatedPlay = onPlayBody.indexOf("modeController.play();");
+        assertTrue("current inline episode clicks must reuse playback before delegated playback",
+                reuseCurrentPlayback >= 0 && delegatedPlay >= 0 && reuseCurrentPlayback < delegatedPlay);
+        int enterFullscreen = detailBody.indexOf("enterInlineFullscreen();");
+        int startPlayback = detailBody.indexOf("if (!current) playInline();");
+        assertTrue("detail-player fullscreen entry must be immediate and must not reload the already playing episode",
                 detailBody.contains("boolean current = isCurrentInlinePlayback(selectedEpisode);")
-                        && detailBody.contains("if (!current) playInline();"));
+                        && enterFullscreen >= 0
+                        && startPlayback > enterFullscreen);
         assertTrue("current inline playback identity must include episode, site key, and line flag",
                 source.contains("private Episode inlinePlaybackEpisode;")
                         && source.contains("private String inlinePlaybackKey = \"\";")
@@ -3446,6 +3501,7 @@ public class TmdbDetailActivityLayoutTest {
         assertTrue("unmapped cards and API failures must still open a source detail dialog",
                 detail.contains("if (boundTmdbEpisode == null)")
                         && detail.contains("EpisodeDetailDialog.show(this, episode, getSite(), null, null, dismissListener);")
+                        && detail.contains("EpisodeDetailDialog.show(this, episode, boundTmdbEpisode, getSite(), null, null, dismissListener);")
                         && detail.contains("if (!isTmdbEpisodeDetailSeasonCurrent(displaySeasonNumber)) return;"));
     }
 
@@ -3650,4 +3706,22 @@ public class TmdbDetailActivityLayoutTest {
         // 子串匹配 "methodName(args)" 天然忽略它 —— 无需正则、无需截断。
         return source.contains(methodName + argsAndRest);
     }
+
+    @Test
+    public void playbackStartDelegatesToModeController() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String body = javaBlockAt(source, "private void startInlinePlayer(Result result, long resumePosition)");
+        assertTrue("successful inline playback must notify the active mode controller",
+                body.contains("modeController.onPlaybackStarted();"));
+    }
+
+    @Test
+    public void inlineBackStopsPlaybackBeforeFinishingDetail() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String body = javaBlockAt(source, "private void onInlineBack()");
+        int stop = body.indexOf("stopPlayback();");
+        int finish = body.indexOf("finish();");
+        assertTrue("leaving inline detail must stop playback before finish", stop >= 0 && finish > stop);
+    }
+
 }
