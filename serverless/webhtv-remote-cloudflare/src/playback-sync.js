@@ -254,7 +254,12 @@ export class WebHTVPlaybackSyncDO {
 
   async ingest(request) {
     const body = await readPlaybackJson(request);
-    const configKey = this.resolveAlias(requireConfigKey(request, body));
+    // rawConfigKey 来自请求头/体，是设备自己的 interfaceKey（可能是已合并的别名）。
+    // normalizePlaybackEvent 用它做 configKey 一致性校验（body.configKey 必须等于
+    // 请求声明的 key）；真正落库时改用别名解析后的 canonical key，使别名设备的数据
+    // 与目标空间合并。
+    const rawConfigKey = requireConfigKey(request, body);
+    const configKey = this.resolveAlias(rawConfigKey);
     const rawEvents = extractPlaybackEvents(body);
     if (!rawEvents.length) throw playbackHttpError(400, 'Playback event is empty');
     if (rawEvents.length > MAX_BATCH_ITEMS) throw playbackHttpError(413, `Too many playback events; maximum is ${MAX_BATCH_ITEMS}`);
@@ -265,7 +270,14 @@ export class WebHTVPlaybackSyncDO {
     const now = Date.now();
     // Validate the entire batch before applying any item so a malformed item cannot
     // leave earlier records committed while the request itself returns an error.
-    const events = rawEvents.map((raw) => normalizePlaybackEvent(raw, configKey, now, sharedEventId));
+    const events = rawEvents.map((raw) => normalizePlaybackEvent(raw, rawConfigKey, now, sharedEventId));
+    // 把事件归属改写到 canonical configKey（别名目标），数据统一落到目标空间。
+    // payload.configKey 也同步改写，保持存储内一致性；pull 出口会再按需改回
+    // 请求方自己的 key。
+    for (const event of events) {
+      event.configKey = configKey;
+      if (event.payload) event.payload.configKey = configKey;
+    }
     const results = events.map((event) => event.kind === 'delete' ? this.applyDelete(event, now) : this.applyUpsert(event, now));
     return playbackJson({
       ok: true,
