@@ -609,7 +609,7 @@ async function doLogin() {
 // 查询当前 Token 命名空间下已有数据的所有 configKey（含新版 App 的 interfaceKey）。
 // App 界面未展示 interfaceKey，但它每次上报都会携带，服务端可以直接列出来。
 async function findConfigs() {
-  const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\/+$/, '');
+  const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\\/+$/, '');
   const token = document.getElementById('loginToken').value.trim();
   const box = document.getElementById('configListResult');
   if (!baseUrl) { showToast('请先填写 Worker 地址', 'error'); return; }
