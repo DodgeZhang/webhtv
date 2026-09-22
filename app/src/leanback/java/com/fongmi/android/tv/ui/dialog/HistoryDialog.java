@@ -183,8 +183,8 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
         Window window = getDialog().getWindow();
         int screenWidth = ResUtil.getScreenWidth(requireContext());
         int screenHeight = ResUtil.getScreenHeight(requireContext());
-        int width = screenWidth - ResUtil.dp2px(64);
-        int height = screenHeight - ResUtil.dp2px(64);
+        int width = screenWidth - ResUtil.dp2px(48);
+        int height = screenHeight - ResUtil.dp2px(48);
         WindowManager.LayoutParams params = window.getAttributes();
         params.width = width;
         params.height = height;

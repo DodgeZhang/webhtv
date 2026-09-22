@@ -98,7 +98,8 @@ public class ConfigDialog extends BaseAlertDialog {
     @Override
     @NonNull
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
-        Dialog dialog = LightDialog.create(requireContext(), getDialogTitle(), getBinding().getRoot());
+        int height = Math.max(1, ResUtil.getScreenHeight(requireContext()) - ResUtil.dp2px(48));
+        Dialog dialog = LightDialog.create(requireContext(), getDialogTitle(), getBinding().getRoot(), 0.95f, 0.95f, 2000, height);
         initView();
         initEvent();
         return dialog;
@@ -283,8 +284,8 @@ public class ConfigDialog extends BaseAlertDialog {
         Window window = getDialog().getWindow();
         int screenWidth = ResUtil.getScreenWidth(requireContext());
         int screenHeight = ResUtil.getScreenHeight(requireContext());
-        int width = screenWidth - ResUtil.dp2px(64);
-        int height = screenHeight - ResUtil.dp2px(64);
+        int width = screenWidth - ResUtil.dp2px(48);
+        int height = screenHeight - ResUtil.dp2px(48);
         WindowManager.LayoutParams params = window.getAttributes();
         params.width = width;
         params.height = height;

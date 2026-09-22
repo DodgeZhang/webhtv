@@ -50,6 +50,7 @@ public class InterfaceEntryInteractionTest {
         assertTrue(source.contains("if (!current) listener.onTextClick(item);"));
         assertTrue(source.contains("bindVerticalFocus(holder.binding.text, position)"));
         assertTrue(source.contains("KEYCODE_DPAD_DOWN"));
+        assertTrue(source.contains("recycler.postDelayed(focus, 120)"));
         assertFalse(source.contains("holder.binding.text.setFocusable(!current)"));
     }
 
@@ -105,12 +106,12 @@ public class InterfaceEntryInteractionTest {
 
         assertTrue(history.contains("ResUtil.getScreenWidth(requireContext())"));
         assertTrue(history.contains("ResUtil.getScreenHeight(requireContext())"));
-        assertTrue(history.contains("int width = screenWidth - ResUtil.dp2px(64)"));
+        assertTrue(history.contains("int width = screenWidth - ResUtil.dp2px(48)"));
         assertTrue(history.contains("window.getDecorView().setPadding(0, 0, 0, 0)"));
         assertTrue(history.contains("window.setLayout(params.width, params.height)"));
         assertTrue(config.contains("ResUtil.getScreenWidth(requireContext())"));
         assertTrue(config.contains("ResUtil.getScreenHeight(requireContext())"));
-        assertTrue(config.contains("int width = screenWidth - ResUtil.dp2px(64)"));
+        assertTrue(config.contains("int width = screenWidth - ResUtil.dp2px(48)"));
         assertTrue(config.contains("window.getDecorView().setPadding(0, 0, 0, 0)"));
         assertTrue(config.contains("window.setLayout(params.width, params.height)"));
         assertTrue(layout.contains("<com.fongmi.android.tv.ui.custom.CustomEditText\n            android:id=\"@+id/name\""));
@@ -123,6 +124,7 @@ public class InterfaceEntryInteractionTest {
         assertTrue(config.contains("expandContentToWindow(width, height)"));
         assertTrue(config.contains("contentParams.width = ViewGroup.LayoutParams.MATCH_PARENT"));
         assertTrue(config.contains("contentParams.height = ViewGroup.LayoutParams.MATCH_PARENT"));
+        assertTrue(config.contains("LightDialog.create(requireContext(), getDialogTitle(), getBinding().getRoot(), 0.95f, 0.95f, 2000, height)"));
     }
 
     private static String read(String file) throws Exception {

@@ -154,6 +154,8 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         };
         if (recycler.findViewHolderForAdapterPosition(position) == null) recycler.smoothScrollToPosition(position);
         recycler.post(focus);
+        recycler.postDelayed(focus, 120);
+        recycler.postDelayed(focus, 260);
     }
 
     private RecyclerView findRecycler(View source) {
