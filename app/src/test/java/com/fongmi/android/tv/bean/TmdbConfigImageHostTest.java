@@ -115,7 +115,7 @@ public class TmdbConfigImageHostTest {
 
     @Test
     public void explicitOfficialDirectRouteStaysDirectAfterNewSave() {
-        TmdbConfig config = TmdbConfig.objectFrom("{\"apiBase\":\"https://api.tmdb.org/3\",\"apiAuto\":false,\"apiRouteConfigured\":true,\"imageBase\":\"https://images.tmdb.org/t/p/w342\",\"imageAuto\":false,\"imageRouteConfigured\":true,\"apiKey\":\"k\"}");
+        TmdbConfig config = TmdbConfig.objectFrom("{\"apiBase\":\"https://api.tmdb.org/3\",\"apiAuto\":false,\"apiRouteConfigured\":true,\"apiRouteMode\":\"direct\",\"imageBase\":\"https://images.tmdb.org/t/p/w342\",\"imageAuto\":false,\"imageRouteConfigured\":true,\"imageRouteMode\":\"direct\",\"apiKey\":\"k\"}");
 
         assertFalse(config.isApiAuto());
         assertFalse(config.isImageAuto());

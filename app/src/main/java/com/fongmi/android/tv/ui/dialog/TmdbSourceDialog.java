@@ -339,9 +339,11 @@ public class TmdbSourceDialog {
         sb.append("\"apiBase\":\"").append(escape(apiAuto ? TmdbProxy.OFFICIAL_API : apiHost)).append("\",");
         sb.append("\"apiAuto\":").append(apiAuto).append(',');
         sb.append("\"apiRouteConfigured\":true,");
+        sb.append("\"apiRouteMode\":\"").append(apiAuto ? "auto" : TmdbProxy.isOfficialApiHost(apiHost) ? "direct" : "custom").append("\",");
         sb.append("\"imageBase\":\"").append(escape(imageAuto ? TmdbProxy.OFFICIAL_IMAGE : imageHost)).append("\",");
         sb.append("\"imageAuto\":").append(imageAuto).append(',');
         sb.append("\"imageRouteConfigured\":true,");
+        sb.append("\"imageRouteMode\":\"").append(imageAuto ? "auto" : TmdbProxy.isOfficialImageHost(imageHost) ? "direct" : "custom").append("\",");
         if (!TextUtils.isEmpty(omdbApiKey)) {
             sb.append("\"omdbApiKey\":\"").append(escape(omdbApiKey)).append("\",");
         }
