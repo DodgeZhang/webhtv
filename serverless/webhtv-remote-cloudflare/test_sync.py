@@ -1249,27 +1249,30 @@ def run_gui():
         win.title('服务端已有 configKey（点击选择）')
         win.geometry('760x320')
         win.transient(root)
-        columns = ('ck', 'items', 'latest')
+        columns = ('name', 'ck', 'items', 'latest')
         tree = ttk.Treeview(win, columns=columns, show='headings', height=10)
+        tree.heading('name', text='接口名称')
         tree.heading('ck', text='configKey')
         tree.heading('items', text='记录数')
         tree.heading('latest', text='最近更新')
-        tree.column('ck', width=460)
-        tree.column('items', width=80, anchor='center')
-        tree.column('latest', width=160, anchor='center')
+        tree.column('name', width=110, anchor='w')
+        tree.column('ck', width=380)
+        tree.column('items', width=70, anchor='center')
+        tree.column('latest', width=150, anchor='center')
         for cfg in configs:
             ck = cfg.get('configKey', '')
             tag = '🆔 interfaceKey' if _is_interface_key(ck) else '🔑 sha256/其他'
+            name = cfg.get('name') or '-'
             try:
                 latest = datetime.fromtimestamp(cfg.get('latest', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S')
             except Exception:
                 latest = str(cfg.get('latest', 0))
-            tree.insert('', 'end', values=(f"{tag}  {ck}", cfg.get('items', 0), latest))
+            tree.insert('', 'end', values=(name, f"{tag}  {ck}", cfg.get('items', 0), latest))
         def on_pick(_event=None):
             sel = tree.selection()
             if not sel:
                 return
-            ck = str(tree.item(sel[0], 'values')[0]).split('  ', 1)[-1]
+            ck = str(tree.item(sel[0], 'values')[1]).split('  ', 1)[-1]
             configkey_var.set(ck)
             win.destroy()
             messagebox.showinfo('已选择', f'已填入 configKey:\n{ck}\n\nUUID 格式即新版 App 的 interfaceKey。')

@@ -172,8 +172,8 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   .page-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
   .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 50; }
-  .login-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 16px; padding: 36px; max-width: 440px; width: 90%; }
+  .login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; z-index: 50; overflow-y: auto; padding: 24px 0; }
+  .login-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 16px; padding: 36px; max-width: 440px; width: 90%; margin: auto; }
   .login-card h2 { font-size: 22px; margin-bottom: 8px; }
   .login-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
   .form-group { margin-bottom: 16px; }
@@ -352,7 +352,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     <button class="btn" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="findConfigs()">
       🔍 查询已有接口（App 上报的 configKey）
     </button>
-    <div id="configListResult" class="form-hint" style="margin-top:8px;display:none;"></div>
+    <div id="configListResult" class="form-hint" style="margin-top:8px;display:none;max-height:46vh;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -641,8 +641,19 @@ async function findConfigs() {
     for (const cfg of configs) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(cfg.configKey);
       const row = document.createElement('div');
-      row.style.cssText = 'cursor:pointer;padding:6px 8px;margin:4px 0;border:1px solid var(--border,#333);border-radius:6px;font-family:monospace;font-size:12px;';
-      row.textContent = (isUuid ? '🆔 [新版 interfaceKey] ' : '🔑 [旧版 sha256] ') + cfg.configKey + '  (' + cfg.items + ' 条)';
+      row.style.cssText = 'cursor:pointer;padding:8px 10px;margin:6px 0;border:1px solid var(--border,#333);border-radius:6px;';
+      // 两行布局：第一行 = 接口名 + 类型标签 + 记录数；第二行 = configKey 本身。
+      // configName 来自用户数据，必须用 textContent 而非 innerHTML 注入。
+      const head = document.createElement('div');
+      head.style.cssText = 'font-size:13px;font-weight:600;';
+      head.textContent = (cfg.name || (isUuid ? '未命名接口' : '旧版接口'))
+        + '  ' + (isUuid ? '(新版 interfaceKey)' : '(旧版 sha256)')
+        + '  · ' + cfg.items + ' 条';
+      const keyLine = document.createElement('div');
+      keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin-top:3px;';
+      keyLine.textContent = cfg.configKey;
+      row.appendChild(head);
+      row.appendChild(keyLine);
       row.onclick = () => {
         document.getElementById('loginConfigKey').value = cfg.configKey;
         box.style.display = 'none';

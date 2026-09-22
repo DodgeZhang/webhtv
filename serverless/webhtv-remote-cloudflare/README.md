@@ -58,7 +58,7 @@ curl 'https://<你的 Worker 域名>/api/playback/sync/configs' \
   -H 'X-WebHTV-Token: <你的 token>'
 ```
 
-响应为 `{ "ok": true, "configs": [{ "configKey": "550e8400-...", "items": 87, "latest": 1789... }] }`，按最近更新排序。Dashboard 登录页的"查询已有接口"按钮与测试脚本 GUI 的同名按钮均调用此端点，点击结果即可自动填入。
+响应为 `{ "ok": true, "configs": [{ "configKey": "550e8400-...", "name": "我的接口", "items": 87, "latest": 1789... }] }`，按最近更新排序。`name` 取自该 configKey 最新一条记录的 `configName`（App 每次上报都会携带）；历史记录缺少该字段时显示为"未命名接口"或"旧版接口"，App 在该接口下再次播放后即会补全。Dashboard 登录页的"查询已有接口"按钮与测试脚本 GUI 的同名按钮均调用此端点，点击结果即可自动填入。
 
 ### App 配置
 

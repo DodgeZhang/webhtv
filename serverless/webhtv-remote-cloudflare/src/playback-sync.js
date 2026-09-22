@@ -339,14 +339,19 @@ export class WebHTVPlaybackSyncDO {
   // 该值；本端点让用户从服务端直接发现 App 实际写入的 configKey。
   // 注意：本端点故意不要求 X-WebHTV-Config-Key（这是发现机制的意义所在）。
   listConfigs() {
+    // SQLite bare-column rule: non-aggregated columns take values from the row
+    // containing the MAX(updated_at), so `name` is the interface name from the
+    // most recent record of each configKey (App sends configName on every push).
     const rows = this.sql.exec(`
-      SELECT config_key, COUNT(*) AS items, MAX(updated_at) AS latest
+      SELECT config_key, COUNT(*) AS items, MAX(updated_at) AS latest,
+             COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name
         FROM playback_items
        GROUP BY config_key
        ORDER BY latest DESC
     `).toArray();
     const configs = rows.map((row) => ({
       configKey: String(row.config_key || ''),
+      name: String(row.name || ''),
       items: Number(row.items || 0),
       latest: Number(row.latest || 0)
     }));
