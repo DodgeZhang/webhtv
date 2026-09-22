@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。**设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。**4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：在可进入原生“外观”页的环境中执行第 4.7 节设备功能矩阵（模式/预设/单槽/透明度/取消/应用/重启/TV 遥控/WebHome/播放回归/连续 30 次切换），并把结果补入本节；在此之前 Layer 2 只能标记为“代码完成、设备验收未完成”。
+- 下一步唯一动作：继续在 dev3 `192.168.50.3:5559` 执行第 4.7 节尚未覆盖的设备矩阵行（TV 遥控、WebHome、备份恢复、动态 UI、播放回归和连续 30 次切换），并把结果补入本节；在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
 ---
 
@@ -647,6 +647,22 @@ Layer 2 DoD：
   - 新增编辑器字符串仅提供 `values/` 英文 base，中文本地化随设备验收一并补齐。
   - 设备端未验证意味着 Layer 1–2 的“无播放回归”结论仍只有 Layer 1 的历史证据，Layer 2 绑定对播放器路径的实际影响未在设备上确认。
 - 回滚锚点：回退 Layer 2D 提交仅撤销 Web 快照的三个附加字段；旧 Web 页面按 key 读取，缺失即忽略，无数据迁移。
+
+---
+
+### 4.12 导航入口修复与设备验证（2026-09-22）
+
+- 任务：`NAV-THEME-ENTRY-20260922`。修复 cold start 时底部导航菜单项未初始化、无法稳定进入原生“外观→主题色”的阻塞问题。
+- 根因：`HomeActivity` 的导航项在 `menu_nav.xml` 中默认 `visible=false`，而 `setNavigation()` 原先只在 `onNewIntent()`、恢复位置或 `onResume()` 的可见性差异分支调用；全新冷启动路径不会执行该初始化。另有 `onNewIntent()` 未调用 `setIntent()`，`checkAction(getIntent())` 可能继续读取旧 Intent。
+- 修复：`initView()` 在设置导航选中监听后显式执行 `setNavigation()`；`onNewIntent()` 先 `setIntent(intent)` 再处理动作；`savedInstanceState == null` 且 Intent 携带 `nav_position` 时，在 `initFragment()` 后立即执行一次 `checkAction(getIntent())`。
+- 设备证据（dev3 `192.168.50.3:5559`，mobile arm64 debug，覆盖安装 `Success`）：
+  - `am start -n .../HomeActivityCurrent --ei nav_position 1` 冷启动进入原生设置页；`外观与语言 → 主题色彩` 可打开，编辑器、预设、13 颜色槽、3 透明度槽、预览和 Apply/Cancel/Reset 均可见。
+  - 选择 `Blue` 预设后 `theme_profile_v2_json` 与 `theme_profile_v2_last_good` 写入 `seedSource=custom`、`seedColor=#0B57D0`；应用后进程无 `FATAL EXCEPTION`。
+  - Light `Primary=#FF0000` 可写入；点击 `Cancel` 后持久化 profile 未改变；点击 `Apply` 后写入，强杀重启后重新打开编辑器仍显示 `#FF0000`。
+  - `Dialog opacity` 上界 `1.0` 可写入并持久化；Dark 编辑模式可切换，Dark `Primary=#00FF00` 写入后强杀重启仍保留。
+  - 测试结束执行 `Reset to default`，profile 回到 `seedSource=none`、槽位为 `null`；设备 `FATAL EXCEPTION=0`。
+- 验证边界：本次修复的是主题编辑器入口和编辑器核心写盘/取消/重启路径，**不等于完成 4.7 节完整矩阵**。TV 遥控、WebHome 快照、备份恢复、动态 UI、播放回归和连续 30 次应用/取消仍需继续执行。
+- 回滚锚点：回退本任务的 3 行 `HomeActivity` 改动即恢复原导航初始化行为；profile 数据格式和 Layer 2A–2D 逻辑不变。
 
 ---
 
