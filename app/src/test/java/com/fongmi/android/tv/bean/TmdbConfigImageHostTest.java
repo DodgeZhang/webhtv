@@ -3,6 +3,7 @@ package com.fongmi.android.tv.bean;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TmdbConfigImageHostTest {
@@ -100,6 +101,24 @@ public class TmdbConfigImageHostTest {
         assertTrue(auto.isImageAuto());
         assertEquals("https://api.tmdb.org/3", auto.getApiBase());
         assertTrue(auto.getImageBase().contains("/t/p/w342"));
+    }
+
+    @Test
+    public void legacyOfficialRoutesArePresentedAsDefaultAutoCandidates() {
+        TmdbConfig config = TmdbConfig.objectFrom("{\"apiBase\":\"https://api.tmdb.org/3\",\"imageBase\":\"https://images.tmdb.org/t/p/w342\",\"apiKey\":\"k\"}");
+
+        assertTrue(config.isApiRouteDefault());
+        assertTrue(config.isImageRouteDefault());
+        assertTrue(config.isApiAuto());
+        assertTrue(config.isImageAuto());
+    }
+
+    @Test
+    public void explicitOfficialDirectRouteStaysDirectAfterNewSave() {
+        TmdbConfig config = TmdbConfig.objectFrom("{\"apiBase\":\"https://api.tmdb.org/3\",\"apiAuto\":false,\"apiRouteConfigured\":true,\"imageBase\":\"https://images.tmdb.org/t/p/w342\",\"imageAuto\":false,\"imageRouteConfigured\":true,\"apiKey\":\"k\"}");
+
+        assertFalse(config.isApiAuto());
+        assertFalse(config.isImageAuto());
     }
 
 }

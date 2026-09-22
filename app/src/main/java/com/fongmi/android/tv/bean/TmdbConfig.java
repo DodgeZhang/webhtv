@@ -43,6 +43,8 @@ public class TmdbConfig {
     private String apiBase;
     @SerializedName("apiAuto")
     private Boolean apiAuto;
+    @SerializedName("apiRouteConfigured")
+    private Boolean apiRouteConfigured;
     @SerializedName(value = "proxyBase", alternate = {"proxyHost", "tmdbProxy", "tmdbProxyBase"})
     private String proxyBase;
     @SerializedName("apiKey")
@@ -59,6 +61,8 @@ public class TmdbConfig {
     private String imageBase;
     @SerializedName("imageAuto")
     private Boolean imageAuto;
+    @SerializedName("imageRouteConfigured")
+    private Boolean imageRouteConfigured;
     @SerializedName("backdropBase")
     private String backdropBase;
     @SerializedName(value = "enabledSites", alternate = {"siteKeys", "sites", "matchSites"})
@@ -127,16 +131,14 @@ public class TmdbConfig {
             apiAuto = true;
         } else {
             apiBase = normalizeApiBase(rawApiBase);
-            if (apiAuto == null) apiAuto = false;
-        }
+            }
         String rawImageBase = trimOr(imageBase, DEFAULT_IMAGE_BASE);
         if (TmdbProxy.isAuto(rawImageBase)) {
             imageBase = DEFAULT_IMAGE_BASE;
             imageAuto = true;
         } else {
             imageBase = normalizeImageInput(rawImageBase);
-            if (imageAuto == null) imageAuto = false;
-        }
+            }
         String normalizedProxyBase = TmdbProxy.normalizeConfig(proxyBase);
         if (!TextUtils.equals(proxyBase, normalizedProxyBase)) {
             proxyBase = normalizedProxyBase;
@@ -190,7 +192,13 @@ public class TmdbConfig {
     }
 
     public boolean isApiAuto() {
-        return Boolean.TRUE.equals(apiAuto) || TmdbProxy.isAuto(proxyBase);
+        return Boolean.TRUE.equals(apiAuto)
+                || (apiRouteConfigured == null && TextUtils.isEmpty(proxyBase) && isOfficialApiBase(apiBase))
+                || TmdbProxy.isAuto(proxyBase);
+    }
+
+    public boolean isApiRouteDefault() {
+        return apiRouteConfigured == null && TextUtils.isEmpty(proxyBase) && isOfficialApiBase(apiBase);
     }
 
     public List<String> getApiCandidates() {
@@ -210,7 +218,12 @@ public class TmdbConfig {
     }
 
     public boolean isImageAuto() {
-        return Boolean.TRUE.equals(imageAuto);
+        return Boolean.TRUE.equals(imageAuto)
+                || (imageRouteConfigured == null && TextUtils.isEmpty(proxyBase) && isOfficialImageBase(imageBase));
+    }
+
+    public boolean isImageRouteDefault() {
+        return imageRouteConfigured == null && TextUtils.isEmpty(proxyBase) && isOfficialImageBase(imageBase);
     }
 
     public boolean isProxyEnabled() {
@@ -355,6 +368,7 @@ public class TmdbConfig {
         TmdbConfig copy = new TmdbConfig();
         copy.apiBase = apiBase;
         copy.apiAuto = apiAuto;
+        copy.apiRouteConfigured = apiRouteConfigured;
         copy.proxyBase = proxyBase;
         copy.apiKey = apiKey;
         copy.apiKeyCompat = apiKeyCompat;
@@ -363,6 +377,7 @@ public class TmdbConfig {
         copy.language = language;
         copy.imageBase = imageBase;
         copy.imageAuto = imageAuto;
+        copy.imageRouteConfigured = imageRouteConfigured;
         copy.backdropBase = backdropBase;
         copy.enabledSites = copyList(enabledSites);
         copy.excludeKeywords = copyList(excludeKeywords);

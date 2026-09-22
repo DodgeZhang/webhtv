@@ -200,13 +200,13 @@ public class TmdbSourceDialog {
     }
 
     private String apiDisplayFor(TmdbConfig config) {
-        if (config != null && config.isApiAuto()) return activity.getString(R.string.dialog_tmdb_api_auto);
+        if (config != null && (config.isApiAuto() || config.isApiRouteDefault())) return activity.getString(R.string.dialog_tmdb_api_auto);
         String value = config == null ? TmdbProxy.OFFICIAL_API : config.getApiHost();
         return routeDisplay(value, TmdbProxy.apiValues(), apiOptionLabels());
     }
 
     private String imageDisplayFor(TmdbConfig config) {
-        if (config != null && config.isImageAuto()) return activity.getString(R.string.dialog_tmdb_image_auto);
+        if (config != null && (config.isImageAuto() || config.isImageRouteDefault())) return activity.getString(R.string.dialog_tmdb_image_auto);
         String value = config == null ? TmdbProxy.OFFICIAL_IMAGE : config.getConfiguredImageBase();
         return routeDisplayImage(value, imageOptionLabels());
     }
@@ -338,8 +338,10 @@ public class TmdbSourceDialog {
         boolean imageAuto = TmdbProxy.isAuto(imageHost);
         sb.append("\"apiBase\":\"").append(escape(apiAuto ? TmdbProxy.OFFICIAL_API : apiHost)).append("\",");
         sb.append("\"apiAuto\":").append(apiAuto).append(',');
+        sb.append("\"apiRouteConfigured\":true,");
         sb.append("\"imageBase\":\"").append(escape(imageAuto ? TmdbProxy.OFFICIAL_IMAGE : imageHost)).append("\",");
         sb.append("\"imageAuto\":").append(imageAuto).append(',');
+        sb.append("\"imageRouteConfigured\":true,");
         if (!TextUtils.isEmpty(omdbApiKey)) {
             sb.append("\"omdbApiKey\":\"").append(escape(omdbApiKey)).append("\",");
         }
