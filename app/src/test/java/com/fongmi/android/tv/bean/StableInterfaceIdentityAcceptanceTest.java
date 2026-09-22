@@ -33,6 +33,8 @@ public class StableInterfaceIdentityAcceptanceTest {
         assertTrue(vod.contains("round.origin.url(loaded.getUrl()).update();"));
         assertTrue(remote.contains("findByInterfaceKey(interfaceKey, type)"));
         assertTrue(remote.contains("mergeUrls(urls(payload)).url(url)"));
+        assertTrue(remote.contains("if (config == null) config = Config.create(type);"));
+        assertFalse(remote.contains("if (config == null) config = Config.find(url, type);"));
     }
 
     @Test

@@ -348,8 +348,10 @@ public class Manage implements Process {
             String name = params.getOrDefault("name", "").trim();
             String interfaceKey = params.getOrDefault("interfaceKey", "").trim();
             if (TextUtils.isEmpty(url)) return Nano.error(Status.BAD_REQUEST, "Missing url");
-            Config config = TextUtils.isEmpty(interfaceKey) ? null : AppDatabase.get().getConfigDao().findByInterfaceKey(interfaceKey, type);
-            if (config == null) config = Config.find(url, type);
+            Config config = TextUtils.isEmpty(interfaceKey)
+                    ? Config.find(url, type)
+                    : AppDatabase.get().getConfigDao().findByInterfaceKey(interfaceKey, type);
+            if (config == null) config = Config.create(type);
             config.interfaceKey(interfaceKey).url(url).name(name).save();
         }
         JsonObject object = new JsonObject();

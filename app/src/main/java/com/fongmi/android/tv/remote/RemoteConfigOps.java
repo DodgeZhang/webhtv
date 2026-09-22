@@ -36,8 +36,10 @@ public final class RemoteConfigOps {
         String name = string(payload, "name");
         String interfaceKey = string(payload, "interfaceKey");
         if (TextUtils.isEmpty(url)) return RemoteCommandResult.failure("Missing config url");
-        Config config = TextUtils.isEmpty(interfaceKey) ? null : AppDatabase.get().getConfigDao().findByInterfaceKey(interfaceKey, type);
-        if (config == null) config = Config.find(url, type);
+        Config config = TextUtils.isEmpty(interfaceKey)
+                ? Config.find(url, type)
+                : AppDatabase.get().getConfigDao().findByInterfaceKey(interfaceKey, type);
+        if (config == null) config = Config.create(type);
         config.interfaceKey(interfaceKey).mergeUrls(urls(payload)).url(url).name(name).save();
         return RemoteCommandResult.success("Config saved", data());
     }
