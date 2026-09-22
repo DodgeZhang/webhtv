@@ -48,4 +48,11 @@ public class TmdbProxyTest {
         assertEquals("NAStool 代理（tmdb.nastool.org + img.nastool.org）", TmdbProxy.displayFor(TmdbProxy.NASTOOL));
         assertFalse(TmdbProxy.values().isEmpty());
     }
+    @Test
+    public void recognizesOfficialApiHostAsDirectRoute() {
+        assertTrue(TmdbProxy.isOfficialApiHost("https://api.tmdb.org"));
+        assertTrue(TmdbProxy.isOfficialApiHost("https://api.themoviedb.org/3"));
+        assertFalse(TmdbProxy.isOfficialApiHost("https://mirror.example.com"));
+    }
+
 }

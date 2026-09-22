@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
  */
 public final class TmdbProxy {
 
+    public static final String OFFICIAL_API = "https://api.tmdb.org";
     public static final String WORKER_POOL = "worker-pool";
     public static final String ITV666 = "http://tmdb.itv666.cc";
     public static final String NASTOOL = "https://tmdb.nastool.org";
@@ -81,6 +82,13 @@ public final class TmdbProxy {
             if (host != null) hosts.add(host);
         }
         return String.join(",", hosts);
+    }
+
+    /** 判断输入是否为官方 TMDB API 地址；官方地址不作为代理保存。 */
+    public static boolean isOfficialApiHost(String value) {
+        String normalized = normalizeHost(value);
+        return "https://api.tmdb.org".equalsIgnoreCase(normalized)
+                || "https://api.themoviedb.org".equalsIgnoreCase(normalized);
     }
 
     /** 将 UI 展示值转换为持久化值；未知文本按自定义地址池处理。 */

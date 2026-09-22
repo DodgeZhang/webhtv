@@ -48,9 +48,7 @@ public class TmdbSourceDialog {
     private TextView disabledLabel;
     private EditText apiKeyInput;
     private EditText languageInput;
-    private EditText apiHostInput;
-    private MaterialAutoCompleteTextView proxyHostInput;
-    private EditText imageHostInput;
+    private MaterialAutoCompleteTextView apiHostInput;
     private EditText omdbApiKeyInput;
     private Runnable onDismiss;
 
@@ -81,10 +79,8 @@ public class TmdbSourceDialog {
         apiKeyInput = view.findViewById(R.id.apiKeyInput);
         languageInput = view.findViewById(R.id.languageInput);
         apiHostInput = view.findViewById(R.id.apiHostInput);
-        proxyHostInput = view.findViewById(R.id.proxyHostInput);
-        proxyHostInput.setSimpleItems(proxyOptionLabels());
-        proxyHostInput.setOnClickListener(v -> proxyHostInput.showDropDown());
-        imageHostInput = view.findViewById(R.id.imageHostInput);
+        apiHostInput.setSimpleItems(proxyOptionLabels());
+        apiHostInput.setOnClickListener(v -> apiHostInput.showDropDown());
         omdbApiKeyInput = view.findViewById(R.id.omdbApiKeyInput);
         EditText ruleInput = view.findViewById(R.id.ruleInput);
         EditText disabledRuleInput = view.findViewById(R.id.disabledRuleInput);
@@ -110,9 +106,7 @@ public class TmdbSourceDialog {
         tempAllowedSites = new ArrayList<>(config.getAllowedSites());
         apiKeyInput.setText(TextUtils.isEmpty(config.getAccessToken()) ? config.getApiKey() : config.getAccessToken());
         languageInput.setText(config.getLanguage());
-        apiHostInput.setText(config.getApiHost());
-        proxyHostInput.setText(proxyDisplayFor(config.getProxyBase()), false);
-        imageHostInput.setText(config.getConfiguredImageHost());
+        apiHostInput.setText(routeDisplayFor(config), false);
         omdbApiKeyInput.setText(config.getOmdbApiKey());
         updateChipsDisplay();
 
@@ -150,14 +144,13 @@ public class TmdbSourceDialog {
 
     private void testConfig(View testButton) {
         String credential = inputText(apiKeyInput);
-        String apiHost = inputText(apiHostInput);
-        String imageHost = inputText(imageHostInput);
-        String proxyBase = proxyValueFor(inputText(proxyHostInput));
+        TmdbConfig current = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+        RouteSelection route = routeSelection(current);
         String omdbApiKey = inputText(omdbApiKeyInput);
         AlertDialog sourceDialog = dialog;
         testButton.setEnabled(false);
         Task.execute(() -> {
-            TmdbConfigTestService.Result result = TmdbConfigTestService.test(credential, apiHost, imageHost, proxyBase, omdbApiKey);
+            TmdbConfigTestService.Result result = TmdbConfigTestService.test(credential, route.apiHost, "", route.proxyBase, omdbApiKey);
             activity.runOnUiThread(() -> {
                 testButton.setEnabled(true);
                 if (activity.isFinishing() || activity.isDestroyed() || sourceDialog == null
@@ -193,6 +186,11 @@ public class TmdbSourceDialog {
         };
     }
 
+    private String routeDisplayFor(TmdbConfig config) {
+        if (config != null && config.isProxyEnabled()) return proxyDisplayFor(config.getProxyBase());
+        return config == null ? TmdbProxy.OFFICIAL_API : config.getApiHost();
+    }
+
     private String proxyDisplayFor(String value) {
         String normalized = TmdbProxy.normalizeConfig(value);
         List<String> values = TmdbProxy.values();
@@ -213,6 +211,40 @@ public class TmdbSourceDialog {
         return TmdbProxy.normalizeConfig(text);
     }
 
+    private RouteSelection routeSelection(TmdbConfig current) {
+        String input = inputText(apiHostInput);
+        String[] labels = proxyOptionLabels();
+        if (TextUtils.isEmpty(input)) return RouteSelection.direct(TmdbProxy.OFFICIAL_API);
+        if (labels[0].equals(input)) return RouteSelection.direct(TmdbProxy.OFFICIAL_API);
+
+        String value = proxyValueFor(input);
+        if (TmdbProxy.isOfficialApiHost(value)) return RouteSelection.direct(value);
+        if (TextUtils.isEmpty(value)) {
+            return current != null && !current.isProxyEnabled()
+                    ? RouteSelection.direct(current.getApiHost())
+                    : RouteSelection.direct(TmdbProxy.OFFICIAL_API);
+        }
+        return RouteSelection.proxy(value);
+    }
+
+    private static final class RouteSelection {
+        final String apiHost;
+        final String proxyBase;
+
+        private RouteSelection(String apiHost, String proxyBase) {
+            this.apiHost = apiHost;
+            this.proxyBase = proxyBase;
+        }
+
+        static RouteSelection direct(String apiHost) {
+            return new RouteSelection(TextUtils.isEmpty(apiHost) ? TmdbProxy.OFFICIAL_API : apiHost, "");
+        }
+
+        static RouteSelection proxy(String proxyBase) {
+            return new RouteSelection(TmdbProxy.OFFICIAL_API, proxyBase);
+        }
+    }
+
     private MaterialAlertDialogBuilder builder() {
         return new MaterialAlertDialogBuilder(activity, R.style.Theme_WebHTV_LightDialog);
     }
@@ -226,10 +258,8 @@ public class TmdbSourceDialog {
         View negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
         wireTextDpadFocus(apiKeyInput, null, languageInput, null, null);
         wireTextDpadFocus(languageInput, apiKeyInput, apiHostInput, null, null);
-        wireTextDpadFocus(apiHostInput, languageInput, imageHostInput, null, null);
-        wireTextDpadFocus(imageHostInput, apiHostInput, proxyHostInput, null, null);
-        wireTextDpadFocus(proxyHostInput, imageHostInput, omdbApiKeyInput, null, null);
-        wireTextDpadFocus(omdbApiKeyInput, proxyHostInput, ruleInput, null, null);
+        wireTextDpadFocus(apiHostInput, languageInput, omdbApiKeyInput, null, null);
+        wireTextDpadFocus(omdbApiKeyInput, apiHostInput, ruleInput, null, null);
         wireTextDpadFocus(ruleInput, omdbApiKeyInput, disabledRuleInput, null, addBtn);
         wireDpadFocus(addBtn, omdbApiKeyInput, addDisabledBtn, ruleInput, null);
         wireTextDpadFocus(disabledRuleInput, ruleInput, manageBtn, null, addDisabledBtn);
@@ -286,9 +316,8 @@ public class TmdbSourceDialog {
     private void onSave() {
         String apiKey = text(apiKeyInput);
         String language = text(languageInput);
-        String apiHost = text(apiHostInput);
-        String imageHost = text(imageHostInput);
-        String proxyBase = proxyValueFor(text(proxyHostInput));
+        TmdbConfig current = TmdbConfig.objectFrom(Setting.getTmdbConfig());
+        RouteSelection route = routeSelection(current);
         String omdbApiKey = text(omdbApiKeyInput);
         boolean isToken = apiKey.split("\\.").length >= 3;
         StringBuilder sb = new StringBuilder("{");
@@ -297,15 +326,14 @@ public class TmdbSourceDialog {
         if (!TextUtils.isEmpty(language)) {
             sb.append("\"language\":\"").append(escape(language)).append("\",");
         }
-        if (!TextUtils.isEmpty(apiHost)) {
-            sb.append("\"apiBase\":\"").append(escape(apiHost)).append("\",");
+        if (!TextUtils.isEmpty(route.apiHost)) {
+            sb.append("\"apiBase\":\"").append(escape(route.apiHost)).append("\",");
         }
-        if (!TextUtils.isEmpty(proxyBase)) {
-            sb.append("\"proxyBase\":\"").append(escape(proxyBase)).append("\",");
-        }
-        // Always persist image host when provided so sanitize can normalize scheme/size.
-        if (!TextUtils.isEmpty(imageHost)) {
-            sb.append("\"imageBase\":\"").append(escape(imageHost)).append("\",");
+        if (!TextUtils.isEmpty(route.proxyBase)) {
+            sb.append("\"proxyBase\":\"").append(escape(route.proxyBase)).append("\",");
+        } else if (current != null && !TextUtils.isEmpty(current.getConfiguredImageBase())) {
+            // 直连模式保留旧版显式图片域名；选择代理线路时省略它，让图片跟随代理。
+            sb.append("\"imageBase\":\"").append(escape(current.getConfiguredImageBase())).append("\",");
         }
         if (!TextUtils.isEmpty(omdbApiKey)) {
             sb.append("\"omdbApiKey\":\"").append(escape(omdbApiKey)).append("\",");
