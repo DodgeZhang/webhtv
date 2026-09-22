@@ -23,12 +23,12 @@ public final class TmdbProxy {
     private static final Pattern POOL_SEPARATOR = Pattern.compile("[,，;；\\s]+");
 
     private static final List<Option> API_OPTIONS = List.of(
+            new Option(AUTO, "自动（低延迟优先，失败切换）"),
             new Option(OFFICIAL_API, "官方 API（直连）"),
-            new Option(AUTO, "自动（延迟优先，失败切换）"),
             new Option(ITV666, "itv666 API 代理"));
     private static final List<Option> IMAGE_OPTIONS = List.of(
+            new Option(AUTO, "自动（低延迟优先，失败切换）"),
             new Option(OFFICIAL_IMAGE, "官方图片（直连）"),
-            new Option(AUTO, "自动（延迟优先）"),
             new Option(ITV666, "itv666 图片代理"),
             new Option(WSRV_IMAGE, "wsrv.nl 图片代理"));
 

@@ -192,8 +192,8 @@ public class TmdbSourceDialog {
 
     private String[] imageOptionLabels() {
         return new String[]{
-                activity.getString(R.string.dialog_tmdb_image_direct),
                 activity.getString(R.string.dialog_tmdb_image_auto),
+                activity.getString(R.string.dialog_tmdb_image_direct),
                 activity.getString(R.string.dialog_tmdb_image_itv666),
                 activity.getString(R.string.dialog_tmdb_image_wsrv)
         };
@@ -218,8 +218,8 @@ public class TmdbSourceDialog {
     private String imageValueFor(String value) {
         String text = value == null ? "" : value.trim();
         String[] labels = imageOptionLabels();
-        if (labels[0].equals(text)) return TmdbProxy.OFFICIAL_IMAGE;
-        if (labels[1].equals(text)) return TmdbProxy.AUTO;
+        if (labels[0].equals(text)) return TmdbProxy.AUTO;
+        if (labels[1].equals(text)) return TmdbProxy.OFFICIAL_IMAGE;
         if (labels[2].equals(text)) return TmdbProxy.ITV666;
         if (labels[3].equals(text)) return TmdbProxy.WSRV_IMAGE;
         String normalized = TmdbProxy.normalizeImageConfig(text);

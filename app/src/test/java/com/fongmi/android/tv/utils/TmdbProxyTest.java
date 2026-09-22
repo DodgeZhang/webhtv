@@ -28,6 +28,8 @@ public class TmdbProxyTest {
     public void exposesOnlyTestedBuiltInApiAndImageRoutes() {
         assertEquals(3, TmdbProxy.apiOptions().size());
         assertEquals(4, TmdbProxy.imageOptions().size());
+        assertEquals(TmdbProxy.AUTO, TmdbProxy.apiOptions().get(0).value);
+        assertEquals(TmdbProxy.AUTO, TmdbProxy.imageOptions().get(0).value);
         assertEquals(TmdbProxy.ITV666, TmdbProxy.valueForInput("itv666 API 代理", TmdbProxy.apiOptions()));
         assertEquals("itv666 图片代理", TmdbProxy.displayImage(TmdbProxy.ITV666));
         assertEquals("wsrv.nl 图片代理", TmdbProxy.displayImage(TmdbProxy.WSRV_IMAGE));
