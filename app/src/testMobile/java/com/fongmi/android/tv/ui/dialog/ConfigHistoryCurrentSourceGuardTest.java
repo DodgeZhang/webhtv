@@ -39,7 +39,10 @@ public class ConfigHistoryCurrentSourceGuardTest {
             assertFalse(source.contains("holder.binding.text.setFocusable(!current)"));
             if (file.contains("leanback")) {
                 assertTrue(source.contains("recycler.stopScroll()"));
-                assertTrue(source.contains("recycler.postOnAnimation(focus)"));
+                assertTrue(source.contains("recycler.addOnChildAttachStateChangeListener(this)"));
+                assertTrue(source.contains("onChildViewAttachedToWindow(@NonNull View view)"));
+                assertTrue(source.contains("recycler.removeOnChildAttachStateChangeListener(this)"));
+                assertTrue(source.contains("recycler.postOnAnimation(focus::run)"));
                 assertFalse(source.contains("postDelayed(focus"));
             }
         }

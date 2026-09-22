@@ -146,14 +146,10 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
     }
 
     private void requestFocus(RecyclerView recycler, int position) {
-        Runnable focus = () -> {
-            RecyclerView.ViewHolder holder = recycler.findViewHolderForAdapterPosition(position);
-            if (holder == null) return;
-            View target = holder.itemView.findViewById(R.id.text);
-            if (target != null && target.getVisibility() == View.VISIBLE && target.isFocusable()) target.requestFocus();
-            else holder.itemView.requestFocus();
-        };
+        FocusRequest focus = new FocusRequest(recycler, position);
         recycler.stopScroll();
+        // 目标行可能尚未挂载；监听它实际挂载的时机，避免提前回调无效后焦点停在原行。
+        focus.listenForTarget();
         if (recycler.findViewHolderForAdapterPosition(position) == null) {
             RecyclerView.LayoutManager layoutManager = recycler.getLayoutManager();
             if (layoutManager instanceof LinearLayoutManager linearLayoutManager) {
@@ -162,8 +158,56 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
                 layoutManager.scrollToPosition(position);
             }
         }
-        // 只在布局完成后请求一次焦点，避免平滑滚动和多次延迟回调互相抢焦点造成闪烁。
-        recycler.postOnAnimation(focus);
+        // 已挂载的目标直接处理；未挂载的目标由 FocusRequest 的 attach 回调处理。
+        recycler.postOnAnimation(focus::run);
+    }
+
+    private class FocusRequest implements RecyclerView.OnChildAttachStateChangeListener {
+
+        private final RecyclerView recycler;
+        private final int position;
+        private boolean listening;
+        private boolean finished;
+
+        private FocusRequest(RecyclerView recycler, int position) {
+            this.recycler = recycler;
+            this.position = position;
+        }
+
+        private void listenForTarget() {
+            recycler.addOnChildAttachStateChangeListener(this);
+            listening = true;
+        }
+
+        private void run() {
+            if (finished) return;
+            RecyclerView.ViewHolder holder = recycler.findViewHolderForAdapterPosition(position);
+            if (holder == null) return;
+            View target = holder.itemView.findViewById(R.id.text);
+            if (target != null && target.getVisibility() == View.VISIBLE && target.isFocusable()) {
+                finish(target);
+            } else {
+                finish(holder.itemView);
+            }
+        }
+
+        private void finish(View target) {
+            finished = true;
+            if (listening) {
+                recycler.removeOnChildAttachStateChangeListener(this);
+                listening = false;
+            }
+            target.requestFocus();
+        }
+
+        @Override
+        public void onChildViewAttachedToWindow(@NonNull View view) {
+            if (recycler.getChildAdapterPosition(view) == position) run();
+        }
+
+        @Override
+        public void onChildViewDetachedFromWindow(@NonNull View view) {
+        }
     }
 
     private RecyclerView findRecycler(View source) {
