@@ -27,6 +27,18 @@ public class TmdbSourceDialogInflationContractTest {
         assertTrue(source.contains("resetBtn.setText(R.string.dialog_tmdb_reset_default)"));
     }
 
+    @Test
+    public void proxySelectorDoesNotNestDuplicateHintLabels() throws Exception {
+        String layout = read(sourcePath().resolve(Path.of("..", "..", "main", "res", "layout", "dialog_tmdb_source.xml")));
+        int label = layout.indexOf("@string/dialog_tmdb_proxy_host_label");
+        int input = layout.indexOf("@+id/proxyHostInput");
+        assertTrue(label >= 0 && input > label);
+        String section = layout.substring(label, Math.min(layout.length(), input + 900));
+        assertTrue(section.contains("MaterialAutoCompleteTextView"));
+        assertTrue(section.contains("TextInputLayout"));
+        assertFalse("proxy selector must not duplicate the external label as a hint", section.contains("android:hint="));
+    }
+
     private static String buttonBlock(String layout, String id) {
         String marker = "android:id=\"@+id/" + id + "\"";
         int idStart = layout.indexOf(marker);

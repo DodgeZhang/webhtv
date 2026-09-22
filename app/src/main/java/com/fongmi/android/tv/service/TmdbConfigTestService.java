@@ -25,19 +25,31 @@ public final class TmdbConfigTestService {
     }
 
     public static Result test(String credential, String apiHost, String imageHost, String omdbApiKey) {
-        return test(CLIENT, credential, apiHost, imageHost, omdbApiKey, "https://www.omdbapi.com/");
+        return test(credential, apiHost, imageHost, "", omdbApiKey);
+    }
+
+    public static Result test(String credential, String apiHost, String imageHost, String proxyBase, String omdbApiKey) {
+        return test(CLIENT, credential, apiHost, imageHost, proxyBase, omdbApiKey, "https://www.omdbapi.com/");
     }
 
     static Result test(OkHttpClient client, String credential, String apiHost, String imageHost, String omdbApiKey, String omdbBaseUrl) {
+        return test(client, credential, apiHost, imageHost, "", omdbApiKey, omdbBaseUrl);
+    }
+
+    static Result test(OkHttpClient client, String credential, String apiHost, String imageHost, String proxyBase, String omdbApiKey, String omdbBaseUrl) {
         return new Result(
-                timed(() -> testApi(client, credential, apiHost)),
-                timed(() -> testImage(client, imageHost)),
+                timed(() -> testApi(client, credential, apiHost, proxyBase)),
+                timed(() -> testImage(client, imageHost, proxyBase)),
                 timed(() -> testOmdb(client, omdbApiKey, omdbBaseUrl)));
     }
 
     static Check testApi(OkHttpClient client, String credential, String apiHost) {
+        return testApi(client, credential, apiHost, "");
+    }
+
+    static Check testApi(OkHttpClient client, String credential, String apiHost, String proxyBase) {
         if (credential == null || credential.trim().isEmpty()) return Check.failed("API Key / Access Token is empty");
-        TmdbConfig config = config(credential, apiHost, null, null);
+        TmdbConfig config = config(credential, apiHost, null, proxyBase, null);
         try {
             HttpUrl base = HttpUrl.parse(config.getApiBase() + "/configuration");
             if (base == null) return Check.failed("invalid URL");
@@ -64,7 +76,11 @@ public final class TmdbConfigTestService {
     }
 
     static Check testImage(OkHttpClient client, String imageHost) {
-        TmdbConfig config = config(null, null, imageHost, null);
+        return testImage(client, imageHost, "");
+    }
+
+    static Check testImage(OkHttpClient client, String imageHost, String proxyBase) {
+        TmdbConfig config = config(null, null, imageHost, proxyBase, null);
         try {
             HttpUrl url = HttpUrl.parse(config.getImageBase() + "/wwemzKWzjKYJFfCeiB57q3r4Bcm.png");
             if (url == null) return Check.failed("invalid URL");
@@ -109,13 +125,14 @@ public final class TmdbConfigTestService {
         }
     }
 
-    private static TmdbConfig config(String credential, String apiHost, String imageHost, String omdbApiKey) {
+    private static TmdbConfig config(String credential, String apiHost, String imageHost, String proxyBase, String omdbApiKey) {
         JsonObject json = new JsonObject();
         String value = trim(credential);
         if (value.split("\\.").length >= 3) json.addProperty("accessToken", value);
         else json.addProperty("apiKey", value);
         if (apiHost != null) json.addProperty("apiBase", trim(apiHost));
         if (imageHost != null) json.addProperty("imageBase", trim(imageHost));
+        if (proxyBase != null) json.addProperty("proxyBase", trim(proxyBase));
         if (omdbApiKey != null) json.addProperty("omdbApiKey", trim(omdbApiKey));
         return TmdbConfig.objectFrom(json.toString());
     }

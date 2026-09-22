@@ -4,6 +4,7 @@ import android.text.TextUtils;
 
 import com.fongmi.android.tv.api.config.SubscriptionTmdbCredentialStore;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.utils.TmdbProxy;
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
 
@@ -69,6 +70,8 @@ public class TmdbConfig {
     private transient String credentialOrigin = ORIGIN_USER;
     private transient String credentialSubscriptionKey = "";
     private transient long credentialScopeEpoch;
+    private transient String resolvedProxyApiBase;
+    private transient String resolvedProxyImageBase;
 
     public static TmdbConfig objectFrom(String json) {
         try {
@@ -95,6 +98,9 @@ public class TmdbConfig {
         }
         if (snapshot != null && !snapshot.isEmpty() && isOfficialApiBase(DEFAULT_API_BASE)) {
             effective.apiBase = DEFAULT_API_BASE;
+            effective.proxyBase = "";
+            effective.resolvedProxyApiBase = null;
+            effective.resolvedProxyImageBase = null;
             effective.apiKey = snapshot.getApiKey();
             effective.apiKeyCompat = effective.apiKey;
             effective.accessToken = "";
@@ -110,7 +116,12 @@ public class TmdbConfig {
     public TmdbConfig sanitize() {
         if (TextUtils.isEmpty(credentialOrigin)) credentialOrigin = ORIGIN_USER;
         apiBase = normalizeApiBase(trimOr(apiBase, DEFAULT_API_BASE));
-        proxyBase = normalizeOptionalBase(proxyBase);
+        String normalizedProxyBase = TmdbProxy.normalizeConfig(proxyBase);
+        if (!TextUtils.equals(proxyBase, normalizedProxyBase)) {
+            proxyBase = normalizedProxyBase;
+            resolvedProxyApiBase = null;
+            resolvedProxyImageBase = null;
+        }
         apiKey = trimOr(apiKey, trimOr(apiKeyCompat, ""));
         apiKeyCompat = apiKey;
         accessToken = trimOr(accessToken, "");
@@ -137,7 +148,8 @@ public class TmdbConfig {
     }
 
     public String getApiBase() {
-        return TextUtils.isEmpty(proxyBase) ? apiBase : normalizeApiBase(proxyBase);
+        String proxy = resolvedProxyApiBase();
+        return TextUtils.isEmpty(proxy) ? apiBase : normalizeApiBase(proxy);
     }
 
     public String getConfiguredApiBase() {
@@ -176,21 +188,23 @@ public class TmdbConfig {
     }
 
     public String getImageBase() {
+        return effectiveImageBase(imageBase, "w342");
+    }
+
+    public String getConfiguredImageBase() {
         return imageBase;
     }
 
     public String getBackdropBase() {
-        return backdropBase;
+        return effectiveImageBase(backdropBase, "w780");
+    }
+
+    public String getConfiguredImageHost() {
+        return imageHostFrom(imageBase);
     }
 
     public String getImageHost() {
-        String base = TextUtils.isEmpty(imageBase) ? DEFAULT_IMAGE_BASE : imageBase;
-        base = stripImageSize(base);
-        if (base.endsWith("/t/p")) base = base.substring(0, base.length() - 4);
-        base = trimTrailingSlash(base);
-        if (isHttpUrl(base)) return base;
-        String withScheme = ensureHttpScheme(base);
-        return isHttpUrl(withScheme) ? withScheme : DEFAULT_IMAGE_HOST;
+        return imageHostFrom(getImageBase());
     }
 
     public List<String> getEnabledSites() {
@@ -276,6 +290,7 @@ public class TmdbConfig {
     private TmdbConfig copy() {
         TmdbConfig copy = new TmdbConfig();
         copy.apiBase = apiBase;
+        copy.proxyBase = proxyBase;
         copy.apiKey = apiKey;
         copy.apiKeyCompat = apiKeyCompat;
         copy.accessToken = accessToken;
@@ -291,7 +306,58 @@ public class TmdbConfig {
         copy.credentialOrigin = credentialOrigin;
         copy.credentialSubscriptionKey = credentialSubscriptionKey;
         copy.credentialScopeEpoch = credentialScopeEpoch;
+        copy.resolvedProxyApiBase = resolvedProxyApiBase;
+        copy.resolvedProxyImageBase = resolvedProxyImageBase;
         return copy;
+    }
+
+    private String resolvedProxyApiBase() {
+        resolveProxy();
+        return resolvedProxyApiBase;
+    }
+
+    private void resolveProxy() {
+        if (TextUtils.isEmpty(proxyBase)) {
+            resolvedProxyApiBase = "";
+            resolvedProxyImageBase = "";
+            return;
+        }
+        if (!TmdbProxy.contains(proxyBase, resolvedProxyApiBase)) {
+            resolvedProxyApiBase = TmdbProxy.resolve(proxyBase);
+            resolvedProxyImageBase = TmdbProxy.imageHostFor(resolvedProxyApiBase);
+        }
+    }
+
+    private String effectiveImageBase(String configured, String size) {
+        String value = configured;
+        resolveProxy();
+        if (!TextUtils.isEmpty(resolvedProxyImageBase) && isOfficialImageBase(configured)) {
+            value = imageBase(resolvedProxyImageBase, size);
+        }
+        return value;
+    }
+
+    private static String imageHostFrom(String configured) {
+        String base = TextUtils.isEmpty(configured) ? DEFAULT_IMAGE_BASE : configured;
+        base = stripImageSize(base);
+        if (base.endsWith("/t/p")) base = base.substring(0, base.length() - 4);
+        base = trimTrailingSlash(base);
+        if (isHttpUrl(base)) return base;
+        String withScheme = ensureHttpScheme(base);
+        return isHttpUrl(withScheme) ? withScheme : DEFAULT_IMAGE_HOST;
+    }
+
+    private static boolean isOfficialImageBase(String value) {
+        if (TextUtils.isEmpty(value)) return true;
+        try {
+            URI uri = new URI(stripImageSize(trimTrailingSlash(value)));
+            String host = uri.getHost();
+            return "image.tmdb.org".equalsIgnoreCase(host)
+                    || "images.tmdb.org".equalsIgnoreCase(host)
+                    || "media.themoviedb.org".equalsIgnoreCase(host);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static List<String> copyList(List<String> values) {
@@ -300,13 +366,6 @@ public class TmdbConfig {
 
     private static String trimOr(String value, String fallback) {
         return TextUtils.isEmpty(value) ? fallback : value.trim();
-    }
-
-    private static String normalizeOptionalBase(String value) {
-        String normalized = trimOr(value, "");
-        if (TextUtils.isEmpty(normalized)) return "";
-        normalized = ensureHttpScheme(normalized);
-        return isHttpUrl(normalized) ? trimTrailingSlash(normalized) : "";
     }
 
     private static String normalizeApiBase(String value) {

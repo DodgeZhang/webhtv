@@ -75,7 +75,18 @@ public class TmdbConfigImageHostTest {
         assertEquals("https://proxy.example.com/tmdb/3", config.getApiBase());
         assertEquals("https://api.tmdb.org/3", config.getConfiguredApiBase());
         assertEquals("https://proxy.example.com/tmdb", config.getProxyBase());
+        assertEquals("https://proxy.example.com/tmdb", config.getImageHost());
+        assertEquals("https://images.tmdb.org", config.getConfiguredImageHost());
         assertTrue(config.isProxyEnabled());
+    }
+
+    @Test
+    public void explicitImageDomainWinsOverProxyRoute() {
+        TmdbConfig config = TmdbConfig.objectFrom("{\"apiBase\":\"https://api.tmdb.org/3\",\"proxyBase\":\"https://proxy.example.com\",\"imageBase\":\"https://cdn.example.com/t/p/w342\",\"apiKey\":\"test-key\"}");
+
+        assertEquals("https://proxy.example.com/3", config.getApiBase());
+        assertEquals("https://cdn.example.com/t/p/w342", config.getImageBase());
+        assertEquals("https://cdn.example.com", config.getImageHost());
     }
 
 }
