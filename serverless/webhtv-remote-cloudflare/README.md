@@ -49,6 +49,16 @@ https://<你的 Worker 域名>/api/playback/sync
 | `POST` | 接收 `playback.progress`、`playback.ended`、`playback.deleted` Webhook，也支持最多 100 条的批量写入 |
 | `GET` | 按 `X-WebHTV-Since` 拉取增量进度和删除墓碑 |
 | `GET /api/playback/sync/status` | 查看当前 token、`configKey` 空间的记录数和最新游标 |
+| `GET /api/playback/sync/configs` | 列出当前 token 命名空间下已有数据的所有 `configKey`（发现 App 实际使用的 interfaceKey） |
+
+`/api/playback/sync/configs` 不需要 `X-WebHTV-Config-Key`（这正是发现机制的意义所在），只需 token（可为空）。App 界面未展示 `interfaceKey`，但每次上报都会在 `X-WebHTV-Config-Key` 头中携带，服务端已记录，可直接查：
+
+```bash
+curl 'https://<你的 Worker 域名>/api/playback/sync/configs' \
+  -H 'X-WebHTV-Token: <你的 token>'
+```
+
+响应为 `{ "ok": true, "configs": [{ "configKey": "550e8400-...", "items": 87, "latest": 1789... }] }`，按最近更新排序。Dashboard 登录页的"查询已有接口"按钮与测试脚本 GUI 的同名按钮均调用此端点，点击结果即可自动填入。
 
 ### App 配置
 

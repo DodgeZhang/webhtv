@@ -44,6 +44,7 @@ export function isPlaybackSyncPath(pathname) {
   for (const base of PLAYBACK_SYNC_PATHS) {
     if (path === `${base}/status`) return true;
     if (path === `${base}/settings`) return true;
+    if (path === `${base}/configs`) return true;
   }
   return false;
 }
@@ -89,6 +90,11 @@ export class WebHTVPlaybackSyncDO {
         if (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH') {
           return playbackCors(await this.updateSettings(request));
         }
+        return playbackError(405, 'Method not allowed');
+      }
+      const isConfigs = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/configs`);
+      if (isConfigs) {
+        if (request.method === 'GET') return playbackCors(this.listConfigs());
         return playbackError(405, 'Method not allowed');
       }
       if (!PLAYBACK_SYNC_PATHS.has(path)) return playbackError(404, 'Not found');
@@ -327,6 +333,26 @@ export class WebHTVPlaybackSyncDO {
   }
 
   // ---------- per-config_key settings ----------
+
+  // 列出当前 token 命名空间下已有数据的所有 configKey。新版 App 上报时
+  // X-WebHTV-Config-Key 已改为稳定 interfaceKey (UUID)，但 App 界面未展示
+  // 该值；本端点让用户从服务端直接发现 App 实际写入的 configKey。
+  // 注意：本端点故意不要求 X-WebHTV-Config-Key（这是发现机制的意义所在）。
+  listConfigs() {
+    const rows = this.sql.exec(`
+      SELECT config_key, COUNT(*) AS items, MAX(updated_at) AS latest
+        FROM playback_items
+       GROUP BY config_key
+       ORDER BY latest DESC
+    `).toArray();
+    const configs = rows.map((row) => ({
+      configKey: String(row.config_key || ''),
+      items: Number(row.items || 0),
+      latest: Number(row.latest || 0)
+    }));
+    return playbackJson({ ok: true, configs });
+  }
+
 
   isDedupeEnabled(configKey) {
     const row = firstRow(this.sql.exec(

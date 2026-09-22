@@ -1085,6 +1085,28 @@ def _smart_config_key(raw):
         return _compute_config_key(raw)
     return raw.lower()
 
+def _origin_of(url):
+    """从完整端点 URL 提取 origin (scheme://host[:port])"""
+    parsed = urllib.parse.urlparse(url.strip())
+    origin = f"{parsed.scheme}://{parsed.hostname}"
+    if parsed.port:
+        origin += f":{parsed.port}"
+    return origin
+
+def _query_configs(url, token):
+    """查询 Token 命名空间下已有数据的所有 configKey（发现 App 实际使用的 interfaceKey）"""
+    headers = {}
+    if token:
+        headers['X-WebHTV-Token'] = token
+    status, _, body = http_request(
+        _origin_of(url) + '/api/playback/sync/configs', 'GET',
+        headers=headers, timeout=15
+    )
+    data = json.loads(body) if body else {}
+    if status != 200 or not data.get('ok'):
+        raise RuntimeError(f"HTTP {status}: {body[:200]}")
+    return data.get('configs', [])
+
 def _load_config():
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -1202,7 +1224,62 @@ def run_gui():
         configkey_var.set(key)
         messagebox.showinfo('计算成功', f'点播接口 URL 的 SHA-256:\n{key}')
 
+    # 查询服务端已有 configKey（发现 App 实际使用的 interfaceKey）
+    def query_configs():
+        url = url_var.get().strip()
+        token = token_var.get().strip()
+        if not url:
+            messagebox.showwarning('提示', '请先填写 Worker URL')
+            return
+        try:
+            configs = _query_configs(url, token)
+        except Exception as e:
+            msg = str(e)
+            if '404' in msg:
+                msg += '\n\n404 表示 Worker 版本过旧，请先重新部署:\nnpm run deploy'
+            messagebox.showerror('查询失败', msg)
+            return
+        if not configs:
+            messagebox.showinfo(
+                '提示',
+                '该 Token 命名空间下暂无记录。\n\n请先在 App 中播放/阅读一次并开启 Webhook 上报，\nApp 上报时会自动携带其 configKey (interfaceKey)，再回来查询。'
+            )
+            return
+        win = tk.Toplevel(root)
+        win.title('服务端已有 configKey（点击选择）')
+        win.geometry('760x320')
+        win.transient(root)
+        columns = ('ck', 'items', 'latest')
+        tree = ttk.Treeview(win, columns=columns, show='headings', height=10)
+        tree.heading('ck', text='configKey')
+        tree.heading('items', text='记录数')
+        tree.heading('latest', text='最近更新')
+        tree.column('ck', width=460)
+        tree.column('items', width=80, anchor='center')
+        tree.column('latest', width=160, anchor='center')
+        for cfg in configs:
+            ck = cfg.get('configKey', '')
+            tag = '🆔 interfaceKey' if _is_interface_key(ck) else '🔑 sha256/其他'
+            try:
+                latest = datetime.fromtimestamp(cfg.get('latest', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S')
+            except Exception:
+                latest = str(cfg.get('latest', 0))
+            tree.insert('', 'end', values=(f"{tag}  {ck}", cfg.get('items', 0), latest))
+        def on_pick(_event=None):
+            sel = tree.selection()
+            if not sel:
+                return
+            ck = str(tree.item(sel[0], 'values')[0]).split('  ', 1)[-1]
+            configkey_var.set(ck)
+            win.destroy()
+            messagebox.showinfo('已选择', f'已填入 configKey:\n{ck}\n\nUUID 格式即新版 App 的 interfaceKey。')
+        tree.bind('<Double-1>', on_pick)
+        btn = ttk.Button(win, text='使用选中项', command=on_pick)
+        btn.pack(pady=6)
+        tree.pack(fill='both', expand=True, padx=10, pady=10)
+
     ttk.Button(config_frame, text='URL→SHA256', command=compute_key).grid(row=2, column=4, padx=4, pady=3)
+    ttk.Button(config_frame, text='查询已有接口', command=query_configs).grid(row=2, column=5, padx=4, pady=3)
 
     ttk.Label(config_frame, text='（新版 App: 直接粘贴 interfaceKey (UUID)；旧版: 输入URL点"URL→SHA256"计算）',
               foreground=FG_MUTED, font=('Microsoft YaHei UI', 8)).grid(row=3, column=1, columnspan=4, sticky='w', pady=(0, 2))

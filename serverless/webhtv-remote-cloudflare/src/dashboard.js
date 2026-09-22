@@ -349,6 +349,10 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="doLogin()">
       🔗 连接
     </button>
+    <button class="btn" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="findConfigs()">
+      🔍 查询已有接口（App 上报的 configKey）
+    </button>
+    <div id="configListResult" class="form-hint" style="margin-top:8px;display:none;"></div>
   </div>
 </div>
 
@@ -599,6 +603,55 @@ async function doLogin() {
     document.getElementById('configKeyDisplay').textContent = '接口: ' + configKey.substring(0, 12) + '...';
   } catch (e) {
     showToast('连接失败: ' + e.message, 'error');
+  }
+}
+
+// 查询当前 Token 命名空间下已有数据的所有 configKey（含新版 App 的 interfaceKey）。
+// App 界面未展示 interfaceKey，但它每次上报都会携带，服务端可以直接列出来。
+async function findConfigs() {
+  const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\/+$/, '');
+  const token = document.getElementById('loginToken').value.trim();
+  const box = document.getElementById('configListResult');
+  if (!baseUrl) { showToast('请先填写 Worker 地址', 'error'); return; }
+  box.style.display = 'block';
+  box.textContent = '查询中...';
+  try {
+    const res = await fetch(baseUrl + '/api/playback/sync/configs', {
+      headers: token ? { 'X-WebHTV-Token': token } : {}
+    });
+    const text = await res.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (e) {}
+    if (!res.ok || !data.ok) {
+      box.textContent = res.status === 404
+        ? '查询失败 HTTP 404：Worker 版本过旧，请重新部署 (npm run deploy) 后再试'
+        : '查询失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 120));
+      return;
+    }
+    const configs = data.configs || [];
+    if (!configs.length) {
+      box.textContent = '该 Token 命名空间下暂无记录。请先在 App 播放/阅读一次并开启 Webhook 上报，再回来查询。';
+      return;
+    }
+    box.innerHTML = '';
+    const title = document.createElement('div');
+    title.textContent = '点击下方任意一项自动填入并连接：';
+    title.style.marginBottom = '6px';
+    box.appendChild(title);
+    for (const cfg of configs) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(cfg.configKey);
+      const row = document.createElement('div');
+      row.style.cssText = 'cursor:pointer;padding:6px 8px;margin:4px 0;border:1px solid var(--border,#333);border-radius:6px;font-family:monospace;font-size:12px;';
+      row.textContent = (isUuid ? '🆔 [新版 interfaceKey] ' : '🔑 [旧版 sha256] ') + cfg.configKey + '  (' + cfg.items + ' 条)';
+      row.onclick = () => {
+        document.getElementById('loginConfigKey').value = cfg.configKey;
+        box.style.display = 'none';
+        doLogin();
+      };
+      box.appendChild(row);
+    }
+  } catch (e) {
+    box.textContent = '查询失败: ' + e.message;
   }
 }
 
