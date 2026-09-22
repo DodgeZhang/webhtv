@@ -652,8 +652,22 @@ async function findConfigs() {
       const keyLine = document.createElement('div');
       keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin-top:3px;';
       keyLine.textContent = cfg.configKey;
+      // 合并按钮：把其他 configKey 空间并入当前行空间（解决电视/手机各自生成
+      // 不同 interfaceKey 导致的记录分叉）。必须 stopPropagation，避免触发整行的连接。
+      const actions = document.createElement('div');
+      actions.style.cssText = 'margin-top:6px;';
+      const mergeBtn = document.createElement('button');
+      mergeBtn.type = 'button';
+      mergeBtn.textContent = '🔗 合并其他接口到此空间';
+      mergeBtn.style.cssText = 'font-size:11px;padding:2px 8px;cursor:pointer;border:1px solid var(--border,#444);border-radius:5px;background:transparent;color:var(--text-secondary,#aaa);';
+      mergeBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        mergeConfigSpace(baseUrl, token, cfg.configKey, configs);
+      };
+      actions.appendChild(mergeBtn);
       row.appendChild(head);
       row.appendChild(keyLine);
+      row.appendChild(actions);
       row.onclick = () => {
         document.getElementById('loginConfigKey').value = cfg.configKey;
         box.style.display = 'none';
@@ -663,6 +677,49 @@ async function findConfigs() {
     }
   } catch (e) {
     box.textContent = '查询失败: ' + e.message;
+  }
+}
+
+// 把 sourceKey 空间并入 targetKey 空间（服务端 /merge 端点：物理迁移数据并建立永久别名）。
+// 场景：新版 App 的 interfaceKey 由各设备随机生成，同一接口在电视/手机上各产生一个
+// UUID，记录互不相通。合并后旧 key 的读写自动落到主空间，两台设备无需任何改动。
+async function mergeConfigSpace(baseUrl, token, targetKey, configs) {
+  const others = (configs || []).filter((c) => c.configKey && c.configKey !== targetKey);
+  // 只有两个空间时（最常见：电视+手机）自动预填另一个 key。
+  const prefill = others.length === 1 ? others[0].configKey : '';
+  const hint = others.length
+    ? '其他已有接口：\\n' + others.map((c) => '- ' + (c.name || '未命名接口') + '  ' + c.configKey).join('\\n') + '\\n\\n'
+    : '';
+  const raw = window.prompt(
+    '把哪个 configKey 合并到当前接口空间？\\n\\n' + hint
+    + '被合并空间的数据将迁入当前空间，且永久别名到当前空间，此操作不可撤销。',
+    prefill
+  );
+  if (raw === null) return;
+  const sourceKey = raw.trim().toLowerCase();
+  if (!sourceKey) return;
+  if (sourceKey === String(targetKey).toLowerCase()) { alert('目标与来源相同，无需合并'); return; }
+  if (!window.confirm('确认把 ' + sourceKey.substring(0, 13) + '... 的数据合并到当前接口空间？此操作不可撤销。')) return;
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['X-WebHTV-Token'] = token;
+    const res = await fetch(baseUrl + '/api/playback/sync/merge', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ target: targetKey, source: sourceKey })
+    });
+    const text = await res.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (e) {}
+    if (!res.ok || !data.ok) {
+      alert('合并失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 160)));
+      return;
+    }
+    alert('合并完成：迁移 ' + (data.itemsMoved || 0) + ' 条记录、' + (data.tombstonesMoved || 0) + ' 条删除墓碑。'
+      + '\\n\\n两台设备下次播放上报或拉取时将自动使用同一空间，无需修改 App 配置。');
+    findConfigs();
+  } catch (e) {
+    alert('合并失败: ' + e.message);
   }
 }
 

@@ -50,6 +50,7 @@ https://<你的 Worker 域名>/api/playback/sync
 | `GET` | 按 `X-WebHTV-Since` 拉取增量进度和删除墓碑 |
 | `GET /api/playback/sync/status` | 查看当前 token、`configKey` 空间的记录数和最新游标 |
 | `GET /api/playback/sync/configs` | 列出当前 token 命名空间下已有数据的所有 `configKey`（发现 App 实际使用的 interfaceKey） |
+| `POST /api/playback/sync/merge` | 把一个 `configKey` 空间并入另一个并建立永久别名（Dashboard 查询结果中的"合并"按钮） |
 
 `/api/playback/sync/configs` 不需要 `X-WebHTV-Config-Key`（这正是发现机制的意义所在），只需 token（可为空）。App 界面未展示 `interfaceKey`，但每次上报都会在 `X-WebHTV-Config-Key` 头中携带，服务端已记录，可直接查：
 
@@ -59,6 +60,21 @@ curl 'https://<你的 Worker 域名>/api/playback/sync/configs' \
 ```
 
 响应为 `{ "ok": true, "configs": [{ "configKey": "550e8400-...", "name": "我的接口", "items": 87, "latest": 1789... }] }`，按最近更新排序。`name` 取自该 configKey 最新一条记录的 `configName`（App 每次上报都会携带）；历史记录缺少该字段时显示为"未命名接口"或"旧版接口"，App 在该接口下再次播放后即会补全。Dashboard 登录页的"查询已有接口"按钮与测试脚本 GUI 的同名按钮均调用此端点，点击结果即可自动填入。
+
+### 合并分叉的接口空间
+
+新版 App 的 `interfaceKey` 由各设备**本机随机生成**（同一接口在电视和手机上独立添加会各产生一个 UUID），记录会分散在多个 `configKey` 命名空间中互不同步。在 Dashboard 登录页点击"查询已有接口"后，每条结果提供"🔗 合并其他接口到此空间"按钮：选定要保留的主空间，把另一个 `configKey` 的数据物理迁入（同名记录按 `updated_at` 保留较新者，删除墓碑同理），并为旧 key 建立永久别名——旧设备后续的读写会自动落到主空间，App 无需任何改动。
+
+等价 curl：
+
+```bash
+curl -X POST 'https://<你的 Worker 域名>/api/playback/sync/merge' \
+  -H 'Content-Type: application/json' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -d '{ "target": "<保留的 configKey>", "source": "<被合并的 configKey>" }'
+```
+
+响应为 `{ "ok": true, "itemsMoved": 2, "tombstonesMoved": 0, "eventsMoved": 0 }`。合并是幂等的：重复提交同一对 key 返回 `alreadyMerged: true`。
 
 ### App 配置
 

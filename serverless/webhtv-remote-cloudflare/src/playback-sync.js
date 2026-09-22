@@ -45,6 +45,7 @@ export function isPlaybackSyncPath(pathname) {
     if (path === `${base}/status`) return true;
     if (path === `${base}/settings`) return true;
     if (path === `${base}/configs`) return true;
+    if (path === `${base}/merge`) return true;
   }
   return false;
 }
@@ -95,6 +96,13 @@ export class WebHTVPlaybackSyncDO {
       const isConfigs = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/configs`);
       if (isConfigs) {
         if (request.method === 'GET') return playbackCors(this.listConfigs());
+        return playbackError(405, 'Method not allowed');
+      }
+      // 合并接口空间：把一个 configKey 的数据并入另一个并建立永久别名。
+      // 不要求 X-WebHTV-Config-Key（target/source 在 body 中指定）。
+      const isMerge = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/merge`);
+      if (isMerge) {
+        if (request.method === 'POST') return playbackCors(await this.mergeConfigKeys(request));
         return playbackError(405, 'Method not allowed');
       }
       if (!PLAYBACK_SYNC_PATHS.has(path)) return playbackError(404, 'Not found');
@@ -174,6 +182,8 @@ export class WebHTVPlaybackSyncDO {
       // playback_items table.  Same-title dedup is scoped by media_type, so a
       // novel and a movie with the same name no longer erase each other.
       this.migrateV4MediaType();
+      // Migration v5: configKey alias table for merging diverged config spaces.
+      this.migrateV5Aliases();
     });
   }
 
@@ -228,9 +238,23 @@ export class WebHTVPlaybackSyncDO {
     this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_mediatype ON playback_items (config_key, media_type)");
   }
 
+  migrateV5Aliases() {
+    // v5: configKey 别名表。interfaceKey 是各设备本机随机生成的 UUID，同一接口
+    // 在多台设备上独立添加时会产生多个 key，记录分散在多个命名空间无法互相同步。
+    // merge 端点把旧空间物理并入主空间后在此登记 alias -> target，旧设备的后续
+    // 读写经 resolveAlias() 自动落到主空间，App 无需任何改动。
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS playback_aliases (
+        alias_key TEXT PRIMARY KEY,
+        target_key TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+  }
+
   async ingest(request) {
     const body = await readPlaybackJson(request);
-    const configKey = requireConfigKey(request, body);
+    const configKey = this.resolveAlias(requireConfigKey(request, body));
     const rawEvents = extractPlaybackEvents(body);
     if (!rawEvents.length) throw playbackHttpError(400, 'Playback event is empty');
     if (rawEvents.length > MAX_BATCH_ITEMS) throw playbackHttpError(413, `Too many playback events; maximum is ${MAX_BATCH_ITEMS}`);
@@ -253,7 +277,7 @@ export class WebHTVPlaybackSyncDO {
   }
 
   pull(request, url) {
-    const configKey = requireConfigKey(request);
+    const configKey = this.resolveAlias(requireConfigKey(request));
     const since = parseCursor(request.headers.get('x-webhtv-since') || url.searchParams.get('since'));
     const limit = parseLimit(request.headers.get('x-webhtv-limit') || url.searchParams.get('limit'));
 
@@ -290,7 +314,7 @@ export class WebHTVPlaybackSyncDO {
   }
 
   status(request, url) {
-    const configKey = requireConfigKey(request);
+    const configKey = this.resolveAlias(requireConfigKey(request));
     const dedupeEnabled = this.isDedupeEnabled(configKey);
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const items = this.sql.exec('SELECT COUNT(*) AS count FROM playback_items WHERE config_key = ?', configKey).one();
@@ -358,6 +382,104 @@ export class WebHTVPlaybackSyncDO {
     return playbackJson({ ok: true, configs });
   }
 
+  // ---------- configKey 空间合并（alias） ----------
+
+  // POST /api/playback/sync/merge — 把 source 空间并入 target 空间。
+  // 背景：新版 App 的 interfaceKey 是各设备本机随机生成的 UUID，同一接口在
+  // 电视/手机上独立添加会产生两个 key，记录分散、互不同步。合并后建立永久
+  // 别名，旧设备的后续读写经 resolveAlias() 自动落到 target，App 无需改动。
+  // 请求体：{ "target": "<保留的 configKey>", "source": "<被合并的 configKey>" }
+  async mergeConfigKeys(request) {
+    const body = await readPlaybackJson(request);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw playbackHttpError(400, 'Request body must be a JSON object');
+    const target = validatedConfigKey(body.target || body.targetKey || body.target_key, 'Missing target configKey');
+    const source = validatedConfigKey(body.source || body.sourceKey || body.source_key, 'Missing source configKey');
+    if (!target || !source) throw playbackHttpError(400, 'target and source configKey are required');
+    if (target === source) throw playbackHttpError(400, 'target and source configKey must differ');
+    const resolvedTarget = this.resolveAlias(target);
+    if (resolvedTarget !== target) throw playbackHttpError(400, 'target is already an alias of ' + resolvedTarget + '; use that key as target instead');
+    const resolvedSource = this.resolveAlias(source);
+    if (resolvedSource === target) {
+      // 幂等重试：source 已经并入过 target，直接成功返回。
+      return playbackJson({ ok: true, target, source, alreadyMerged: true, itemsMoved: 0, tombstonesMoved: 0, eventsMoved: 0 });
+    }
+    if (resolvedSource !== source) throw playbackHttpError(400, 'source is already merged into ' + resolvedSource + '; merge that key instead');
+    const result = this.state.storage.transactionSync(() => {
+      const itemsMoved = this.absorbConfigSpace('playback_items', 'item_key', 'updated_at', target, source);
+      const tombstonesMoved = this.absorbConfigSpace('playback_tombstones', 'marker_key', 'deleted_at', target, source);
+      const eventsMoved = this.absorbEvents(target, source);
+      this.carryOverDedupeSetting(target, source);
+      this.sql.exec(
+        'INSERT INTO playback_aliases (alias_key, target_key, created_at) VALUES (?, ?, ?) ON CONFLICT(alias_key) DO UPDATE SET target_key = excluded.target_key',
+        source, target, Date.now()
+      );
+      return { itemsMoved, tombstonesMoved, eventsMoved };
+    });
+    return playbackJson({ ok: true, target, source, alreadyMerged: false, ...result, mergedAt: Date.now() });
+  }
+
+  // 沿别名链解析 configKey。链长上限为防御性限制：正常写入路径不可能成环
+  // （mergeConfigKeys 拒绝把别名键作为新 source/target），脏数据也不能挂死 DO。
+  resolveAlias(configKey) {
+    let current = normalizeConfigKey(configKey);
+    for (let hop = 0; hop < 8; hop++) {
+      if (!current) return current;
+      const row = firstRow(this.sql.exec('SELECT target_key FROM playback_aliases WHERE alias_key = ? LIMIT 1', current));
+      const next = normalizeConfigKey(row ? row.target_key : '');
+      if (!next || next === current) break;
+      current = next;
+    }
+    return current;
+  }
+
+  // 把 source 空间的行迁入 target 空间，PK 冲突时保留 winnerColumn
+  // （items 用 updated_at，tombstones 用 deleted_at）较大的一方。
+  // seq 是 DO 全局单调计数（nextSequence()），跨空间移动行不破坏游标单调性。
+  absorbConfigSpace(table, keyColumn, winnerColumn, target, source) {
+    // 1) source 中不敌 target 已有行的记录（target 更新或同刻）直接删除。
+    this.sql.exec(
+      `DELETE FROM ${table} WHERE config_key = ? AND ${keyColumn} IN (
+         SELECT s.${keyColumn} FROM ${table} s JOIN ${table} t
+           ON t.config_key = ? AND t.${keyColumn} = s.${keyColumn}
+          WHERE s.config_key = ? AND t.${winnerColumn} >= s.${winnerColumn}
+       )`, source, target, source);
+    // 2) target 中不敌 source 幸存行的记录（source 严格更新）删除，随后由 3) 迁入覆盖。
+    this.sql.exec(
+      `DELETE FROM ${table} WHERE config_key = ? AND ${keyColumn} IN (
+         SELECT s.${keyColumn} FROM ${table} s JOIN ${table} t
+           ON t.config_key = ? AND t.${keyColumn} = s.${keyColumn}
+          WHERE s.config_key = ? AND s.${winnerColumn} > t.${winnerColumn}
+       )`, target, target, source);
+    // 3) 剩余 source 行已无冲突，整体改 key 迁入；返回实际迁移行数。
+    const remaining = Number(this.sql.exec(`SELECT COUNT(*) AS c FROM ${table} WHERE config_key = ?`, source).one().c || 0);
+    this.sql.exec(`UPDATE ${table} SET config_key = ? WHERE config_key = ?`, target, source);
+    return remaining;
+  }
+
+  // 幂等记录迁移：冲突的 eventId 直接丢弃——同 eventId 重放时 applyUpsert 的
+  // updated_at 守卫仍会拦截旧进度，丢弃缓存不会造成数据回退。
+  absorbEvents(target, source) {
+    const remaining = Number(this.sql.exec(
+      'SELECT COUNT(*) AS c FROM playback_events WHERE config_key = ? AND event_id NOT IN (SELECT event_id FROM playback_events WHERE config_key = ?)',
+      source, target
+    ).one().c || 0);
+    this.sql.exec('DELETE FROM playback_events WHERE config_key = ? AND event_id IN (SELECT event_id FROM playback_events WHERE config_key = ?)', source, target);
+    this.sql.exec('UPDATE playback_events SET config_key = ? WHERE config_key = ?', target, source);
+    return remaining;
+  }
+
+  // 同名去重开关按 configKey 独立存储；target 未显式设置而 source 有设置时继承。
+  carryOverDedupeSetting(target, source) {
+    const targetRow = firstRow(this.sql.exec('SELECT value FROM playback_meta WHERE key = ? LIMIT 1', META_KEY_DEDUPE_ENABLED(target)));
+    if (targetRow) return;
+    const sourceRow = firstRow(this.sql.exec('SELECT value FROM playback_meta WHERE key = ? LIMIT 1', META_KEY_DEDUPE_ENABLED(source)));
+    if (!sourceRow) return;
+    this.sql.exec(
+      'INSERT INTO playback_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      META_KEY_DEDUPE_ENABLED(target), Number(sourceRow.value || 0)
+    );
+  }
+
 
   isDedupeEnabled(configKey) {
     const row = firstRow(this.sql.exec(
@@ -378,7 +500,7 @@ export class WebHTVPlaybackSyncDO {
   }
 
   getSettings(request) {
-    const configKey = requireConfigKey(request);
+    const configKey = this.resolveAlias(requireConfigKey(request));
     return playbackJson({
       ok: true,
       configKey,
@@ -394,7 +516,7 @@ export class WebHTVPlaybackSyncDO {
 
   async updateSettings(request) {
     const body = await readPlaybackJson(request);
-    const configKey = requireConfigKey(request, body);
+    const configKey = this.resolveAlias(requireConfigKey(request, body));
     const enabled = body && typeof body.dedupeEnabled === 'boolean'
       ? body.dedupeEnabled
       : (body && (body.dedupeEnabled === 1 || body.dedupeEnabled === '1' || body.dedupeEnabled === 'true'));
