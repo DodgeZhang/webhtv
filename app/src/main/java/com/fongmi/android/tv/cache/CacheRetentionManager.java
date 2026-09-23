@@ -39,6 +39,26 @@ public final class CacheRetentionManager {
         return success;
     }
 
+    public static boolean enforceFileLimit(List<File> files, long limitBytes,
+                                           long minimumAgeMs, long now) {
+        if (limitBytes <= 0 || files == null || files.isEmpty()) return true;
+        long total = totalBytes(files);
+        if (total <= limitBytes) return true;
+        long target = Math.max(0, limitBytes * 9 / 10);
+        ArrayList<File> ordered = new ArrayList<>(files);
+        ordered.sort(Comparator.comparingLong(File::lastModified));
+        boolean success = true;
+        for (File file : ordered) {
+            if (total <= target) break;
+            long modified = file.lastModified();
+            if (minimumAgeMs > 0 && modified > 0 && now - modified < minimumAgeMs) continue;
+            long size = Math.max(0, file.length());
+            if (file.delete()) total -= size;
+            else success = false;
+        }
+        return success;
+    }
+
     private static void collect(File file, List<File> output, Set<String> excludedNames) {
         if (file == null || excludedNames.contains(file.getName())) return;
         if (isSymbolicLink(file)) return;

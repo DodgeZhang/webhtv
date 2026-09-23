@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 public final class CacheCleanupManager {
 
     private static final long TEMP_RETENTION_MS = 24L * 60L * 60L * 1000L;
+    private static final long TEMP_MINIMUM_AGE_MS = 60L * 60L * 1000L;
     private static final long LEGACY_RETENTION_MS = 7L * 24L * 60L * 60L * 1000L;
     private static final Set<String> PROTECTED_NAMES = Set.of(
             "mpv-playback-recovery.lock",
@@ -185,27 +186,34 @@ public final class CacheCleanupManager {
                 yield new Outcome(true, List.of());
             }
             case PLUGIN_SCRIPTS -> new Outcome(false, List.of("plugin loading is not paused in P1"));
-            case TEMP_FILES -> clearTemporaryFiles(TEMP_RETENTION_MS);
+            case TEMP_FILES -> clearTemporaryFiles(TEMP_RETENTION_MS, limit);
             case LEGACY_FILES -> clearAgedTree(new File(cache, "restore-legacy"),
                     mode == CacheCleanupMode.MODULE ? 0 : LEGACY_RETENTION_MS);
         };
     }
 
-    private static Outcome clearTemporaryFiles(long retentionMs) {
+    private static Outcome clearTemporaryFiles(long retentionMs, long limitBytes) {
         File cache = App.get().getCacheDir();
         File[] files = cache.listFiles(File::isFile);
         if (files == null) return new Outcome(false, List.of("cache root unreadable"));
         long now = System.currentTimeMillis();
         boolean success = true;
         ArrayList<String> warnings = new ArrayList<>();
+        ArrayList<File> remaining = new ArrayList<>();
         for (File file : files) {
             String name = file.getName();
-            if (!isTemporaryName(name) || !isExpired(file, now, retentionMs)) continue;
+            if (!isTemporaryName(name)) continue;
+            if (!isExpired(file, now, retentionMs)) {
+                remaining.add(file);
+                continue;
+            }
             if (!file.delete()) {
                 success = false;
                 warnings.add("delete failed: " + name);
             }
         }
+        success &= CacheRetentionManager.enforceFileLimit(remaining, limitBytes,
+                TEMP_MINIMUM_AGE_MS, now);
         return new Outcome(success, warnings);
     }
 

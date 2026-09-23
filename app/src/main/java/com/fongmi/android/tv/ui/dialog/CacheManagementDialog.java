@@ -301,7 +301,7 @@ public class CacheManagementDialog extends BaseAlertDialog {
 
     private boolean supportsLimit(CacheModuleId id) {
         return switch (id) {
-            case GLIDE, LYRICS, KARAOKE, WEBHOME_EXT, EPG, PLUGIN_SCRIPTS, TEMP_FILES, LEGACY_FILES -> true;
+            case GLIDE, LYRICS, KARAOKE, WEBHOME_EXT, EPG, TEMP_FILES -> true;
             default -> false;
         };
     }

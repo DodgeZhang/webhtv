@@ -27,6 +27,7 @@
 - P3B 修正：使用平台自带 `JobScheduler`（`setPersisted(true)` + `RECEIVE_BOOT_COMPLETED`）补齐设备重启后的调度恢复，`CacheCleanupJobService` 在系统触发时执行同一套 L1/L2 自动清理；未引入 WorkManager 依赖。同时为 `CacheRetentionManager` 增加符号链接保护，缓存纯测试 20/20 通过。
 - 2026-09-23：P4 落地。Exo 空闲重建、MPV HLS coordinator 安全清理、Glide 后台 `clearDiskCache`、OkHttp `evictAll` 均已接入；新增 `CacheCleanupRecord` 与 `CacheCleanupJournal`，记录触发原因、等级、清理前后字节、删除/跳过数、失败原因和耗时；缓存纯测试 19/19 通过，双形态 Java 编译通过。
 - 2026-09-23：P2B 落地。新增 `CacheTotalLimitPolicy` 与 `cache_mgmt_total_limit_bytes` 配置，缓存管理页支持总缓存软上限；调度器在超限时先执行 L1，仍超限且未播放时再执行 L2，永不自动执行 L3；有效上限取 `min(用户上限, 系统 quota)`。缓存纯测试 23/23 通过。
+- 2026-09-23：P2C 收口。临时文件模块上限现在真实生效（LRU 到 90% 目标，且受 1 小时最小年龄保护，避免删除进行中的下载/安装）；插件脚本上限入口隐藏并记录为暂缓，因为运行中暂停插件加载尚未实现，误删可能导致回归。缓存纯测试 24/24 通过。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
 
@@ -1575,7 +1576,8 @@ bash scripts/build_arm64_debug_install.sh
 - [x] 清理中有进度，可取消
 - [x] 清理后有释放量、删除数、跳过数和失败明细
 - [x] 支持总缓存软上限（L1→L2 升级，永不自动 L3）
-- [x] 支持图片、歌词、K 歌、WebHome、EPG、插件、临时文件的模块上限入口
+- [x] 支持图片、歌词、K 歌、WebHome、EPG、临时文件的模块上限
+- [ ] 插件脚本上限暂缓（运行中暂停加载未实现，避免误删导致回归）
 - [x] 播放器上限继续由播放器设置驱动，没有重复配置
 - [x] 支持自动清理开关、保留期限和触发条件
 - [x] 支持启动、周期、低空间触发（含持久化 JobScheduler 重启恢复）

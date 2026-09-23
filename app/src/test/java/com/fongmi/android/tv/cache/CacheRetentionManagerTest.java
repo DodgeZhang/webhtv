@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.FileSystemException;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -87,6 +88,22 @@ public class CacheRetentionManagerTest {
         } finally {
             delete(root.toFile());
             delete(outside.toFile());
+        }
+    }
+
+    @Test
+    public void fileLimitKeepsFilesYoungerThanMinimumAge() throws Exception {
+        Path root = Files.createTempDirectory("cache-retention-file-limit");
+        try {
+            File old = write(root, "old.tmp", "1234567890", 1_000L);
+            File young = write(root, "young.tmp", "1234567890", 9_500L);
+            boolean success = CacheRetentionManager.enforceFileLimit(
+                    List.of(old, young), 10, 1_000L, 10_000L);
+            assertTrue(success);
+            assertFalse(old.exists());
+            assertTrue(young.exists());
+        } finally {
+            delete(root.toFile());
         }
     }
 
