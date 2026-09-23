@@ -10,6 +10,7 @@ import androidx.fragment.app.DialogFragment;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -25,6 +26,12 @@ public abstract class BaseAlertDialog extends DialogFragment {
         Dialog dialog = getBuilder().create();
         initView();
         initEvent();
+        // AlertController installs the custom view and the action buttons during
+        // show(). Binding here only registers the binder root; the descendant-count
+        // watcher re-walks the tree once those children appear. The dialog's own
+        // OnShowListener is deliberately left untouched because
+        // MaterialAlertDialogBuilder already owns it for its background insets.
+        ThemeController.bindDialog(dialog);
         return dialog;
     }
 

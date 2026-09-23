@@ -157,6 +157,30 @@ public class ThemeBinderContractTest {
     }
 
     @Test
+    public void alertDialogFamiliesBindThroughTheSharedDialogChannel() throws Exception {
+        String light = read("src/main/java/com/fongmi/android/tv/ui/dialog/LightDialog.java");
+        assertEquals("both LightDialog entry points must bind",
+                2, light.split("ThemeController\\.bindDialog\\(dialog\\)", -1).length - 1);
+        assertFalse("the dialog title must not be a hard-coded hex colour",
+                light.contains("Color.parseColor(\"#202124\")"));
+        assertTrue(light.contains("titleView.setTextColor(ThemeController.current().colorOnSurface())"));
+
+        String base = read("src/main/java/com/fongmi/android/tv/ui/dialog/BaseAlertDialog.java");
+        assertTrue(base.contains("ThemeController.bindDialog(dialog)"));
+        assertFalse("MaterialAlertDialogBuilder owns the dialog OnShowListener",
+                base.contains("setOnShowListener"));
+
+        // The channels the binder rewrites must really resolve through the
+        // semantic tokens, otherwise the exact-match guard could never fire.
+        for (String name : new String[]{"dialog_primary_button_bg", "dialog_primary_button_text",
+                "dialog_outlined_button_bg", "dialog_outlined_button_text", "dialog_outlined_button_stroke"}) {
+            String selector = read("src/main/res/color/" + name + ".xml");
+            assertTrue(name + " must resolve through webhtv tokens",
+                    selector.contains("@color/webhtv_color_"));
+        }
+    }
+
+    @Test
     public void seedDerivedTokensStayMappableFromTheFrozenBaseline() {
         ThemeTokens baseline = ThemeTokens.light();
         ThemeTokens active = ThemeResolver.resolve(

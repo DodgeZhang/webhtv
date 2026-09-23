@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13）。**Dialog 家族绑定与 4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14）。**剩余直接 AlertDialog 调用点、FollowingActivity 与 4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：把 `AlertDialog`/`LightDialog` 家族接入 `ThemeController.bindDialog()`（单一收口点优先：`LightDialog.apply/create` 与 `BaseAlertDialog`），再回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵；在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
+- 下一步唯一动作：排查剩余直接 `MaterialAlertDialogBuilder(...).show()` 调用点与 `FollowingActivity`，再回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵；在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
 ---
 
@@ -692,6 +692,27 @@ Layer 2 DoD：
   - **未覆盖（待办）**：`AlertDialog`/`MaterialAlertDialogBuilder`/`LightDialog` 家族（`BaseAlertDialog` 的 59 个子类、121 个直接使用文件）从不调用 `bindDialog`，因此设置类弹窗仍用编译期静态色；`FollowingActivity` 不继承 `BaseActivity`，整页无绑定；`StateListDrawable`/`RippleDrawable`/`ShapeDrawable` 等非 `GradientDrawable` 背景、`Switch`/`CheckBox` 等控件通道、远程 Web 主题页面（由页面自身 CSS 决定）也尚未覆盖。
 - 残余风险：API 31+ 上 `enableDynamicColor()` 仍会在 `theme_color != -1` 时用平台 DynamicColors 覆写 Activity 主题，此时视图颜色不等于编译期基线，binder 会保持 no-op（seed 仍由 DynamicColors 生效，但两条通道未统一）；本轮未在 API 31+ 设备验证。
 - 回滚锚点：回退本任务即恢复“基线被 seed 污染 + 按钮通道不覆盖”的行为；不涉及 profile 数据格式、偏好键或迁移。
+
+---
+
+### 4.14 弹窗家族主题绑定（2026-09-23）
+
+- 任务：`THEME-DIALOG-BIND-20260923`。补齐 4.13 节列出的最大缺口——`AlertDialog`/`LightDialog` 家族此前从不调用 `bindDialog`，设置类弹窗始终使用编译期静态色。
+- 接入的两个收口点：
+  - `LightDialog.apply(AlertDialog)`：MaterialAlertDialog 在 `show()` 期间由 `AlertController` 安装正文和按钮，该方法只负责注册 binder root，随后由 `ThemeBinder` 的 descendant-count watcher 在子视图出现后补 walked 一次。
+  - `LightDialog.createInternal(...)`：已有的 `setOnShowListener` 中追加绑定（该 listener 原本只做 `applyWindow`/触碰优化）。
+  - `BaseAlertDialog.onCreateDialog(...)`：`getBuilder().create()` 之后绑定。**故意不覆盖 dialog 自身的 `OnShowListener`**，因为 `MaterialAlertDialogBuilder` 已占用它做背景 inset；源码契约测试禁止在此处出现 `setOnShowListener`。
+- 顺带修复：`LightDialog` 标题原为硬编码 `Color.parseColor("#202124")`，永远不参与主题；改为 `ThemeController.current().colorOnSurface()`。五个 dialog 按钮色 selector（`dialog_primary_button_bg`/`_text`、`dialog_outlined_button_bg`/`_text`/`_stroke`）经核对已全部指向 `@color/webhtv_color_*`，因此 binder 的精确匹配 + 状态列表重建可以直接作用。
+- 新增测试：`ThemeBinderContractTest#alertDialogFamiliesBindThroughTheSharedDialogChannel` 锁定两个 LightDialog 收口点、禁止标题硬编码 hex、要求 `BaseAlertDialog` 绑定且不碰 `setOnShowListener`，并逐项校验五个按钮 selector 仍走 webhtv token。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL；`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 通过（`LightDialog`/`BaseAlertDialog` 为共享主模块代码，必须双 flavor 编译）。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装）：以 `HomeActivityCurrent --ei nav_position 1` 进入原生设置弹窗（`ConfigDialog extends BaseAlertDialog`），三组对照各等待 30s 冷启动完成：
+  - 噪声基线：default-vs-default 仅 320 个变化像素（壁纸/星点动画）。
+  - teal seed：9545 个变化像素；槽位探针（`onSurface=#FFFFFF`、`surfaceContainerHigh=#000000`）：22498 个变化像素。
+  - 角色精确相关：default 截图中 7870 个 `#181A1C`（设置弹窗正文 `?attr/colorOnSurface` 渲染值）像素，在探针下全部变为 `#ECECEC`。设置弹窗文字现已真正跟随 token，而修复前该页面为 0 改写。
+  - 测试结束已把设备 `theme_color`/profile 恢复到进入测试前的原值。
+- 覆盖变化：设置类弹窗（`BaseAlertDialog` 的 59 个子类）与共享 `LightDialog` 路径现已纳入主题色彩作用范围。
+- 仍未覆盖：直接 `new MaterialAlertDialogBuilder(...).show()` 而不经 `LightDialog.apply` 的调用点；`AlertDialog` 的 window 级背景（`MaterialAlertDialog.WebHTV.Rounded` 的 `backgroundTint` 走 window background，binder 只改写 view 树）；`FollowingActivity` 不继承 `BaseActivity`；`StateListDrawable`/`RippleDrawable`/`ShapeDrawable` 背景与远程 Web 主题页面。
+- 回滚锚点：回退本任务即恢复“弹窗不参与主题”的行为，仅影响闭包 3 个文件，不涉及 profile 数据格式或偏好键。
 
 ---
 
