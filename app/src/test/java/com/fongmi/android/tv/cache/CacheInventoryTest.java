@@ -22,7 +22,7 @@ public class CacheInventoryTest {
 
     @Test
     public void measuresRecursiveFilesAndTimes() throws Exception {
-        Path root = Files.createTempDirectory("cache-inventory-recursive");
+        Path root = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")).toRealPath(), "cache-inventory-recursive");
         try {
             Files.writeString(root.resolve("a.bin"), "abc", StandardCharsets.UTF_8);
             Files.createDirectories(root.resolve("nested"));
@@ -41,7 +41,7 @@ public class CacheInventoryTest {
 
     @Test
     public void filesOnlyRootCountsDirectChildrenAndAppliesSuffixFilter() throws Exception {
-        Path root = Files.createTempDirectory("cache-inventory-files");
+        Path root = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")).toRealPath(), "cache-inventory-files");
         try {
             Files.writeString(root.resolve("keep.apk"), "1234", StandardCharsets.UTF_8);
             Files.writeString(root.resolve("skip.zip"), "123456", StandardCharsets.UTF_8);
@@ -61,7 +61,7 @@ public class CacheInventoryTest {
 
     @Test
     public void excludesProtectedFiles() throws Exception {
-        Path root = Files.createTempDirectory("cache-inventory-protected");
+        Path root = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")).toRealPath(), "cache-inventory-protected");
         try {
             Files.writeString(root.resolve("update.apk"), "12345", StandardCharsets.UTF_8);
             Files.writeString(root.resolve("mpv-playback-recovery.lock"), "ignored", StandardCharsets.UTF_8);
@@ -79,7 +79,7 @@ public class CacheInventoryTest {
 
     @Test
     public void missingDirectoryIsEmptyAndDoesNotCreateIt() throws Exception {
-        Path root = Files.createTempDirectory("cache-inventory-missing").resolve("missing");
+        Path root = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")).toRealPath(), "cache-inventory-missing").resolve("missing");
 
         CacheMeasurement result = CacheInventory.measureRoots(
                 CacheModuleId.LYRICS, List.of(CacheRoot.tree(root.toFile())));
@@ -92,7 +92,7 @@ public class CacheInventoryTest {
 
     @Test
     public void orphanRootSkipsManagedDirectories() throws Exception {
-        Path root = Files.createTempDirectory("cache-inventory-orphan");
+        Path root = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")).toRealPath(), "cache-inventory-orphan");
         try {
             Files.createDirectories(root.resolve("exo"));
             Files.writeString(root.resolve("exo/managed.bin"), "123456", StandardCharsets.UTF_8);

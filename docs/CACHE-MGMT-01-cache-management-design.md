@@ -1,6 +1,6 @@
 # CACHE-MGMT-01 设置页缓存管理升级设计
 
-> 状态：P0 已实现并通过双形态 Java 编译；P1-P4 待实施
+> 状态：P0-P1 已实现；P2-P4 待实施
 > 适用分支：`Silent1566` 及其后续开发分支
 > 基线：`8e4d9333de8ea7346491e71a0b1ab6858a852298`
 > 文档类型：实现设计 + 测试验收规范
@@ -9,10 +9,10 @@
 ## Recovery anchor
 
 - 目标：把设置页现有“缓存大小 + 一键全删”升级为可观测、可分级清理、可配置上限、可自动维护的缓存管理中心。
-- 当前状态：P0 已完成代码实现；新增只读缓存模型、扫描器、共享管理弹窗和移动/TV 入口展示，尚未接入任何清理动作。
+- 当前状态：P0 已提交（`77b5d10421`）；P1 已实现分级清理、模块清理、确认、进度、取消和结果反馈，待最终提交。
 - 关键约束：`Path.cache()` 是混合目录，绝不能被当作一个全局可任意淘汰的缓存池。
 - 实施顺序：P0 缓存清单 → P1 分类清理 → P2 模块上限 → P3 自动清理 → P4 运行中治理增强。
-- 下一步：启动 P1，建立 `CacheCleanupManager` 与 `CachePolicyEngine`，先实现模块级安全清理和分级清理。
+- 下一步：完成 P1 双形态编译验证、提交和恢复标签，然后进入 P2 模块上限配置。
 
 ## 1. 背景
 
@@ -20,6 +20,8 @@
 
 - 2026-09-22：P0 落地。`CacheInventory` 只读扫描已归类的 owner 路径，未知顶层文件由 legacy/orphan 模块覆盖；`CacheCenter` 在单线程执行器上生成快照并做 3 秒缓存；移动端和 TV 端设置入口改为进入 `CacheManagementDialog`，显示总量、系统配额和模块明细。
 - P0 验证：`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 通过。缓存单测源码已新增；本机 `testMobileArm64_v8aDebugUnitTest` 当前被既有 `ExoCompressedAudioDirectPolicyTest` 的 Media3 API 可见性错误阻断，该失败与缓存改动无调用关系，待 P1 设备/测试阶段复核。
+- 2026-09-23：P1 落地。新增 `CacheCleanupManager`、`CachePolicyEngine`、`CacheCleanupPlan/Progress/Result/Status`；为 Exo、MPV HLS、WebHome raw、歌词、K 歌、EPG 增加 owner 清理接口；缓存管理弹窗支持 L1/L2/L3、单项清理、确认、进度、取消和部分失败结果。
+- P1 修正：`CacheInventory` 的空排除后缀集合曾导致所有文件被跳过，已修为显式非空判断；缓存纯测试 12/12 通过（独立 JUnit，绕开既有 Exo 测试的编译阻塞）。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
 

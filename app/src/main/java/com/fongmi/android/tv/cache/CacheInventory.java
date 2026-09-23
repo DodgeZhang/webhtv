@@ -51,6 +51,12 @@ public final class CacheInventory {
         return measureRoots(module.id(), module.roots(), deadlineNs);
     }
 
+    static CacheModule find(CacheModuleId id) {
+        if (id == null) return null;
+        for (CacheModule module : modules()) if (module.id() == id) return module;
+        return null;
+    }
+
     static CacheMeasurement measureRoots(CacheModuleId id, List<CacheRoot> roots) {
         return measureRoots(id, roots, Long.MAX_VALUE);
     }
@@ -140,7 +146,8 @@ public final class CacheInventory {
         if (root.excludeNames().contains(file.getName())) return;
         if (file.isFile()) {
             if (!root.recursive() && depth > 1) return;
-            if (matchesSuffix(file.getName(), root.excludeSuffixes())) return;
+            if (!root.excludeSuffixes().isEmpty()
+                    && matchesAnySuffix(file.getName(), root.excludeSuffixes())) return;
             if (!matchesSuffix(file.getName(), root.includeSuffixes())) return;
             result.accept(file);
             return;
@@ -151,19 +158,25 @@ public final class CacheInventory {
             result.warning("unreadable directory: " + file.getName());
             return;
         }
+        if (children.length == 0) return;
         if (!root.recursive() && depth > 0) return;
         for (File child : children) scan(child, root, result, deadlineNs, depth + 1);
     }
 
     private static boolean matchesSuffix(String name, Set<String> suffixes) {
         if (suffixes.isEmpty()) return true;
+        return matchesAnySuffix(name, suffixes);
+    }
+
+    private static boolean matchesAnySuffix(String name, Set<String> suffixes) {
         for (String suffix : suffixes) if (name.endsWith(suffix)) return true;
         return false;
     }
 
     private static boolean isSymbolicLink(File file) {
         try {
-            return !file.getCanonicalFile().equals(file.getAbsoluteFile());
+            File canonical = file.getCanonicalFile();
+            return !canonical.equals(file) && !canonical.equals(file.getAbsoluteFile());
         } catch (IOException e) {
             return true;
         }

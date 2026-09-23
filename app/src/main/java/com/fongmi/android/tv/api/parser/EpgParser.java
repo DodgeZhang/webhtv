@@ -71,6 +71,24 @@ public class EpgParser {
         Log.i(TAG, "start done elapsed=" + (System.currentTimeMillis() - t0) + "ms");
     }
 
+    public static boolean clearCache() {
+        Path.clear(Path.epg());
+        return true;
+    }
+
+    public static boolean clearExpiredCache(long now) {
+        File[] files = Path.epg().listFiles(File::isFile);
+        if (files == null) return true;
+        boolean success = true;
+        for (File file : files) {
+            long modified = file.lastModified();
+            if (modified > 0 && now - modified < TimeUnit.MINUTES.toMillis(1)) continue;
+            if (isToday(modified) && now - modified <= TimeUnit.HOURS.toMillis(6)) continue;
+            if (!file.delete()) success = false;
+        }
+        return success;
+    }
+
     private static String cacheFileName(String url) {
         String name = UrlUtil.path(url);
         if (!name.isEmpty()) return name;

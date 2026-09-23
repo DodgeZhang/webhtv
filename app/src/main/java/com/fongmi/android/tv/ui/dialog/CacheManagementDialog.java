@@ -12,6 +12,12 @@ import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.cache.CacheCenter;
+import com.fongmi.android.tv.cache.CacheCleanupManager;
+import com.fongmi.android.tv.cache.CacheCleanupMode;
+import com.fongmi.android.tv.cache.CacheCleanupPlan;
+import com.fongmi.android.tv.cache.CacheCleanupProgress;
+import com.fongmi.android.tv.cache.CacheCleanupResult;
+import com.fongmi.android.tv.cache.CacheCleanupStatus;
 import com.fongmi.android.tv.cache.CacheFormat;
 import com.fongmi.android.tv.cache.CacheMeasurement;
 import com.fongmi.android.tv.cache.CacheModuleId;
@@ -23,6 +29,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+
+import com.google.android.material.button.MaterialButton;
 
 public class CacheManagementDialog extends BaseAlertDialog {
 
@@ -64,7 +72,104 @@ public class CacheManagementDialog extends BaseAlertDialog {
 
     protected void initEvent() {
         binding.refresh.setOnClickListener(view -> refresh(true));
+        binding.cancel.setOnClickListener(view -> CacheCleanupManager.cancel());
+        binding.cleanupLight.setOnClickListener(view -> confirm(CacheCleanupMode.LIGHT));
+        binding.cleanupStandard.setOnClickListener(view -> confirm(CacheCleanupMode.STANDARD));
+        binding.cleanupDeep.setOnClickListener(view -> confirmDeep());
         binding.close.setOnClickListener(view -> dismiss());
+    }
+
+    private void confirm(CacheCleanupMode mode) {
+        int message = switch (mode) {
+            case LIGHT -> R.string.cache_cleanup_confirm_light;
+            case STANDARD -> R.string.cache_cleanup_confirm_standard;
+            default -> R.string.cache_cleanup_confirm_deep;
+        };
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.cache_cleanup_confirm_title)
+                .setMessage(message)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> startCleanup(mode))
+                .show();
+    }
+
+    private void confirmModule(CacheModuleId id) {
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.cache_cleanup_confirm_title)
+                .setMessage(getString(R.string.cache_cleanup_confirm_module, getModuleName(id)))
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> startCleanup(
+                        com.fongmi.android.tv.cache.CachePolicyEngine.module(id)))
+                .show();
+    }
+
+    private void confirmDeep() {
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.cache_cleanup_confirm_title)
+                .setMessage(R.string.cache_cleanup_confirm_deep)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> confirm(CacheCleanupMode.DEEP))
+                .show();
+    }
+
+    private void startCleanup(CacheCleanupMode mode) {
+        if (CacheCleanupManager.isRunning()) return;
+        startCleanup(buildPlan(mode));
+    }
+
+    private void startCleanup(CacheCleanupPlan plan) {
+        if (CacheCleanupManager.isRunning()) return;
+        setCleanupEnabled(false);
+        binding.cancel.setVisibility(android.view.View.VISIBLE);
+        CacheCleanupManager.execute(plan, this::renderProgress, this::renderResult);
+    }
+
+    private CacheCleanupPlan buildPlan(CacheCleanupMode mode) {
+        return com.fongmi.android.tv.cache.CachePolicyEngine.plan(mode);
+    }
+
+    private void renderProgress(CacheCleanupProgress progress) {
+        if (binding == null || !isAdded()) return;
+        binding.status.setText(getString(R.string.cache_cleanup_progress,
+                getModuleName(progress.moduleId()), progress.completedModules() + 1, progress.totalModules()));
+    }
+
+    private void renderResult(CacheCleanupResult result) {
+        if (binding == null || !isAdded()) return;
+        setCleanupEnabled(true);
+        binding.cancel.setVisibility(android.view.View.GONE);
+        int message;
+        if (result.status() == CacheCleanupStatus.COMPLETED) {
+            message = R.string.cache_cleanup_done;
+        } else if (result.status() == CacheCleanupStatus.CANCELLED) {
+            message = R.string.cache_cleanup_cancelled;
+        } else if (result.status() == CacheCleanupStatus.FAILED) {
+            message = R.string.cache_cleanup_failed;
+        } else if (result.status() == CacheCleanupStatus.NOT_ALLOWED) {
+            message = R.string.cache_cleanup_not_allowed;
+        } else if (result.status() == CacheCleanupStatus.DEFERRED) {
+            message = R.string.cache_cleanup_deferred;
+        } else {
+            message = R.string.cache_cleanup_partial;
+        }
+        String text = result.status() == CacheCleanupStatus.COMPLETED
+                ? getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()), result.deletedFiles())
+                : result.status() == CacheCleanupStatus.PARTIAL
+                ? getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
+                result.deletedFiles(), result.skippedFiles())
+                : getString(message);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.cache_cleanup_confirm_title)
+                .setMessage(text)
+                .setPositiveButton(R.string.dialog_positive, null)
+                .show();
+        refresh(true);
+    }
+
+    private void setCleanupEnabled(boolean enabled) {
+        binding.cleanupLight.setEnabled(enabled);
+        binding.cleanupStandard.setEnabled(enabled);
+        binding.cleanupDeep.setEnabled(enabled);
     }
 
     private void refresh(boolean force) {
@@ -103,19 +208,37 @@ public class CacheManagementDialog extends BaseAlertDialog {
 
     private void addRow(CacheModuleId id, @Nullable CacheMeasurement measurement, long totalBytes) {
         LinearLayout row = new LinearLayout(requireContext());
-        row.setOrientation(LinearLayout.VERTICAL);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(0, 10, 0, 10);
+        LinearLayout detailColumn = new LinearLayout(requireContext());
+        detailColumn.setOrientation(LinearLayout.VERTICAL);
         String title = getModuleName(id);
         if (measurement != null) title += "  " + CacheFormat.percent(measurement.bytes(), totalBytes);
-        row.addView(text(title, 16, 0xFF202124));
+        detailColumn.addView(text(title, 16, 0xFF202124));
         String detail;
         if (measurement == null) detail = getString(R.string.cache_management_scanning);
         else detail = getString(R.string.cache_management_module_detail,
                 FileUtil.byteCountToDisplaySize(measurement.bytes()),
                 measurement.fileCount(),
                 formatTime(measurement.newestModifiedMs()));
-        row.addView(text(detail, 13, 0xFF5F6368));
+        detailColumn.addView(text(detail, 13, 0xFF5F6368));
+        row.addView(detailColumn, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(moduleButton(id));
         binding.modules.addView(row);
+    }
+
+    private MaterialButton moduleButton(CacheModuleId id) {
+        MaterialButton button = new MaterialButton(requireContext(), null,
+                com.google.android.material.R.attr.materialButtonTonalStyle);
+        button.setMinHeight(36);
+        button.setTextSize(12);
+        boolean restricted = id == CacheModuleId.PLUGIN_SCRIPTS;
+        button.setEnabled(!restricted);
+        button.setText(restricted ? R.string.cache_cleanup_owner_managed : R.string.cache_cleanup_module);
+        if (!restricted) button.setOnClickListener(view -> confirmModule(id));
+        return button;
     }
 
     private android.widget.TextView text(CharSequence value, int size, int color) {
