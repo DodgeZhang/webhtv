@@ -26,10 +26,15 @@ public final class CacheInventory {
 
     public CacheSnapshot scan() {
         long startNs = System.nanoTime();
+        File cache = Path.cache();
+        List<CacheModule> modules = CacheModuleRegistry.modules(cache);
         ArrayList<CacheMeasurement> measurements = new ArrayList<>();
         ArrayList<String> warnings = new ArrayList<>();
+        for (String problem : CacheModuleRegistry.validate(cache, modules)) {
+            warnings.add("registry: " + problem);
+        }
         long totalBytes = 0;
-        for (CacheModule module : modules()) {
+        for (CacheModule module : modules) {
             CacheMeasurement measurement = measure(module, System.nanoTime() + MODULE_TIMEOUT_NS);
             measurements.add(measurement);
             totalBytes = saturatedAdd(totalBytes, measurement.bytes());
@@ -82,56 +87,7 @@ public final class CacheInventory {
     }
 
     private static List<CacheModule> modules() {
-        File cache = Path.cache();
-        Set<String> managedRoots = Set.of(
-                "exo", "mpv_hls", "mpv-demuxer-cache", "mpv_lut_shaders", "fontconfig",
-                "lyrics", "karaoke_tracks", "webhome_ext", "webhome_raw", "epg",
-                "image_manager_disk_cache", "js", "py", "jar", "restore-legacy"
-        );
-        return List.of(
-                module(CacheModuleId.EXO, CacheGroup.PLAYBACK, List.of(CacheRoot.tree(new File(cache, "exo"))), CacheCleanability.DEFER_UNTIL_IDLE, CacheEvictionPolicy.LRU, false, true, true, true),
-                module(CacheModuleId.MPV_HLS, CacheGroup.PLAYBACK, List.of(CacheRoot.tree(new File(cache, "mpv_hls"))), CacheCleanability.DEFER_UNTIL_IDLE, CacheEvictionPolicy.LRU_WITH_TTL, false, true, true, true),
-                module(CacheModuleId.MPV_DEMUXER, CacheGroup.PLAYBACK, List.of(CacheRoot.tree(new File(cache, "mpv-demuxer-cache"))), CacheCleanability.DEFER_UNTIL_IDLE, CacheEvictionPolicy.OWNER_MANAGED, false, true, true, true),
-                module(CacheModuleId.MPV_RUNTIME, CacheGroup.PLAYBACK, List.of(
-                        CacheRoot.tree(new File(cache, "mpv_lut_shaders")),
-                        CacheRoot.tree(new File(cache, "fontconfig"))
-                ), CacheCleanability.DEFER_UNTIL_IDLE, CacheEvictionPolicy.TTL, false, true, true, true),
-                module(CacheModuleId.LYRICS, CacheGroup.MEDIA, List.of(CacheRoot.tree(new File(cache, "lyrics"))), CacheCleanability.SAFE_NOW, CacheEvictionPolicy.LRU_WITH_TTL, true, true, false, false),
-                module(CacheModuleId.KARAOKE, CacheGroup.MEDIA, List.of(CacheRoot.tree(new File(cache, "karaoke_tracks"))), CacheCleanability.SAFE_NOW, CacheEvictionPolicy.COUNT_THEN_LRU, true, true, false, false),
-                module(CacheModuleId.WEBHOME_EXT, CacheGroup.NETWORK, List.of(CacheRoot.tree(new File(cache, "webhome_ext"))), CacheCleanability.SAFE_NOW, CacheEvictionPolicy.LRU_WITH_TTL, true, true, false, false),
-                module(CacheModuleId.WEBHOME_RAW, CacheGroup.NETWORK, List.of(CacheRoot.tree(new File(cache, "webhome_raw"))), CacheCleanability.OWNER_MANAGED, CacheEvictionPolicy.LRU, false, true, true, false),
-                module(CacheModuleId.EPG, CacheGroup.NETWORK, List.of(CacheRoot.tree(new File(cache, "epg"))), CacheCleanability.SAFE_NOW, CacheEvictionPolicy.TTL, true, true, false, false),
-                module(CacheModuleId.GLIDE, CacheGroup.MEDIA, List.of(CacheRoot.tree(new File(cache, "image_manager_disk_cache"))), CacheCleanability.OWNER_MANAGED, CacheEvictionPolicy.OWNER_MANAGED, false, true, true, false),
-                module(CacheModuleId.PLUGIN_SCRIPTS, CacheGroup.PLUGIN, List.of(
-                        CacheRoot.tree(new File(cache, "js")),
-                        CacheRoot.tree(new File(cache, "py")),
-                        CacheRoot.tree(new File(cache, "jar"))
-                ), CacheCleanability.DEFER_UNTIL_IDLE, CacheEvictionPolicy.LRU_WITH_TTL, false, true, true, false),
-                module(CacheModuleId.TEMP_FILES, CacheGroup.TEMPORARY, List.of(CacheRoot.files(cache, Set.of(".apk", ".zip", ".tmp", ".log"), protectedNames())), CacheCleanability.SAFE_NOW, CacheEvictionPolicy.AGE_BASED, true, true, false, false),
-                module(CacheModuleId.LEGACY_FILES, CacheGroup.LEGACY, List.of(CacheRoot.orphanTree(cache, union(managedRoots, protectedNames()), Set.of(".apk", ".zip", ".tmp", ".log"))), CacheCleanability.SAFE_NOW, CacheEvictionPolicy.AGE_BASED, true, true, false, false)
-        );
-    }
-
-    private static Set<String> union(Set<String> first, Set<String> second) {
-        java.util.HashSet<String> result = new java.util.HashSet<>(first);
-        result.addAll(second);
-        return Set.copyOf(result);
-    }
-
-    private static CacheModule module(CacheModuleId id, CacheGroup group, List<CacheRoot> roots,
-                                      CacheCleanability cleanability, CacheEvictionPolicy policy,
-                                      boolean automatic, boolean manual, boolean ownerIdle,
-                                      boolean appIdle) {
-        return new Module(id, group, roots, cleanability, policy,
-                new CacheProtection(automatic, manual, ownerIdle, appIdle, 0, 0, ownerIdle));
-    }
-
-    private static Set<String> protectedNames() {
-        return Set.of(
-                "mpv-playback-recovery.lock",
-                "mpv-playback-recovery.state",
-                "mpv-playback-recovery.result"
-        );
+        return CacheModuleRegistry.modules(Path.cache());
     }
 
     private static void scan(File file, CacheRoot root, ScanResult result, long deadlineNs, int depth) {
@@ -194,11 +150,6 @@ public final class CacheInventory {
 
     private static long saturatedAdd(long first, long second) {
         return first > Long.MAX_VALUE - second ? Long.MAX_VALUE : first + second;
-    }
-
-    private record Module(CacheModuleId id, CacheGroup group, List<CacheRoot> roots,
-                          CacheCleanability cleanability, CacheEvictionPolicy evictionPolicy,
-                          CacheProtection protection) implements CacheModule {
     }
 
     private static final class ScanResult {

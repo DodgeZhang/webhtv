@@ -39,6 +39,7 @@
 - 2026-09-23：回归验证受阻记录。5563 上唯一本地视频 `ijk-smoke.mp4` 经应用 `push` 入口播放后在 32 ms 处返回 `Source error`（MediaSession state=7），远程 Google 样例同样 `Source error`；该设备未加载 VOD/EPG 配置，TV 界面 `uiautomator` 多次返回 null root。因此“播放、seek、预载、重缓冲不变差”“歌词、字幕、K 歌仍可用”“EPG 直播节目单仍可刷新”“应用更新、备份、恢复仍可完成”“播放器切换不影响其他模块统计”保持未通过，待具备可用媒体与配置的环境补测。
 - 2026-09-23：阻塞根因定位。5563 上 `VodConfig.load` 以 `okhttp3.Request$Builder.url` 的 NPE 结束——传入 URL 为 null（`OkHttp.newCall(OkHttp.java:174)` ← `Decoder.getJson(Decoder.java:26)` ← `VodConfig.load(VodConfig.java:118)`）。该设备点播配置为空，导致依赖点播源的播放/歌词/K 歌/EPG 回归无法执行；这与缓存管理改动无调用关系，但需重新配置设备后再验证。
 - 2026-09-23：主线程 I/O 修复。审计发现 `CacheScheduler.enforceTotalLimit` 的 L1 清理回调由 `App.post` 在主线程执行，其中仍会调用 `totalCacheBytes()` 触发全量库存扫描，违反“扫描不得在主线程”的不变量。现改为把二次扫描与 L2 触发提交到调度器后台线程；双形态编译与缓存纯测试 25/25 通过。
+- 2026-09-23：注册表校验补齐。抽出不依赖 Android 运行时的 `CacheModuleRegistry`（纯函数，只接收 cacheDir），并实现设计风险表要求的启动校验：模块 ID 唯一、根路径必须落在 cacheDir 内、禁止重复根目录、禁止树形根目录相互嵌套；`CacheInventory.scan()` 每次扫描都会执行校验并把问题作为 warning 暴露。新增 `CacheModuleRegistryTest` 覆盖 ID 唯一、越界、嵌套、重复及“注册表与播放器无关（纯函数）”不变量；缓存纯测试 32/32 通过。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
 
@@ -1675,7 +1676,7 @@ cache.limit.clamped
 | 扫描大目录卡 UI | ANR/掉帧 | 后台扫描 + 超时 + 分模块 |
 | 自动清理过于激进 | 首次加载变慢 | 默认 L1/L2，禁用 L3 |
 | API 24/29+ 存储差异 | 兼容性问题 | 设备矩阵 + StorageManager 降级 |
-| 多模块路径重叠 | 重复统计/删错 | 启动时校验根路径互不包含 |
+| 多模块路径重叠 | 重复统计/删错 | 启动时校验根路径互不包含（已实现 `CacheModuleRegistry.validate`） |
 
 ## 23. 回滚策略
 
