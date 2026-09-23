@@ -39,13 +39,26 @@ public final class CacheRetentionManager {
         return success;
     }
 
-    public static boolean enforceFileLimit(List<File> files, long limitBytes,
+    /**
+     * Evicts the oldest eligible files until the total drops to 90% of {@code limitBytes}.
+     *
+     * <p>Every candidate must live inside {@code allowedRoot} and must not be a symlink. This
+     * enforces the design invariant that all deletions stay inside a declared root, even when a
+     * caller passes a hand-built file list.</p>
+     */
+    public static boolean enforceFileLimit(File allowedRoot, List<File> files, long limitBytes,
                                            long minimumAgeMs, long now) {
         if (limitBytes <= 0 || files == null || files.isEmpty()) return true;
-        long total = totalBytes(files);
+        String rootKey = allowedRoot == null ? null : canonicalKey(allowedRoot);
+        if (rootKey == null) return false;
+        ArrayList<File> eligible = new ArrayList<>();
+        for (File file : files) {
+            if (isInside(rootKey, file)) eligible.add(file);
+        }
+        long total = totalBytes(eligible);
         if (total <= limitBytes) return true;
         long target = Math.max(0, limitBytes * 9 / 10);
-        ArrayList<File> ordered = new ArrayList<>(files);
+        ArrayList<File> ordered = new ArrayList<>(eligible);
         ordered.sort(Comparator.comparingLong(File::lastModified));
         boolean success = true;
         for (File file : ordered) {
@@ -57,6 +70,25 @@ public final class CacheRetentionManager {
             else success = false;
         }
         return success;
+    }
+
+    static boolean isInside(String rootKey, File file) {
+        if (file == null) return false;
+        try {
+            if (isSymbolicLink(file)) return false;
+            String key = file.getCanonicalPath();
+            return key.startsWith(rootKey + File.separator);
+        } catch (java.io.IOException ignored) {
+            return false;
+        }
+    }
+
+    static String canonicalKey(File file) {
+        try {
+            return file.getCanonicalPath();
+        } catch (java.io.IOException ignored) {
+            return null;
+        }
     }
 
     private static void collect(File file, List<File> output, Set<String> excludedNames) {

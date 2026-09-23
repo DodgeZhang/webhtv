@@ -98,12 +98,54 @@ public class CacheRetentionManagerTest {
             File old = write(root, "old.tmp", "1234567890", 1_000L);
             File young = write(root, "young.tmp", "1234567890", 9_500L);
             boolean success = CacheRetentionManager.enforceFileLimit(
-                    List.of(old, young), 10, 1_000L, 10_000L);
+                    root.toFile(), List.of(old, young), 10, 1_000L, 10_000L);
             assertTrue(success);
             assertFalse(old.exists());
             assertTrue(young.exists());
         } finally {
             delete(root.toFile());
+        }
+    }
+
+    @Test
+    public void fileLimitNeverDeletesOutsideAllowedRoot() throws Exception {
+        Path root = Files.createTempDirectory("cache-retention-bounds-root");
+        Path outside = Files.createTempDirectory("cache-retention-bounds-outside");
+        try {
+            File victim = write(outside, "victim.tmp", "1234567890", 1_000L);
+
+            boolean success = CacheRetentionManager.enforceFileLimit(
+                    root.toFile(), List.of(victim), 5, 0L, 10_000L);
+
+            assertTrue(success);
+            assertTrue("file outside the declared root must be preserved", victim.exists());
+        } finally {
+            delete(root.toFile());
+            delete(outside.toFile());
+        }
+    }
+
+    @Test
+    public void fileLimitSkipsSymbolicLinksInsideRoot() throws Exception {
+        Path root = Files.createTempDirectory("cache-retention-bounds-link");
+        Path outside = Files.createTempDirectory("cache-retention-link-target");
+        try {
+            File victim = write(outside, "target.tmp", "1234567890", 1_000L);
+            java.nio.file.Path link = root.resolve("link.tmp");
+            try {
+                Files.createSymbolicLink(link, victim.toPath());
+            } catch (UnsupportedOperationException | java.nio.file.FileSystemException error) {
+                org.junit.Assume.assumeTrue("symbolic links unavailable", false);
+            }
+
+            boolean success = CacheRetentionManager.enforceFileLimit(
+                    root.toFile(), List.of(link.toFile()), 5, 0L, 10_000L);
+
+            assertTrue(success);
+            assertTrue("symlink target must be preserved", victim.exists());
+        } finally {
+            delete(root.toFile());
+            delete(outside.toFile());
         }
     }
 

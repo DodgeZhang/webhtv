@@ -213,7 +213,7 @@ public final class CacheCleanupManager {
                 warnings.add("delete failed: " + name);
             }
         }
-        success &= CacheRetentionManager.enforceFileLimit(remaining, limitBytes,
+        success &= CacheRetentionManager.enforceFileLimit(cache, remaining, limitBytes,
                 TEMP_MINIMUM_AGE_MS, now);
         return new Outcome(success, warnings);
     }
