@@ -679,6 +679,16 @@
     <string name="cache_limit_button">上限</string>
     <string name="cache_limit_title">暫存上限</string>
     <string name="cache_limit_unlimited">不限</string>
+    <string name="cache_auto_button">自動清理</string>
+    <string name="cache_auto_on">自動清理：開</string>
+    <string name="cache_auto_off">自動清理：關</string>
+    <string name="cache_retention_button">保留期</string>
+    <string name="cache_retention_title">暫存保留期</string>
+    <string name="cache_retention_summary">保留：%1$s</string>
+    <string name="cache_retention_7">7 天</string>
+    <string name="cache_retention_30">30 天</string>
+    <string name="cache_retention_90">90 天</string>
+    <string name="cache_retention_forever">永久</string>
     <string name="cache_cleanup_confirm_title">確認清理暫存？</string>
     <string name="cache_cleanup_confirm_light">清理過期節目表、暫存檔與遺留暫存？</string>
     <string name="cache_cleanup_confirm_standard">清理圖片、歌詞、K 歌與 WebHome 等可重建暫存？\n\n收藏、歷史與設定不會受到影響。</string>

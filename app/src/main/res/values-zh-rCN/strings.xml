@@ -695,6 +695,16 @@
     <string name="cache_limit_button">上限</string>
     <string name="cache_limit_title">缓存上限</string>
     <string name="cache_limit_unlimited">不限</string>
+    <string name="cache_auto_button">自动清理</string>
+    <string name="cache_auto_on">自动清理：开</string>
+    <string name="cache_auto_off">自动清理：关</string>
+    <string name="cache_retention_button">保留期</string>
+    <string name="cache_retention_title">缓存保留期</string>
+    <string name="cache_retention_summary">保留：%1$s</string>
+    <string name="cache_retention_7">7 天</string>
+    <string name="cache_retention_30">30 天</string>
+    <string name="cache_retention_90">90 天</string>
+    <string name="cache_retention_forever">永久</string>
     <string name="cache_cleanup_confirm_title">确认清理缓存？</string>
     <string name="cache_cleanup_confirm_light">清理过期节目单、临时文件和遗留缓存？</string>
     <string name="cache_cleanup_confirm_standard">清理图片、歌词、K 歌和 WebHome 等可重建缓存？\n\n收藏、历史和设置不会受影响。</string>

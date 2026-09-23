@@ -23,6 +23,7 @@ import com.fongmi.android.tv.cache.CacheLimitOptions;
 import com.fongmi.android.tv.cache.CacheMeasurement;
 import com.fongmi.android.tv.cache.CacheModuleId;
 import com.fongmi.android.tv.cache.CachePolicyStore;
+import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.cache.CacheSnapshot;
 import com.fongmi.android.tv.databinding.DialogCacheManagementBinding;
 import com.fongmi.android.tv.utils.FileUtil;
@@ -78,7 +79,38 @@ public class CacheManagementDialog extends BaseAlertDialog {
         binding.cleanupLight.setOnClickListener(view -> confirm(CacheCleanupMode.LIGHT));
         binding.cleanupStandard.setOnClickListener(view -> confirm(CacheCleanupMode.STANDARD));
         binding.cleanupDeep.setOnClickListener(view -> confirmDeep());
+        binding.autoCleanup.setOnClickListener(view -> toggleAutoCleanup());
+        binding.retention.setOnClickListener(view -> chooseRetention());
         binding.close.setOnClickListener(view -> dismiss());
+        updatePolicyButtons();
+    }
+
+    private void toggleAutoCleanup() {
+        boolean enabled = !CachePolicyStore.isAutoCleanupEnabled();
+        CachePolicyStore.putAutoCleanupEnabled(enabled);
+        if (enabled) CacheScheduler.get().start();
+        updatePolicyButtons();
+    }
+
+    private void chooseRetention() {
+        String[] labels = {getString(R.string.cache_retention_7), getString(R.string.cache_retention_30),
+                getString(R.string.cache_retention_90), getString(R.string.cache_retention_forever)};
+        int[] days = {7, 30, 90, 3650};
+        int checked = 0;
+        int current = CachePolicyStore.getRetentionDays();
+        for (int index = 0; index < days.length; index++) if (days[index] == current) checked = index;
+        ChoiceDialog.showSingle(this, R.string.cache_retention_title, labels, checked, which -> {
+            CachePolicyStore.putRetentionDays(days[which]);
+            updatePolicyButtons();
+        });
+    }
+
+    private void updatePolicyButtons() {
+        binding.autoCleanup.setText(CachePolicyStore.isAutoCleanupEnabled()
+                ? R.string.cache_auto_on : R.string.cache_auto_off);
+        int days = CachePolicyStore.getRetentionDays();
+        binding.retention.setText(getString(R.string.cache_retention_summary,
+                days >= 3650 ? getString(R.string.cache_retention_forever) : days + "d"));
     }
 
     private void confirm(CacheCleanupMode mode) {
