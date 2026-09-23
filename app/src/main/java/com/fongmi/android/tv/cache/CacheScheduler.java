@@ -1,12 +1,13 @@
 package com.fongmi.android.tv.cache;
 
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.ComponentName;
 import android.content.Context;
-import android.os.Build;
 import android.os.StatFs;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.service.PlaybackService;
-import com.github.catvod.utils.Path;
 import com.github.catvod.utils.Prefers;
 
 import java.io.File;
@@ -20,8 +21,9 @@ public final class CacheScheduler {
     private static final String KEY_LAST_AUTO_MS = "cache_mgmt_last_auto_ms";
     private static final String KEY_LOW_SPACE_STREAK = "cache_mgmt_low_space_streak";
     private static final String KEY_LAST_LIMIT_MS = "cache_mgmt_last_limit_ms";
+    static final int JOB_ID = 0x43414301;
+    static final long PERIODIC_INTERVAL_MS = TimeUnit.DAYS.toMillis(7);
     private static final long STARTUP_DELAY_MS = TimeUnit.SECONDS.toMillis(30);
-    private static final long PERIODIC_INTERVAL_MS = TimeUnit.DAYS.toMillis(7);
     private static final long LIMIT_INTERVAL_MS = TimeUnit.HOURS.toMillis(12);
 
     private static final CacheScheduler INSTANCE = new CacheScheduler();
@@ -40,7 +42,9 @@ public final class CacheScheduler {
     }
 
     public void start() {
-        if (!CachePolicyStore.isAutoCleanupEnabled() || !started.compareAndSet(false, true)) return;
+        if (!CachePolicyStore.isAutoCleanupEnabled()) return;
+        schedulePersistent(App.get());
+        if (!started.compareAndSet(false, true)) return;
         executor.schedule(this::startupCheck, STARTUP_DELAY_MS, TimeUnit.MILLISECONDS);
         executor.scheduleWithFixedDelay(this::periodicCheck, PERIODIC_INTERVAL_MS,
                 PERIODIC_INTERVAL_MS, TimeUnit.MILLISECONDS);
@@ -48,14 +52,45 @@ public final class CacheScheduler {
                 LIMIT_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
+    public void schedulePersistent(Context context) {
+        if (context == null || !CachePolicyStore.isAutoCleanupEnabled()) return;
+        try {
+            JobScheduler scheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+            if (scheduler == null) return;
+            JobInfo job = new JobInfo.Builder(JOB_ID, new ComponentName(context, CacheCleanupJobService.class))
+                    .setPersisted(true)
+                    .setPeriodic(PERIODIC_INTERVAL_MS)
+                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
+                    .setRequiresBatteryNotLow(true)
+                    .build();
+            scheduler.schedule(job);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    public void cancelPersistent(Context context) {
+        if (context == null) return;
+        try {
+            JobScheduler scheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+            if (scheduler != null) scheduler.cancel(JOB_ID);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    public boolean runPersistedCheck(Runnable finished) {
+        if (!CachePolicyStore.isAutoCleanupEnabled()) return false;
+        boolean periodic = System.currentTimeMillis() - Prefers.getLong(KEY_LAST_AUTO_MS, 0L) >= PERIODIC_INTERVAL_MS;
+        return trigger(periodic ? "periodic" : "low-space", finished);
+    }
+
     private void startupCheck() {
-        trigger("startup");
+        trigger("startup", null);
     }
 
     private void periodicCheck() {
         long last = Prefers.getLong(KEY_LAST_AUTO_MS, 0L);
         if (System.currentTimeMillis() - last < PERIODIC_INTERVAL_MS) return;
-        trigger("periodic");
+        trigger("periodic", null);
     }
 
     private void limitCheck() {
@@ -65,19 +100,25 @@ public final class CacheScheduler {
         CacheCleanupManager.applyConfiguredLimits();
     }
 
-    private void trigger(String reason) {
+    private boolean trigger(String reason, Runnable finished) {
         boolean periodic = "periodic".equals(reason);
         boolean lowSpace = sampleLowSpace();
         boolean playing = PlaybackService.isRunning();
         CacheCleanupMode mode = CacheAutoCleanupPolicy.cleanupMode(playing, lowSpace);
-        if (!CacheAutoCleanupPolicy.shouldTrigger(Prefers.getInt(KEY_LOW_SPACE_STREAK, 0), periodic)) return;
+        if (!CacheAutoCleanupPolicy.shouldTrigger(Prefers.getInt(KEY_LOW_SPACE_STREAK, 0), periodic)
+                || CacheCleanupManager.isRunning()) {
+            if (finished != null) finished.run();
+            return false;
+        }
         CacheCleanupManager.execute(CachePolicyEngine.plan(mode), reason, result -> {
             if (result.status() == CacheCleanupStatus.COMPLETED
                     || result.status() == CacheCleanupStatus.PARTIAL) {
                 Prefers.put(KEY_LAST_AUTO_MS, System.currentTimeMillis());
                 Prefers.put(KEY_LOW_SPACE_STREAK, 0);
             }
+            if (finished != null) finished.run();
         });
+        return true;
     }
 
     private boolean sampleLowSpace() {

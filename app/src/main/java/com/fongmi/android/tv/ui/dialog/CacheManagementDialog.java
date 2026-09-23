@@ -89,6 +89,7 @@ public class CacheManagementDialog extends BaseAlertDialog {
         boolean enabled = !CachePolicyStore.isAutoCleanupEnabled();
         CachePolicyStore.putAutoCleanupEnabled(enabled);
         if (enabled) CacheScheduler.get().start();
+        else CacheScheduler.get().cancelPersistent(requireContext());
         updatePolicyButtons();
     }
 

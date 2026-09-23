@@ -41,6 +41,7 @@ public final class CacheRetentionManager {
 
     private static void collect(File file, List<File> output, Set<String> excludedNames) {
         if (file == null || excludedNames.contains(file.getName())) return;
+        if (isSymbolicLink(file)) return;
         if (file.isFile()) {
             output.add(file);
             return;
@@ -58,5 +59,14 @@ public final class CacheRetentionManager {
 
     private static long saturatedAdd(long first, long second) {
         return first > Long.MAX_VALUE - second ? Long.MAX_VALUE : first + second;
+    }
+
+    private static boolean isSymbolicLink(File file) {
+        try {
+            File canonical = file.getCanonicalFile();
+            return !canonical.equals(file) && !canonical.equals(file.getAbsoluteFile());
+        } catch (java.io.IOException ignored) {
+            return true;
+        }
     }
 }

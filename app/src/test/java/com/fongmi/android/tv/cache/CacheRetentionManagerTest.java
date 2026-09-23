@@ -4,12 +4,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import org.junit.Assume;
 import org.junit.Test;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.FileSystemException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -62,6 +64,29 @@ public class CacheRetentionManagerTest {
             assertTrue(keep.exists());
         } finally {
             delete(root.toFile());
+        }
+    }
+
+    @Test
+    public void symbolicLinksAreNotFollowedOrDeleted() throws Exception {
+        Path outside = Files.createTempDirectory("cache-retention-outside");
+        Path root = Files.createTempDirectory("cache-retention-link");
+        File victim = write(outside, "victim.bin", "secret", 1L);
+        try {
+            try {
+                Files.createSymbolicLink(root.resolve("link.bin"), victim.toPath());
+            } catch (UnsupportedOperationException | FileSystemException error) {
+                Assume.assumeTrue("symbolic links unavailable", false);
+            }
+
+            boolean success = CacheRetentionManager.applyLimit(root.toFile(), 0, 1L,
+                    () -> 10_000L, Set.of());
+
+            assertTrue(success);
+            assertTrue(victim.exists());
+        } finally {
+            delete(root.toFile());
+            delete(outside.toFile());
         }
     }
 
