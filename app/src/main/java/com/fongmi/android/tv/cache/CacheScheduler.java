@@ -71,7 +71,7 @@ public final class CacheScheduler {
         boolean playing = PlaybackService.isRunning();
         CacheCleanupMode mode = CacheAutoCleanupPolicy.cleanupMode(playing, lowSpace);
         if (!CacheAutoCleanupPolicy.shouldTrigger(Prefers.getInt(KEY_LOW_SPACE_STREAK, 0), periodic)) return;
-        CacheCleanupManager.execute(CachePolicyEngine.plan(mode), result -> {
+        CacheCleanupManager.execute(CachePolicyEngine.plan(mode), reason, result -> {
             if (result.status() == CacheCleanupStatus.COMPLETED
                     || result.status() == CacheCleanupStatus.PARTIAL) {
                 Prefers.put(KEY_LAST_AUTO_MS, System.currentTimeMillis());

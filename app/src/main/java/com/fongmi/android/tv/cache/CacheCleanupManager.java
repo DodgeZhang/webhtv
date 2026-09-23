@@ -38,10 +38,20 @@ public final class CacheCleanupManager {
     }
 
     public static void execute(CacheCleanupPlan plan, Consumer<CacheCleanupResult> callback) {
-        execute(plan, null, callback);
+        execute(plan, "manual", null, callback);
+    }
+
+    public static void execute(CacheCleanupPlan plan, String reason, Consumer<CacheCleanupResult> callback) {
+        execute(plan, reason, null, callback);
     }
 
     public static void execute(CacheCleanupPlan plan, Consumer<CacheCleanupProgress> progress,
+                               Consumer<CacheCleanupResult> callback) {
+        execute(plan, "manual", progress, callback);
+    }
+
+    public static void execute(CacheCleanupPlan plan, String reason,
+                               Consumer<CacheCleanupProgress> progress,
                                Consumer<CacheCleanupResult> callback) {
         if (plan == null || plan.modules().isEmpty()) {
             App.post(() -> callback.accept(new CacheCleanupResult(null, CacheCleanupStatus.NOT_ALLOWED,
@@ -57,7 +67,7 @@ public final class CacheCleanupManager {
             running = true;
             CANCELLED.set(false);
         }
-        new Thread(() -> run(plan, progress, callback), "cache-cleanup").start();
+        new Thread(() -> run(plan, reason, progress, callback), "cache-cleanup").start();
     }
 
     public static boolean isRunning() {
@@ -83,8 +93,10 @@ public final class CacheCleanupManager {
                 () -> now, Set.of());
     }
 
-    private static void run(CacheCleanupPlan plan, Consumer<CacheCleanupProgress> progress,
+    private static void run(CacheCleanupPlan plan, String reason,
+                            Consumer<CacheCleanupProgress> progress,
                             Consumer<CacheCleanupResult> callback) {
+        long startedAt = System.currentTimeMillis();
         ArrayList<CacheCleanupResult> results = new ArrayList<>();
         try {
             int total = plan.modules().size();
@@ -110,7 +122,13 @@ public final class CacheCleanupManager {
                 running = false;
             }
         }
-        App.post(() -> callback.accept(aggregate(results)));
+        long finishedAt = System.currentTimeMillis();
+        CacheCleanupResult result = aggregate(results);
+        CacheCleanupJournal.record(new CacheCleanupRecord(
+                startedAt, Math.max(0, finishedAt - startedAt), reason == null ? "manual" : reason,
+                plan.mode(), result.status(), result.bytesBefore(), result.bytesAfter(),
+                result.deletedFiles(), result.skippedFiles(), result.warnings()));
+        App.post(() -> callback.accept(result));
     }
 
     private static CacheCleanupResult cleanModule(CacheModuleId id, CacheCleanupMode mode) {
