@@ -48,12 +48,15 @@ public abstract class BaseActivity extends AppCompatActivity {
         enableDynamicColor();
         super.onCreate(savedInstanceState);
         ThemeController.applyFromPreferences(this);
-        setContentView(getBinding().getRoot());
-        ThemeController.bindTheme(getBinding().getRoot());
+        // getBinding() inflates on every call, so resolve it once: the root that is set as
+        // content must be the same instance that initView()/initEvent() configure.
+        View content = getBinding().getRoot();
+        setContentView(content);
+        ThemeController.bindTheme(content);
         audioMiniPlayer = new AudioMiniPlayer(this);
         EventBus.getDefault().register(this);
         initView(savedInstanceState);
-        ThemeController.bindTheme(getBinding().getRoot());
+        ThemeController.bindTheme(content);
         setBackCallback();
         initEvent();
     }

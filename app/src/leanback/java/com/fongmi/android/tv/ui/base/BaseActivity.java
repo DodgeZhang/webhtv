@@ -53,11 +53,14 @@ public abstract class BaseActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         ThemeController.applyFromPreferences(this);
         registerFragmentLifecycleCallbacks();
-        setContentView(getBinding().getRoot());
-        ThemeController.bindTheme(getBinding().getRoot());
+        // getBinding() inflates on every call, so resolve it once: the root that is set as
+        // content must be the same instance that initView()/initEvent() configure.
+        View content = getBinding().getRoot();
+        setContentView(content);
+        ThemeController.bindTheme(content);
         EventBus.getDefault().register(this);
         initView(savedInstanceState);
-        ThemeController.bindTheme(getBinding().getRoot());
+        ThemeController.bindTheme(content);
         Util.hideSystemUI(this);
         setBackCallback();
         initEvent();
