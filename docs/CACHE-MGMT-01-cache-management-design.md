@@ -36,6 +36,7 @@
 - 2026-09-23：兼容性实测。NX627J 上切换 `user_rotation` 与 `cmd uimode night yes/no` 后，缓存管理弹窗控件仍完整可见，进程存活且无 `FATAL EXCEPTION`/`ANR`；`tv` 主数据库内容文件未被缓存弹窗改写，说明收藏/历史/设置库不在清理路径内。
 - 2026-09-23：自动清理调度实测。NX627J 打开自动清理后 `cache_mgmt_auto_enabled=true`，`dumpsys jobscheduler` 显示 `CacheCleanupJobService` 以 `PERSISTED`、周期 `7d` 注册（`batteryNotLow` 约束）；关闭开关后偏好写回 `false`，Pending queue 为空，Job 正确取消，仅保留历史 START/STOP 记录。
 - 2026-09-23：配置保留实测。执行“标准清理”（真实结果为“部分完成”）前后，MPV `files/mpv/mpv.conf` 与 `fonts.conf` 的 md5 完全一致（`d696b635…`、`cf92f416…`），WebHome 相关偏好行哈希保持一致（`7963216a…`），证明清理不会改动 MPV 自定义配置或 WebHome 扩展配置。
+- 2026-09-23：回归验证受阻记录。5563 上唯一本地视频 `ijk-smoke.mp4` 经应用 `push` 入口播放后在 32 ms 处返回 `Source error`（MediaSession state=7），远程 Google 样例同样 `Source error`；该设备未加载 VOD/EPG 配置，TV 界面 `uiautomator` 多次返回 null root。因此“播放、seek、预载、重缓冲不变差”“歌词、字幕、K 歌仍可用”“EPG 直播节目单仍可刷新”“应用更新、备份、恢复仍可完成”“播放器切换不影响其他模块统计”保持未通过，待具备可用媒体与配置的环境补测。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
 
