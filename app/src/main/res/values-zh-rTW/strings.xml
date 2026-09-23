@@ -676,6 +676,9 @@
     <string name="cache_cleanup_module">清理</string>
     <string name="cache_cleanup_owner_managed">由模組管理</string>
     <string name="cache_cleanup_confirm_module">清理 %1$s？可重建資料將在需要時重新下載。</string>
+    <string name="cache_limit_button">上限</string>
+    <string name="cache_limit_title">暫存上限</string>
+    <string name="cache_limit_unlimited">不限</string>
     <string name="cache_cleanup_confirm_title">確認清理暫存？</string>
     <string name="cache_cleanup_confirm_light">清理過期節目表、暫存檔與遺留暫存？</string>
     <string name="cache_cleanup_confirm_standard">清理圖片、歌詞、K 歌與 WebHome 等可重建暫存？\n\n收藏、歷史與設定不會受到影響。</string>

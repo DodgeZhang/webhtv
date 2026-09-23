@@ -19,8 +19,10 @@ import com.fongmi.android.tv.cache.CacheCleanupProgress;
 import com.fongmi.android.tv.cache.CacheCleanupResult;
 import com.fongmi.android.tv.cache.CacheCleanupStatus;
 import com.fongmi.android.tv.cache.CacheFormat;
+import com.fongmi.android.tv.cache.CacheLimitOptions;
 import com.fongmi.android.tv.cache.CacheMeasurement;
 import com.fongmi.android.tv.cache.CacheModuleId;
+import com.fongmi.android.tv.cache.CachePolicyStore;
 import com.fongmi.android.tv.cache.CacheSnapshot;
 import com.fongmi.android.tv.databinding.DialogCacheManagementBinding;
 import com.fongmi.android.tv.utils.FileUtil;
@@ -226,7 +228,44 @@ public class CacheManagementDialog extends BaseAlertDialog {
         row.addView(detailColumn, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         row.addView(moduleButton(id));
+        row.addView(limitButton(id));
         binding.modules.addView(row);
+    }
+
+    private MaterialButton limitButton(CacheModuleId id) {
+        MaterialButton button = new MaterialButton(requireContext(), null,
+                com.google.android.material.R.attr.materialButtonOutlinedStyle);
+        button.setMinHeight(36);
+        button.setTextSize(12);
+        button.setText(R.string.cache_limit_button);
+        button.setEnabled(supportsLimit(id));
+        if (supportsLimit(id)) button.setOnClickListener(view -> chooseLimit(id));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMarginStart(8);
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private boolean supportsLimit(CacheModuleId id) {
+        return switch (id) {
+            case GLIDE, LYRICS, KARAOKE, WEBHOME_EXT, EPG, PLUGIN_SCRIPTS, TEMP_FILES, LEGACY_FILES -> true;
+            default -> false;
+        };
+    }
+
+    private void chooseLimit(CacheModuleId id) {
+        String[] labels = new String[CacheLimitOptions.BYTES.length];
+        for (int index = 0; index < labels.length; index++) {
+            labels[index] = CacheLimitOptions.BYTES[index] <= 0
+                    ? getString(R.string.cache_limit_unlimited)
+                    : FileUtil.byteCountToDisplaySize(CacheLimitOptions.BYTES[index]);
+        }
+        ChoiceDialog.showSingle(this, R.string.cache_limit_title,
+                labels, CacheLimitOptions.indexOf(CachePolicyStore.getLimit(id)), which -> {
+                    CachePolicyStore.putLimit(id, CacheLimitOptions.BYTES[which]);
+                    refresh(true);
+                });
     }
 
     private MaterialButton moduleButton(CacheModuleId id) {

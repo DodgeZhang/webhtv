@@ -68,6 +68,21 @@ public final class CacheCleanupManager {
         if (running) CANCELLED.set(true);
     }
 
+    public static void applyConfiguredLimits() {
+        File cache = App.get().getCacheDir();
+        long retention = CachePolicyStore.getRetentionDays() * 24L * 60L * 60L * 1000L;
+        long now = System.currentTimeMillis();
+        CacheRetentionManager.applyLimit(new File(cache, "lyrics"),
+                CachePolicyStore.getLimit(CacheModuleId.LYRICS), retention, () -> now, Set.of());
+        CacheRetentionManager.applyLimit(new File(cache, "karaoke_tracks"),
+                CachePolicyStore.getLimit(CacheModuleId.KARAOKE), retention, () -> now, Set.of());
+        CacheRetentionManager.applyLimit(new File(cache, "webhome_ext"),
+                CachePolicyStore.getLimit(CacheModuleId.WEBHOME_EXT), retention, () -> now, Set.of());
+        CacheRetentionManager.applyLimit(new File(cache, "epg"),
+                CachePolicyStore.getLimit(CacheModuleId.EPG), Math.min(retention, 6L * 60L * 60L * 1000L),
+                () -> now, Set.of());
+    }
+
     private static void run(CacheCleanupPlan plan, Consumer<CacheCleanupProgress> progress,
                             Consumer<CacheCleanupResult> callback) {
         ArrayList<CacheCleanupResult> results = new ArrayList<>();
@@ -124,20 +139,29 @@ public final class CacheCleanupManager {
 
     private static Outcome executeCleanup(CacheModuleId id, CacheCleanupMode mode) {
         File cache = App.get().getCacheDir();
+        long limit = CachePolicyStore.getLimit(id);
+        long retention = CachePolicyStore.getRetentionDays() * 24L * 60L * 60L * 1000L;
         return switch (id) {
             case EXO -> outcome(MediaSourceFactory.clearCacheIfIdle());
             case MPV_HLS -> outcome(MpvHlsCacheCoordinator.shared(Path.cache("mpv_hls")).clearIfIdle());
             case MPV_DEMUXER -> clearTree(new File(cache, "mpv-demuxer-cache"));
             case MPV_RUNTIME -> clearTrees(new File(cache, "mpv_lut_shaders"), new File(cache, "fontconfig"));
-            case LYRICS -> outcome(LyricsRepository.clearCache() >= 0);
-            case KARAOKE -> outcome(KaraokeTrackRepository.clearCache());
+            case LYRICS -> mode == CacheCleanupMode.MODULE
+                    ? outcome(LyricsRepository.clearCache() >= 0)
+                    : outcome(CacheRetentionManager.applyLimit(new File(cache, "lyrics"), limit,
+                    retention, System::currentTimeMillis, Set.of()));
+            case KARAOKE -> mode == CacheCleanupMode.MODULE
+                    ? outcome(KaraokeTrackRepository.clearCache())
+                    : outcome(CacheRetentionManager.applyLimit(new File(cache, "karaoke_tracks"), limit,
+                    retention, System::currentTimeMillis, Set.of()));
             case WEBHOME_EXT -> {
                 WebHomeExtensionRegistry.get().clear();
                 yield new Outcome(true, List.of());
             }
             case WEBHOME_RAW -> outcome(WebHomeRawAdapter.clearCache());
             case EPG -> mode == CacheCleanupMode.MODULE ? outcome(EpgParser.clearCache())
-                    : outcome(EpgParser.clearExpiredCache(System.currentTimeMillis()));
+                    : outcome(CacheRetentionManager.applyLimit(new File(cache, "epg"), limit,
+                    Math.min(retention, 6L * 60L * 60L * 1000L), System::currentTimeMillis, Set.of()));
             case GLIDE -> {
                 Glide.get(App.get()).clearDiskCache();
                 yield new Outcome(true, List.of());

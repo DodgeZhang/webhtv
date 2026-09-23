@@ -694,6 +694,9 @@
     <string name="cache_cleanup_module">Clean</string>
     <string name="cache_cleanup_owner_managed">Owner managed</string>
     <string name="cache_cleanup_confirm_module">Clean %1$s? Rebuildable data will be downloaded again when needed.</string>
+    <string name="cache_limit_button">Limit</string>
+    <string name="cache_limit_title">Cache limit</string>
+    <string name="cache_limit_unlimited">Unlimited</string>
     <string name="cache_cleanup_confirm_title">Clean cache?</string>
     <string name="cache_cleanup_confirm_light">Remove expired EPG, temporary, and legacy cache data?</string>
     <string name="cache_cleanup_confirm_standard">Clean rebuildable modules such as images, lyrics, karaoke, and WebHome cache?\n\nFavorites, history, and settings are not affected.</string>
