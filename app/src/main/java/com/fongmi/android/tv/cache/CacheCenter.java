@@ -5,6 +5,7 @@ import android.os.Build;
 import android.os.storage.StorageManager;
 
 import com.fongmi.android.tv.App;
+import com.github.catvod.utils.Prefers;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,9 +49,14 @@ public final class CacheCenter {
             return;
         }
         executor.execute(() -> {
+            long startedAt = System.currentTimeMillis();
             CacheSnapshot next = inventory.scan();
+            long durationMs = System.currentTimeMillis() - startedAt;
             snapshot = next;
             snapshotAtMs = System.currentTimeMillis();
+            Prefers.put("cache_mgmt_inventory_duration_ms", durationMs);
+            Prefers.put("cache_mgmt_inventory_modules", next.modules().size());
+            Prefers.put("cache_mgmt_inventory_warnings", next.warnings().size());
             App.post(() -> callback.accept(next));
         });
     }
