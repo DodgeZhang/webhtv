@@ -34,6 +34,7 @@
 - 2026-09-23：TV（leanback）验收通过（NX627J / Android 9 / 192.168.50.3:5563，arm64 debug 覆盖安装）。遥控器方向键可到达设置页“缓存管理”，弹窗内模块列表、上限、自动清理、保留期、总上限、三级清理、刷新和确定均可见且 focusable；在模块“清理”按钮上按确认可打开确认框，确认后显示“清理完成 · 释放 无 · 删除 0 个文件”，并写入 `cache_mgmt_cleanup_history` 持久化记录。5557 上既有包签名冲突，未卸载任何现有包。
 - 2026-09-23：扫描性能实测。`CacheCenter` 持久化记录 `cache_mgmt_inventory_duration_ms/modules/warnings`；在 NX627J（Android 9）实测 13 个模块、16 条部分结果 warning、扫描耗时 9 ms，满足高速设备 <1 秒与超时/降级要求。
 - 2026-09-23：兼容性实测。NX627J 上切换 `user_rotation` 与 `cmd uimode night yes/no` 后，缓存管理弹窗控件仍完整可见，进程存活且无 `FATAL EXCEPTION`/`ANR`；`tv` 主数据库内容文件未被缓存弹窗改写，说明收藏/历史/设置库不在清理路径内。
+- 2026-09-23：自动清理调度实测。NX627J 打开自动清理后 `cache_mgmt_auto_enabled=true`，`dumpsys jobscheduler` 显示 `CacheCleanupJobService` 以 `PERSISTED`、周期 `7d` 注册（`batteryNotLow` 约束）；关闭开关后偏好写回 `false`，Pending queue 为空，Job 正确取消，仅保留历史 START/STOP 记录。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
 
