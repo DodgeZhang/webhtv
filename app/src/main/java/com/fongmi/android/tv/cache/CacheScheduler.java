@@ -110,10 +110,12 @@ public final class CacheScheduler {
         if (!CacheTotalLimitPolicy.overLimit(totalCacheBytes(), effective)) return;
         CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.LIGHT), "total-limit", first -> {
             if (PlaybackService.isRunning()) return;
-            if (!CacheTotalLimitPolicy.overLimit(totalCacheBytes(), effective)) return;
-            CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.STANDARD),
-                    "total-limit", ignored -> {
-                    });
+            executor.execute(() -> {
+                if (!CacheTotalLimitPolicy.overLimit(totalCacheBytes(), effective)) return;
+                CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.STANDARD),
+                        "total-limit", ignored -> {
+                        });
+            });
         });
     }
 
