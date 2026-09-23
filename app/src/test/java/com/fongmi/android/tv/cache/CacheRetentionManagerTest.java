@@ -107,6 +107,27 @@ public class CacheRetentionManagerTest {
         }
     }
 
+    @Test
+    public void pluginLimitExcludesActiveFile() throws Exception {
+        Path root = Files.createTempDirectory("cache-plugin-retention");
+        try {
+            File expired = write(root, "expired.jar", "1234", 1_000L);
+            File active = write(root, "active.jar", "1234", 1_000L);
+            File fresh = write(root, "fresh.jar", "1234", 9_500L);
+
+            boolean success = CacheRetentionManager.applyLimit(root.toFile(), 0,
+                    5_000L, () -> 10_000L, Set.of("active.jar"));
+
+            assertTrue(success);
+            assertFalse(expired.exists());
+            assertFalse(expired.exists());
+            assertTrue(active.exists());
+            assertTrue(fresh.exists());
+        } finally {
+            delete(root.toFile());
+        }
+    }
+
     private static File write(Path root, String name, String value, long modified) throws Exception {
         Path file = root.resolve(name);
         Files.writeString(file, value, StandardCharsets.UTF_8);

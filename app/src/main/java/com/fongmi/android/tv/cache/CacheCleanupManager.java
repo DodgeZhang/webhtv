@@ -4,6 +4,7 @@ import androidx.media3.mpvplayer.MpvHlsCacheCoordinator;
 
 import com.bumptech.glide.Glide;
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.api.parser.EpgParser;
 import com.fongmi.android.tv.player.exo.MediaSourceFactory;
 import com.fongmi.android.tv.player.karaoke.KaraokeTrackRepository;
@@ -185,7 +186,7 @@ public final class CacheCleanupManager {
                 Glide.get(App.get()).clearDiskCache();
                 yield new Outcome(true, List.of());
             }
-            case PLUGIN_SCRIPTS -> new Outcome(false, List.of("plugin loading is not paused in P1"));
+            case PLUGIN_SCRIPTS -> clearPluginCache(retention, Set.copyOf(BaseLoader.get().activePluginKeys()));
             case TEMP_FILES -> clearTemporaryFiles(TEMP_RETENTION_MS, limit);
             case LEGACY_FILES -> clearAgedTree(new File(cache, "restore-legacy"),
                     mode == CacheCleanupMode.MODULE ? 0 : LEGACY_RETENTION_MS);
@@ -215,6 +216,36 @@ public final class CacheCleanupManager {
         success &= CacheRetentionManager.enforceFileLimit(remaining, limitBytes,
                 TEMP_MINIMUM_AGE_MS, now);
         return new Outcome(success, warnings);
+    }
+
+    private static Outcome clearPluginCache(long retentionMs, Set<String> activeKeys) {
+        File cache = App.get().getCacheDir();
+        boolean success = true;
+        ArrayList<String> warnings = new ArrayList<>();
+        success &= deleteExpiredPluginFiles(new File(cache, "jar"), ".jar", activeKeys, retentionMs, warnings);
+        success &= deleteExpiredPluginFiles(new File(cache, "py"), ".py", activeKeys, retentionMs, warnings);
+        success &= deleteExpiredPluginFiles(new File(cache, "js"), ".js", activeKeys, retentionMs, warnings);
+        return new Outcome(success, warnings);
+    }
+
+    private static boolean deleteExpiredPluginFiles(File root, String suffix, Set<String> activeKeys,
+                                                    long retentionMs, List<String> warnings) {
+        if (!root.isDirectory()) return true;
+        File[] files = root.listFiles(File::isFile);
+        if (files == null) return false;
+        long now = System.currentTimeMillis();
+        boolean success = true;
+        for (File file : files) {
+            String name = file.getName();
+            if (!name.endsWith(suffix)) continue;
+            String key = name.substring(0, name.length() - suffix.length());
+            if (activeKeys.contains(key) || !isExpired(file, now, retentionMs)) continue;
+            if (!file.delete()) {
+                success = false;
+                warnings.add("delete failed: " + name);
+            }
+        }
+        return success;
     }
 
     private static Outcome clearAgedTree(File root, long retentionMs) {
