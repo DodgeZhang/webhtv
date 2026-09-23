@@ -2,6 +2,8 @@ package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Dialog;
 import android.os.Bundle;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
@@ -27,6 +29,7 @@ import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.cache.CacheSnapshot;
 import com.fongmi.android.tv.databinding.DialogCacheManagementBinding;
 import com.fongmi.android.tv.utils.FileUtil;
+import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.text.SimpleDateFormat;
@@ -38,6 +41,7 @@ import com.google.android.material.button.MaterialButton;
 public class CacheManagementDialog extends BaseAlertDialog {
 
     private static final CacheModuleId[] MODULE_ORDER = CacheModuleId.values();
+    private static final float SCREEN_FRACTION = 0.9f;
     private DialogCacheManagementBinding binding;
     private boolean loading;
 
@@ -84,6 +88,27 @@ public class CacheManagementDialog extends BaseAlertDialog {
         binding.totalLimit.setOnClickListener(view -> chooseTotalLimit());
         binding.close.setOnClickListener(view -> dismiss());
         updatePolicyButtons();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        applyWindowSize();
+    }
+
+    private void applyWindowSize() {
+        Dialog dialog = getDialog();
+        Window window = dialog == null ? null : dialog.getWindow();
+        if (window == null) return;
+        int width = Math.round(ResUtil.getScreenWidth(requireContext()) * SCREEN_FRACTION);
+        int height = Math.round(ResUtil.getScreenHeight(requireContext()) * SCREEN_FRACTION);
+        WindowManager.LayoutParams params = window.getAttributes();
+        params.width = width;
+        params.height = height;
+        params.dimAmount = 0.6f;
+        window.setAttributes(params);
+        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        window.setLayout(width, height);
     }
 
     private void toggleAutoCleanup() {

@@ -43,6 +43,9 @@
 - 2026-09-23：注册表校验补齐。抽出不依赖 Android 运行时的 `CacheModuleRegistry`（纯函数，只接收 cacheDir），并实现设计风险表要求的启动校验：模块 ID 唯一、根路径必须落在 cacheDir 内、禁止重复根目录、禁止树形根目录相互嵌套；`CacheInventory.scan()` 每次扫描都会执行校验并把问题作为 warning 暴露。新增 `CacheModuleRegistryTest` 覆盖 ID 唯一、越界、嵌套、重复及“注册表与播放器无关（纯函数）”不变量；缓存纯测试 32/32 通过。
 - 2026-09-23：播放热路径改动审查（结构性证据，不等于设备实测）。相对基线 `8e4d9333de`，播放相关生产代码（`player/`、`androidx/media3/mpvplayer`、`web/`、`api/`、`service/`、`App`、`AndroidManifest`）为 **110 行纯新增、0 行修改、0 行删除**：Exo 仅新增 `clearCacheIfIdle()`、MPV HLS 仅新增 `clearIfIdle()`、EPG/K 歌/WebHome 仅新增只读或 owner 清理入口、App 仅新增延迟启动调度、Manifest 仅新增 JobService 与引导权限；`DiskCacheCapacityPolicy` 与 LRU evictor 未改动。该证据表明既有播放、seek、预载、重缓冲与选路代码未被改写，但**不能替代**播放中清理的设备实测。
 - 2026-09-23：删除边界加固。审计发现 `CacheRetentionManager.enforceFileLimit` 会对调用方传入的任意 `File` 直接 `delete()`，未校验是否位于声明根目录内，违反不变量 8（所有路径必须严格限制在预声明根目录内）。现要求显式传入 `allowedRoot`，越界路径与符号链接一律跳过；新增 `fileLimitNeverDeletesOutsideAllowedRoot` 与 `fileLimitSkipsSymbolicLinksInsideRoot` 测试，缓存纯测试 34/34 通过。
+- 2026-09-24：TV 弹窗尺寸与滚动修复。用户反馈 TV 端弹窗高宽过小、中间固定高度列表易用性差。`CacheManagementDialog` 现按屏幕 **90%×90%** 设置窗口并加暗背景；`dialog_cache_management.xml` 去掉中间的固定高度滚动区，改为**整页 NestedScrollView**，所有内容（模块列表、上限、自动清理、保留期、总上限、三级清理、刷新/确定）都在同一滚动流中，遥控器持续下移即可到达。
+- 2026-09-24：上述改动首次设备验证时崩溃（`ClassCastException: ViewGroup$LayoutParams cannot be cast to ViewGroup$MarginLayoutParams`），原因是 `applyWindowSize()` 给根视图设置了非 Margin 的 `LayoutParams`。已删除该赋值（布局本身即 `match_parent`），崩溃消除。
+- 2026-09-24：TV 设备实测（NX627J / Android 9 / 192.168.50.3:5563，arm64 debug 覆盖安装）。屏幕 1920×1080，弹窗外框实测 `[96,54][1824,1026]` = 1728×972 ≈ 90%×90%，四周留边；内容根为 `android.widget.ScrollView`（`scrollable=true`）覆盖整个内容区；遥控器下移后自动清理、保留期、总上限、三级清理、刷新与确定全部可见且 focusable，无 `FATAL EXCEPTION`。
 - 仍缺的强制边界实测（设计第 24 节第 4 条）：①播放中执行清理且播放不中断；②低空间触发自动清理；③系统 quota 生效。策略层保护已有单测覆盖（`CachePolicyEngineTest` 断言播放中 Exo/MPV HLS 返回 `DEFERRED`，`CacheCleanupManager` 因此不删除对应目录），但设备级实测仍需可用媒体与配置环境。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
