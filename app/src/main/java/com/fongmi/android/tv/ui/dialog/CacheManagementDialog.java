@@ -81,6 +81,7 @@ public class CacheManagementDialog extends BaseAlertDialog {
         binding.cleanupDeep.setOnClickListener(view -> confirmDeep());
         binding.autoCleanup.setOnClickListener(view -> toggleAutoCleanup());
         binding.retention.setOnClickListener(view -> chooseRetention());
+        binding.totalLimit.setOnClickListener(view -> chooseTotalLimit());
         binding.close.setOnClickListener(view -> dismiss());
         updatePolicyButtons();
     }
@@ -106,12 +107,30 @@ public class CacheManagementDialog extends BaseAlertDialog {
         });
     }
 
+    private void chooseTotalLimit() {
+        String[] labels = new String[CacheLimitOptions.BYTES.length];
+        for (int index = 0; index < labels.length; index++) {
+            labels[index] = CacheLimitOptions.BYTES[index] <= 0
+                    ? getString(R.string.cache_limit_unlimited)
+                    : FileUtil.byteCountToDisplaySize(CacheLimitOptions.BYTES[index]);
+        }
+        ChoiceDialog.showSingle(this, R.string.cache_total_limit_title, labels,
+                CacheLimitOptions.indexOf(CachePolicyStore.getTotalLimitBytes()), which -> {
+                    CachePolicyStore.putTotalLimitBytes(CacheLimitOptions.BYTES[which]);
+                    updatePolicyButtons();
+                });
+    }
+
     private void updatePolicyButtons() {
         binding.autoCleanup.setText(CachePolicyStore.isAutoCleanupEnabled()
                 ? R.string.cache_auto_on : R.string.cache_auto_off);
         int days = CachePolicyStore.getRetentionDays();
         binding.retention.setText(getString(R.string.cache_retention_summary,
                 days >= 3650 ? getString(R.string.cache_retention_forever) : days + "d"));
+        long totalLimit = CachePolicyStore.getTotalLimitBytes();
+        binding.totalLimit.setText(getString(R.string.cache_total_limit_summary,
+                totalLimit <= 0 ? getString(R.string.cache_limit_unlimited)
+                        : FileUtil.byteCountToDisplaySize(totalLimit)));
     }
 
     private void confirm(CacheCleanupMode mode) {

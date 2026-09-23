@@ -9,7 +9,7 @@
 ## Recovery anchor
 
 - 目标：把设置页现有“缓存大小 + 一键全删”升级为可观测、可分级清理、可配置上限、可自动维护的缓存管理中心。
-- 当前状态：P0（`77b5d10421`）、P1（`d6393243d6`）、P2（`eeca921eb6`）、P3（`b3e89479ae`）、P4（`b405167163`）均已提交并带恢复标签；P3B 补持久化重启恢复，缓存纯测试 20/20 通过，移动/TV arm64 debug Java 编译通过。
+- 当前状态：P0（`77b5d10421`）、P1（`d6393243d6`）、P2（`eeca921eb6`）、P3（`b3e89479ae`）、P4（`b405167163`）、P3B（`214eae7ba1`）均已提交并带恢复标签；P2B 补总缓存软上限，缓存纯测试 23/23 通过，移动/TV arm64 debug Java 编译通过。
 - 关键约束：`Path.cache()` 是混合目录，绝不能被当作一个全局可任意淘汰的缓存池。
 - 实施顺序：P0 缓存清单 → P1 分类清理 → P2 模块上限 → P3 自动清理 → P4 运行中治理增强。
 - 下一步：在具备 arm64 设备或可安装 ABI 的环境执行设备验收。
@@ -26,6 +26,7 @@
 - 2026-09-23：P3 进程内落地。新增 `CacheScheduler` 与 `CacheAutoCleanupPolicy`：启动延迟 30 秒、每 7 天检查、低空间连续两次触发；低空间阈值 `max(512MB, 10%)`；播放中降级 L1；自动清理只使用 L1/L2，永不 L3；记录 `cache_mgmt_last_auto_ms` 与低空间连续计数。缓存纯测试 18/18 通过，双形态 Java 编译通过。
 - P3B 修正：使用平台自带 `JobScheduler`（`setPersisted(true)` + `RECEIVE_BOOT_COMPLETED`）补齐设备重启后的调度恢复，`CacheCleanupJobService` 在系统触发时执行同一套 L1/L2 自动清理；未引入 WorkManager 依赖。同时为 `CacheRetentionManager` 增加符号链接保护，缓存纯测试 20/20 通过。
 - 2026-09-23：P4 落地。Exo 空闲重建、MPV HLS coordinator 安全清理、Glide 后台 `clearDiskCache`、OkHttp `evictAll` 均已接入；新增 `CacheCleanupRecord` 与 `CacheCleanupJournal`，记录触发原因、等级、清理前后字节、删除/跳过数、失败原因和耗时；缓存纯测试 19/19 通过，双形态 Java 编译通过。
+- 2026-09-23：P2B 落地。新增 `CacheTotalLimitPolicy` 与 `cache_mgmt_total_limit_bytes` 配置，缓存管理页支持总缓存软上限；调度器在超限时先执行 L1，仍超限且未播放时再执行 L2，永不自动执行 L3；有效上限取 `min(用户上限, 系统 quota)`。缓存纯测试 23/23 通过。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
 
@@ -1573,7 +1574,7 @@ bash scripts/build_arm64_debug_install.sh
 - [x] 清理前有明确确认，深度清理有二次确认
 - [x] 清理中有进度，可取消
 - [x] 清理后有释放量、删除数、跳过数和失败明细
-- [ ] 支持总缓存软上限（仅模块上限已实现）
+- [x] 支持总缓存软上限（L1→L2 升级，永不自动 L3）
 - [x] 支持图片、歌词、K 歌、WebHome、EPG、插件、临时文件的模块上限入口
 - [x] 播放器上限继续由播放器设置驱动，没有重复配置
 - [x] 支持自动清理开关、保留期限和触发条件

@@ -61,6 +61,15 @@
             android:layout_marginStart="8dp"
             android:minHeight="40dp"
             android:text="@string/cache_retention_button" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/totalLimit"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:minHeight="40dp"
+            android:text="@string/cache_total_limit_button" />
     </androidx.appcompat.widget.LinearLayoutCompat>
 
     <androidx.appcompat.widget.LinearLayoutCompat

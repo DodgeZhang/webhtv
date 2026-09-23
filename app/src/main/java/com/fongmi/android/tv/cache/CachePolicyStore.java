@@ -34,6 +34,14 @@ public final class CachePolicyStore {
         Prefers.put(PREFIX + "auto_enabled", enabled);
     }
 
+    public static long getTotalLimitBytes() {
+        return Math.max(UNLIMITED, Prefers.getLong(PREFIX + "total_limit_bytes", UNLIMITED));
+    }
+
+    public static void putTotalLimitBytes(long bytes) {
+        Prefers.put(PREFIX + "total_limit_bytes", Math.max(UNLIMITED, bytes));
+    }
+
     public static long defaultLimit(CacheModuleId id) {
         return switch (id) {
             case GLIDE, LYRICS, KARAOKE, WEBHOME_EXT, PLUGIN_SCRIPTS -> 256L * 1024L * 1024L;

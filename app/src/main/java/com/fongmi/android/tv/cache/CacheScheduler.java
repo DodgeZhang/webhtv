@@ -85,6 +85,7 @@ public final class CacheScheduler {
 
     private void startupCheck() {
         trigger("startup", null);
+        enforceTotalLimit();
     }
 
     private void periodicCheck() {
@@ -98,6 +99,30 @@ public final class CacheScheduler {
         if (now - Prefers.getLong(KEY_LAST_LIMIT_MS, 0L) < LIMIT_INTERVAL_MS) return;
         Prefers.put(KEY_LAST_LIMIT_MS, now);
         CacheCleanupManager.applyConfiguredLimits();
+        enforceTotalLimit();
+    }
+
+    private void enforceTotalLimit() {
+        long configured = CachePolicyStore.getTotalLimitBytes();
+        if (configured <= 0) return;
+        long effective = CacheTotalLimitPolicy.effectiveLimit(configured,
+                CacheCenter.get().systemQuotaBytes());
+        if (!CacheTotalLimitPolicy.overLimit(totalCacheBytes(), effective)) return;
+        CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.LIGHT), "total-limit", first -> {
+            if (PlaybackService.isRunning()) return;
+            if (!CacheTotalLimitPolicy.overLimit(totalCacheBytes(), effective)) return;
+            CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.STANDARD),
+                    "total-limit", ignored -> {
+                    });
+        });
+    }
+
+    private long totalCacheBytes() {
+        try {
+            return new CacheInventory(App.get()).scan().totalBytes();
+        } catch (Throwable ignored) {
+            return 0;
+        }
     }
 
     private boolean trigger(String reason, Runnable finished) {
