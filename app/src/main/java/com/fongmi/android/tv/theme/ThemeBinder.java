@@ -12,6 +12,7 @@ import android.widget.TextView;
 
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 
 import java.util.ArrayDeque;
@@ -158,6 +159,8 @@ public final class ThemeBinder {
         if (view instanceof TextView textView) changed |= bindText(textView, explicit, index, active);
         if (view instanceof ImageView imageView) changed |= bindImageTint(imageView, explicit, index, active);
         if (view instanceof MaterialCardView cardView) changed |= bindCard(cardView, explicit, index, active);
+        if (view instanceof MaterialButton button) changed |= bindButton(button, explicit, index, active);
+        changed |= bindBackgroundTint(view, explicit, index, active);
         changed |= bindBackground(view, explicit, index, active);
         if (changed) APPLIED.put(view, signature);
         return changed;
@@ -199,6 +202,40 @@ public final class ThemeBinder {
             changed = true;
         }
         return changed;
+    }
+
+    /**
+     * Filled and outlined Material buttons keep their fill in a background tint and
+     * their border in a stroke colour rather than in a GradientDrawable, so the
+     * generic drawable path never reached them and a themed button stayed on the
+     * compiled palette. Both channels are still resolved from the same semantic
+     * attributes and obey the identical exact-match rule.
+     */
+    private static boolean bindButton(MaterialButton view, ThemeRole explicit, ThemeColorIndex index, ThemeTokens active) {
+        boolean changed = false;
+        ColorStateList stroke = rewrite(view.getStrokeColor(), explicit, index, active);
+        if (stroke != null) {
+            view.setStrokeColor(stroke);
+            changed = true;
+        }
+        ColorStateList icon = rewrite(view.getIconTint(), explicit, index, active);
+        if (icon != null) {
+            view.setIconTint(icon);
+            changed = true;
+        }
+        return changed;
+    }
+
+    /**
+     * Covers every view that fills itself through {@code app:backgroundTint} - the
+     * Material button family, chips, FABs and text-input boxes - with the same
+     * "only an exact baseline role colour" guard the rest of the binder uses.
+     */
+    private static boolean bindBackgroundTint(View view, ThemeRole explicit, ThemeColorIndex index, ThemeTokens active) {
+        ColorStateList tint = rewrite(view.getBackgroundTintList(), explicit, index, active);
+        if (tint == null) return false;
+        view.setBackgroundTintList(tint);
+        return true;
     }
 
     private static boolean bindBackground(View view, ThemeRole explicit, ThemeColorIndex index, ThemeTokens active) {

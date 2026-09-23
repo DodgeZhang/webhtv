@@ -9,6 +9,7 @@ import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -115,13 +116,75 @@ public class ThemeBinderContractTest {
     public void everyActivityBindsTheThemeTreeTwice() throws Exception {
         for (String flavour : new String[]{"mobile", "leanback"}) {
             String source = read("src/" + flavour + "/java/com/fongmi/android/tv/ui/base/BaseActivity.java");
-            int first = source.indexOf("ThemeController.bindTheme(getBinding().getRoot());");
-            int second = source.indexOf("ThemeController.bindTheme(getBinding().getRoot());", first + 1);
-            assertTrue(flavour + " must bind after setContentView", first > 0);
+            int content = source.indexOf("View content = getBinding().getRoot();");
+            int setContent = source.indexOf("setContentView(content);", content);
+            int first = source.indexOf("ThemeController.bindTheme(content);", setContent);
+            int second = source.indexOf("ThemeController.bindTheme(content);", first + 1);
+            assertTrue(flavour + " must resolve one inflated binding as the content view", content > 0);
+            assertTrue(flavour + " must bind after setContentView", setContent > content && first > setContent);
             assertTrue(flavour + " must re-bind after initView", second > first);
             assertTrue(flavour + " must bind before initEvent",
                     source.indexOf("initEvent();", second) > second);
         }
+    }
+
+    @Test
+    public void presetSeedsMustResolveToTheirOwnPaletteInsteadOfFallingBack() {
+        for (int seed : new int[]{0xFF0B57D0, 0xFF00897B, 0xFF146C2E, 0xFFFB8C00, 0xFFB3261E, 0xFF8E24AA}) {
+            String hex = "#" + Integer.toHexString(seed).toUpperCase(java.util.Locale.ROOT);
+            ThemeTokens tokens = ThemeResolver.resolve(
+                    ThemeMode.LIGHT, ThemeSeed.EXPLICIT, seed, 0, null, null, false);
+            String diagnostic = ThemeResolver.lastDiagnostic();
+            assertFalse("seed " + hex + " silently fell back: " + diagnostic,
+                    diagnostic.startsWith("fallback"));
+            assertNotEquals("seed " + hex + " resolved to the frozen palette",
+                    ThemeTokens.light().colorPrimary(), tokens.colorPrimary());
+        }
+    }
+
+    @Test
+    public void binderRewritesTheMaterialButtonAndBackgroundTintChannels() throws Exception {
+        String source = read("src/main/java/com/fongmi/android/tv/theme/ThemeBinder.java");
+        assertTrue(source.contains("instanceof MaterialButton button"));
+        assertTrue(source.contains("view.getBackgroundTintList()"));
+        assertTrue(source.contains("view.setBackgroundTintList(tint)"));
+        assertTrue(source.contains("view.setStrokeColor(stroke)"));
+        assertTrue(source.contains("view.setIconTint(icon)"));
+        // The visible contract behind this: native pages fill their primary
+        // buttons through app:backgroundTint, not through a GradientDrawable.
+        String following = read("src/main/res/layout/activity_following.xml");
+        assertTrue(following.contains("app:backgroundTint=\"?attr/colorPrimary\""));
+    }
+
+    @Test
+    public void seedDerivedTokensStayMappableFromTheFrozenBaseline() {
+        ThemeTokens baseline = ThemeTokens.light();
+        ThemeTokens active = ThemeResolver.resolve(
+                ThemeMode.LIGHT, ThemeSeed.EXPLICIT, 0xFFB3261E, 0, null, null, false);
+        assertNotEquals("an explicit seed must really move the palette",
+                baseline.colorPrimary(), active.colorPrimary());
+        // The seed derives focus from primary, so the shared-baseline ambiguity
+        // resolves and the view colour can be rewritten.
+        assertEquals(Integer.valueOf(active.colorPrimary()),
+                ThemeColorIndex.of(baseline).replacementFor(baseline.colorPrimary(), active));
+        assertEquals(Integer.valueOf(active.colorSurface()),
+                ThemeColorIndex.of(baseline).replacementFor(baseline.colorSurface(), active));
+    }
+
+    @Test
+    public void aSeedDerivedBaselineWouldSilentlyDisableTheBinder() {
+        ThemeTokens staticPalette = ThemeTokens.light();
+        ThemeTokens active = ThemeResolver.resolve(
+                ThemeMode.LIGHT, ThemeSeed.EXPLICIT, 0xFFB3261E, 0, null, null, false);
+        ThemeTokens seedBaseline = ThemeResolver.resolve(
+                ThemeMode.LIGHT, ThemeSeed.EXPLICIT, 0xFFB3261E, 0, null, null, false);
+        // Regression guard for the shipped defect: when the baseline was resolved
+        // through the legacy theme_color seed it matched no inflated view colour,
+        // so the binder bound nothing outside the legacy site dialog.
+        assertNull(ThemeColorIndex.of(seedBaseline)
+                .replacementFor(staticPalette.colorPrimary(), active));
+        assertNull(ThemeColorIndex.of(seedBaseline)
+                .replacementFor(staticPalette.colorSurface(), active));
     }
 
     @Test

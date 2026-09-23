@@ -90,8 +90,7 @@ public final class ThemeController {
 
     private static ThemeTokens resolveWith(ThemeProfile profile) {
         boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        int mode = com.fongmi.android.tv.setting.Setting.getThemeMode();
-        ThemeMode themeMode = mode < 0 ? ThemeMode.SYSTEM : (mode == 0 ? ThemeMode.LIGHT : ThemeMode.DARK);
+        ThemeMode themeMode = currentThemeMode();
         int themeColor = com.fongmi.android.tv.setting.Setting.getThemeColor();
         if (themeColor == -1) {
             return ThemeResolver.resolve(themeMode, ThemeSeed.NONE, 0, 0, profile, null, systemDark);
@@ -100,6 +99,27 @@ public final class ThemeController {
         int explicit = themeColor == 0 ? 0 : themeColor;
         int wallpaper = com.fongmi.android.tv.setting.Setting.getWallColor();
         return ThemeResolver.resolve(themeMode, seed, explicit, wallpaper, profile, null, systemDark);
+    }
+
+    /**
+     * The frozen compiled palette the binder compares view colours against.
+     *
+     * <p>Every {@code ?attr/color*} attribute was resolved from the static
+     * {@code webhtv_color_*} resources when the view was inflated, so this baseline
+     * must ignore {@code theme_color}/{@code wall_color}: those preferences only
+     * reach the activity through {@link #resolveWith(ThemeProfile)}. Deriving the
+     * baseline from the active seed made it describe colours no inflated view ever
+     * held, and {@link ThemeBinder} then had nothing left to match - the feature
+     * silently degraded to the legacy site dialog.
+     */
+    private static ThemeTokens frozenPalette() {
+        boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        return ThemeResolver.resolve(currentThemeMode(), ThemeSeed.NONE, 0, 0, null, null, systemDark);
+    }
+
+    private static ThemeMode currentThemeMode() {
+        int mode = com.fongmi.android.tv.setting.Setting.getThemeMode();
+        return mode < 0 ? ThemeMode.SYSTEM : (mode == 0 ? ThemeMode.LIGHT : ThemeMode.DARK);
     }
 
     /**
@@ -118,7 +138,7 @@ public final class ThemeController {
             // Preference access is unavailable; Layer 1 defaults remain valid.
         }
         profile = stored == null ? ThemeProfile.defaultProfile() : stored;
-        baseline = resolveWith(null);
+        baseline = frozenPalette();
         current = resolveWith(profile);
         if (activity == null || activity.isFinishing()) return;
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return;
@@ -146,7 +166,7 @@ public final class ThemeController {
         bindTheme(dialog.getWindow().getDecorView());
     }
 
-    /** True when the active profile overrides at least one slot. */
+    /** True when the active palette differs from the frozen compiled baseline. */
     public static boolean hasProfileOverrides() {
         return !baseline.equals(current);
     }

@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。**4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13）。**Dialog 家族绑定与 4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：继续在 dev3 `192.168.50.3:5559` 执行第 4.7 节尚未覆盖的设备矩阵行（TV 遥控、WebHome、备份恢复、动态 UI、播放回归和连续 30 次切换），并把结果补入本节；在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
+- 下一步唯一动作：把 `AlertDialog`/`LightDialog` 家族接入 `ThemeController.bindDialog()`（单一收口点优先：`LightDialog.apply/create` 与 `BaseAlertDialog`），再回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵；在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
 ---
 
@@ -664,6 +664,34 @@ Layer 2 DoD：
   - 非法输入：`Primary` 选择器中输入 `#GGGGGG` 并点击 `Use this hex` 后不关闭、不写入，保留 `Enter #RRGGBB` 提示；随后取消编辑器，持久化 profile 仍为默认值。设置页 TAB/方向键焦点可连续移动经过点播、直播、壁纸、增强、TMDB、AI、个性、播放、去广告、弹幕、字幕、无痕、DoH、缓存、恢复和版本行，未出现崩溃。
 - 验证边界：本次修复的是主题编辑器入口和编辑器核心写盘/取消/重启/非法输入路径，**不等于完成 4.7 节完整矩阵**。TV 遥控焦点颜色、WebHome 快照、备份恢复、动态 UI、播放回归和连续 30 次应用/取消仍需继续执行。
 - 回滚锚点：回退本任务的 3 行 `HomeActivity` 改动即恢复原导航初始化行为；profile 数据格式和 Layer 2A–2D 逻辑不变。
+
+---
+
+### 4.13 主题色彩实际生效范围修复（2026-09-23）
+
+- 任务：`THEME-COLOR-BASELINE-20260923`。用户复测反馈“主题色彩只有站点选中弹出框有实际作用”，本节记录定位、修复、覆盖率清单和验证。
+- 根因 1（决定性）：`ThemeController.applyFromPreferences()` 把 binder 的比较基线也算成了 `baseline = resolveWith(null)`，而 `resolveWith` 会读取 `theme_color`/`wall_color` 并派生 seed。页面上的 `?attr/color*` 实际解析自编译期静态 `@color/webhtv_color_*`（`ThemeTokens.light()/dark()`），因此只选预设 seed 时 `baseline.equals(current)` 成立，`ThemeBinder.bind()` 直接返回、整棵原生视图树零改写；只有站点弹框走 `Setting.getDynamicColor()` + `MaterialColors.getColorRoles` 的旧直连通道，所以只有它变色。设备实测（dev3 `192.168.50.3:5559`）确认：`theme_color=0xFF00897B`、槽位全空时，`FollowingActivity` 的按钮填充仍精确等于基线 `#0B57D0`、正文精确等于 `#1A1C1E`。
+- 修复 1：新增 `ThemeController.frozenPalette()`，`baseline` 改为“编译期冻结调色板”（`ThemeSeed.NONE` + 无 profile），不再经过 `theme_color`/`wall_color`；`resolveWith()` 的 seed 语义（`current`）不变，因此 `theme_color != -1` 时 `current != baseline`，binder 恢复工作。`hasProfileOverrides()` 的注释同步改为“与冻结基线不同”。
+- 根因 2：binder 只改写 `TextView` 文字、`ImageView` tint、`MaterialCardView` 填充/描边和 `GradientDrawable` 背景。`MaterialButton`（含 Filled/Tonal/Outlined）的填充在 `backgroundTintList`、描边在 `strokeColor`、图标在 `iconTint`，三条通道都不在覆盖范围内，所以“检查更新/继续看”这类主按钮永远停在编译期蓝色。
+- 修复 2：`ThemeBinder` 新增 `bindBackgroundTint(view)`（覆盖所有用 `app:backgroundTint` 填充的视图：Material 按钮族、Chip、FAB、输入框容器）与 `bindButton(MaterialButton)`（描边 + 图标 tint）。两者沿用同一条“仅当颜色精确等于基线角色色且共享角色取值一致”的判定，无 profile/seed 时 binder 仍然整体 no-op。
+- 新增/更新测试：
+  - `ThemeBinderContractTest#seedDerivedTokensStayMappableFromTheFrozenBaseline`：seed 派生的 `current` 必须能从冻结基线映射出替换色。
+  - `ThemeBinderContractTest#aSeedDerivedBaselineWouldSilentlyDisableTheBinder`：锁定“用 seed 派生基线就什么都映射不到”的旧缺陷形态。
+  - `ThemeBinderContractTest#presetSeedsMustResolveToTheirOwnPaletteInsteadOfFallingBack`：6 个预设 seed 均不得静默回退到冻结调色板（`lastDiagnostic()` 不得以 `fallback` 开头）。
+  - `ThemeBinderContractTest#binderRewritesTheMaterialButtonAndBackgroundTintChannels` + `theme_binder` 源码契约：锁定按钮通道修复，并钉住 `activity_following.xml` 用 `app:backgroundTint="?attr/colorPrimary"` 的真实契约。
+  - `ThemeControllerContractTest`：断言基线必须是 `frozenPalette()`，且不得再出现 `baseline = resolveWith(`；同时修复 `everyActivityBindsTheThemeTreeTwice` 的过期断言（`584b64514` 改成 `View content = ...` 后旧断言失效，属既有红灯）。
+- 自动化证据：`./gradlew :app:testMobileArm64_v8aDebugUnitTest --tests 'com.fongmi.android.tv.theme.*'` → BUILD SUCCESSFUL（含上述新增用例；启动时为 83 项中 1 项失败的既有红灯已消除）。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装）：在 `BaseActivity` 体系内的 `HistoryActivity` 上做三组对照（默认 / 仅 teal seed / 槽位探针 `onSurface=#FFFFFF`）：
+  - 槽位探针下，默认主题中恰好 `#1A1C1E`（基线 `onSurface`）的 4008 个像素变为纯白，`onSurfaceVariant` 色像素由 31662 降到 14228 —— 与“用户槽位现在真正改写原生文字色”的预测完全一致。
+  - 仅 teal seed 下，3094 个 `onSurface` 像素离开基线值 —— seed 预设现在也能驱动 binder（修复前该场景为 0 改写）。
+  - 未注册 `WebHTV` 主题的 `FollowingActivity` 三组对照均无变化，证明绑定范围确实由 `BaseActivity` 决定而非噪声。
+  - 测试结束后设备 `theme_color` 与 profile 已恢复到实验前原值，未留下探针配置。
+- **实测覆盖清单（回答“主题色彩会应用到哪些位置”）**：
+  - 已覆盖：继承 `mobile/leanback BaseActivity` 的 Activity 视图树（首次 + `initView` 后两次绑定，子树数量变化时补绑）、`BaseBottomSheetDialog` 系列、`TextView` 文字/提示、`ImageView` tint、`MaterialCardView` 填充与描边、`GradientDrawable` 背景、`backgroundTint` 族（按钮/Chip/FAB/输入框）、`RecyclerView` 动态 child，以及状态栏/导航栏颜色。
+  - 直接读 token 而不依赖 binder：站点弹框（旧 `theme_color` 通道）、`AppearanceDialog`/`ThemeDialog`、TMDB cast/video presenter、`CollectFragment`/`SearchFragment`、WebHome 只读快照（`ThemeWebBridge.snapshotJson`）。
+  - **未覆盖（待办）**：`AlertDialog`/`MaterialAlertDialogBuilder`/`LightDialog` 家族（`BaseAlertDialog` 的 59 个子类、121 个直接使用文件）从不调用 `bindDialog`，因此设置类弹窗仍用编译期静态色；`FollowingActivity` 不继承 `BaseActivity`，整页无绑定；`StateListDrawable`/`RippleDrawable`/`ShapeDrawable` 等非 `GradientDrawable` 背景、`Switch`/`CheckBox` 等控件通道、远程 Web 主题页面（由页面自身 CSS 决定）也尚未覆盖。
+- 残余风险：API 31+ 上 `enableDynamicColor()` 仍会在 `theme_color != -1` 时用平台 DynamicColors 覆写 Activity 主题，此时视图颜色不等于编译期基线，binder 会保持 no-op（seed 仍由 DynamicColors 生效，但两条通道未统一）；本轮未在 API 31+ 设备验证。
+- 回滚锚点：回退本任务即恢复“基线被 seed 污染 + 按钮通道不覆盖”的行为；不涉及 profile 数据格式、偏好键或迁移。
 
 ---
 

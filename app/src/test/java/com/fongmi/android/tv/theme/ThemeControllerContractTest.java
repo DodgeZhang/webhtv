@@ -103,7 +103,10 @@ public class ThemeControllerContractTest {
         String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
         assertTrue(controller.contains("ThemeProfileStore.load()"));
         assertTrue(controller.contains("private static ThemeTokens resolveWith(ThemeProfile profile)"));
-        assertTrue(controller.contains("baseline = resolveWith(null);"));
+        assertTrue(controller.contains("baseline = frozenPalette();"));
+        assertFalse("the binder baseline must never be seed-derived",
+                controller.contains("baseline = resolveWith("));
+        assertTrue(controller.contains("private static ThemeTokens frozenPalette()"));
         assertTrue(controller.contains("current = resolveWith(profile);"));
         assertTrue(controller.contains("ThemeBinder.bind(root, baseline, current);"));
         assertTrue(controller.contains("public static ThemeTokens baseline()"));
