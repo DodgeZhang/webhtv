@@ -12,7 +12,7 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。**当前剩余：半透明填充匹配策略、10 处裸 `AlertDialog.Builder`、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，以及一处既有的陈旧测试断言红灯（见 4.20）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。**当前剩余：半透明填充匹配策略、10 处裸 `AlertDialog.Builder`、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
 - 下一步唯一动作：为剩余直接 `MaterialAlertDialogBuilder(...).show()` 调用点建立统一收口（共享 helper + 源码守门，避免逐文件散改），并让 binder 覆盖 `MaterialShapeDrawable`（对话框面板/window 背景）；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
@@ -819,6 +819,17 @@ Layer 2 DoD：
 - **已知既有缺陷（非本任务引入，未修）**：`app/src/test/java/com/fongmi/android/tv/ui/helper/TouchOptimizationHelperSourceTest.java:80` 断言 leanback `BaseActivity` 含 `setContentView(getBinding().getRoot());`，但该形态已被 `584b64514`（2026-09-23）改为 `View content = getBinding().getRoot(); setContentView(content);`。该断言自 2026-09-23 起即为陈旧红灯（与 4.13 修掉的 `ThemeBinderContractTest#everyActivityBindsTheThemeTreeTwice` 同源）。它不属于本任务 scope，未修改；因它会打断全量套件绿灯，建议单独授权一个测试收尾任务修正。
 - 仍未覆盖：半透明填充匹配策略；10 处 `new AlertDialog.Builder(...)`；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面；4.7 节完整设备矩阵。
 - 回滚锚点：回退本任务即恢复 flavor 内的裸构建器；不涉及 profile 数据格式、偏好键或资源。
+
+---
+
+### 4.21 陈旧源码断言收尾（2026-09-24）
+
+- 任务：`TEST-STALE-BASETHEME-ASSERT-20260924`。修掉 4.20 记录的既有红灯，恢复全量套件绿灯。
+- 根因：`TouchOptimizationHelperSourceTest#activityAppliesOptimizationToNewContentAndRegistersFragmentsEarly` 断言 leanback `BaseActivity` 含 `setContentView(getBinding().getRoot());`。`584b64514`（2026-09-23）改成"只 inflate 一次"后，该字符串变为 `View content = getBinding().getRoot();` + `setContentView(content);`，断言自那时起必然失败。与 4.13 修掉的 `ThemeBinderContractTest#everyActivityBindsTheThemeTreeTwice` 属同一次重构遗留的两处陈旧断言。
+- 修复：断言改为当前形态，并**保留原有意图**——`registerFragmentLifecycleCallbacks()` 仍在解析内容视图之前；`addCustomWall()` → `TouchOptimizationHelper.sync(...)` 仍在该重载内部有序发生。新增一条更贴合重构的断言：解析出的 `content` 必须就是交给 `setContentView(...)` 的那个实例，且发生在重载声明之前。
+- 非空断言验证：新断言用 `setContent > content`，若该调用被删除则 `indexOf` 返回 `-1` 必然失败，不会静默通过。
+- 自动化证据：`./gradlew :app:testMobileArm64_v8aDebugUnitTest`（全量）→ **712 个测试类 / 4863 个测试 / 0 失败 / 0 错误**，结果文件时间戳与本次运行一致。
+- 回滚锚点：回退本任务即恢复陈旧断言；不涉及生产代码、profile 数据格式或偏好键。
 
 ---
 
