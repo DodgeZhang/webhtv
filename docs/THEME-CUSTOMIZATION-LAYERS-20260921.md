@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。框架文本角色已在主题层补齐（见 4.25），程序化控件不再是盲区。**当前剩余：半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。框架文本角色已在主题层补齐（见 4.25），程序化控件不再是盲区。4.7 设备矩阵已验收 4 行（16 槽、浅深模式、透明度、资源回收，见 4.26），其中透明度暴露出 `dialogOpacity` 死槽并已修复。**当前剩余：`scrimOpacity`/`overlayOpacity` 两个死槽（需先裁定原生语义边界）、TV 遥控与 WebHome 与播放回归三行设备验收、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：处理半透明填充匹配策略（4.16 记录的设置页行背景属中性遮罩 `black@15%`，按现有安全规则被跳过；需先裁定“按 RGB 匹配并保留视图自身 alpha”是否为可接受的放宽）；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
+- 下一步唯一动作：裁定 `scrimOpacity` / `overlayOpacity` 的原生语义边界并接线（4.26 记录，二者当前为零引用死槽），然后继续 4.7 节剩余三行设备验收（TV 遥控需 leanback 设备，待用户分配）。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
 ---
 
@@ -924,6 +924,30 @@ Layer 2 DoD：
   - 面板色默认/探针分别为 `#CFD8EB` / `#7B1FA2`，证明是同一布局的对照；测试结束设备偏好按字节校验恢复。
 - 仍未覆盖：半透明填充匹配策略；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面；4.7 节完整设备矩阵。4.24 遗留的按需逐点设色仍然保留（作为防御，不再是唯一手段）。
 - 回滚锚点：回退本任务即移除四个框架文本角色映射与两个 selector；不涉及 profile 数据格式、偏好键或布局。
+
+---
+
+### 4.26 设备矩阵验收与 dialogOpacity 修复（2026-09-24）
+
+- 任务：`THEME-DIALOG-OPACITY-20260924`（含 4.7 节设备矩阵本轮验收）。用户已批准使用 dev3 模拟器执行验收。
+- 本轮完成并记录 **4 行** 设备矩阵（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装；每行均以可区分探针注入 profile 后逐屏取样，而非依赖肉眼）：
+
+| 场景 | 结果 | 证据 |
+| --- | --- | --- |
+| 16 槽 | **通过** | 注入 13 色 + 3 透明度探针（light `primary=#C62828`、`primaryContainer=#C8E6C9`、`secondaryContainer=#BBDEFB`、surface 系 `#FFFFFF/#F0F0F0/#E0E0E0`、`onSurface=#000000`、`onSurfaceVariant=#212121`、`outline=#424242`、error/success/warning 三色），主题编辑器面板取 `#E0E0E0`、主色行显示 `#C62828`、主色容器显示 `#C8E6C9`、chip 与文字按钮同步为主色红；未见非预期角色被改写 |
+| 浅深模式 | **通过** | 同一 profile 的 light/dark 两组槽互不干扰：light 面板 `#E0E0E0` + 标题黑，dark 面板 `#212121` + 主色 `#80DEEA`、主色容器 `#006064`；`theme_mode` 直接决定使用哪组，无需重启 |
+| 透明度 | **修复后通过** | 见下方缺陷与修复；修复前该行实测不通过 |
+| 资源回收 | **通过** | 连续 55 轮「冷启动 → 打开导入订阅弹窗 → 返回」（30 轮 + 25 轮）：`FATAL EXCEPTION = 0`；PSS 由 331175 kB 降至 313289 kB（-17.9 MB，GC 波动范围内，**无增长趋势**） |
+
+- **透明度一行发现并修复的真实缺陷（P0，功能性死槽）**：`dialogOpacity` 此前**只在编辑器预览色块与 Web 快照里被消费**，真实弹窗外壳完全不响应。决定性证据：`dialogOpacity` 取下界 `0.70` 与上界 `1.00`，其余槽完全相同，同一弹窗截图差异为 **0 像素**。设计文档（第 282 行「AlertDialog/BottomSheet 表面透明度」、第 414 行「dialogOpacity 只影响弹窗外壳，不影响文字 alpha」）对该槽语义本有明确定义，因此这是**实现遗漏**而非设计缺失，可直接修复。
+- 修复：`ThemeBinder.bindWindowBackground` 在既有颜色改写之后追加 `applyShellOpacity(drawable, active.dialogOpacity())`——沿 `InsetDrawable` 解包，按比例缩放 `MaterialShapeDrawable` / `GradientDrawable` 填充色自身的 alpha（保留 drawable 原有透明度，而非覆盖），`opacity >= 1` 与越界值均为严格 no-op，因此冻结基线路径仍然逐字节不变。文字 alpha 由视图树通道负责，该方法从不触碰，符合规范。
+- 修复后设备验证（同一坐标、同一探针）：`0.70` 与 `1.00` 差异变为 **374849 像素**，变化区域 bbox `x 474..1444, y 342..736`（正好是对话框）；`1.00` 时面板为不透明 `#7B1FA2`，`0.70` 时为 `#6D2B8C`（= 探针色以 70% alpha 与墙纸混合的结果，可透出背景）；对话框标题文字在两种取值下均为 `#FFFFFF` **不变**，确认「只影响外壳」。
+- 新增测试：`ThemeBinderContractTest#dialogOpacityReachesTheWindowShellAndNotTheText`，既做源码契约断言（必须经 `applyShellOpacity`、必须解包 inset、不得作用于 view、`>=1` 必须 no-op），也用包级可见的 `ThemeBinder.scaleAlpha` 验证 alpha 算术（1.0 不变、0.70→179、已有透明度按比例保留、越界 clamp 不回绕）。
+- 修复过程中修正的两处失败：一是我把 `0.70 * 255 = 178.5` 的期望写成了 178（`Math.round` 取 179）；二是 4.19 的既有断言仍在匹配 `return bindDrawable(...)`，而本次实现把它改成了赋值形式——两处都按真实行为更正，没有放宽断言。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL；双 flavor `compileWithJavac` 通过。
+- **本轮新发现的残余缺陷（未修，需独立设计决策）**：`scrimOpacity` 与 `overlayOpacity` 同样**没有任何原生消费点**——`colorScrim` / `colorOverlayLight` 在 `theme` 包之外全仓库零引用。即 16 槽中目前有 2 槽（scrim、overlay）仍是死槽。与 `dialogOpacity` 不同，这两者**不是遗漏修复**：设计文档只规定它们作用于「scrim / overlay」，但从未指定原生侧哪个界面元素承担该角色，需要先裁定语义边界（对话框遮罩？播放器浮层？壁纸遮罩？）再实施。
+- 仍未验收/未完成：4.7 节的「预设、非法输入、取消、应用、重启、备份、动态 UI」已在 4.10/4.12 记录过代表性结果，本轮未重复；**TV 遥控、WebHome、播放回归三行仍未执行**（TV 遥控需 leanback 设备，待用户分配）；半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面仍未覆盖。
+- 回滚锚点：回退本任务即移除 `applyShellOpacity` 调用；不涉及 profile 数据格式、偏好键或资源。
 
 ---
 

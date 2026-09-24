@@ -252,11 +252,43 @@ public class ThemeBinderContractTest {
         assertTrue("build these through WebHtvAlertDialogBuilder instead: " + raw, raw.isEmpty());
     }
 
+    /**
+     * The editor exposes a dialog-opacity slider, and the design record documents it as
+     * "the dialog/BottomSheet shell only, never the text alpha". It used to reach only the
+     * preview swatch and the Web snapshot, so on a real dialog the lower bound and the upper
+     * bound produced byte-identical screens - measured on device as 0 changed pixels. The
+     * window background is the shell, so it must carry the opacity.
+     */
+    @Test
+    public void dialogOpacityReachesTheWindowShellAndNotTheText() throws Exception {
+        String binder = read("src/main/java/com/fongmi/android/tv/theme/ThemeBinder.java");
+        assertTrue("the window background must carry the shell opacity",
+                binder.contains("applyShellOpacity(drawable, active.dialogOpacity())"));
+        assertTrue("shell opacity must unwrap Material's inset wrapper",
+                binder.contains("applyShellOpacity(inset.getDrawable(), opacity)"));
+        // 1.0 is the shipped default: it must stay a strict no-op.
+        assertTrue("a fully opaque shell must be left untouched", binder.contains("if (drawable == null || opacity >= 1f) return false;"));
+        // Text alpha is governed by the view-tree pass, which this method never touches.
+        assertFalse("shell opacity must not be applied through the view lambda",
+                binder.contains("applyShellOpacity(view"));
+
+        // Alpha arithmetic, including the documented 0.70..1.00 bounds.
+        assertEquals("default opacity must be a no-op", 0xFF7B1FA2, ThemeBinder.scaleAlpha(0xFF7B1FA2, 1.0f));
+        assertEquals("lower bound", 0xB37B1FA2, ThemeBinder.scaleAlpha(0xFF7B1FA2, 0.70f));
+        // 0.70 * 255 = 178.5, and Math.round takes it up to 179.
+        assertEquals("matches the clamped manual computation", 179, ThemeBinder.scaleAlpha(0xFF7B1FA2, 0.70f) >>> 24);
+        assertEquals("existing transparency must be preserved, not replaced",
+                0x407B1FA2, ThemeBinder.scaleAlpha(0x807B1FA2, 0.50f));
+        assertEquals("out-of-range values must clamp, never wrap",
+                0xFF7B1FA2, ThemeBinder.scaleAlpha(0xFF7B1FA2, 2.0f));
+    }
+
     @Test
     public void dialogWindowBackgroundIsRecolouredOutsideTheViewTree() throws Exception {
         String binder = read("src/main/java/com/fongmi/android/tv/theme/ThemeBinder.java");
         assertTrue(binder.contains("public static boolean bindWindowBackground(Drawable drawable, ThemeTokens baseline, ThemeTokens active)"));
-        assertTrue("must reuse the shared drawable pass", binder.contains("return bindDrawable(drawable, null, ThemeColorIndex.of(baseline), active);"));
+        assertTrue("must reuse the shared drawable pass",
+                binder.contains("bindDrawable(drawable, null, ThemeColorIndex.of(baseline), active)"));
 
         String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
         assertTrue(controller.contains("public static void bindWindowBackground(Drawable background)"));

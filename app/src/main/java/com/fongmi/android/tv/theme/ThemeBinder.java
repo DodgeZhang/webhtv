@@ -259,7 +259,51 @@ public final class ThemeBinder {
         if (drawable == null || baseline == null || active == null) return false;
         if (Looper.myLooper() != Looper.getMainLooper()) return false;
         if (baseline.equals(active)) return false;
-        return bindDrawable(drawable, null, ThemeColorIndex.of(baseline), active);
+        boolean changed = bindDrawable(drawable, null, ThemeColorIndex.of(baseline), active);
+        // dialogOpacity is documented as "the dialog/BottomSheet shell only, never the text
+        // alpha", so it is applied to this window background and nowhere else. Without this
+        // the editor's dialog-opacity slider changed only the preview swatch and the Web
+        // snapshot while real dialogs stayed fully opaque.
+        changed |= applyShellOpacity(drawable, active.dialogOpacity());
+        return changed;
+    }
+
+    /**
+     * Scales the alpha of a window background fill, preserving whatever transparency the
+     * drawable already had. A shell opacity of 1.0 is the shipped default and must stay a
+     * strict no-op so the frozen palette path remains byte-identical.
+     */
+    private static boolean applyShellOpacity(Drawable drawable, float opacity) {
+        if (drawable == null || opacity >= 1f) return false;
+        if (opacity < 0f) return false;
+        if (drawable instanceof InsetDrawable inset) {
+            return applyShellOpacity(inset.getDrawable(), opacity);
+        }
+        if (drawable instanceof MaterialShapeDrawable shape) {
+            ColorStateList fill = shape.getFillColor();
+            if (fill == null) return false;
+            int original = fill.getDefaultColor();
+            int target = scaleAlpha(original, opacity);
+            if (target == original) return false;
+            shape.setFillColor(ColorStateList.valueOf(target));
+            return true;
+        }
+        if (drawable instanceof GradientDrawable shape) {
+            ColorStateList color = shape.getColor();
+            if (color == null) return false;
+            int original = color.getDefaultColor();
+            int target = scaleAlpha(original, opacity);
+            if (target == original) return false;
+            shape.setColor(target);
+            return true;
+        }
+        return false;
+    }
+
+    /** Package-private so the alpha arithmetic can be asserted without an Android device. */
+    static int scaleAlpha(int color, float opacity) {
+        int alpha = Math.round(((color >>> 24) & 0xFF) * Math.max(0f, Math.min(1f, opacity)));
+        return (color & 0x00FFFFFF) | (Math.max(0, Math.min(255, alpha)) << 24);
     }
 
     /**
