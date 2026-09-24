@@ -2,6 +2,8 @@ package com.fongmi.android.tv.theme;
 
 import org.junit.Test;
 
+import com.google.android.material.color.utilities.Hct;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -96,15 +98,22 @@ public class ThemeResolverOverrideTest {
         profile.light.primary = "#FFFFFF";
         ThemeTokens light = ThemeResolver.resolve(
                 ThemeMode.LIGHT, ThemeSeed.NONE, 0, 0, profile, null, false);
-        assertEquals(BLACK, light.colorOnPrimary());
+        // Primary is also drawn as dialog action text, so a white primary on a near-white
+        // surface is repaired first. The on* pair must then stay readable against whatever
+        // primary the repair produced, and the accent contract must hold either way.
+        assertNotEquals("white primary on a near-white surface must be repaired",
+                0xFFFFFFFF, light.colorPrimary());
         assertTrue(ThemeContrast.ratio(light.colorOnPrimary(), light.colorPrimary()) >= 4.5);
+        assertAccentLegible(light, "white primary request");
 
         ThemeProfile darkProfile = ThemeProfile.defaultProfile();
         darkProfile.dark.primary = "#000000";
         ThemeTokens dark = ThemeResolver.resolve(
                 ThemeMode.DARK, ThemeSeed.NONE, 0, 0, darkProfile, null, true);
-        assertEquals(WHITE, dark.colorOnPrimary());
+        assertNotEquals("black primary on a near-black surface must be repaired",
+                0xFF000000, dark.colorPrimary());
         assertTrue(ThemeContrast.ratio(dark.colorOnPrimary(), dark.colorPrimary()) >= 4.5);
+        assertAccentLegible(dark, "black primary request");
     }
 
     @Test
@@ -141,14 +150,16 @@ public class ThemeResolverOverrideTest {
     @Test
     public void lightAndDarkSlotsResolveIndependently() {
         ThemeProfile profile = ThemeProfile.defaultProfile();
-        profile.light.primary = "#155DFC";
+        // #155DFC lands at 4.06:1 on surfaceContainerHighest and would be repaired, which
+        // would make this independence check assert repaired rather than chosen values.
+        profile.light.primary = "#1039B8";
         profile.dark.primary = "#FFCC00";
 
         ThemeTokens light = ThemeResolver.resolve(
                 ThemeMode.LIGHT, ThemeSeed.NONE, 0, 0, profile, null, false);
         ThemeTokens dark = ThemeResolver.resolve(
                 ThemeMode.DARK, ThemeSeed.NONE, 0, 0, profile, null, true);
-        assertEquals(0xFF155DFC, light.colorPrimary());
+        assertEquals(0xFF1039B8, light.colorPrimary());
         assertEquals(0xFFFFCC00, dark.colorPrimary());
         assertNotEquals(light.colorPrimary(), dark.colorPrimary());
     }
@@ -207,5 +218,90 @@ public class ThemeResolverOverrideTest {
         assertEquals(ThemeTokens.light(), ThemeResolver.resolve(
                 ThemeMode.LIGHT, ThemeSeed.EXPLICIT, 0x00123456, 0, null, null, false));
         assertTrue(ThemeResolver.lastDiagnostic().startsWith("fallback:invalid-seed"));
+    }
+
+    /**
+     * The B-safe contract promises a profile can never create an unreadable pair.
+     * {@code colorPrimary} doubles as the AlertDialog action-button text colour, so a
+     * user-chosen dark surface with the default primary rendered those actions at
+     * 1.28:1 - measured on device. The resolver must restore Material's own guarantee
+     * (its baseline scheme measures 4.97-10.91:1 on the surface roles).
+     */
+    @Test
+    public void customSurfaceKeepsPrimaryLegibleOnEverySurfaceRole() {
+        ThemeProfile profile = ThemeProfile.defaultProfile();
+        profile.light.surface = "#7B1FA2";
+        profile.light.surfaceContainer = "#7B1FA2";
+        profile.light.surfaceContainerHigh = "#7B1FA2";
+
+        ThemeTokens tokens = ThemeResolver.resolve(
+                ThemeMode.LIGHT, ThemeSeed.NONE, 0, 0, profile, null, false);
+
+        assertAccentLegible(tokens, "purple surface");
+        // Hue is preserved rather than snapped to black/white.
+        double hueBefore = Hct.fromInt(ThemeTokens.light().colorPrimary()).getHue();
+        double hueAfter = Hct.fromInt(tokens.colorPrimary()).getHue();
+        assertEquals("primary must keep its hue", hueBefore, hueAfter, 12.0);
+        assertNotEquals("primary must actually move", ThemeTokens.light().colorPrimary(), tokens.colorPrimary());
+    }
+
+    @Test
+    public void lightSurfaceAlsoRepairsADarkCustomPrimary() {
+        ThemeProfile profile = ThemeProfile.defaultProfile();
+        profile.light.surface = "#FFFFFF";
+        profile.light.primary = "#F2F2F2";
+
+        ThemeTokens tokens = ThemeResolver.resolve(
+                ThemeMode.LIGHT, ThemeSeed.NONE, 0, 0, profile, null, false);
+        assertAccentLegible(tokens, "white surface with near-white primary");
+    }
+
+    @Test
+    public void repairedPrimaryKeepsItsForegroundReadable() {
+        ThemeProfile profile = ThemeProfile.defaultProfile();
+        profile.light.surface = "#7B1FA2";
+        profile.light.surfaceContainerHigh = "#7B1FA2";
+
+        ThemeTokens tokens = ThemeResolver.resolve(
+                ThemeMode.LIGHT, ThemeSeed.NONE, 0, 0, profile, null, false);
+        assertTrue("onPrimary must stay readable on the repaired primary",
+                ThemeContrast.ratio(tokens.colorOnPrimary(), tokens.colorPrimary()) >= 4.5);
+    }
+
+    /** The frozen palettes already satisfy the contract, so no repair may fire there. */
+    @Test
+    public void shippedPalettesAlreadyClearTheAccentContract() {
+        assertAccentLegible(ThemeTokens.light(), "frozen light");
+        assertAccentLegible(ThemeTokens.dark(), "frozen dark");
+    }
+
+    /** An empty profile must stay byte-identical: the repair may not perturb it. */
+    @Test
+    public void emptyProfileStillResolvesToTheFrozenPalette() {
+        assertEquals(ThemeTokens.light(), ThemeResolver.resolve(
+                ThemeMode.LIGHT, ThemeSeed.NONE, 0, 0, ThemeProfile.defaultProfile(), null, false));
+        assertEquals(ThemeTokens.dark(), ThemeResolver.resolve(
+                ThemeMode.DARK, ThemeSeed.NONE, 0, 0, ThemeProfile.defaultProfile(), null, false));
+    }
+
+    /** Seed-derived palettes come from one tonal scheme, so no repair may fire. */
+    @Test
+    public void seedDerivedPalettesAreNotRepaired() {
+        for (int seed : new int[]{0xFF0B57D0, 0xFF00897B, 0xFFFB8C00, 0xFF8E24AA}) {
+            ThemeTokens tokens = ThemeResolver.resolve(
+                    ThemeMode.LIGHT, ThemeSeed.EXPLICIT, seed, 0, null, null, false);
+            assertAccentLegible(tokens, String.format("seed %08X", seed));
+        }
+    }
+
+    private static void assertAccentLegible(ThemeTokens tokens, String label) {
+        String[] roles = {"surface", "surfaceContainer", "surfaceContainerHigh", "surfaceContainerHighest"};
+        int[] backgrounds = {tokens.colorSurface(), tokens.colorSurfaceContainer(),
+                tokens.colorSurfaceContainerHigh(), tokens.colorSurfaceContainerHighest()};
+        for (int index = 0; index < backgrounds.length; index++) {
+            double ratio = ThemeContrast.ratio(tokens.colorPrimary(), backgrounds[index]);
+            assertTrue(label + ": primary/" + roles[index] + " = " + ratio + " must be >= 4.5",
+                    ratio + 0.0001 >= 4.5);
+        }
     }
 }

@@ -19,6 +19,10 @@ final class ThemeContrast {
         require(tokens.colorOnWarningContainer(), tokens.colorWarningContainer(), 4.5, "onWarningContainer/warningContainer");
         require(tokens.colorOnSurface(), tokens.colorSurface(), 4.5, "onSurface/surface");
         require(tokens.colorOnSurfaceVariant(), tokens.colorSurface(), 4.5, "onSurfaceVariant/surface");
+        require(tokens.colorPrimary(), tokens.colorSurface(), 4.5, "primary/surface");
+        require(tokens.colorPrimary(), tokens.colorSurfaceContainer(), 4.5, "primary/surfaceContainer");
+        require(tokens.colorPrimary(), tokens.colorSurfaceContainerHigh(), 4.5, "primary/surfaceContainerHigh");
+        require(tokens.colorPrimary(), tokens.colorSurfaceContainerHighest(), 4.5, "primary/surfaceContainerHighest");
         require(tokens.colorOnSurface(), tokens.colorSurfaceContainerHigh(), 4.5, "onSurface/surfaceContainerHigh");
         require(tokens.colorOnSurface(), tokens.colorSurfaceContainerHighest(), 4.5, "onSurface/surfaceContainerHighest");
         require(tokens.colorInverseOnSurface(), tokens.colorInverseSurface(), 4.5, "inverseOnSurface/inverseSurface");

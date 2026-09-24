@@ -9,6 +9,9 @@ public final class ThemeResolver {
 
     private static final ThreadLocal<String> LAST_DIAGNOSTIC = ThreadLocal.withInitial(() -> "default");
 
+    /** Material's own baseline scheme keeps primary at or above this on every surface role. */
+    private static final double MIN_ACCENT_CONTRAST = 4.5;
+
     private ThemeResolver() {
     }
 
@@ -107,13 +110,28 @@ public final class ThemeResolver {
         if (hasContainerHigh && surfaceContainerHigh == surfaceContainer) {
             surfaceContainerHigh = mix(surfaceContainer, dark ? 0xFFFFFFFF : 0xFF000000, 0.06);
         }
+        int surfaceContainerHighest = hasContainer || hasContainerHigh
+                ? mix(surfaceContainerHigh, surfaceContainer, 0.35)
+                : base.colorSurfaceContainerHighest();
+        // Material 3 derives primary and the surface roles from one tonal palette, so
+        // primary is legible on every surface role by construction (the shipped baseline
+        // scheme measures 4.97-10.91:1). The editor exposes both slots independently,
+        // which can break that guarantee - primary is also the dialog action-button text
+        // colour, so a broken pair renders actions invisible. Restoring the guarantee is
+        // what the documented B-safe contract promises: a profile must never be able to
+        // create an unreadable pair. The move keeps hue and chroma and only shifts tone.
+        int readablePrimary = readableAccent(
+                primary, surface, surfaceContainer, surfaceContainerHigh, surfaceContainerHighest);
+        boolean primaryAdjusted = readablePrimary != primary;
+        primary = readablePrimary;
         int error = color(slots.error, base.colorError());
         int success = color(slots.success, base.colorSuccess());
         int warning = color(slots.warning, base.colorWarning());
 
         // Derived pairs are only recomputed when the user actually touched a slot that
         // feeds them; an empty profile must stay byte-identical to the frozen palette.
-        int onPrimary = hasPrimary ? readableOn(primary, base.colorOnPrimary()) : base.colorOnPrimary();
+        int onPrimary = (hasPrimary || primaryAdjusted)
+                ? readableOn(primary, base.colorOnPrimary()) : base.colorOnPrimary();
         int onPrimaryContainer = hasPrimaryContainer
                 ? readableOn(primaryContainer, base.colorOnPrimaryContainer()) : base.colorOnPrimaryContainer();
         int onSecondaryContainer = hasSecondaryContainer
@@ -135,13 +153,16 @@ public final class ThemeResolver {
         int outline = hasOutline || hasSurface
                 ? ensureContrast(color(slots.outline, base.colorOutline()), surface, 3.0)
                 : base.colorOutline();
+        // The frozen palette deliberately ships focus == primary. Keeping that relationship
+        // matters beyond aesthetics: the binder resolves a view colour by its semantic role,
+        // and a baseline colour shared by two roles is only rewritten when both agree. If
+        // focus drifted away from primary, primary-as-text views (dialog actions) would keep
+        // their compiled colour and stay unreadable. `primary` already clears 4.5:1 on the
+        // surface, so it also clears the 3.0:1 focus requirement.
         int focus = hasFocus || hasSurface
-                ? ensureContrast(color(slots.focus, base.colorFocus()), surface, 3.0)
+                ? ensureContrast(color(slots.focus, primary), surface, 3.0)
                 : base.colorFocus();
 
-        int surfaceContainerHighest = hasContainer || hasContainerHigh
-                ? mix(surfaceContainerHigh, surfaceContainer, 0.35)
-                : base.colorSurfaceContainerHighest();
         int surfaceDim = hasSurface ? mix(surface, 0xFF000000, dark ? 0.06 : 0.10) : base.colorSurfaceDim();
         int surfaceBright = hasSurface ? mix(surface, 0xFFFFFFFF, dark ? 0.14 : 0.08) : base.colorSurfaceBright();
         float scrimOpacity = slots.scrimOpacity == null ? (base.colorScrim() >>> 24) / 255f : slots.scrimOpacity;
@@ -184,6 +205,45 @@ public final class ThemeResolver {
         boolean useBlack = black >= white;
         if ((preferred == 0xFF000000) == useBlack && ThemeContrast.ratio(preferred, background) >= 4.5) return preferred;
         return useBlack ? 0xFF000000 : 0xFFFFFFFF;
+    }
+
+    /**
+     * Keeps {@code color} when it clears {@link #MIN_ACCENT_CONTRAST} on every backdrop,
+     * otherwise returns the nearest tone on the same hue/chroma that does.
+     *
+     * <p>Walking tone rather than snapping to black/white preserves the user's brand
+     * hue - the same thing Material's tonal palette does when it assigns primary.
+     */
+    private static int readableAccent(int color, int... backdrops) {
+        if (clearsContrast(color, backdrops)) return color;
+        Hct source = Hct.fromInt(color);
+        double hue = source.getHue();
+        double chroma = source.getChroma();
+        double original = source.getTone();
+        int best = color;
+        double bestDistance = Double.MAX_VALUE;
+        for (int tone = 0; tone <= 100; tone++) {
+            int candidate = Hct.from(hue, chroma, tone).toInt();
+            if (!clearsContrast(candidate, backdrops)) continue;
+            double distance = Math.abs(tone - original);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        if (bestDistance != Double.MAX_VALUE) return best;
+        // Unreachable for real surfaces (tone 0 / 100 always bracket), but never return
+        // an unreadable colour if a future call site passes something degenerate.
+        int fallback = ensureContrast(color, backdrops[0], MIN_ACCENT_CONTRAST);
+        for (int backdrop : backdrops) fallback = ensureContrast(fallback, backdrop, MIN_ACCENT_CONTRAST);
+        return fallback;
+    }
+
+    private static boolean clearsContrast(int color, int... backdrops) {
+        for (int backdrop : backdrops) {
+            if (ThemeContrast.ratio(color, backdrop) + 0.0001 < MIN_ACCENT_CONTRAST) return false;
+        }
+        return true;
     }
 
     private static int ensureContrast(int foreground, int background, double minimum) {

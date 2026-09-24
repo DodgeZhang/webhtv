@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。**当前剩余：`colorPrimary` 对表面色的对比度缺口（4.22 实测 1.28:1，需设计研究）、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。**当前剩余：程序化 TextView 取到 Material 库默认色而非本项目 token（4.23 残留发现）、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：为剩余直接 `MaterialAlertDialogBuilder(...).show()` 调用点建立统一收口（共享 helper + 源码守门，避免逐文件散改），并让 binder 覆盖 `MaterialShapeDrawable`（对话框面板/window 背景）；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
+- 下一步唯一动作：修正程序化 `TextView` 取到 Material 库默认色的问题（4.23 残留发现，例如主题编辑器「正在编辑」标签实测 `#49454F`），使这类视图显式使用本项目语义 token；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
 ---
 
@@ -854,6 +854,34 @@ Layer 2 DoD：
 - **本次转换暴露的一个真实缺口（未修，需独立设计决策）**：`ThemeContrast.require()` 强制的配对是 on\*/outline/focus 等，**不包含 `colorPrimary` 对 `colorSurface`/容器的对比度**；而 `colorPrimary` 会被 Material 用作 text-button 文字与图标色。设备截图实测：基线 `primary #0B57D0` 画在探针 `surface #7B1FA2` 上时对比度仅 **1.28:1**（AA 小字要求 4.5:1），使得「取消/应用/恢复默认」与「正在编辑」等标签几乎不可读。注意 `ensureContrast()` 的现有实现是在黑/白之间二选一，直接拿来修 primary 会把主题强调色变成黑或白、丢失品牌色，因此**不能**简单套用；正确做法应当是为 primary 派生一个"可画在表面上的"色阶（类似 Material 的 primary/onSurface 关系），这属于 resolver 的跨模块契约变更，需走第 7 节设计研究门禁后再实施。
 - 仍未覆盖：上述 primary-on-surface 对比度缺口；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面；半透明填充匹配策略；4.7 节完整设备矩阵。
 - 回滚锚点：回退本任务即恢复这 9 处 AppCompat/平台弹窗；不涉及 profile 数据格式、偏好键或资源。
+
+---
+
+### 4.23 恢复 primary 对表面色的可读性契约（2026-09-24）
+
+- 任务：`THEME-PRIMARY-CONTRAST-20260924`。修复 4.22 记录的 `colorPrimary` 对比度缺口——这是 4.13–4.22 之后唯一仍被用户直接看见的缺陷。
+- 设计研究（第 7 节门禁，全部为一手证据）：
+  | 来源 | 结论 | 对方案的约束 |
+  | --- | --- | --- |
+  | `material-1.14.0.aar` 的 `m3_sys_color_{light,dark}_*` 资源，实测换算 | Material 3 官方 baseline 中 `primary` 对 `surface`/`surfaceContainer`/`High`/`Highest` 的对比度为 **6.12 / 5.60 / 5.26 / 4.97:1**（dark 为 10.91 / 9.56 / 8.42 / 7.20:1），即**官方始终 ≥4.5:1** | 「primary 在表面色上可读」是 M3 的既有契约，不是本项目新增规则；修复是**恢复**该契约 |
+  | 同一 AAR 的 `Widget.Material3.Button.TextButton` → `m3_text_button_foreground_color_selector` | 文字按钮前景色由主题色驱动 | primary 会被当作**表面上的文字色**使用，因此必须与表面色配对 |
+  | 设备实测（dev3 `192.168.50.3:5559`，API 28） | 对话框动作按钮文字实测为 `#0B57D0`（= 基线 `colorPrimary`），且在默认/紫色探针下都不变 | 确认机制：`colorPrimary` 即对话框动作文字色 |
+  | 本项目冻结基线实测 | light 6.11 / 5.51 / 5.23 / 4.94，dark 10.76 / 9.11 / 7.86 / 6.78 | 冻结基线与 M3 契约一致，说明缺口只在“用户自由组合”路径 |
+- 机制确认实验：把探针设为 `primary=#FFFFFF` **且** `focus=#FFFFFF`，按钮文字精确变为 `#FFFFFF`（429 px，与改动前像素数一致）→ 证明文字色确实跟随 primary，且 binder 在同色角色取值一致时能改写。
+- 实现（`ThemeResolver` + `ThemeContrast`）：
+  - 新增 `readableAccent(color, backdrops...)`：若已满足 4.5:1 原样返回；否则在**保持 hue/chroma**的前提下沿 tone 扫描（`Hct.from(hue, chroma, tone)`，取满足条件且与原 tone 距离最小者），而不是像 `ensureContrast` 那样在黑/白之间二选一——后者会把品牌强调色抹成黑或白。扫描不可达时才回落到 `ensureContrast`。
+  - `applyProfile` 在算完 surface 家族后调用它修复 `primary`；并在 primary 被修复时**同步重算 `onPrimary`**（否则可能出现白底白字）。
+  - **`focus` 改为跟随 `primary`**（`color(slots.focus, primary)`）。冻结调色板本来就 ship `focus == primary`；这条关系不是审美问题——binder 按语义角色解析颜色，**共享同一基线色的角色必须取值一致才会改写**。原先 focus 独立对 surface 取 3.0 门禁，会与修复后的 primary 分叉，导致 `#0B57D0` 这类视图因歧义而拒绝改写（这正是首次修复后设备上按钮仍不变色的原因）。
+  - `ThemeContrast.require()` 增加 `primary/surface`、`primary/surfaceContainer`、`primary/surfaceContainerHigh`、`primary/surfaceContainerHighest` 四对硬门禁，与 repair 的输入严格一致（因此 repair 后不可能再触发回退）。
+- 新增测试（`ThemeResolverOverrideTest`，6 项）：自定义深色 surface 下 primary 必须全表面角色 ≥4.5 且**保留 hue**（±12°）；浅色 surface + 近白 primary 同样被修复；修复后 `onPrimary` 仍可读；冻结基线本身满足契约（不得触发修复）；**空 profile 仍逐字节等于冻结调色板**；seed 派生调色板不被修复。
+- 两处既有测试按新契约更新（原断言固化了修复前行为，已说明原因而非静默放宽）：`derivedOnColorsFollowBlackOrWhiteReadability` 改为断言不变式而非具体黑/白常量；`lightAndDarkSlotsResolveIndependently` 把 light 取值换成契约内通过全部四表面的 `#1039B8`（原 `#155DFC` 在 `surfaceContainerHighest` 上仅 4.06:1，会被合法修复，从而使“独立性”断言失去意义）。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL；mobile + leanback **全量**单测 + 双 flavor `compileWithJavac` 全部通过，失败类为 0。
+- 设备证据（dev3，mobile arm64 debug 覆盖安装，探针 `surface=#7B1FA2` 且**不覆盖 primary**，即 4.22 的复现条件）：
+  - 修复前：动作条文字 `#0B57D0`，对 `#7B1FA2` 仅 **1.28:1**。
+  - 修复后：动作条文字 `#AAC0FF`（保留蓝色调），对 `#7B1FA2` = **4.57:1** ≥ AA 4.5；预设 chip 文字同步变清晰。
+  - 测试结束设备偏好按字节校验恢复。
+- **残留发现（未修，属另一类缺陷）**：主题编辑器里「正在编辑」标签实测 `#49454F`——那是 **Material 库默认的 `on_surface_variant`**，而非本项目的 `#44474F` token。因该值不在基线角色索引内，binder 按“未知色不改写”规则正确跳过，于是它停留在静态值上、在新表面色下不可读。修法应当是让该程序化 `TextView`显式取用语义色（或在主题层补齐该 attr 映射），与本次 accent 契约无关，需独立授权。
+- 回滚锚点：回退本任务即恢复 primary/focus 的旧推导；不涉及 profile 数据格式、偏好键或资源。
 
 ---
 
