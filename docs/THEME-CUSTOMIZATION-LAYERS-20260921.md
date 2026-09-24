@@ -12,7 +12,7 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16）。**剩余半透明填充匹配策略、直接 AlertDialog 调用点与 4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。**当前必须先处理 4.17 记录的两项阻塞：12 处既有 `ThemeOverlay` 误用导致的构造期崩溃（P0），以及对话框窗口背景无法经视图树 binder 覆盖；另有 mobile/leanback flavor 源集迁移、半透明填充匹配策略与 4.7 节完整设备矩阵未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
 - 下一步唯一动作：为剩余直接 `MaterialAlertDialogBuilder(...).show()` 调用点建立统一收口（共享 helper + 源码守门，避免逐文件散改），并让 binder 覆盖 `MaterialShapeDrawable`（对话框面板/window 背景）；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
@@ -752,6 +752,24 @@ Layer 2 DoD：
 - 覆盖变化：弹出框面板、`TextInputLayout` 实心输入框底（`app:boxBackgroundColor="?attr/colorSurfaceContainerHighest"`，38 个布局）与 Chip 底（8 个布局）等 Material 形状填充现已纳入作用范围。
 - **仍未覆盖**：仅对“精确等于基线角色色”的填充生效，因此**半透明**面板（例如设置页行背景，渲染值是 token 的 alpha 变体）仍被安全规则跳过；要覆盖它们需要先决定“按 RGB 匹配并保留视图自身 alpha”这一更大的设计变更。另有绕过 `LightDialog.apply` 的直接 `MaterialAlertDialogBuilder(...).show()` 调用点、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面。
 - 回滚锚点：回退本任务即恢复“面板不参与主题”的行为，仅影响 1 个代码文件，不涉及 profile 数据格式或偏好键。
+
+---
+
+### 4.17 共享 main 模块接入统一主题构建器（2026-09-24）
+
+- 任务：`THEME-DIALOG-BUILDER-MAIN-20260924`。关闭“弹窗完全没被绑定”这个最大结构性缺口：共享 `main` 源集里 **61 个文件、125 处** 直接 `new MaterialAlertDialogBuilder(...)` 全部重建为新的 `WebHtvAlertDialogBuilder`。
+- 设计：`MaterialAlertDialogBuilder.show()` 内部就是 `create().show()`，而 `create()` 是虚方法。因此 `WebHtvAlertDialogBuilder` 只重写 `create()`（`super.create()` 之后调用 `ThemeController.bindDialog(dialog)`），**所有调用点无需任何额外改动**即可获得绑定。默认主题下 `baseline.equals(active)`，绑定仍是零遍历 no-op。
+- 新增测试：`ThemeBinderContractTest#materialAlertDialogsAreBuiltThroughTheThemedBuilder` 扫描 `src/main`，任何裸 `new MaterialAlertDialogBuilder(` 都会失败，防止回归；`DialogRoundedCornerSourceTest` 的既有断言同步更新为 `WebHtvAlertDialogBuilder`。
+- 自动化证据：`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均 BUILD SUCCESSFUL；mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*' --tests 'com.fongmi.android.tv.ui.dialog.*'` 均通过；`scripts/check_ui_tokens.sh --strict` → `violations=0 legacy=0`、38 组对比度 0 失败。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，覆盖安装）：`FollowingActivity` 顶部「导入订阅」弹窗（1 参数构建器，**此前完全未绑定**）在 default / 紫色探针之间变化 9980 像素，其中标题与正文文字由基线色变为 `#ADADAD`。修复前该弹窗为 0 改写。
+- **本阶段暴露的两个新问题（均未在本阶段修复，需独立授权）**：
+
+  **P0 — 既有崩溃，与本阶段改动无关。** `MaterialAlertDialogBuilder(context, themeResId)` 的 `themeResId` 必须是 AppCompat 后代主题；传 `ThemeOverlay.*` 会在构造器里经 `MaterialDialogs.getDialogBackgroundInsets` → `ThemeEnforcement.checkAppCompatTheme` 抛 `IllegalArgumentException: The style on this component requires your app theme to be Theme.AppCompat`。共享 `main` 内共 **12 处**踩中（`FollowingActivity` 取消追更 1 处、`AdSkipPromptPresenter` 2 处、`RemoteTrustDialog` 1 处，以及其余 `R.style.ThemeOverlay_WebHTV_Dialog` 调用点）。用 `git stash` 回到未改动的 `409c1b52b` 重新构建安装，同一路径以**完全相同的堆栈**复现（`FollowingActivity.onDelete` → `WebHtvAlertDialogBuilder.<init>` 对应基线 `MaterialAlertDialogBuilder.<init>`），因此这是既有缺陷，不是本次迁移引入的回归。建议修法：把这些调用点的 `ThemeOverlay_WebHTV_Dialog` 换成 AppCompat 后代的完整对话框主题（`Theme_WebHTW_Dialog`，父级 `Theme.Material3.DayNight.Dialog.Alert`），或直接传 `0` 走 Activity 的 `materialAlertDialogTheme`。
+
+  **窗口背景不在视图树内。** 上述导入弹窗的文字变色但**面板颜色不变**。原因是 Material 对话框的面板是 `MaterialAlertDialogBuilder` 构造器里创建的 `MaterialShapeDrawable`，经 `Window.setBackgroundDrawable` 挂到窗口上，由 `DecorView.onDraw` 用 `Window.mBackgroundDrawable` 绘制——它**不是任何 View 的 background**，而 `ThemeBinder` 只遍历 `View.getBackground()`，且 `Window` 没有公开的 background 读取接口。因此对话框窗口面板无法用现有 binder 通道覆盖（4.16 中变色的是 `LinkDialog` 内容视图里 `shape_shell_proxy_dialog` 这个真实 View 背景，不是窗口背景）。要覆盖它需要引入 dialog 专用的窗口背景通道（例如 binder 之外另设一条以语义 token 直接构造 `MaterialShapeDrawable` 并 `window.setBackgroundDrawable` 的路径），属于独立设计决策。
+
+- 覆盖变化：共享 `main` 模块 125 处弹窗构造现已统一经过绑定通道（文字、按钮、图标 tint、以及 View 级背景参与主题）；mobile / leanback 两个 flavor 源集尚未迁移。
+- 回滚锚点：回退本任务即恢复裸构建器调用，仅新增 1 个类并机械替换构造调用，不涉及 profile 数据格式、偏好键或资源。
 
 ---
 

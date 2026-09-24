@@ -155,6 +155,31 @@ public class ThemeBinderContractTest {
         assertFalse(source.contains("getDeclaredField"));
     }
 
+    /**
+     * Every Material alert dialog must be constructed through the themed builder,
+     * whose overridden {@code create()} binds the dialog window to the active tokens.
+     * Raw {@code MaterialAlertDialogBuilder} instances were never passed to
+     * {@code bindDialog}, which is why a custom theme used to leave nearly every
+     * dialog on the compiled palette.
+     *
+     * <p>This scans the shared {@code main} source set. The mobile and leanback
+     * flavour source sets are migrated as a separate stage and covered there.
+     */
+    @Test
+    public void materialAlertDialogsAreBuiltThroughTheThemedBuilder() throws Exception {
+        Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
+        java.util.List<String> raw = new java.util.ArrayList<>();
+        try (java.util.stream.Stream<Path> paths = Files.walk(root.resolve("src/main/java/com/fongmi/android/tv"))) {
+            for (Path path : paths.filter(p -> p.toString().endsWith(".java")).toList()) {
+                if (path.toString().contains("graphify-out")) continue;
+                if (Files.readString(path, StandardCharsets.UTF_8).contains("new MaterialAlertDialogBuilder(")) {
+                    raw.add(path.getFileName().toString());
+                }
+            }
+        }
+        assertTrue("build these through WebHtvAlertDialogBuilder instead: " + raw, raw.isEmpty());
+    }
+
     @Test
     public void followingPageOptsIntoTheSharedAppearanceContract() throws Exception {
         String source = read("src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
