@@ -245,6 +245,24 @@ public final class ThemeBinder {
     }
 
     /**
+     * Rewrites a window-level background drawable.
+     *
+     * <p>{@code MaterialAlertDialogBuilder} builds the dialog panel as a
+     * {@link MaterialShapeDrawable} wrapped in an {@link InsetDrawable} and hands it to
+     * {@code Window.setBackgroundDrawable}. That drawable belongs to the window, not to
+     * any {@code View}, so the ordinary view-tree walk can never reach it - which is why
+     * a themed dialog changed its text but kept the compiled panel colour. The builder
+     * exposes the very same instance through {@code getBackground()}, so it is rewritten
+     * here through one shared code path instead of a second colour model.
+     */
+    public static boolean bindWindowBackground(Drawable drawable, ThemeTokens baseline, ThemeTokens active) {
+        if (drawable == null || baseline == null || active == null) return false;
+        if (Looper.myLooper() != Looper.getMainLooper()) return false;
+        if (baseline.equals(active)) return false;
+        return bindDrawable(drawable, null, ThemeColorIndex.of(baseline), active);
+    }
+
+    /**
      * Rewrites the solid fill of a background drawable, unwrapping the transparent
      * wrappers Android and Material put around real panels.
      *

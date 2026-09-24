@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.theme;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.app.Dialog;
@@ -164,6 +165,18 @@ public final class ThemeController {
     public static void bindDialog(Dialog dialog) {
         if (dialog == null || dialog.getWindow() == null) return;
         bindTheme(dialog.getWindow().getDecorView());
+    }
+
+    /**
+     * Applies the active profile to a window-level background drawable.
+     *
+     * <p>Alert dialog panels live on the window rather than on a view, so they need
+     * this second entry point next to {@link #bindTheme(View)}. It is a no-op while the
+     * active tokens equal the frozen baseline.
+     */
+    public static void bindWindowBackground(Drawable background) {
+        if (background == null) return;
+        ThemeBinder.bindWindowBackground(background, baseline, current);
     }
 
     /** True when the active palette differs from the frozen compiled baseline. */

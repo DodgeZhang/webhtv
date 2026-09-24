@@ -238,6 +238,22 @@ public class ThemeBinderContractTest {
     }
 
     @Test
+    public void dialogWindowBackgroundIsRecolouredOutsideTheViewTree() throws Exception {
+        String binder = read("src/main/java/com/fongmi/android/tv/theme/ThemeBinder.java");
+        assertTrue(binder.contains("public static boolean bindWindowBackground(Drawable drawable, ThemeTokens baseline, ThemeTokens active)"));
+        assertTrue("must reuse the shared drawable pass", binder.contains("return bindDrawable(drawable, null, ThemeColorIndex.of(baseline), active);"));
+
+        String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
+        assertTrue(controller.contains("public static void bindWindowBackground(Drawable background)"));
+
+        String builder = read("src/main/java/com/fongmi/android/tv/theme/WebHtvAlertDialogBuilder.java");
+        // The panel is the builder's own background field, which is the exact instance
+        // handed to Window.setBackgroundDrawable by MaterialAlertDialogBuilder.
+        assertTrue(builder.contains("ThemeController.bindWindowBackground(getBackground())"));
+        assertTrue(builder.contains("ThemeController.bindDialog(dialog)"));
+    }
+
+    @Test
     public void followingPageOptsIntoTheSharedAppearanceContract() throws Exception {
         String source = read("src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
         int apply = source.indexOf("ThemeController.applyFromPreferences(this);");

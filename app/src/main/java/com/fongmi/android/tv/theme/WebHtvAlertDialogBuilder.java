@@ -34,6 +34,9 @@ public class WebHtvAlertDialogBuilder extends MaterialAlertDialogBuilder {
     @Override
     public AlertDialog create() {
         AlertDialog dialog = super.create();
+        // The panel itself is this builder's window background, not a view background,
+        // so it is recoloured separately from the view tree.
+        ThemeController.bindWindowBackground(getBackground());
         ThemeController.bindDialog(dialog);
         return dialog;
     }
