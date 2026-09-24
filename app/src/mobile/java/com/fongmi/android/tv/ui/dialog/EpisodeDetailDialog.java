@@ -26,12 +26,12 @@ import com.fongmi.android.tv.bean.TmdbItem;
 import com.fongmi.android.tv.bean.TmdbPerson;
 import com.fongmi.android.tv.service.TmdbService;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
 import com.fongmi.android.tv.ui.adapter.EpisodeStillAdapter;
 import com.fongmi.android.tv.ui.adapter.TmdbPersonAdapter;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Task;
 import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
@@ -372,7 +372,7 @@ public class EpisodeDetailDialog {
     private static void showSimpleDialog(FragmentActivity activity, Episode episode,
                                          android.content.DialogInterface.OnDismissListener dismissListener) {
         // 标题放固定文案，源站文件名放可换行的正文，避免长名被单行标题截断
-        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(activity)
+        androidx.appcompat.app.AlertDialog dialog = new WebHtvAlertDialogBuilder(activity)
                 .setTitle(R.string.detail_tmdb_empty)
                 .setMessage(episode.getName())
                 .setPositiveButton(R.string.dialog_negative, null)

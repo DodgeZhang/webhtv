@@ -162,9 +162,6 @@ public class ThemeBinderContractTest {
      * {@code bindDialog}, which is why a custom theme used to leave nearly every
      * dialog on the compiled palette.
      *
-     * <p>This scans the shared {@code main} source set. The mobile and leanback
-     * flavour source sets are migrated as a separate stage and covered there.
-     */
     /**
      * A {@code themeResId} handed to a dialog builder must resolve {@code colorPrimary}
      * to something concrete. {@code MaterialAlertDialogBuilder} validates the dialog
@@ -226,11 +223,15 @@ public class ThemeBinderContractTest {
     public void materialAlertDialogsAreBuiltThroughTheThemedBuilder() throws Exception {
         Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
         java.util.List<String> raw = new java.util.ArrayList<>();
-        try (java.util.stream.Stream<Path> paths = Files.walk(root.resolve("src/main/java/com/fongmi/android/tv"))) {
-            for (Path path : paths.filter(p -> p.toString().endsWith(".java")).toList()) {
-                if (path.toString().contains("graphify-out")) continue;
-                if (Files.readString(path, StandardCharsets.UTF_8).contains("new MaterialAlertDialogBuilder(")) {
-                    raw.add(path.getFileName().toString());
+        for (String sourceSet : new String[]{"main", "mobile", "leanback"}) {
+            Path base = root.resolve("src/" + sourceSet);
+            if (!Files.exists(base)) continue;
+            try (java.util.stream.Stream<Path> paths = Files.walk(base)) {
+                for (Path path : paths.filter(p -> p.toString().endsWith(".java")).toList()) {
+                    if (path.toString().contains("graphify-out")) continue;
+                    if (Files.readString(path, StandardCharsets.UTF_8).contains("new MaterialAlertDialogBuilder(")) {
+                        raw.add(sourceSet + "/" + path.getFileName());
+                    }
                 }
             }
         }

@@ -12,7 +12,7 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。**当前剩余：mobile/leanback flavor 源集迁移（含其中 16 处 overlay 主题参数站点）、半透明填充匹配策略、10 处裸 `AlertDialog.Builder`、远程 Web 主题页面与 4.7 节完整设备矩阵**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。**当前剩余：半透明填充匹配策略、10 处裸 `AlertDialog.Builder`、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，以及一处既有的陈旧测试断言红灯（见 4.20）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
 - 下一步唯一动作：为剩余直接 `MaterialAlertDialogBuilder(...).show()` 调用点建立统一收口（共享 helper + 源码守门，避免逐文件散改），并让 binder 覆盖 `MaterialShapeDrawable`（对话框面板/window 背景）；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
@@ -804,6 +804,21 @@ Layer 2 DoD：
 - 覆盖变化：**对话框面板（窗口背景）现已成为主题色彩可达区域**，这是"主题色彩感觉只有站点弹框生效"的最后一块结构性缺口。
 - 仍未覆盖：mobile/leanback flavor 源集内 16 处把 `ThemeOverlay_WebHTV_Dialog` 当主题参数、且仍用裸 `MaterialAlertDialogBuilder` 的站点（其实测安全但未接入绑定）；半透明填充匹配策略（设置页行背景 `black@15%` 属中性遮罩，按安全规则应跳过，若要覆盖需先决定策略）；绕过 `WebHtvAlertDialogBuilder` 的 10 处 `new AlertDialog.Builder(...)`；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面；4.7 节完整设备矩阵。
 - 回滚锚点：回退本任务即恢复"面板不随主题"的行为；仅新增 1 个公开方法 + 1 个调用点，不涉及 profile 数据格式、偏好键或资源。
+
+---
+
+### 4.20 mobile/leanback flavor 源集统一主题构建器（2026-09-24）
+
+- 任务：`THEME-DIALOG-BUILDER-FLAVORS-20260924`。把 4.17 的迁移补齐到两个 flavor 源集。
+- 改动：`app/src/mobile` **20 个文件 / 38 处**、`app/src/leanback` **13 个文件 / 31 处**，共 33 文件 69 处裸 `new MaterialAlertDialogBuilder(...)` 全部重建为 `WebHtvAlertDialogBuilder`；仅在类型彻底不再被引用时移除 Material 的 import。机械替换后逐一核对导入顺序——由本次改动引入的乱序为 **0**（仓库内既有乱序未触碰）。
+- 守门测试扩展：`materialAlertDialogsAreBuiltThroughTheThemedBuilder` 现在扫描 `main` + `mobile` + `leanback` 三个源集，任一源集新增裸构建器都会失败。同步更新 `AdRuleManageDialogLayoutTest` 的既有断言。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL；`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均通过。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装）：mobile 版 `HistoryActivity`（`extends BaseActivity`）的「删除全部纪录？」确认框——该弹窗此前完全不经绑定——在 default / 紫色探针间，对话框区带变化 549762 像素，四个面板取样点 `(1400,420)/(1300,600)/(700,650)/(1000,680)` 全部由默认 `#CFD8EB` 变为探针值 `#7B1FA2`，其中 307808 像素精确命中该值；标题与正文同步转为白色。
+- **过程中发现并纠正的一次取证失误**：第一次跑该设备用例时文字与面板都没变，一度像是"flavor 迁移无效"。实际原因是当时设备上安装的仍是上一提交（`5afd51255`）的 APK，本次 flavor 改动尚未构建安装。重新 `build_arm64_debug_install.sh --flavor mobile` 覆盖安装后即复现预期结果。记录在此以提示后续验证必须先确认设备 APK 与工作树一致。
+- 覆盖变化：全仓库（3 个 Java 源集）已无裸 `MaterialAlertDialogBuilder` 调用点，125 + 69 = 194 处弹窗构造统一经过主题绑定通道。
+- **已知既有缺陷（非本任务引入，未修）**：`app/src/test/java/com/fongmi/android/tv/ui/helper/TouchOptimizationHelperSourceTest.java:80` 断言 leanback `BaseActivity` 含 `setContentView(getBinding().getRoot());`，但该形态已被 `584b64514`（2026-09-23）改为 `View content = getBinding().getRoot(); setContentView(content);`。该断言自 2026-09-23 起即为陈旧红灯（与 4.13 修掉的 `ThemeBinderContractTest#everyActivityBindsTheThemeTreeTwice` 同源）。它不属于本任务 scope，未修改；因它会打断全量套件绿灯，建议单独授权一个测试收尾任务修正。
+- 仍未覆盖：半透明填充匹配策略；10 处 `new AlertDialog.Builder(...)`；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面；4.7 节完整设备矩阵。
+- 回滚锚点：回退本任务即恢复 flavor 内的裸构建器；不涉及 profile 数据格式、偏好键或资源。
 
 ---
 

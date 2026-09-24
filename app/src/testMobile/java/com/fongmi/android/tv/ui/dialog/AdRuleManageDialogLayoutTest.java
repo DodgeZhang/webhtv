@@ -42,7 +42,7 @@ public class AdRuleManageDialogLayoutTest {
                 statsItem.contains("android:textColor=\"@color/white\"")
                         || statsItem.contains("android:textColor=\"@color/white_50\""));
         assertTrue("candidate picker must use the full light dialog theme",
-                source.contains("new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)\n                .setTitle(R.string.ad_rule_import_title)"));
+                source.contains("new WebHtvAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)\n                .setTitle(R.string.ad_rule_import_title)"));
         assertTrue("rule manager buttons must bridge DPAD focus into the first rule row",
                 source.contains("binding.stats.setOnKeyListener")
                         && source.contains("binding.importCandidates.getVisibility() == View.VISIBLE")
@@ -186,7 +186,7 @@ public class AdRuleManageDialogLayoutTest {
         int end = source.indexOf("\n    @Override", start + 1);
         String handler = source.substring(start, end);
 
-        assertTrue(handler.contains("new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)"));
+        assertTrue(handler.contains("new WebHtvAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_Dialog)"));
         assertTrue(handler.contains(".setPositiveButton(R.string.ad_rule_delete_confirm, (dialog, which) -> deleteUserRule(item))"));
         assertTrue(handler.contains(".setNegativeButton(android.R.string.cancel, null)"));
         assertFalse("delete must only happen after confirmation", handler.contains("UserAdRuleStore.delete"));
