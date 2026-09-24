@@ -15,7 +15,6 @@ import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
 import com.github.catvod.utils.Path;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -258,7 +257,7 @@ public final class CacheCleanupManager {
 
     private static boolean deleteAged(File file, long cutoff, List<String> warnings) {
         if (file == null || !file.exists()) return true;
-        if (isSymbolicLink(file)) return false;
+        if (CachePathSafety.isSymbolicLink(file)) return false;
         boolean success = true;
         if (file.isDirectory()) {
             File[] children = file.listFiles();
@@ -292,21 +291,12 @@ public final class CacheCleanupManager {
 
     private static boolean deleteTree(File file) {
         if (file == null || !file.exists()) return true;
-        if (isSymbolicLink(file) || PROTECTED_NAMES.contains(file.getName())) return false;
+        if (CachePathSafety.isSymbolicLink(file) || PROTECTED_NAMES.contains(file.getName())) return false;
         if (file.isDirectory()) {
             File[] children = file.listFiles();
             if (children != null) for (File child : children) deleteTree(child);
         }
         return !file.exists() || file.delete();
-    }
-
-    private static boolean isSymbolicLink(File file) {
-        try {
-            File canonical = file.getCanonicalFile();
-            return !canonical.equals(file) && !canonical.equals(file.getAbsoluteFile());
-        } catch (IOException ignored) {
-            return true;
-        }
     }
 
     private static boolean isExpired(File file, long now, long retentionMs) {

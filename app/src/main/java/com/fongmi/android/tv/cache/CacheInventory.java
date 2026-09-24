@@ -8,7 +8,6 @@ import com.fongmi.android.tv.utils.FileUtil;
 import com.github.catvod.utils.Path;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -95,7 +94,7 @@ public final class CacheInventory {
             if (file != null && System.nanoTime() > deadlineNs) result.warning("scan timeout");
             return;
         }
-        if (isSymbolicLink(file)) {
+        if (CachePathSafety.isSymbolicLink(file)) {
             result.warning("symbolic link skipped: " + file.getName());
             return;
         }
@@ -127,15 +126,6 @@ public final class CacheInventory {
     private static boolean matchesAnySuffix(String name, Set<String> suffixes) {
         for (String suffix : suffixes) if (name.endsWith(suffix)) return true;
         return false;
-    }
-
-    private static boolean isSymbolicLink(File file) {
-        try {
-            File canonical = file.getCanonicalFile();
-            return !canonical.equals(file) && !canonical.equals(file.getAbsoluteFile());
-        } catch (IOException e) {
-            return true;
-        }
     }
 
     private static long cacheQuotaBytes(Context context) {

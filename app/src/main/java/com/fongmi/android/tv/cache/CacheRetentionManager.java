@@ -75,7 +75,7 @@ public final class CacheRetentionManager {
     static boolean isInside(String rootKey, File file) {
         if (file == null) return false;
         try {
-            if (isSymbolicLink(file)) return false;
+            if (CachePathSafety.isSymbolicLink(file)) return false;
             String key = file.getCanonicalPath();
             return key.startsWith(rootKey + File.separator);
         } catch (java.io.IOException ignored) {
@@ -93,7 +93,7 @@ public final class CacheRetentionManager {
 
     private static void collect(File file, List<File> output, Set<String> excludedNames) {
         if (file == null || excludedNames.contains(file.getName())) return;
-        if (isSymbolicLink(file)) return;
+        if (CachePathSafety.isSymbolicLink(file)) return;
         if (file.isFile()) {
             output.add(file);
             return;
@@ -113,12 +113,4 @@ public final class CacheRetentionManager {
         return first > Long.MAX_VALUE - second ? Long.MAX_VALUE : first + second;
     }
 
-    private static boolean isSymbolicLink(File file) {
-        try {
-            File canonical = file.getCanonicalFile();
-            return !canonical.equals(file) && !canonical.equals(file.getAbsoluteFile());
-        } catch (java.io.IOException ignored) {
-            return true;
-        }
-    }
 }
