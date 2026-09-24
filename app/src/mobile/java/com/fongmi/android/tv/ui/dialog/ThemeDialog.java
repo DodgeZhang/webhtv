@@ -28,6 +28,7 @@ import com.fongmi.android.tv.theme.ThemeProfile;
 import com.fongmi.android.tv.theme.ThemeProfileStore;
 import com.fongmi.android.tv.theme.ThemeResolver;
 import com.fongmi.android.tv.theme.ThemeTokens;
+import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
 
 /**
  * B-safe theme editor: 13 colour slots, 3 opacity slots, light/dark switching,
@@ -99,7 +100,7 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
 
         rebuildPanel();
 
-        return new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+        return new WebHtvAlertDialogBuilder(requireContext())
                 .setTitle(R.string.setting_theme_color)
                 .setView(root)
                 .setPositiveButton(R.string.theme_editor_apply, (dialog, which) -> applyDraft())

@@ -222,6 +222,15 @@ public class ThemeBinderContractTest {
     @Test
     public void materialAlertDialogsAreBuiltThroughTheThemedBuilder() throws Exception {
         Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
+        // CrashActivity is deliberately exempt: the recovery screen runs in its own
+        // process with Theme.Crash and must render identically no matter what palette
+        // the user saved, so it must not depend on the theme contract at all.
+        Set<String> exempt = Set.of("CrashActivity.java");
+        // Matches `new AlertDialog.Builder(`, `new android.app.AlertDialog.Builder(` and
+        // `new androidx.appcompat.app.AlertDialog.Builder(` alike, but never the themed
+        // `new WebHtvAlertDialogBuilder(`.
+        java.util.regex.Pattern forbidden = java.util.regex.Pattern.compile(
+                "new\\s+(?:[A-Za-z_][\\w.]*\\.)?AlertDialog\\.Builder\\(");
         java.util.List<String> raw = new java.util.ArrayList<>();
         for (String sourceSet : new String[]{"main", "mobile", "leanback"}) {
             Path base = root.resolve("src/" + sourceSet);
@@ -229,8 +238,13 @@ public class ThemeBinderContractTest {
             try (java.util.stream.Stream<Path> paths = Files.walk(base)) {
                 for (Path path : paths.filter(p -> p.toString().endsWith(".java")).toList()) {
                     if (path.toString().contains("graphify-out")) continue;
-                    if (Files.readString(path, StandardCharsets.UTF_8).contains("new MaterialAlertDialogBuilder(")) {
-                        raw.add(sourceSet + "/" + path.getFileName());
+                    if (exempt.contains(path.getFileName().toString())) continue;
+                    String text = Files.readString(path, StandardCharsets.UTF_8);
+                    if (text.contains("new MaterialAlertDialogBuilder(")) {
+                        raw.add(sourceSet + "/" + path.getFileName() + " -> MaterialAlertDialogBuilder");
+                    }
+                    if (forbidden.matcher(text).find()) {
+                        raw.add(sourceSet + "/" + path.getFileName() + " -> AlertDialog.Builder");
                     }
                 }
             }

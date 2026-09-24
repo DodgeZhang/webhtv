@@ -110,7 +110,7 @@ public final class ThemeColorPickerDialog {
         });
 
         syncFromHsv.run();
-        AlertDialog dialog = new AlertDialog.Builder(context)
+        AlertDialog dialog = new WebHtvAlertDialogBuilder(context)
                 .setTitle(title)
                 .setView(root)
                 .setPositiveButton(R.string.theme_editor_confirm, null)
