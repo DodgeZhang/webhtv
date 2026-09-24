@@ -3,6 +3,7 @@ package com.fongmi.android.tv.theme;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.InsetDrawable;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.View;
@@ -14,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.shape.MaterialShapeDrawable;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -239,12 +241,38 @@ public final class ThemeBinder {
     }
 
     private static boolean bindBackground(View view, ThemeRole explicit, ThemeColorIndex index, ThemeTokens active) {
-        Drawable background = view.getBackground();
-        if (!(background instanceof GradientDrawable shape)) return false;
-        ColorStateList color = rewrite(shape.getColor(), explicit, index, active);
-        if (color == null) return false;
-        shape.setColor(color);
-        return true;
+        return bindDrawable(view.getBackground(), explicit, index, active);
+    }
+
+    /**
+     * Rewrites the solid fill of a background drawable, unwrapping the transparent
+     * wrappers Android and Material put around real panels.
+     *
+     * <p>Two families are covered by the same exact-match rule as everything else:
+     * {@link GradientDrawable} (classic XML shapes) and
+     * {@link MaterialShapeDrawable} (Chip, text-input box, bottom sheet and the
+     * AlertDialog panel). Material's alert background is additionally wrapped in an
+     * {@link InsetDrawable} carrying the window insets, so wrappers are unwrapped
+     * recursively instead of being treated as an unknown drawable.
+     */
+    private static boolean bindDrawable(Drawable drawable, ThemeRole explicit, ThemeColorIndex index, ThemeTokens active) {
+        if (drawable == null) return false;
+        if (drawable instanceof InsetDrawable inset) {
+            return bindDrawable(inset.getDrawable(), explicit, index, active);
+        }
+        if (drawable instanceof GradientDrawable shape) {
+            ColorStateList color = rewrite(shape.getColor(), explicit, index, active);
+            if (color == null) return false;
+            shape.setColor(color);
+            return true;
+        }
+        if (drawable instanceof MaterialShapeDrawable shape) {
+            ColorStateList color = rewrite(shape.getFillColor(), explicit, index, active);
+            if (color == null) return false;
+            shape.setFillColor(color);
+            return true;
+        }
+        return false;
     }
 
     /**

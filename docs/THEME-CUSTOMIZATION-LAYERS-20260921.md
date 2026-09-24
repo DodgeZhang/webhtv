@@ -12,7 +12,7 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15）。**剩余直接 AlertDialog 调用点、`MaterialShapeDrawable` 面板通道与 4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16）。**剩余半透明填充匹配策略、直接 AlertDialog 调用点与 4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
 - 下一步唯一动作：为剩余直接 `MaterialAlertDialogBuilder(...).show()` 调用点建立统一收口（共享 helper + 源码守门，避免逐文件散改），并让 binder 覆盖 `MaterialShapeDrawable`（对话框面板/window 背景）；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
@@ -705,11 +705,12 @@ Layer 2 DoD：
 - 顺带修复：`LightDialog` 标题原为硬编码 `Color.parseColor("#202124")`，永远不参与主题；改为 `ThemeController.current().colorOnSurface()`。五个 dialog 按钮色 selector（`dialog_primary_button_bg`/`_text`、`dialog_outlined_button_bg`/`_text`/`_stroke`）经核对已全部指向 `@color/webhtv_color_*`，因此 binder 的精确匹配 + 状态列表重建可以直接作用。
 - 新增测试：`ThemeBinderContractTest#alertDialogFamiliesBindThroughTheSharedDialogChannel` 锁定两个 LightDialog 收口点、禁止标题硬编码 hex、要求 `BaseAlertDialog` 绑定且不碰 `setOnShowListener`，并逐项校验五个按钮 selector 仍走 webhtv token。
 - 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL；`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 通过（`LightDialog`/`BaseAlertDialog` 为共享主模块代码，必须双 flavor 编译）。
-- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装）：以 `HomeActivityCurrent --ei nav_position 1` 进入原生设置弹窗（`ConfigDialog extends BaseAlertDialog`），三组对照各等待 30s 冷启动完成：
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装）：以 `HomeActivityCurrent --ei nav_position 1` 冷启动三组对照（各 30s）：
   - 噪声基线：default-vs-default 仅 320 个变化像素（壁纸/星点动画）。
   - teal seed：9545 个变化像素；槽位探针（`onSurface=#FFFFFF`、`surfaceContainerHigh=#000000`）：22498 个变化像素。
-  - 角色精确相关：default 截图中 7870 个 `#181A1C`（设置弹窗正文 `?attr/colorOnSurface` 渲染值）像素，在探针下全部变为 `#ECECEC`。设置弹窗文字现已真正跟随 token，而修复前该页面为 0 改写。
+  - 角色精确相关：default 截图中 7870 个 `#181A1C`（`?attr/colorOnSurface` 渲染值）像素在探针下变为 `#ECECEC`。
   - 测试结束已把设备 `theme_color`/profile 恢复到进入测试前的原值。
+- **更正（2026-09-24）**：上述设备对照测得的页面经复看截图确认是 `HomeActivityCurrent` 的**设置内容页**，不是 `ConfigDialog`/`LinkDialog` 等对话框窗口。该页本来就继承 `BaseActivity`，所以这组像素变化**不能**作为“弹窗绑定已生效”的证据；它只证明了 Activity 树绑定。4.14 的代码改动本身仍由源码契约测试覆盖，但其真实设备可见性由 4.16 节重新取到（`LinkDialog` 面板与文字）。此处保留原文并更正结论，避免后续引用错误归因。
 - 覆盖变化：设置类弹窗（`BaseAlertDialog` 的 59 个子类）与共享 `LightDialog` 路径现已纳入主题色彩作用范围。
 - 仍未覆盖：直接 `new MaterialAlertDialogBuilder(...).show()` 而不经 `LightDialog.apply` 的调用点；`AlertDialog` 的 window 级背景（`MaterialAlertDialog.WebHTV.Rounded` 的 `backgroundTint` 走 window background，binder 只改写 view 树）；`FollowingActivity` 不继承 `BaseActivity`；`StateListDrawable`/`RippleDrawable`/`ShapeDrawable` 背景与远程 Web 主题页面。
 - 回滚锚点：回退本任务即恢复“弹窗不参与主题”的行为，仅影响闭包 3 个文件，不涉及 profile 数据格式或偏好键。
@@ -733,6 +734,24 @@ Layer 2 DoD：
 - 覆盖变化：`FollowingActivity` 整页现已纳入主题色彩作用范围；`BaseActivity` 之外的 Activity 从“无声明的隐式缺口”变为“有测试守门的显式豁免清单”。
 - 仍未覆盖：绕过 `LightDialog.apply` 直接 `new MaterialAlertDialogBuilder(...).show()` 的调用点（`app/src/main` 约 54 个文件的 189 处，另 mobile 84 处、leanback 83 处，尚未一次性收口）；`AlertDialog` 的 window 级背景（`MaterialAlertDialog.WebHTV.Rounded` 的 `backgroundTint`）与 `MaterialShapeDrawable` 填充不在 binder 的 `GradientDrawable` 通道内；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面。
 - 回滚锚点：回退本任务即恢复追更页不参与主题的行为，仅影响 1 个代码文件，不涉及 profile 数据格式或偏好键。
+
+---
+
+### 4.16 背景通道覆盖 Material 形状面板（2026-09-24）
+
+- 任务：`THEME-SHAPE-BACKGROUND-20260924`。关闭 4.14/4.15 节记录的 `MaterialShapeDrawable` 盲区，并顺带取到 4.14 弹窗绑定缺失的真实设备证据。
+- 根因：`ThemeBinder.bindBackground` 只接受 `GradientDrawable`，而 Material 的面板填充走 `MaterialShapeDrawable.getFillColor()`；对话框窗口背景还被包在承载 inset 的 `InsetDrawable` 里。因此**已绑定**的窗口仍然无法改变面板颜色——文字变了、面板不变。
+- 修复：`bindBackground` 抽出为递归的 `bindDrawable(...)`——`InsetDrawable` 解包后继续递归，`MaterialShapeDrawable` 走 `getFillColor()`/`setFillColor()`，`GradientDrawable` 保持原 `getColor()`/`setColor()`。三种通道共用同一条“候选色必须精确等于基线语义角色色”的安全判定，无 profile/seed 时 binder 依旧整体 no-op；不引入反射或隐藏 API（测试同时钉住 `setAccessible`/`getDeclaredField` 不出现）。
+- 新增测试：`ThemeBinderContractTest#backgroundChannelCoversMaterialShapeAndInsetWrappers`。
+- 自动化证据：mobile `--tests 'com.fongmi.android.tv.theme.*'` BUILD SUCCESSFUL。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装）：设置页点击「点播」行打开 `LinkDialog extends BaseAlertDialog`，default 与紫色探针（`surface/surfaceContainer/surfaceContainerHigh = #7B1FA2`、前景改白）各冷启动 32s + 点击：
+  - 变化 **277730** 像素，其中 **245581** 像素恰好落在探针值 `#7B1FA2`——对话框**整块面板**变色。
+  - 另有 7870 像素变为 `#ADADAD`、4145 像素变为 `#FFFFFF`——对话框标题/正文/按钮文字变色。
+  - 该对话框是独立 window，不在 Activity 内容树内，因此文字变色可归因于 4.14 的 `BaseAlertDialog → bindDialog` 接入；面板变色可归因于本节的 `MaterialShapeDrawable` 通道（此前 `bindBackground` 会直接跳过）。两者共同构成 4.14+4.16 的设备证据。
+  - 面板未改 `primary` 时「确定」按钮仍为基线蓝色，符合预期。
+- 覆盖变化：弹出框面板、`TextInputLayout` 实心输入框底（`app:boxBackgroundColor="?attr/colorSurfaceContainerHighest"`，38 个布局）与 Chip 底（8 个布局）等 Material 形状填充现已纳入作用范围。
+- **仍未覆盖**：仅对“精确等于基线角色色”的填充生效，因此**半透明**面板（例如设置页行背景，渲染值是 token 的 alpha 变体）仍被安全规则跳过；要覆盖它们需要先决定“按 RGB 匹配并保留视图自身 alpha”这一更大的设计变更。另有绕过 `LightDialog.apply` 的直接 `MaterialAlertDialogBuilder(...).show()` 调用点、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面。
+- 回滚锚点：回退本任务即恢复“面板不参与主题”的行为，仅影响 1 个代码文件，不涉及 profile 数据格式或偏好键。
 
 ---
 

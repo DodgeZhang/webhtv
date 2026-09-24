@@ -143,6 +143,19 @@ public class ThemeBinderContractTest {
     }
 
     @Test
+    public void backgroundChannelCoversMaterialShapeAndInsetWrappers() throws Exception {
+        String source = read("src/main/java/com/fongmi/android/tv/theme/ThemeBinder.java");
+        assertTrue("must unwrap Material's inset window background", source.contains("instanceof InsetDrawable inset"));
+        assertTrue("must reopen the wrapped drawable", source.contains("bindDrawable(inset.getDrawable()"));
+        assertTrue("must cover Material shape panels", source.contains("instanceof MaterialShapeDrawable shape"));
+        assertTrue(source.contains("shape.getFillColor()"));
+        assertTrue(source.contains("shape.setFillColor(color)"));
+        // Still no reflection or hidden API on the widening path.
+        assertFalse(source.contains("setAccessible"));
+        assertFalse(source.contains("getDeclaredField"));
+    }
+
+    @Test
     public void followingPageOptsIntoTheSharedAppearanceContract() throws Exception {
         String source = read("src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
         int apply = source.indexOf("ThemeController.applyFromPreferences(this);");
