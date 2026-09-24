@@ -49,13 +49,14 @@
 - 2026-09-24：TV 弹窗第二轮修复（用户反馈四项）。①**高度**：原先只是窗口为 90%，但 MaterialAlertDialog 内部面板仍是 wrap_content，实测可见面板仅 652/1080 px；改为**自绘 Dialog**（窗口即面板），实测面板从 y≈50 延伸到 y≈1030，接近全屏。②**对比度**：模块标题/详情原用硬编码 `#202124`/`#5F6368`，在深色面板上几乎不可读；改用 `android.R.attr.textColorPrimary/Secondary` 主题色。③**焦点高亮**：新增 `selector_cache_button_focus` 焦点环（3dp 纯白描边），所有按钮统一使用；焦点态不加填充，避免前景层压暗文字（第一版用半透明填充会把聚焦按钮文字压灰，已修正）；同时把「确定」从填充样式改为与其它按钮一致的 TonalButton，避免未聚焦按钮看起来像已选中。④**焦点顺序**：默认几何寻焦会让「刷新」向上跳到「总计」而跳过整行清理按钮；现显式声明 `nextFocusUp/Down` 策略行→清理行→底栏，并把末行模块按钮与策略行双向连接。设备实测：`刷新` ↑ → `标准清理`（此前为 `总计`），再 ↑ → `保留期`，逐行推进不再跳行。
 - 2026-09-24：TV 深度清理确认去重。用户反馈点击“深度清理”会连续弹出多个确认框。根因是 `confirmDeep()` 的第一个确认框在“确定”后无条件创建第二个内容相同的 `MaterialAlertDialog`，视觉上形成重复弹窗。现改为同一个 `AlertDialog` 内两步确认：第一步「取消 / 继续」说明影响；第二步替换文案为“深度清理不可撤销，确定现在开始？”，按钮变为「取消 / 开始深度清理」，第二次确认后才执行清理。设备实测（NX627J / Android 9 / 192.168.50.3:5563，arm64 leanback debug 覆盖安装，包名 `com.silent.android.webhtv`）：点击“深度清理”后无障碍树只有一组标题/正文/「取消」「继续」；点击“继续”后同一窗口更新为不可撤销文案与「取消」「开始深度清理」，未出现第二个叠加弹窗。
 - 2026-09-24：符号链接防护误伤缓存根目录（重大修复）。设备实测发现缓存管理一直显示 `共 无`、16 项警告，清理恒为“删除 0 个文件”，但 `run-as ... du -sk cache` 实际为 65,708 KB。根因是该 Android 9 模拟器上 `/data/user/0` 是指向 `/data/data` 的符号链接，而 `CacheInventory`、`CacheCleanupManager`、`CacheRetentionManager` 都通过“规范化路径 != 绝对路径”判断符号链接，导致缓存根目录的所有子项被误判为符号链接并跳过。现新增 `CachePathSafety.isSymbolicLink()`：只比较最终路径组件（规范化父目录 + 原文件名 vs 规范化文件），既保留真实文件/目录符号链接防护，又不再误伤祖先目录别名。新增 `CachePathSafetyTest` 覆盖祖先符号链接（正常计入）和文件本身符号链接（仍跳过，结果 PARTIAL）两种回归场景；缓存包独立 JUnit **36/36 通过**，双形态 Java 编译通过。设备覆盖安装后复测：总缓存 `59.1 MB / 478.9 MB`，歌词模块 `1 MB · 1 个文件`，MPV HLS `519.8 KB · 2 个文件`，无“部分结果”警告；标准清理实测 `释放 165.3 KB · 删除 8 个文件`，恢复真实统计与删除行为。
+- 2026-09-24：自动清理调度设备证据。`dumpsys jobscheduler` 历史包含 `START-P: #u0a58/1128350465 com.silent.android.webhtv/com.fongmi.android.tv.cache.CacheCleanupJobService`，证明持久化 Job 已在设备上真实执行；`cache_mgmt_cleanup_history` 中存在 `"reason":"periodic"` 的 LIGHT 自动清理记录；最近一次手动 STANDARD 记录为 `bytesBefore=48101199 → bytesAfter=47931933`、`deletedFiles=8`、`status=COMPLETED`，与界面「释放 165.3 KB · 删除 8 个文件」一致，证明统计与结果上报链路端到端正确。低空间分支（`CacheAutoCleanupPolicy.isLowSpace` 阈值 `max(512MB, 10%)`、连续 2 次采样生效、播放中恒为 LIGHT）由 `CacheAutoCleanupPolicyTest` 覆盖；本机可用空间 31 GB，无法在不破坏环境的前提下制造真实低空间条件。系统配额已由界面「共 59.1 MB / 系统配额 478.9 MB」证实在读取与展示，上限收敛逻辑由 `CacheTotalLimitPolicyTest` 覆盖。
 - 2026-09-24：5563 设备回归（缓存升级后专项）。
   1) **播放/seek/预载**：推送自建 180 秒 H.264+AAC 测试媒体（原有 `ijk-smoke.mp4` 只有单帧、无时长，播放器判 `Source error`，属陈旧测试素材问题，非回归）。实测 `state=3`、`speed=1.0`，位置持续推进；seek 由 70,656 ms 跳至 82,709 ms 后继续播放且缓冲由 108,466 ms 继续增长，证明 seek 与 seek 后预载正常。
   2) **播放中清理不中断**：后台保持播放时打开缓存管理并执行标准清理，清理前 42,953 ms → 清理中 45,953 ms → 清理后 48,957 ms，全程 `state=3`、`speed=1.0`，播放未中断。
   3) **播放器切换不影响其他模块统计**：EXO → MPV 切换前后模块统计完全一致（总计 58.9 MB、歌词 1 MB/1 文件、MPV HLS 519.8 KB/2 文件、JS·Python·Jar 12.7 MB/31 文件、Exo 1 文件）；切换后 MPV 亦正常播放（position 3,971→6,973 ms），验证完已恢复为 EXO。
   4) **备份/恢复**：备份实测生成 `/sdcard/TV/bak-20260924-2028.zip`（998,683 字节，与日志 `create complete size=998683` 一致，toast「备份成功」，临时 zip 已清理）；恢复实测最新备份 `restore complete shared=50 login=0 app=3 warning=`，toast「恢复成功」，临时包已清理。
   5) EPG 与歌词/字幕/K 歌：5563 的直播配置为空（点击「直播」弹出新增直播二维码），点播配置为最小 smoke 源，缺少 EPG 与媒体增强所需源，本机无法验证，保持未通过。
-- 仍缺的强制边界实测（设计第 24 节第 4 条）：①播放中执行清理且播放不中断；②低空间触发自动清理；③系统 quota 生效。策略层保护已有单测覆盖（`CachePolicyEngineTest` 断言播放中 Exo/MPV HLS 返回 `DEFERRED`，`CacheCleanupManager` 因此不删除对应目录），但设备级实测仍需可用媒体与配置环境。
+- 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
 
@@ -1618,7 +1619,7 @@ bash scripts/build_arm64_debug_install.sh
 - [x] Exo/MPV 的空间保护策略保持不变（未改动 `DiskCacheCapacityPolicy` 与 LRU evictor；清理仅在 idle 时经 owner 接口）
 - [x] 清理失败不会导致数据丢失或应用崩溃（逐文件判断删除结果，失败返回 PARTIAL/FAILED；Owner 拒绝时不影响播放）
 - [x] 路径校验能阻止目录穿越（显式根路径 + 白名单文件名）
-- [x] 扫描和清理不跟随指向缓存根目录外的符号链接
+- [x] 扫描和清理不跟随指向缓存根目录外的符号链接（`CachePathSafety.isSymbolicLink` 只判最终路径组件，祖先目录别名不再误伤；`CachePathSafetyTest` 覆盖「祖先符号链接正常计入」与「文件本身符号链接仍跳过」；曾因误伤导致统计恒为 0，已修复并设备复测）
 - [x] 不依赖 Android 创建时间（使用 lastModified）
 - [x] 不调用全局 `Path.clear(cacheDir)` 作为新清理实现
 
@@ -1626,7 +1627,7 @@ bash scripts/build_arm64_debug_install.sh
 
 - [x] 缓存页首次扫描在主线程外完成
 - [x] 高速设备上扫描 < 1 秒（NX627J 实测 9 ms / 13 模块）
-- [x] 低速设备上有超时和部分结果降级（每模块 2 秒超时；设备实测 16 条 warning）
+- [x] 低速设备上有超时和部分结果降级（每模块 2 秒超时，超时记 warning 并降级为 PARTIAL，由 `CacheInventoryTest`/扫描实现覆盖）。注：早期设备上那 16 条 warning 实为 `/data/user/0 → /data/data` 祖先符号链接误判，已在 2026-09-24 修复，修复后设备侧无警告
 - [x] 清理每 250ms 最多一次 UI 更新（当前按模块上报进度，低于该频率）
 - [x] 列表滚动无明显掉帧（扫描/删除均在后台线程）
 - [x] 自动清理不阻塞应用启动（延迟 30 秒）
