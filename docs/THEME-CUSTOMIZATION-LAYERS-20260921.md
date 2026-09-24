@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14）。**剩余直接 AlertDialog 调用点、FollowingActivity 与 4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15）。**剩余直接 AlertDialog 调用点、`MaterialShapeDrawable` 面板通道与 4.7 节完整设备矩阵仍未完成**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：排查剩余直接 `MaterialAlertDialogBuilder(...).show()` 调用点与 `FollowingActivity`，再回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵；在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
+- 下一步唯一动作：为剩余直接 `MaterialAlertDialogBuilder(...).show()` 调用点建立统一收口（共享 helper + 源码守门，避免逐文件散改），并让 binder 覆盖 `MaterialShapeDrawable`（对话框面板/window 背景）；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
 ---
 
@@ -713,6 +713,26 @@ Layer 2 DoD：
 - 覆盖变化：设置类弹窗（`BaseAlertDialog` 的 59 个子类）与共享 `LightDialog` 路径现已纳入主题色彩作用范围。
 - 仍未覆盖：直接 `new MaterialAlertDialogBuilder(...).show()` 而不经 `LightDialog.apply` 的调用点；`AlertDialog` 的 window 级背景（`MaterialAlertDialog.WebHTV.Rounded` 的 `backgroundTint` 走 window background，binder 只改写 view 树）；`FollowingActivity` 不继承 `BaseActivity`；`StateListDrawable`/`RippleDrawable`/`ShapeDrawable` 背景与远程 Web 主题页面。
 - 回滚锚点：回退本任务即恢复“弹窗不参与主题”的行为，仅影响闭包 3 个文件，不涉及 profile 数据格式或偏好键。
+
+---
+
+### 4.15 追更页接入主题契约（2026-09-24）
+
+- 任务：`THEME-FOLLOWING-BIND-20260924`。关闭 4.13/4.14 节记录的最后一块**整页**覆盖缺口。
+- 根因：`FollowingActivity` 直接继承 `AppCompatActivity` 并自带 `setTheme(R.style.Theme_App)`，虽然它确实使用 WebHTV 主题（`Theme.App → Theme.Base → Theme.WebHTV.Mobile`），但从不调用 `ThemeController.applyFromPreferences()`/`bindTheme()`，因此整棵视图树落在绑定范围之外；这也是 4.13 节设备排查中该页三组对照“零变化”的原因。
+- 修复：按 `BaseActivity` 的既有契约手工接入三处调用——`super.onCreate()` 之后、首个 `setContentView()` 之前解析快照；`setContentView()` 之后绑定一次；`initView()` 之后再绑定一次。`addWallpaper()` 插入的 `CustomWallView` 是内容根的兄弟节点且命中 binder 的 `wall` 豁免标记，不受影响。
+- 新增测试：
+  - `ThemeBinderContractTest#followingPageOptsIntoTheSharedAppearanceContract`：按顺序断言三处调用（含“必须在首个内容视图之前解析”“必须在 `initView()` 之后二次绑定”）。
+  - `ThemeBinderContractTest#nativeActivitiesOutsideBaseActivityAreExplicitlyAccountedFor`：遍历 `src/main/java/com/fongmi/android/tv`，任何直接继承 `AppCompatActivity` 且不调用 `bindTheme(` 的 Activity 都会失败，除非在显式豁免清单里（当前为 4 个 Lab 调试活动 + `CatWebActivity`/`GameWebActivity`/`WebReaderActivity` 三个 Web 宿主）。这样新页面无法再静默脱离主题。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装；用**橙色预设** `#FB8C00` 对照默认 profile 采集追更页）：
+  - 默认下 **14735** 个基线 `#0B57D0`（`?attr/colorPrimary`）像素，在橙色预设下**全部**离开基线值，落在 `#88511D`（同色系 14647 px，其余为抗锯齿过渡色）。
+  - `显示全部` 按钮由基线 `#DFE2E6`（`colorSecondaryContainer`）变为 `#FFDCC2`；`检查更新` 按钮同步变化；`取消追更` 保持 `#552422` 不变——符合预期，因为 `error` 不参与 seed 派生。
+  - 两次冷启动均 `FATAL EXCEPTION = 0`。
+  - 实验后设备偏好已按字节校验恢复为进入测试前原值。
+- 覆盖变化：`FollowingActivity` 整页现已纳入主题色彩作用范围；`BaseActivity` 之外的 Activity 从“无声明的隐式缺口”变为“有测试守门的显式豁免清单”。
+- 仍未覆盖：绕过 `LightDialog.apply` 直接 `new MaterialAlertDialogBuilder(...).show()` 的调用点（`app/src/main` 约 54 个文件的 189 处，另 mobile 84 处、leanback 83 处，尚未一次性收口）；`AlertDialog` 的 window 级背景（`MaterialAlertDialog.WebHTV.Rounded` 的 `backgroundTint`）与 `MaterialShapeDrawable` 填充不在 binder 的 `GradientDrawable` 通道内；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面。
+- 回滚锚点：回退本任务即恢复追更页不参与主题的行为，仅影响 1 个代码文件，不涉及 profile 数据格式或偏好键。
 
 ---
 

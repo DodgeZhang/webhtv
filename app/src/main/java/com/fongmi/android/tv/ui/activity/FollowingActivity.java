@@ -40,6 +40,7 @@ import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.following.FollowingUpdateCoordinator;
 import com.fongmi.android.tv.following.FollowingUpdatePolicy;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.ui.adapter.FollowingAdapter;
 import com.fongmi.android.tv.ui.custom.CustomWallView;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
@@ -110,6 +111,10 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         setTheme(R.style.Theme_App);
         super.onCreate(savedInstanceState);
+        // This page predates the shared BaseActivity, so it must opt into the same
+        // appearance contract by hand: resolve the persisted tokens before the first
+        // content view, then bind the tree once it exists and again after initView().
+        ThemeController.applyFromPreferences(this);
         if (!FollowingSettings.isEnabled()) {
             Notify.show(R.string.following_enabled_hint);
             finish();
@@ -117,11 +122,13 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         }
         binding = ActivityFollowingBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        ThemeController.bindTheme(binding.getRoot());
         addWallpaper();
         focusIdentity = getIntent().getStringExtra(EXTRA_IDENTITY_KEY);
         FollowingNotifier.createChannel();
         FollowingScheduler.ensurePeriodic(this);
         initView();
+        ThemeController.bindTheme(binding.getRoot());
         FollowingScheduler.enqueueDueNow(this);
     }
 

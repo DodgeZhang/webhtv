@@ -143,6 +143,43 @@ public class ThemeBinderContractTest {
     }
 
     @Test
+    public void followingPageOptsIntoTheSharedAppearanceContract() throws Exception {
+        String source = read("src/main/java/com/fongmi/android/tv/ui/activity/FollowingActivity.java");
+        int apply = source.indexOf("ThemeController.applyFromPreferences(this);");
+        int setContent = source.indexOf("setContentView(binding.getRoot());");
+        int first = source.indexOf("ThemeController.bindTheme(binding.getRoot());");
+        int initView = source.indexOf("initView();");
+        int second = source.indexOf("ThemeController.bindTheme(binding.getRoot());", first + 1);
+        assertTrue("must resolve tokens before the first content view", apply > 0 && apply < setContent);
+        assertTrue("must bind right after setContentView", first > setContent);
+        assertTrue("must re-bind after initView", second > first && initView > first && second > initView);
+    }
+
+    /**
+     * Every Activity that hosts native views must participate in the theme contract.
+     * Activities outside BaseActivity are the exception and are pinned here so a new
+     * one cannot silently ship with a statically coloured tree.
+     */
+    @Test
+    public void nativeActivitiesOutsideBaseActivityAreExplicitlyAccountedFor() throws Exception {
+        Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
+        Set<String> exempt = Set.of(
+                "LabActivity", "LabDetailActivity", "LabOutputActivity", "LabTerminalActivity",
+                "CatWebActivity", "GameWebActivity", "WebReaderActivity");
+        java.util.List<String> unbound = new java.util.ArrayList<>();
+        try (java.util.stream.Stream<Path> paths = Files.walk(root.resolve("src/main/java/com/fongmi/android/tv"))) {
+            for (Path path : paths.filter(p -> p.toString().endsWith(".java")).toList()) {
+                String source = Files.readString(path, StandardCharsets.UTF_8);
+                if (!source.contains("extends AppCompatActivity")) continue;
+                String name = path.getFileName().toString().replace(".java", "");
+                if (exempt.contains(name)) continue;
+                if (!source.contains("ThemeController.bindTheme(")) unbound.add(name);
+            }
+        }
+        assertTrue("these activities host native views but never bind the theme: " + unbound, unbound.isEmpty());
+    }
+
+    @Test
     public void binderRewritesTheMaterialButtonAndBackgroundTintChannels() throws Exception {
         String source = read("src/main/java/com/fongmi/android/tv/theme/ThemeBinder.java");
         assertTrue(source.contains("instanceof MaterialButton button"));
