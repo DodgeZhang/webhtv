@@ -69,6 +69,32 @@ public class ThemeBaseWiringTest {
         assertTrue(body.contains("<item name=\"android:windowBackground\">?attr/colorSurface</item>"));
     }
 
+    /**
+     * Material points the framework text attributes at its own
+     * {@code m3_sys_color_*} palette, so a widget built from the Activity context keeps
+     * Material's colours and ThemeBinder cannot rewrite them (measured on device:
+     * Material's {@code on_surface_variant} {@code #49454F} survived a custom theme).
+     * The activity theme must therefore map the framework text roles onto our tokens.
+     */
+    @Test
+    public void activityThemeMapsFrameworkTextRolesToWebhtvTokens() throws Exception {
+        String theme = read("src/main/res/values/webhtv_styles.xml");
+        String body = styleBody(theme, "Theme.WebHTV");
+        for (String role : new String[]{
+                "android:textColorPrimary", "android:textColorSecondary",
+                "android:textColorTertiary", "android:textColorHint"}) {
+            assertTrue(role + " must resolve through a webhtv selector",
+                    body.contains("<item name=\"" + role + "\">@color/webhtv_text_"));
+        }
+        String primary = read("src/main/res/color/webhtv_text_primary.xml");
+        String secondary = read("src/main/res/color/webhtv_text_secondary.xml");
+        assertTrue(primary.contains("@color/webhtv_color_on_surface"));
+        assertTrue(secondary.contains("@color/webhtv_color_on_surface_variant"));
+        // Disabled emphasis must survive, otherwise disabled widgets no longer dim.
+        assertTrue(primary.contains("android:state_enabled=\"false\""));
+        assertTrue(secondary.contains("android:state_enabled=\"false\""));
+    }
+
     @Test
     public void dialogsReuseTheSameSemanticRoles() throws Exception {
         String theme = read("src/main/res/values/webhtv_styles.xml");

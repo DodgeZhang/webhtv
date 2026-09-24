@@ -37,6 +37,16 @@
         <item name="colorControlNormal">@color/webhtv_color_on_surface_variant</item>
         <item name="colorControlActivated">@color/webhtv_color_primary</item>
         <item name="colorOnBackground">@color/webhtv_color_on_surface</item>
+        <!--
+            Framework-level text roles. Material hard-references its own
+            m3_sys_color_* palette here, so without these mappings any widget built
+            from the Activity context (new TextView/Button/EditText) stays on
+            Material's colours and is invisible to ThemeBinder.
+        -->
+        <item name="android:textColorPrimary">@color/webhtv_text_primary</item>
+        <item name="android:textColorSecondary">@color/webhtv_text_secondary</item>
+        <item name="android:textColorTertiary">@color/webhtv_text_secondary</item>
+        <item name="android:textColorHint">@color/webhtv_text_secondary</item>
         <item name="colorOnSurface_20">@color/webhtv_on_surface_20</item>
         <item name="colorOnSurface_70">@color/webhtv_on_surface_70</item>
         <item name="colorOnSurface_80">@color/webhtv_on_surface_80</item>

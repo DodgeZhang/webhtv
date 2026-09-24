@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。**当前剩余：主题编辑器之外可能存在的“程序化控件未显式设色”站点、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。框架文本角色已在主题层补齐（见 4.25），程序化控件不再是盲区。**当前剩余：半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：把 4.24 的守门测试从主题编辑器扩展到全部程序化控件构造点（扫描 `src/{main,mobile,leanback}` 里 `new TextView/Button/EditText/...` 是否在 Activity 主题缺 `android:textColorPrimary` 映射的前提下显式设色），消除同类盲区；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
+- 下一步唯一动作：处理半透明填充匹配策略（4.16 记录的设置页行背景属中性遮罩 `black@15%`，按现有安全规则被跳过；需先裁定“按 RGB 匹配并保留视图自身 alpha”是否为可接受的放宽）；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
 ---
 
@@ -901,6 +901,29 @@ Layer 2 DoD：
   - 预设 chip、动作按钮文字（4.23 已修）保持可读；测试结束设备偏好按字节校验恢复。
 - 仍未覆盖：其它可能存在的“平台控件未设色”站点（本次守门测试只覆盖主题编辑器相关的 3 个文件）；半透明填充匹配策略；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面；4.7 节完整设备矩阵。
 - 回滚锚点：回退本任务即恢复这些控件的框架默认色；不涉及 profile 数据格式、偏好键或资源。
+
+---
+
+### 4.25 主题层补齐框架文本角色（2026-09-24）
+
+- 任务：`THEME-TEXTCOLOR-MAPPING-20260924`。把 4.24 的“逐点设色”升级为**根治**，消除同类盲区。
+- 扩充普查：程序化文本控件构造点全仓库共 **110 处 / 41 文件**（main 78/33、mobile 15/4、leanback 17/4），其中 **21 处未显式设色**。逐点修补不可持续，必须从主题层解决。
+- 根因（一手资源取证）：Material 的 `Base.V14.Theme.Material3.Light` 把 `android:textColorPrimary` 指向 `@color/m3_default_color_primary_text`，而该 selector **硬引用** `@color/m3_sys_color_light_on_surface` / `_on_surface_variant`（实测分别为 `#1D1B20` / `#49454F`），**不跟随**主题的 `?attr/colorOnSurface*`。因此从 Activity 上下文创建的平台控件永远拿 Material 自己的调色板；又因为这些值不属于我们的基线角色索引，`ThemeBinder` 按“未知色不改写”正确跳过。`Theme.WebHTV` 此前只映射了 Material 的 `colorOnSurface*` attr，漏了框架的 `android:textColor*`（只有 `ThemeOverlay.WebHTV.Dialog` 映射了）。
+- 修复：
+  - 新增 `res/color/webhtv_text_primary.xml`（disabled → `on_surface` 38% alpha；默认 → `on_surface`）与 `webhtv_text_secondary.xml`（disabled → `on_surface` 38% alpha；默认 → `on_surface_variant`），保留 Material 原有的 disabled 变暗语义。
+  - `Theme.WebHTV` 增加 `android:textColorPrimary` / `Secondary` / `Tertiary` / `Hint` 四个映射指向上述 selector。因为用的是 `@color` token 引用，`values-night` 的暗色 token 自动生效，无需重复定义。
+- 双重收益（设备实测均验证）：
+  1. **归位**：这些控件不再使用 Material 调色板，而是本项目 token。
+  2. **可改写**：其颜色现在**精确等于基线语义角色**，因此进入 `ThemeColorIndex` 的匹配范围，主题切换时 binder 能改写它们——这是 4.24 逐点设色做不到的系统性修复。
+- 新增守门测试：`ThemeBaseWiringTest#activityThemeMapsFrameworkTextRolesToWebhtvTokens`（四个框架角色必须指向 `@color/webhtv_text_*`，selector 必须含 `on_surface`/`on_surface_variant` 与 disabled 分支）。
+- 过程记录：首次 `check_ui_tokens.sh --strict` **拦截了我的新增资源**（`violations=1`）——我在注释里写了十六进制字面量。移除后 `violations=0`。该脚本按仓库规则只允许受控 token 声明出现裸 hex，这次拦截是正确行为。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL；mobile + leanback **全量**单测 BUILD SUCCESSFUL、失败类 0；双 flavor `compileWithJavac` 通过；`check_ui_tokens.sh --strict` → `violations=0 legacy=0`、对比度 38 组 0 失败、`colors=56`（新增 2 个 selector）。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装）——同一坐标、同一探针的前后对比：
+  - **归位**：追更页「导入订阅」弹窗的 EditText hint 由 Material 默认的 `#50545C` 变为 **`#44474F`**，精确等于 `webhtv_color_on_surface_variant`。
+  - **可改写**：把 `onSurfaceVariant` 换成白色探针后，同一 hint 跟随变为 **`#FFFFFF`**（修复前该控件对任何主题变化都不响应）。
+  - 面板色默认/探针分别为 `#CFD8EB` / `#7B1FA2`，证明是同一布局的对照；测试结束设备偏好按字节校验恢复。
+- 仍未覆盖：半透明填充匹配策略；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面；4.7 节完整设备矩阵。4.24 遗留的按需逐点设色仍然保留（作为防御，不再是唯一手段）。
+- 回滚锚点：回退本任务即移除四个框架文本角色映射与两个 selector；不涉及 profile 数据格式、偏好键或布局。
 
 ---
 
