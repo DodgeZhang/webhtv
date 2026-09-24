@@ -714,6 +714,9 @@
     <string name="cache_cleanup_confirm_light">Remove expired EPG, temporary, and legacy cache data?</string>
     <string name="cache_cleanup_confirm_standard">Clean rebuildable modules such as images, lyrics, karaoke, and WebHome cache?\n\nFavorites, history, and settings are not affected.</string>
     <string name="cache_cleanup_confirm_deep">Clean playback and other deep cache data?\n\nActive playback is protected. Future playback may need to download and buffer again.</string>
+    <string name="cache_cleanup_confirm_deep_final">Deep cleanup cannot be undone. Continue now?</string>
+    <string name="cache_cleanup_continue">Continue</string>
+    <string name="cache_cleanup_deep_start">Start deep cleanup</string>
     <string name="cache_cleanup_progress">Cleaning %1$s (%2$d/%3$d)</string>
     <string name="cache_cleanup_done">Cleaned\nReleased %1$s · deleted %2$d files</string>
     <string name="cache_cleanup_partial">Partially completed\nReleased %1$s · deleted %2$d files · skipped %3$d files</string>

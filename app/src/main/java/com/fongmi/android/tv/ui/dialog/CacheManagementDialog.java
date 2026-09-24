@@ -9,10 +9,12 @@ import android.util.TypedValue;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.DialogFragment;
@@ -197,12 +199,26 @@ public class CacheManagementDialog extends DialogFragment {
     }
 
     private void confirmDeep() {
-        new MaterialAlertDialogBuilder(requireContext())
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(R.string.cache_cleanup_confirm_deep)
                 .setNegativeButton(R.string.dialog_negative, null)
-                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> confirm(CacheCleanupMode.DEEP))
-                .show();
+                .setPositiveButton(R.string.cache_cleanup_continue, null)
+                .create();
+        dialog.setOnShowListener(ignored -> {
+            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            positive.setOnClickListener(view -> {
+                // Keep the second confirmation in the same window. Creating a second alert here
+                // made one remote confirmation look like multiple stacked dialogs.
+                positive.setText(R.string.cache_cleanup_deep_start);
+                dialog.setMessage(getString(R.string.cache_cleanup_confirm_deep_final));
+                positive.setOnClickListener(confirmed -> {
+                    dialog.dismiss();
+                    startCleanup(CacheCleanupMode.DEEP);
+                });
+            });
+        });
+        dialog.show();
     }
 
     private void startCleanup(CacheCleanupMode mode) {
