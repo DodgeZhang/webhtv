@@ -565,7 +565,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
 
     @Override
     public void onDelete(Following item) {
-        new WebHtvAlertDialogBuilder(this, R.style.ThemeOverlay_WebHTV_FollowingConfirmDialog)
+        new WebHtvAlertDialogBuilder(this, R.style.Theme_WebHTV_Dialog)
                 .setTitle(R.string.following_delete_title)
                 .setMessage(R.string.following_delete_message)
                 .setNegativeButton(R.string.dialog_negative, null)

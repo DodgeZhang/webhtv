@@ -165,6 +165,63 @@ public class ThemeBinderContractTest {
      * <p>This scans the shared {@code main} source set. The mobile and leanback
      * flavour source sets are migrated as a separate stage and covered there.
      */
+    /**
+     * A {@code themeResId} handed to a dialog builder must resolve {@code colorPrimary}
+     * to something concrete. {@code MaterialAlertDialogBuilder} validates the dialog
+     * context through {@code ThemeEnforcement.checkAppCompatTheme}, which only checks
+     * that {@code ?attr/colorPrimary} exists - so an overlay whose *nearest* definition
+     * of the role is the self-reference {@code ?attr/colorPrimary} throws inside the
+     * constructor. That is exactly how "cancel following" crashed with
+     * {@code ThemeOverlay.WebHTV.FollowingConfirmDialog}.
+     *
+     * <p>Inheritance is honoured: {@code ThemeOverlay.WebHTV.Dialog.NoInset} defines no
+     * primary of its own and safely inherits the concrete token from
+     * {@code ThemeOverlay.WebHTV.Dialog}. Only the nearest definition decides, because a
+     * child that re-declares the role as {@code ?attr/colorPrimary} shadows its ancestor
+     * and resolves to nothing.
+     */
+    @Test
+    public void dialogThemeArgumentsResolveColorPrimaryConcretely() throws Exception {
+        Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
+        java.util.Map<String, String> body = new java.util.HashMap<>();
+        java.util.Map<String, String> parent = new java.util.HashMap<>();
+        java.util.regex.Pattern stylePattern = java.util.regex.Pattern
+                .compile("<style name=\"([^\"]+)\"(?:[^>]*parent=\"([^\"]*)\")?[^>]*>(.*?)</style>",
+                        java.util.regex.Pattern.DOTALL);
+        for (Path res : Files.walk(root.resolve("src")).filter(p -> p.toString().endsWith(".xml")).toList()) {
+            java.util.regex.Matcher m = stylePattern.matcher(Files.readString(res, StandardCharsets.UTF_8));
+            while (m.find()) {
+                body.put(m.group(1), m.group(3));
+                if (m.group(2) != null) parent.put(m.group(1), m.group(2));
+            }
+        }
+        java.util.List<String> offenders = new java.util.ArrayList<>();
+        java.util.regex.Pattern usage = java.util.regex.Pattern
+                .compile("(?:WebHtvAlertDialogBuilder|MaterialAlertDialogBuilder)\\([^;]*?R\\.style\\.(ThemeOverlay_[A-Za-z_]+)",
+                        java.util.regex.Pattern.DOTALL);
+        for (Path sourceFile : Files.walk(root.resolve("src")).filter(p -> p.toString().endsWith(".java")).toList()) {
+            if (sourceFile.toString().contains("graphify-out")) continue;
+            java.util.regex.Matcher m = usage.matcher(Files.readString(sourceFile, StandardCharsets.UTF_8));
+            while (m.find()) {
+                String name = m.group(1).replace('_', '.');
+                String nearest = null;
+                for (int hop = 0; hop < 24 && name != null; hop++) {
+                    String block = body.get(name);
+                    if (block != null) {
+                        java.util.regex.Matcher item = java.util.regex.Pattern
+                                .compile("<item name=\"colorPrimary\">([^<]+)</item>").matcher(block);
+                        if (item.find()) { nearest = item.group(1).trim(); break; }
+                    }
+                    name = parent.get(name);
+                }
+                if (nearest == null || !nearest.startsWith("@color/")) {
+                    offenders.add(sourceFile.getFileName() + " -> " + m.group(1) + " resolves colorPrimary to " + nearest);
+                }
+            }
+        }
+        assertTrue("these dialog themes cannot satisfy ThemeEnforcement: " + offenders, offenders.isEmpty());
+    }
+
     @Test
     public void materialAlertDialogsAreBuiltThroughTheThemedBuilder() throws Exception {
         Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
