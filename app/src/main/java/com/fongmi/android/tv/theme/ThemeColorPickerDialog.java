@@ -47,14 +47,20 @@ public final class ThemeColorPickerDialog {
         SeekBar saturation = slider(context, root, 100, Math.round(hsv[1] * 100f));
         SeekBar brightness = slider(context, root, 100, Math.round(hsv[2] * 100f));
 
+        // These are platform widgets created from the Activity context, so they carry no
+        // Material role and would otherwise keep the framework default colour (the editor
+        // rendered them as Material's #49454F on whatever surface the user picked).
         TextView hexLabel = new TextView(context);
         hexLabel.setText(R.string.theme_editor_hex_label);
+        hexLabel.setTextColor(ThemeController.current().colorOnSurface());
         root.addView(hexLabel);
 
         EditText hexInput = new EditText(context);
         hexInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         hexInput.setSingleLine(true);
         hexInput.setHint(R.string.theme_editor_hex_hint);
+        hexInput.setTextColor(ThemeController.current().colorOnSurface());
+        hexInput.setHintTextColor(ThemeController.current().colorOnSurfaceVariant());
         root.addView(hexInput);
 
         TextView error = new TextView(context);
@@ -64,6 +70,10 @@ public final class ThemeColorPickerDialog {
         Button useHex = new Button(context);
         useHex.setText(R.string.theme_editor_hex_apply);
         useHex.setAllCaps(false);
+        useHex.setTextColor(ThemeController.current().colorOnSurface());
+        useHex.setBackground(outlinedPill(context));
+        int pillPadding = dp(context, 10);
+        useHex.setPadding(pillPadding, pillPadding, pillPadding, pillPadding);
         root.addView(useHex);
 
         Runnable syncFromHsv = () -> {
@@ -127,6 +137,19 @@ public final class ThemeColorPickerDialog {
             dialog.dismiss();
         }));
         return dialog;
+    }
+
+    /**
+     * A themed pill for the framework {@code Button}, which ships its own light background
+     * and would otherwise stay white-on-white once the text colour follows the theme.
+     */
+    private static GradientDrawable outlinedPill(Context context) {
+        GradientDrawable shape = new GradientDrawable();
+        shape.setShape(GradientDrawable.RECTANGLE);
+        shape.setCornerRadius(dp(context, 18));
+        shape.setColor(ThemeController.current().colorSurfaceContainer());
+        shape.setStroke(dp(context, 1), ThemeController.current().colorOutline());
+        return shape;
     }
 
     private static SeekBar slider(Context context, LinearLayout root, int max, int initial) {

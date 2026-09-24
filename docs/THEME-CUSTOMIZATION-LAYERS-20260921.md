@@ -12,9 +12,9 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。**当前剩余：程序化 TextView 取到 Material 库默认色而非本项目 token（4.23 残留发现）、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。**当前剩余：主题编辑器之外可能存在的“程序化控件未显式设色”站点、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面、4.7 节完整设备矩阵，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
-- 下一步唯一动作：修正程序化 `TextView` 取到 Material 库默认色的问题（4.23 残留发现，例如主题编辑器「正在编辑」标签实测 `#49454F`），使这类视图显式使用本项目语义 token；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
+- 下一步唯一动作：把 4.24 的守门测试从主题编辑器扩展到全部程序化控件构造点（扫描 `src/{main,mobile,leanback}` 里 `new TextView/Button/EditText/...` 是否在 Activity 主题缺 `android:textColorPrimary` 映射的前提下显式设色），消除同类盲区；随后回到 dev3 `192.168.50.3:5559` 补第 4.7 节设备矩阵。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
 ---
 
@@ -882,6 +882,25 @@ Layer 2 DoD：
   - 测试结束设备偏好按字节校验恢复。
 - **残留发现（未修，属另一类缺陷）**：主题编辑器里「正在编辑」标签实测 `#49454F`——那是 **Material 库默认的 `on_surface_variant`**，而非本项目的 `#44474F` token。因该值不在基线角色索引内，binder 按“未知色不改写”规则正确跳过，于是它停留在静态值上、在新表面色下不可读。修法应当是让该程序化 `TextView`显式取用语义色（或在主题层补齐该 attr 映射），与本次 accent 契约无关，需独立授权。
 - 回滚锚点：回退本任务即恢复 primary/focus 的旧推导；不涉及 profile 数据格式、偏好键或资源。
+
+---
+
+### 4.24 程序化控件显式取用语义色（2026-09-24）
+
+- 任务：`THEME-PROGRAMMATIC-WIDGETS-20260924`。修复 4.23 的残留发现——主题编辑器里的程序化控件取到 Material 库默认色而非本项目 token。
+- 根因：`Theme.WebHTV`（Activity 主题）**没有**映射 `android:textColorPrimary`（只有 `ThemeOverlay.WebHTV.Dialog` 里映射了）。`new TextView(context)` / `new Button(context)` / `new EditText(context)` 这类平台控件在 Activity 上下文里创建、又不在 Dialog 主题覆盖范围内时，其 `textColor` 回落到框架/Material 默认值；设备实测该值为 `#49454F`（= Material 的 `m3_ref_palette_neutral_variant30`，即其 `on_surface_variant`），与本项目 token `#44474F` 不同，因此**不在基线角色索引内**——binder 按“未知色不改写”的安全规则正确跳过，颜色便永久停在静态值上。
+- 修复：给这几处程序化控件显式设色，并按语义角色配对背景：
+  - `ThemeDialog`（mobile + leanback 两端同步）：`buildModeRow()` 的「正在编辑」标签设 `colorOnSurface()`；「浅色/深色」切换按钮设 `colorOnSurface()` 文本色，并换用新的 `outlinedPill()` 背景——框架 `Button` 自带浅色底板，只改文字会在深色自定义表面上变成白底白字。
+  - `ThemeColorPickerDialog`：`hexLabel` 设 `colorOnSurface()`；`hexInput` 设文本色 `colorOnSurface()` 与提示色 `colorOnSurfaceVariant()`；`useHex` 设文本色并换用 `outlinedPill(context)`。
+  - `outlinedPill()` 使用 `colorSurfaceContainer()` 填充 + `colorOutline()` 1dp 描边 + 18dp 圆角，由 resolver 保证与文字色成对可读。
+- 新增守门测试：`ThemeEditorContractTest#programmaticEditorWidgetsAlwaysGetTokenColours`。它用正则匹配 `new TextView/EditText/Button(`（含 `android.widget.` 全限定写法），**跟随声明的变量名**断言该类中存在 `<变量>.setTextColor(`；若控件未被赋值给具名变量则直接失败。用变量名而非固定窗口，是为了正确容纳像 `status` 那样在别处（`setStatus`）着色的控件——该测试第一次运行就因此抓出并纠正了一处误报。
+- 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL（`ThemeEditorContractTest` 12 项 0 失败）；mobile + leanback **全量**单测 BUILD SUCCESSFUL，失败类为 0；双 flavor `compileWithJavac` 通过。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，mobile arm64 debug 覆盖安装，探针 `surface/surfaceContainer/surfaceContainerHigh = #7B1FA2`、前景改白）：
+  - 「正在编辑」标签由 `#49454F` 变为 **`#FFFFFF`**（343 px 采样），在紫色面板上可读。
+  - 「浅色」切换按钮由框架默认浅底变为与面板协调的 `colorSurfaceContainer` + `colorOutline` 描边胶囊，文字同为白色。
+  - 预设 chip、动作按钮文字（4.23 已修）保持可读；测试结束设备偏好按字节校验恢复。
+- 仍未覆盖：其它可能存在的“平台控件未设色”站点（本次守门测试只覆盖主题编辑器相关的 3 个文件）；半透明填充匹配策略；`StateListDrawable`/`RippleDrawable` 背景；远程 Web 主题页面；4.7 节完整设备矩阵。
+- 回滚锚点：回退本任务即恢复这些控件的框架默认色；不涉及 profile 数据格式、偏好键或资源。
 
 ---
 

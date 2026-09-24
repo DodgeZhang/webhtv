@@ -143,4 +143,36 @@ public class ThemeEditorContractTest {
         Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
         return Files.readString(root.resolve(path), StandardCharsets.UTF_8);
     }
+
+    /**
+     * The editor builds its panels from platform widgets ({@code new TextView(context)},
+     * {@code new Button(...)}, {@code new EditText(...)}). Those carry no Material colour
+     * role, so they keep the framework default - measured on device as Material's
+     * {@code #49454F}, which stayed put no matter which surface the user picked and left
+     * the labels unreadable on a dark custom surface. Every programmatic text-bearing
+     * widget in the editor must therefore be given a token colour.
+     *
+     * <p>The check follows the declared variable, so colouring it anywhere in the class
+     * (for example the status line, which is recoloured on every update) satisfies it.
+     */
+    @Test
+    public void programmaticEditorWidgetsAlwaysGetTokenColours() throws Exception {
+        java.util.regex.Pattern construction = java.util.regex.Pattern
+                .compile("(?:([A-Za-z_][\\w]*)\\s*=\\s*)?new\\s+(?:android\\.widget\\.)?(TextView|EditText|Button)\\(");
+        for (String path : new String[]{
+                "src/main/java/com/fongmi/android/tv/theme/ThemeColorPickerDialog.java",
+                "src/mobile/java/com/fongmi/android/tv/ui/dialog/ThemeDialog.java",
+                "src/leanback/java/com/fongmi/android/tv/ui/dialog/ThemeDialog.java"}) {
+            String source = read(path);
+            java.util.regex.Matcher m = construction.matcher(source);
+            while (m.find()) {
+                String variable = m.group(1);
+                assertNotNull(path + ": programmatic " + m.group(2) + " must be assigned to a named widget",
+                        variable);
+                assertTrue(path + ": " + variable + " (" + m.group(2)
+                                + ") must set an explicit token text colour",
+                        source.contains(variable + ".setTextColor("));
+            }
+        }
+    }
 }

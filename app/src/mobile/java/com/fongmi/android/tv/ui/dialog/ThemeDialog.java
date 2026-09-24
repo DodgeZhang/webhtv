@@ -133,13 +133,19 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(dp(8), dp(6), dp(8), dp(2));
 
+        // Platform widgets created from the Activity context carry no Material role, so they
+        // must be coloured explicitly or they keep the framework default (Material's
+        // #49454F) and become unreadable once the user picks a dark custom surface.
         TextView label = new TextView(requireContext());
         label.setText(R.string.theme_editor_edit_mode);
+        label.setTextColor(ThemeController.current().colorOnSurface());
         row.addView(label, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         Button toggle = new Button(requireContext());
         toggle.setAllCaps(false);
         toggle.setText(dark ? R.string.theme_editor_dark : R.string.theme_editor_light);
+        toggle.setTextColor(ThemeController.current().colorOnSurface());
+        toggle.setBackground(outlinedPill());
         toggle.setOnClickListener(view -> {
             dark = !dark;
             toggle.setText(dark ? R.string.theme_editor_dark : R.string.theme_editor_light);
@@ -219,6 +225,19 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
 
     private int neutralPresetBackground() {
         return ThemeController.current().colorSurfaceContainerHighest();
+    }
+
+    /**
+     * A themed pill for the framework {@code Button}, which ships its own light background
+     * and would otherwise become white-on-white once its text follows the theme.
+     */
+    private GradientDrawable outlinedPill() {
+        GradientDrawable shape = new GradientDrawable();
+        shape.setShape(GradientDrawable.RECTANGLE);
+        shape.setCornerRadius(dp(18));
+        shape.setColor(ThemeController.current().colorSurfaceContainer());
+        shape.setStroke(dp(1), ThemeController.current().colorOutline());
+        return shape;
     }
 
     private GradientDrawable presetBackground(int fill, boolean active, boolean colorPreview) {
