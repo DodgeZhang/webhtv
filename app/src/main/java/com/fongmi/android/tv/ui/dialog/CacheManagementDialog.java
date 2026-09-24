@@ -1,7 +1,12 @@
 package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Dialog;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.util.TypedValue;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
@@ -10,6 +15,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
+import androidx.fragment.app.DialogFragment;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
@@ -38,12 +44,13 @@ import java.util.Locale;
 
 import com.google.android.material.button.MaterialButton;
 
-public class CacheManagementDialog extends BaseAlertDialog {
+public class CacheManagementDialog extends DialogFragment {
 
     private static final CacheModuleId[] MODULE_ORDER = CacheModuleId.values();
     private static final float SCREEN_FRACTION = 0.9f;
     private DialogCacheManagementBinding binding;
     private boolean loading;
+    private final java.util.ArrayList<MaterialButton> moduleButtons = new java.util.ArrayList<>();
 
     public static void show(Fragment fragment) {
         new CacheManagementDialog().show(fragment.getChildFragmentManager(), null);
@@ -56,20 +63,17 @@ public class CacheManagementDialog extends BaseAlertDialog {
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
-        Dialog dialog = getBuilder().setView(getBinding().getRoot()).create();
+        Dialog dialog = new Dialog(requireContext());
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(getBinding().getRoot());
+        dialog.setCanceledOnTouchOutside(true);
         initView();
         initEvent();
         return dialog;
     }
 
-    @Override
     protected ViewBinding getBinding() {
         return binding = DialogCacheManagementBinding.inflate(getLayoutInflater());
-    }
-
-    @Override
-    protected MaterialAlertDialogBuilder getBuilder() {
-        return builder().setTitle(R.string.cache_management_title);
     }
 
     protected void initView() {
@@ -108,7 +112,17 @@ public class CacheManagementDialog extends BaseAlertDialog {
         params.dimAmount = 0.6f;
         window.setAttributes(params);
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         window.setLayout(width, height);
+        // Custom Dialog: the window IS the panel, so it must paint its own themed surface.
+        // MaterialAlertDialog would keep a wrap_content inner panel (~60% height) regardless of
+        // the window size, which is what made the earlier TV dialog look too small.
+        GradientDrawable surface = new GradientDrawable();
+        surface.setShape(GradientDrawable.RECTANGLE);
+        surface.setColor(themeColor(android.R.attr.colorBackground, 0xFF1E1B22));
+        surface.setCornerRadius(ResUtil.dp2px(20));
+        surface.setStroke(ResUtil.dp2px(1), 0x33FFFFFF);
+        binding.getRoot().setBackground(surface);
     }
 
     private void toggleAutoCleanup() {
@@ -274,6 +288,7 @@ public class CacheManagementDialog extends BaseAlertDialog {
 
     private void renderModules(@Nullable CacheSnapshot snapshot) {
         binding.modules.removeAllViews();
+        moduleButtons.clear();
         long totalBytes = snapshot == null ? 0 : snapshot.totalBytes();
         java.util.ArrayList<CacheMeasurement> ordered = snapshot == null ? new java.util.ArrayList<>() : new java.util.ArrayList<>(snapshot.modules());
         ordered.sort((left, right) -> {
@@ -283,6 +298,7 @@ public class CacheManagementDialog extends BaseAlertDialog {
         });
         if (snapshot == null) for (CacheModuleId id : MODULE_ORDER) addRow(id, null, 0);
         else for (CacheMeasurement measurement : ordered) addRow(measurement.id(), measurement, totalBytes);
+        wireFocusOrder();
     }
 
     private void addRow(CacheModuleId id, @Nullable CacheMeasurement measurement, long totalBytes) {
@@ -294,14 +310,14 @@ public class CacheManagementDialog extends BaseAlertDialog {
         detailColumn.setOrientation(LinearLayout.VERTICAL);
         String title = getModuleName(id);
         if (measurement != null) title += "  " + CacheFormat.percent(measurement.bytes(), totalBytes);
-        detailColumn.addView(text(title, 16, 0xFF202124));
+        detailColumn.addView(text(title, 18, themeColor(android.R.attr.textColorPrimary, 0xFF1F1F1F)));
         String detail;
         if (measurement == null) detail = getString(R.string.cache_management_scanning);
         else detail = getString(R.string.cache_management_module_detail,
                 FileUtil.byteCountToDisplaySize(measurement.bytes()),
                 measurement.fileCount(),
                 formatTime(measurement.newestModifiedMs()));
-        detailColumn.addView(text(detail, 13, 0xFF5F6368));
+        detailColumn.addView(text(detail, 14, themeColor(android.R.attr.textColorSecondary, 0xFF5F6368)));
         row.addView(detailColumn, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         row.addView(moduleButton(id));
@@ -312,8 +328,12 @@ public class CacheManagementDialog extends BaseAlertDialog {
     private MaterialButton limitButton(CacheModuleId id) {
         MaterialButton button = new MaterialButton(requireContext(), null,
                 com.google.android.material.R.attr.materialButtonOutlinedStyle);
-        button.setMinHeight(36);
-        button.setTextSize(12);
+        button.setMinHeight(ResUtil.dp2px(44));
+        button.setMinWidth(ResUtil.dp2px(96));
+        button.setMinimumHeight(ResUtil.dp2px(44));
+        button.setTextSize(14);
+        button.setForeground(androidx.core.content.ContextCompat.getDrawable(requireContext(),
+                R.drawable.selector_cache_button_focus));
         button.setText(R.string.cache_limit_button);
         button.setEnabled(supportsLimit(id));
         if (supportsLimit(id)) button.setOnClickListener(view -> chooseLimit(id));
@@ -321,6 +341,7 @@ public class CacheManagementDialog extends BaseAlertDialog {
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMarginStart(8);
         button.setLayoutParams(params);
+        moduleButtons.add(button);
         return button;
     }
 
@@ -348,13 +369,72 @@ public class CacheManagementDialog extends BaseAlertDialog {
     private MaterialButton moduleButton(CacheModuleId id) {
         MaterialButton button = new MaterialButton(requireContext(), null,
                 com.google.android.material.R.attr.materialButtonTonalStyle);
-        button.setMinHeight(36);
-        button.setTextSize(12);
+        button.setMinHeight(ResUtil.dp2px(44));
+        button.setMinWidth(ResUtil.dp2px(112));
+        button.setMinimumHeight(ResUtil.dp2px(44));
+        button.setTextSize(14);
+        button.setForeground(androidx.core.content.ContextCompat.getDrawable(requireContext(),
+                R.drawable.selector_cache_button_focus));
         boolean restricted = id == CacheModuleId.PLUGIN_SCRIPTS;
         button.setEnabled(!restricted);
         button.setText(restricted ? R.string.cache_cleanup_owner_managed : R.string.cache_cleanup_module);
         if (!restricted) button.setOnClickListener(view -> confirmModule(id));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMarginStart(8);
+        button.setLayoutParams(params);
+        moduleButtons.add(button);
         return button;
+    }
+
+    /**
+     * The default geometric focus search skipped whole rows (for example UP from "refresh" landed
+     * on the policy row instead of the cleanup row). Link the action area explicitly so remote
+     * focus always moves through policy row -> cleanup row -> footer without skipping a row.
+     */
+    private void wireFocusOrder() {
+        linkVertical(binding.autoCleanup, null, binding.cleanupLight);
+        linkVertical(binding.retention, null, binding.cleanupStandard);
+        linkVertical(binding.totalLimit, null, binding.cleanupDeep);
+        linkVertical(binding.cleanupLight, binding.autoCleanup, binding.refresh);
+        linkVertical(binding.cleanupStandard, binding.retention, binding.refresh);
+        linkVertical(binding.cleanupDeep, binding.totalLimit, binding.close);
+        linkVertical(binding.refresh, binding.cleanupStandard, null);
+        linkVertical(binding.close, binding.cleanupDeep, null);
+        binding.refresh.setNextFocusLeftId(binding.cancel.getVisibility() == View.VISIBLE
+                ? R.id.cancel : View.NO_ID);
+        binding.refresh.setNextFocusRightId(R.id.close);
+        binding.close.setNextFocusLeftId(R.id.refresh);
+        if (moduleButtons.size() >= 2) {
+            MaterialButton lastClean = moduleButtons.get(moduleButtons.size() - 2);
+            MaterialButton lastLimit = moduleButtons.get(moduleButtons.size() - 1);
+            lastClean.setNextFocusDownId(R.id.autoCleanup);
+            lastLimit.setNextFocusDownId(R.id.totalLimit);
+            // Close the loop upwards as well, so UP from the policy row returns to the module list
+            // instead of jumping to an unrelated neighbour chosen by geometry.
+            binding.autoCleanup.setNextFocusUpId(lastClean.getId());
+            binding.retention.setNextFocusUpId(lastLimit.getId());
+            binding.totalLimit.setNextFocusUpId(lastLimit.getId());
+        }
+    }
+
+    private void linkVertical(View view, @Nullable View up, @Nullable View down) {
+        if (view == null) return;
+        view.setNextFocusUpId(up == null ? View.NO_ID : up.getId());
+        view.setNextFocusDownId(down == null ? View.NO_ID : down.getId());
+    }
+
+    private int themeColor(int attribute, int fallback) {
+        TypedValue value = new TypedValue();
+        if (requireContext().getTheme().resolveAttribute(attribute, value, true)) {
+            if (value.type >= TypedValue.TYPE_FIRST_COLOR_INT && value.type <= TypedValue.TYPE_LAST_COLOR_INT) {
+                return value.data;
+            }
+            if (value.resourceId != 0) {
+                return androidx.core.content.ContextCompat.getColor(requireContext(), value.resourceId);
+            }
+        }
+        return fallback;
     }
 
     private android.widget.TextView text(CharSequence value, int size, int color) {
