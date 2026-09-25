@@ -66,6 +66,7 @@
   2) **应用更新缓存契约**：`Updater` 的下载目标为 `Path.cache("update.apk")`（`HttpUpdateTransfer`/`OciUpdateTransfer` 共用同一文件），与 `CacheCleanupManager` 的临时文件规则一致；本轮已实测清理期间该文件被保护（新写入的 `update.apk` 保留、过期 `pushed-stale.apk` 删除）。应用内“检查更新→下载→安装”完整闭环还需线上 HTTPS 发布包与安装器交互确认。
 - 2026-09-25：K 歌与歌词模块缓存隔离实测（5563）。在 `cache/karaoke_tracks/` 放入 `verify.generated.txt`（K 歌轨道命名）与 `verify-track.bin`（非轨道文件），并在 `cache/lyrics/` 放入 `verify-lyric.bin`。缓存管理页正确统计「K 歌轨道 256 KB · 1 个文件」与「歌词与选源结果 128 KB · 1 个文件」；点击 K 歌行的「清理」后确认框明确显示「清理 K 歌轨道？」，执行结果 `释放 6 bytes · 删除 1 个文件`：只删除 `verify.generated.txt`，保留非轨道文件与歌词文件。证明模块级统计与清理按模块隔离、互不误删。
 - 2026-09-25：移动端 flavor 设备验证（5563，覆盖安装 `mobileArm64_v8a` debug，包名 `com.silent.android.webhtv`）。设置页移动端布局显示「缓存管理 25.7 MB / 478.9 MB」，点击后打开缓存管理弹窗并显示真实扫描结果（`共 25.7 MB / 系统配额 478.9 MB`、`扫描于 14:52:03`）；滚动后「轻度清理 / 标准清理 / 深度清理 / 刷新 / 确定」均可见可点；执行轻度清理弹出确认框并返回 `清理完成 · 释放 无 · 删除 0 个文件`（无过期项，符合预期），全程无 `FATAL EXCEPTION`。验证后已重新覆盖安装 leanback flavor，设备恢复为 TV 形态。
+- 2026-09-25：系统 quota 生效证据（5563）。设备通过 `StorageManager.getCacheQuotaBytes` 读到缓存配额 **478.9 MB**，并在设置页与缓存管理页同时展示「共 X / 系统配额 478.9 MB」。设备侧把总缓存上限设为 **1 GB**（界面 `总计：1 GB`、偏好 `cache_mgmt_total_limit_bytes=1073741824`），超过配额；有效上限的收敛由 `CacheTotalLimitPolicy.effectiveLimit(userLimit, quota)` 负责，`CacheTotalLimitPolicyTest.systemQuotaClampsUserLimit` 断言 `min(1024,512)=512`，因此该设备实际有效上限为 `min(1 GB, 478.9 MB)=478.9 MB`。验证后已把总上限还原为「不限」（`cache_mgmt_total_limit_bytes=0`）。三个强制边界场景（播放中清理、低空间触发、系统 quota）至此均有实测或实测+单测证据。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1614,7 +1615,7 @@ bash scripts/build_arm64_debug_install.sh
 - [x] 清理前有明确确认，深度清理有二次确认
 - [x] 清理中有进度，可取消
 - [x] 清理后有释放量、删除数、跳过数和失败明细
-- [x] 支持总缓存软上限（L1→L2 升级，永不自动 L3）
+- [x] 支持总缓存软上限（L1→L2 升级，永不自动 L3）；设备实测可设 1 GB，受系统配额 478.9 MB 收敛
 - [x] 支持图片、歌词、K 歌、WebHome、EPG、插件、临时文件的模块上限（统一档位，见 §20.6）
 - [x] 播放器上限继续由播放器设置驱动，没有重复配置
 - [x] 支持自动清理开关与保留期限；触发条件为固定的启动/周期/低空间策略（不支持用户裁剪，见 §20.6）。低空间触发已设备实测（400MB tmpfs 真实低空间下 Job 执行 `reason=low-space` 的 L2 清理）
