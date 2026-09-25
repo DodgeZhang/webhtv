@@ -26,6 +26,25 @@ public final class CachePolicyStore {
         Prefers.put(PREFIX + "retention_days", clamp(days, 1, 3650));
     }
 
+    /**
+     * Feature switch for the cache management UI (design §23.1).
+     *
+     * <p>Enabled by default. Setting it to {@code false} restores the legacy settings behaviour
+     * (plain total size plus the original one-tap full cache clear) without shipping a new build.</p>
+     */
+    public static boolean isManagementEnabled() {
+        return enabledByDefault(Prefers.getBoolean(PREFIX + "enabled", true));
+    }
+
+    /** Cache management is on unless the user or a rollout explicitly disabled it. */
+    static boolean enabledByDefault(Boolean stored) {
+        return stored == null || stored;
+    }
+
+    public static void putManagementEnabled(boolean enabled) {
+        Prefers.put(PREFIX + "enabled", enabled);
+    }
+
     public static boolean isAutoCleanupEnabled() {
         return Prefers.getBoolean(PREFIX + "auto_enabled", false);
     }

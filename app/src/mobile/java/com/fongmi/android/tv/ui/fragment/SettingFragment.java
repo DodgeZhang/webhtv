@@ -38,6 +38,7 @@ import com.fongmi.android.tv.ui.dialog.BackupProgressDialog;
 import com.fongmi.android.tv.ui.dialog.SiteDialog;
 import com.fongmi.android.tv.utils.AppVersion;
 import com.fongmi.android.tv.cache.CacheCenter;
+import com.fongmi.android.tv.cache.CachePolicyStore;
 import com.fongmi.android.tv.ui.dialog.CacheManagementDialog;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Notify;
@@ -100,6 +101,15 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
     }
 
     private void setCacheText() {
+        if (!CachePolicyStore.isManagementEnabled()) {
+            FileUtil.getCacheSize(new Callback() {
+                @Override
+                public void success(String result) {
+                    if (mBinding != null && isAdded()) mBinding.cacheText.setText(result);
+                }
+            });
+            return;
+        }
         mBinding.cacheText.setText(R.string.cache_management_scanning);
         CacheCenter.get().requestSnapshot(false, snapshot -> {
             if (mBinding != null && isAdded()) {
@@ -295,6 +305,15 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
     }
 
     private void onCache(View view) {
+        if (!CachePolicyStore.isManagementEnabled()) {
+            FileUtil.clearCache(new Callback() {
+                @Override
+                public void success() {
+                    setCacheText();
+                }
+            });
+            return;
+        }
         CacheManagementDialog.show(this);
     }
 

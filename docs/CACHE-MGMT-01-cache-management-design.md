@@ -9,7 +9,7 @@
 ## Recovery anchor
 
 - 目标：把设置页现有“缓存大小 + 一键全删”升级为可观测、可分级清理、可配置上限、可自动维护的缓存管理中心。
-- 当前状态：P0-P4 及各收口阶段均已提交并带恢复标签；缓存纯测试 39/39 通过（含注册表根路径校验、越界删除防护、祖先符号链接误判回归）。5563 已恢复可用并实测：缓存统计/清理恢复真实值、深度清理单窗口两步确认、播放/seek/预载正常、播放中标准清理不中断。
+- 当前状态：P0-P4 及各收口阶段均已提交并带恢复标签；缓存纯测试 41/41 通过（含注册表根路径校验、越界删除防护、祖先符号链接误判回归）。5563 已恢复可用并实测：缓存统计/清理恢复真实值、深度清理单窗口两步确认、播放/seek/预载正常、播放中标准清理不中断。
 - 关键约束：`Path.cache()` 是混合目录，绝不能被当作一个全局可任意淘汰的缓存池。
 - 实施顺序：P0 缓存清单 → P1 分类清理 → P2 模块上限 → P3 自动清理 → P4 运行中治理增强。
 - 阻塞：5563 无直播配置（点击「直播」弹出新增直播二维码），EPG 自动刷新无法在该设备验证；K 歌轨道需真实曲目音频指纹。
@@ -59,6 +59,7 @@
 - 2026-09-25：临时文件“使用中跳过”补齐（设计 §9.12）。原实现仅靠 24 小时保留期间接避免误删进行中的 `update.apk`/`pushed-url-*.apk`，缺少设计要求的显式“使用中禁止”。现新增 `CacheTempFilePolicy.isInUse(name, updaterDownloading, apkUrlPushing)`，并在 `CacheCleanupManager.clearTemporaryFiles` 中接入 `Updater.isDownloading()`（`downloading` 改为 `volatile`）与 `ApkUrlPush.isActive()`；使用中的 `update.apk` 与 `pushed-url-*.apk` 一律跳过，其余临时文件仍按 24h + 字节上限处理。新增 `CacheTempFilePolicyTest`（3 例）覆盖进行中保护与无关文件放行；缓存包独立 JUnit **39/39 通过**，双形态 Java 编译通过。设备复测（覆盖安装 leanback debug）：同时放入新写入的 `update.apk` 与 2 天前的 `pushed-stale.apk` 后执行轻度清理，结果 `释放 512 KB · 删除 1 个文件`，`update.apk` 保留、过期包被删除。
 - 2026-09-25：歌词与字幕设备实测（5563，沉浸式音频模式已开启）。①**歌词链路**：推送音频源后设备正确识别为音频内容并进入歌词流程，日志依次记录 `qqmusic search mode=lite` → `load source=QQMusic done` → `load source=LRCLIB done` → `load ranked` → `match result=none`，并在无匹配时调用 `refresh empty` + `views clear`（不残留错误字幕）；即多源检索、排序、空结果降级均正常执行。②**字幕**：通过 `/action?do=file` 投递 `/sdcard/Download/Obsession.2025.zh-Hans.srt`（HTTP 200），全屏播放至 00:02:32 时画面实际渲染出中文台词（“好吧，那，那也太尴尬了。”“天哪，我就知道。”），证明字幕加载与渲染链路未被缓存改动影响。K 歌轨道需绑定真实音频 fingerprint 的在线曲目，本次合成音频无对应指纹，未做设备级 K 歌生成/导入实测。
 - 2026-09-25：EPG 缓存保留策略设备实测（5563）。在 `cache/epg/` 构造 `today.xml`（当前日期）与 `old.xml`（mtime 回拨 2 天）后执行轻度清理，结果 `清理完成 · 释放 4 bytes · 删除 1 个文件`：`old.xml` 被删除、`today.xml` 保留，符合设计「清理 EPG：过期删除，今天的保留」。该项此前因设备无直播源无法验证自动刷新，本次以缓存策略层实测补齐可验证部分；EPG 自动下载刷新仍需有可用直播源。
+- 2026-09-25：完成设计 §23.1 的缓存管理功能开关。`CachePolicyStore.isManagementEnabled()` 读取 `cache_mgmt_enabled`（默认 `true`，缺失即开启），TV `SettingActivity` 与移动端 `SettingFragment` 在关闭时回退到旧实现（`FileUtil.getCacheSize()` 显示、`FileUtil.clearCache()` 一键清理），开启时使用 `CacheCenter` + `CacheManagementDialog`。默认值语义由纯函数 `enabledByDefault(Boolean)` 承载并由 `CachePolicyStoreTest` 覆盖；缓存包独立 JUnit **41/41 通过**，双形态 Java 编译通过。设备实测（5563，覆盖安装 leanback debug）：置 `cache_mgmt_enabled=false` 后设置页显示旧式 `60.3 MB`，点击缓存行不打开新面板、直接全量清理并把文案更新为「无」（`cache` 目录由约 60MB 降至 4KB）；验证后已把开关恢复为 `true`。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1665,7 +1666,7 @@ bash scripts/build_arm64_debug_install.sh
 | §11.2 触发条件可配置 | 可选「仅空间不足/每周/启动时」 | 固定策略：启动延迟 30s + 每 7 天 + 低空间连续两次 | 当前 UI 只暴露开关与保留期限，没有触发条件选择项；固定策略覆盖三类触发但不支持用户裁剪 |
 | §11.2 临时文件保留期 | 可选 6/24/72 小时 | 固定 24 小时（`TEMP_RETENTION_MS`），另受模块字节上限约束 | 临时文件按 24h + 上限双重约束，未暴露独立保留期配置 |
 | §14.6 空状态/边界文案 | 独立文案（暂无缓存/空间充足/空间紧张等） | 复用更紧凑的等价展示（`共 X / 系统配额 Y`、`部分结果 · N 项警告`、模块行「无 · 0 个文件 · 最近 无」） | 信息等价但文案不完全一致；界面密度更适合 TV 大屏 |
-| §23.1 功能开关 | `cache_mgmt_enabled` 开关用于回滚 | 未引入该开关，回滚依赖 Git 提交/tag 恢复旧版设置页 | 当前通过独立提交与恢复标签保证可回滚；如后续需要灰度或线上快速停用，应补一个真实的偏好开关 |
+| §23.1 功能开关 | `cache_mgmt_enabled` 开关用于回滚 | 已实现 `CachePolicyStore.isManagementEnabled()`（默认开）；关闭时设置页恢复旧行为：只显示 `FileUtil.getCacheSize()` 并点击执行旧的一键 `FileUtil.clearCache()` | 设备实测：关闭开关后设置页显示 `60.3 MB`（无系统配额后缀），点击缓存行不弹新面板、直接全清并回显「无」，cache 目录降至 4KB；随后已恢复默认开启 |
 | §23.1 兼容入口 | 保留 `FileUtil.getCacheSize()` / `clearCache()` 直到功能稳定 | 两个方法仍保留在 `FileUtil` 中，但新入口已不再调用（旧全量清理不再暴露给用户） | 满足 §24 第 6 条；如需回滚到旧行为可直接接回调用方 |
 
 上述偏离不影响 §20.1-§20.5 的功能与安全验收；如需回到设计原文的分模块档位、可选择触发条件或默认开启自动清理，应作为独立增量需求实施。
