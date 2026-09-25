@@ -100,7 +100,7 @@ withAlpha(base.colorOverlayLight(), overlayOpacity), ... // overlay = 绝对 alp
 | 方案 | 内容 | 正确性 | 兼容性 | 风险/成本 | 结论 |
 | --- | --- | --- | --- | --- | --- |
 | **A. 保持现状** | 两槽继续是死槽 | ❌ 编辑器继续误导用户 | 零 | 低 | 拒绝 |
-| **B. `scrim` 接线到三个全屏弹层；`overlay` 暂缓并显式标注** | 新增 `SCRIM` 角色 + `ColorDrawable` 支持，限定作用域到 3 个遮罩视图；`overlay` 明确"仅 Web 快照生效" | ✅ 与官方 scrim 语义/M3 token 一致 | ✅ 其余 `scrim` 用法不受影响 | 中（binder 契约扩展） | **推荐** |
+| **B. `scrim` 接线；`overlay` 暂缓并显式标注**（实施细节见第 11.3 节） | 把 mobile `EpisodeDetailDialog` 与 `TmdbPersonDialog` 的 `overlay` 字面量改为 `ThemeController.current().colorScrim()`；`overlay` 明确"仅 Web 快照生效" | ✅ 与官方 scrim 语义/M3 token 一致，且 4 行级改动 | ✅ 不触碰 binder、布局或 `webhtv_color_scrim` 的其他用法 | 低（原估的 binder 契约扩展经复核**不需要**） | **推荐** |
 | C. `scrim` 接线 + `overlay` 改绑图片 veil 并解冻 `overlayDark` | 把 veil 强度交给 `overlayOpacity` | ⚠️ 语义可辩，但破坏 4.23 冻结契约 | ⚠️ 需触碰 media 豁免 | 高 | 暂缓 |
 | D. 两槽都接入窗口级 `setDimAmount`/`setDimColor` | 用窗口 dim 取代视图遮罩 | ❌ 现有遮罩是视图不是窗口 dim；`setDimColor` 需 API 37（设备 API 28），仅 `setDimAmount` 可用且表达不了颜色 | ❌ | 高 | 拒绝 |
 | E. 从编辑器移除两槽 | 回到 14 槽 | ✅ 不再误导 | ❌ 破坏已批准的 16 槽契约 | 中 | 仅作逃生选项 |
@@ -116,16 +116,18 @@ withAlpha(base.colorOverlayLight(), overlayOpacity), ... // overlay = 绝对 alp
 
 ## 6. 建议
 
-1. **实施**：`scrimOpacity` 接线到三个全屏弹层遮罩（`dialog_episode_detail` / `dialog_tmdb_person` / `dialog_tmdb_video_player`），采用方案 B。
-2. **暂缓**：`overlayOpacity` 不接线。理由：语义错配 + 唯一正确落点在冻结/豁免区。改为在编辑器对该槽显示"仅 Web 主题生效"说明；`overlay` 的重新定义（图片 veil 强度）另立评估。
+1. **实施**：`scrimOpacity` 接线到**运行时真正赋予遮罩色的那两处**——mobile `EpisodeDetailDialog` 与 `TmdbPersonDialog` 的 `overlay` 字面量改为 `ThemeController.current().colorScrim()`。**取代第 7 节的旧步骤**（旧步骤基于被证伪的第 3 节前提，见第 11 节）。
+2. **暂缓**：`overlayOpacity` 不接线（理由不变）。
 3. 若你希望"不留任何不生效控件"，替代做法是采纳方案 E（移出编辑器），但那会改动已批准的 16 槽契约，需要单独确认。
 
-## 7. 最小实施步骤（获批后，仅针对 `scrimOpacity`）
+## 7. 最小实施步骤（**已被第 11 节取代，仅保留供追溯**）
 
-1. `ThemeRole` 新增 `SCRIM` 角色（`colorOf` → `tokens.colorScrim()`）。
-2. `ThemeBinder.bindDrawable` 增加 `ColorDrawable` 分支，复用现有 `withAlpha`/精确匹配机制；保持"基线不同则 no-op"。
-3. 给 3 个遮罩视图加 `android:tag="webhtv:scrim"`。
-4. 契约测试：`SCRIM` 角色存在、`ColorDrawable` 路径生效、**未打标记的 `scrim` 用法不被改写**、基线逐字节不变。
+> ⚠️ 以下步骤基于"XML 的 scrim 背景是活的"这一前提，该前提已被第 11 节证伪。**不要按本节实施**，请用第 6 节第 1 条 + 第 11.3 节。
+
+1. ~~`ThemeRole` 新增 `SCRIM` 角色~~（不需要）
+2. ~~`ThemeBinder.bindDrawable` 增加 `ColorDrawable` 分支~~（不需要）
+3. ~~给 3 个遮罩视图加 `android:tag="webhtv:scrim"`~~（无效，背景会被运行时覆盖）
+4. 契约测试：断言两处 `overlay` 不再使用硬编码字面量、`colorScrim()` 的 alpha 随 `scrimOpacity` 变化、基线逐字节不变。
 5. 编辑器文案：`overlayOpacity` 标注"仅 Web 主题生效"。
 
 ## 8. 验收标准与回滚
@@ -150,3 +152,47 @@ withAlpha(base.colorOverlayLight(), overlayOpacity), ... // overlay = 绝对 alp
 
 1. 是否批准**方案 B**（`scrimOpacity` 实施 + `overlayOpacity` 暂缓并标注）？
 2. `overlayOpacity` 采用"编辑器标注"还是"直接移出编辑器"（后者改动 16 槽契约）？
+
+## 11. 实施前复核发现：第 3 节前提被证伪（2026-09-25，重要）
+
+在按第 7 节动手实施、逐文件核对"这些弹窗究竟在哪里取 scrim 色"时，发现**第 3 节的核心前提不成立**，实施被中止、相关代码改动已全部回退（工作树保持干净）。
+
+### 11.1 事实：三个"遮罩"弹窗的 XML scrim 背景都是死代码
+
+三个全屏弹窗确实在布局根上写了 `android:background="@color/webhtv_color_scrim"`，但**运行时都会用硬编码色覆盖它**：
+
+| 弹窗 | 运行时覆盖 | 覆盖后语义 |
+| --- | --- | --- |
+| `app/src/mobile/java/.../EpisodeDetailDialog.java:290,297` | `int overlay = light ? 0x99F4F7FA : 0xB3000000; root.setBackgroundColor(overlay);` | 半透明遮罩（**但来自硬编码字面量，不来自 token**） |
+| `app/src/main/java/.../TmdbPersonDialog.java:372,383` | `int overlay = light ? 0x99F4F7FA : 0x8F000000; view.setBackgroundColor(overlay);` | 同上 |
+| `app/src/leanback/java/.../EpisodeDetailDialog.java:316,322` | `int background = light ? 0xFFFFFFFF : 0xFF101214; root.setBackgroundColor(background);` | **不透明**全屏底色，根本不是遮罩 |
+| `app/src/main/java/.../TmdbVideoPlayerDialog.java:322` | `container.setBackgroundColor(Color.BLACK)`（全屏时） | `Color.BLACK`，也不是遮罩 |
+
+即：**`webhtv_color_scrim` 在这三处的 XML 值在运行时会被覆盖，是死代码。**
+
+### 11.2 剩余"活着"的 `webhtv_color_scrim` 用法全都不是遮罩
+
+- `dialog_ad_block_stats.xml`（三个 source set）：2 处 `1dp` 分隔线 + 1 处 `88dp` 行背景
+- `dialog_receive.xml`：`ShapeableImageView` 的海报占位底
+
+结论：**当前代码里不存在任何由 `webhtv_color_scrim` 驱动的、活着的遮罩消费点。** 因此第 3 节"三个遮罩语义明确、可直接接线"的判断是错的，第 7 节"加 tag + 让 binder 改写 `ColorDrawable`"的方案即便实施也不会生效（tag 打在会被覆盖的背景上）。
+
+### 11.3 修正后的方案（更简单，但改动文件不同）
+
+正确的接线点是**遮罩色真正被赋予的那一行**，即把上述硬编码字面量换成 token：
+
+```java
+// 例：mobile EpisodeDetailDialog
+int overlay = ThemeController.current().colorScrim();
+if (root != null) root.setBackgroundColor(overlay);
+```
+
+- `ThemeTokens.colorScrim()` 已经含用户 `scrimOpacity`（`ThemeResolver` 用 `withAlpha(base.colorScrim(), scrimOpacity)` 写入），所以这样接线后滑块立刻生效。
+- **不需要**新增 `ThemeRole.SCRIM`、**不需要** `ThemeBinder` 支持 `ColorDrawable`、**不需要**布局 tag——原方案的三项改动全部可省。
+- 影响文件：`app/src/mobile/java/.../EpisodeDetailDialog.java`、`app/src/main/java/.../TmdbPersonDialog.java`（两处真·半透明遮罩）。
+- `leanback/EpisodeDetailDialog`（不透明底色）与 `TmdbVideoPlayerDialog`（`Color.BLACK`）**语义不是遮罩**，不应改动；若希望它们也响应，需先裁定其视觉语义。
+- 这一路径改动的是**弹窗运行时代码**，超出本任务最初声明的文件范围，需用户在批准后重新开立范围。
+
+### 11.4 教训
+
+设计文档第 2 节只核对了"XML 里 scrim 挂在哪"，没有核对"运行时是否被覆盖"，而本项目多处弹窗采用**运行时硬编码调色板**（`resolveLightTheme` + 局部字面量），与 token 体系并行。后续任何"给某 token 找落点"的评估，都必须验证该处颜色**最终生效来源**，而不是只看 XML 声明。
