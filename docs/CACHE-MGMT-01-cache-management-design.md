@@ -58,6 +58,7 @@
   5) EPG 与歌词/字幕/K 歌：5563 的直播配置为空（点击「直播」弹出新增直播二维码），点播配置为最小 smoke 源，缺少 EPG 与媒体增强所需源，本机无法验证，保持未通过。
 - 2026-09-25：临时文件“使用中跳过”补齐（设计 §9.12）。原实现仅靠 24 小时保留期间接避免误删进行中的 `update.apk`/`pushed-url-*.apk`，缺少设计要求的显式“使用中禁止”。现新增 `CacheTempFilePolicy.isInUse(name, updaterDownloading, apkUrlPushing)`，并在 `CacheCleanupManager.clearTemporaryFiles` 中接入 `Updater.isDownloading()`（`downloading` 改为 `volatile`）与 `ApkUrlPush.isActive()`；使用中的 `update.apk` 与 `pushed-url-*.apk` 一律跳过，其余临时文件仍按 24h + 字节上限处理。新增 `CacheTempFilePolicyTest`（3 例）覆盖进行中保护与无关文件放行；缓存包独立 JUnit **39/39 通过**，双形态 Java 编译通过。设备复测（覆盖安装 leanback debug）：同时放入新写入的 `update.apk` 与 2 天前的 `pushed-stale.apk` 后执行轻度清理，结果 `释放 512 KB · 删除 1 个文件`，`update.apk` 保留、过期包被删除。
 - 2026-09-25：歌词与字幕设备实测（5563，沉浸式音频模式已开启）。①**歌词链路**：推送音频源后设备正确识别为音频内容并进入歌词流程，日志依次记录 `qqmusic search mode=lite` → `load source=QQMusic done` → `load source=LRCLIB done` → `load ranked` → `match result=none`，并在无匹配时调用 `refresh empty` + `views clear`（不残留错误字幕）；即多源检索、排序、空结果降级均正常执行。②**字幕**：通过 `/action?do=file` 投递 `/sdcard/Download/Obsession.2025.zh-Hans.srt`（HTTP 200），全屏播放至 00:02:32 时画面实际渲染出中文台词（“好吧，那，那也太尴尬了。”“天哪，我就知道。”），证明字幕加载与渲染链路未被缓存改动影响。K 歌轨道需绑定真实音频 fingerprint 的在线曲目，本次合成音频无对应指纹，未做设备级 K 歌生成/导入实测。
+- 2026-09-25：EPG 缓存保留策略设备实测（5563）。在 `cache/epg/` 构造 `today.xml`（当前日期）与 `old.xml`（mtime 回拨 2 天）后执行轻度清理，结果 `清理完成 · 释放 4 bytes · 删除 1 个文件`：`old.xml` 被删除、`today.xml` 保留，符合设计「清理 EPG：过期删除，今天的保留」。该项此前因设备无直播源无法验证自动刷新，本次以缓存策略层实测补齐可验证部分；EPG 自动下载刷新仍需有可用直播源。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1652,7 +1653,7 @@ bash scripts/build_arm64_debug_install.sh
 - [x] MPV 自定义配置不变（清理前后 `mpv.conf`/`fonts.conf` 哈希一致）
 - [x] 播放、seek、预载、重缓冲不变差（180s 测试媒体实测播放推进、seek 后缓冲持续增长、播放中标准清理不中断）
 - [x] 歌词、字幕可用（5563 实测歌词多源检索链路与空结果降级正常；外挂 SRT 实际渲染中文台词）；K 歌轨道待真实曲目指纹实测
-- [ ] EPG 直播节目单仍可刷新
+- [~] EPG 缓存保留策略已实测（过期删除、今日保留）；直播节目单自动刷新待有可用直播源验证
 - [ ] 应用更新仍可完成；备份/恢复已实测通过（`bak-20260924-2028.zip` 生成成功、恢复 `shared=50 app=3` 成功）
 
 ### 20.6 设计与实现的已知偏离（第 24 节第 1 条要求逐项记录）
