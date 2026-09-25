@@ -68,6 +68,7 @@
 - 2026-09-25：移动端 flavor 设备验证（5563，覆盖安装 `mobileArm64_v8a` debug，包名 `com.silent.android.webhtv`）。设置页移动端布局显示「缓存管理 25.7 MB / 478.9 MB」，点击后打开缓存管理弹窗并显示真实扫描结果（`共 25.7 MB / 系统配额 478.9 MB`、`扫描于 14:52:03`）；滚动后「轻度清理 / 标准清理 / 深度清理 / 刷新 / 确定」均可见可点；执行轻度清理弹出确认框并返回 `清理完成 · 释放 无 · 删除 0 个文件`（无过期项，符合预期），全程无 `FATAL EXCEPTION`。验证后已重新覆盖安装 leanback flavor，设备恢复为 TV 形态。
 - 2026-09-25：系统 quota 生效证据（5563）。设备通过 `StorageManager.getCacheQuotaBytes` 读到缓存配额 **478.9 MB**，并在设置页与缓存管理页同时展示「共 X / 系统配额 478.9 MB」。设备侧把总缓存上限设为 **1 GB**（界面 `总计：1 GB`、偏好 `cache_mgmt_total_limit_bytes=1073741824`），超过配额；有效上限的收敛由 `CacheTotalLimitPolicy.effectiveLimit(userLimit, quota)` 负责，`CacheTotalLimitPolicyTest.systemQuotaClampsUserLimit` 断言 `min(1024,512)=512`，因此该设备实际有效上限为 `min(1 GB, 478.9 MB)=478.9 MB`。验证后已把总上限还原为「不限」（`cache_mgmt_total_limit_bytes=0`）。三个强制边界场景（播放中清理、低空间触发、系统 quota）至此均有实测或实测+单测证据。
 - 2026-09-25：应用更新可验证范围与剩余限制。审查确认 `Updater` 的下载目标是 `Path.cache("update.apk")`，`HttpUpdateTransfer`/`OciUpdateTransfer` 写入同一文件，且取消路径会清理该文件；与本计划相关的缓存契约是「下载/安装进行中不得被缓存清理删除」，已由 `CacheTempFilePolicy` + `Updater.isDownloading()`（`downloading` 为 `volatile`）实现并设备实测（新写入的 `update.apk` 在轻度清理后保留，2 天前的 `pushed-stale.apk` 被删除）。完整更新闭环在本环境无法验证，原因有三：①`ApkUrlPolicy` 明确拒绝私网与 HTTP，无法用本机自建发布源；②没有真实线上 HTTPS 发布包与版本号；③安装需系统安装器人工确认（`FileUtil.openFile` 走 `ACTION_VIEW` + FileProvider）。**实测确认该环境网络确实不可用**：设备端请求 `https://api.github.com/repos/fish2018/webhtv/releases/latest` 返回 `403`，CNB 源 `https://cnb.cool/fish2035/webhtv-release/-/git/raw/main/apk/tv-arm64_v8a.json` 同样返回 `403`，因此无法在本环境完成「检查更新」真实流程。按 §24 第 5 条如实标注为「缓存契约已通过、完整闭环受外部网络与安装器交互限制」，不虚报为完成。
+- 2026-09-25：清理结果改为通知，不再弹确认框（用户反馈）。`renderResult` 原实现用 `MaterialAlertDialogBuilder` 并复用确认标题 `cache_cleanup_confirm_title`，导致清理**已经完成后**还要再按一次「确定」——职责错误（确认框用于执行前，结果不应再要求确认）。现改为：①用 `Notify.show(text)` 发被动通知（Toast）；②同时把结果文本写入面板自身状态行并在随后刷新中保留，信息不会随通知消失而丢失；③不再创建任何结果弹窗。设备实测（5563，覆盖安装 leanback debug）：构造 2 天前的 `pushed-stale.apk` 后执行轻度清理，清理瞬间截图显示 Toast「清理完成 释放 512 KB · 删除 1 个文件」且**无任何弹窗**；4 秒后 Toast 自然消失、界面无「确定/取消」按钮；无障碍树读取 `id/status` 为「清理完成\n释放 512 KB · 删除 1 个文件」，`id/summary` 刷新为「共 19.3 MB / 系统配额 478.9 MB」，证明结果只以通知 + 状态行呈现。回归确认深度清理**执行前**的二次确认未被影响（点击「深度清理」仍为第一步「取消/继续」）。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1615,7 +1616,7 @@ bash scripts/build_arm64_debug_install.sh
 - [x] 提供轻度、标准、深度三级清理
 - [x] 清理前有明确确认，深度清理有二次确认
 - [x] 清理中有进度，可取消
-- [x] 清理后有释放量、删除数、跳过数和失败明细
+- [x] 清理后有释放量、删除数、跳过数和失败明细（以被动通知 + 面板状态行呈现，不再要求用户二次确认；执行前的三级清理确认与深度二次确认保持不变）
 - [x] 支持总缓存软上限（L1→L2 升级，永不自动 L3）；设备实测可设 1 GB，受系统配额 478.9 MB 收敛
 - [x] 支持图片、歌词、K 歌、WebHome、EPG、插件、临时文件的模块上限（统一档位，见 §20.6）；插件上限仅持久化配置，自动淘汰按安全设计暂不启用
 - [x] 播放器上限继续由播放器设置驱动，没有重复配置

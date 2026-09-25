@@ -37,6 +37,7 @@ import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.cache.CacheSnapshot;
 import com.fongmi.android.tv.databinding.DialogCacheManagementBinding;
 import com.fongmi.android.tv.utils.FileUtil;
+import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -52,6 +53,7 @@ public class CacheManagementDialog extends DialogFragment {
     private static final float SCREEN_FRACTION = 0.9f;
     private DialogCacheManagementBinding binding;
     private boolean loading;
+    private CharSequence resultLine;
     private final java.util.ArrayList<MaterialButton> moduleButtons = new java.util.ArrayList<>();
 
     public static void show(Fragment fragment) {
@@ -267,11 +269,11 @@ public class CacheManagementDialog extends DialogFragment {
                 ? getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
                 result.deletedFiles(), result.skippedFiles())
                 : getString(message);
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.cache_cleanup_confirm_title)
-                .setMessage(text)
-                .setPositiveButton(R.string.dialog_positive, null)
-                .show();
+        // The cleanup already finished, so a modal confirmation here would force the user to
+        // dismiss an extra dialog for an action that is already done. Notify passively instead
+        // and keep the outcome visible in the panel's own status line.
+        Notify.show(text);
+        resultLine = text;
         refresh(true);
     }
 
@@ -296,7 +298,10 @@ public class CacheManagementDialog extends DialogFragment {
         binding.summary.setText(quota > 0
                 ? getString(R.string.cache_management_summary_with_quota, total, FileUtil.byteCountToDisplaySize(quota))
                 : getString(R.string.cache_management_summary, total));
-        binding.status.setText(snapshot.warnings().isEmpty()
+        if (resultLine != null) {
+            binding.status.setText(resultLine);
+            resultLine = null;
+        } else binding.status.setText(snapshot.warnings().isEmpty()
                 ? getString(R.string.cache_management_scanned_at, new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date()))
                 : getString(R.string.cache_management_partial, snapshot.warnings().size()));
         renderModules(snapshot);
