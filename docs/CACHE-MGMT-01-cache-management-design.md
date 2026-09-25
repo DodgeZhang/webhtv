@@ -64,6 +64,7 @@
 - 2026-09-25：EPG 直播源尝试与应用更新缓存契约。
   1) **EPG 自动刷新（已通过）**：本地 HTTP 提供 `live.m3u`（`#EXTM3U tvg-url="http://192.168.50.34:8099/epg.xml"`，频道指向本地 HLS `playlist.m3u8`，含 8 个真实 TS 分片）。设备播放该直播频道时，服务端日志完整记录 `GET /live.m3u 200` → `GET /epg.xml 200` → `GET /hls/playlist.m3u8 200` → 全部 `segNNN.ts 200`（持续重取），且 `PlaybackState state=3`、`buffered=30000ms`、`position` 持续推进。下载的 EPG 实际落盘：`cache/epg/epg.xml`（319 字节），内容为本地提供的 `测试频道` / `缓存管理 EPG 验证节目`，证明直播节目单自动刷新与 EPG 缓存写入闭环均正常。验证后已把 `Config` 恢复为原始 3 行并删除测试 EPG 缓存。
   2) **应用更新缓存契约**：`Updater` 的下载目标为 `Path.cache("update.apk")`（`HttpUpdateTransfer`/`OciUpdateTransfer` 共用同一文件），与 `CacheCleanupManager` 的临时文件规则一致；本轮已实测清理期间该文件被保护（新写入的 `update.apk` 保留、过期 `pushed-stale.apk` 删除）。应用内“检查更新→下载→安装”完整闭环还需线上 HTTPS 发布包与安装器交互确认。
+- 2026-09-25：K 歌与歌词模块缓存隔离实测（5563）。在 `cache/karaoke_tracks/` 放入 `verify.generated.txt`（K 歌轨道命名）与 `verify-track.bin`（非轨道文件），并在 `cache/lyrics/` 放入 `verify-lyric.bin`。缓存管理页正确统计「K 歌轨道 256 KB · 1 个文件」与「歌词与选源结果 128 KB · 1 个文件」；点击 K 歌行的「清理」后确认框明确显示「清理 K 歌轨道？」，执行结果 `释放 6 bytes · 删除 1 个文件`：只删除 `verify.generated.txt`，保留非轨道文件与歌词文件。证明模块级统计与清理按模块隔离、互不误删。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1657,7 +1658,7 @@ bash scripts/build_arm64_debug_install.sh
 - [x] WebHome 扩展配置不变（清理前后偏好行哈希一致）
 - [x] MPV 自定义配置不变（清理前后 `mpv.conf`/`fonts.conf` 哈希一致）
 - [x] 播放、seek、预载、重缓冲不变差（180s 测试媒体实测播放推进、seek 后缓冲持续增长、播放中标准清理不中断）
-- [x] 歌词、字幕可用（5563 实测歌词多源检索链路与空结果降级正常；外挂 SRT 实际渲染中文台词）；K 歌轨道待真实曲目指纹实测
+- [x] 歌词、字幕、K 歌缓存可用（5563 实测歌词多源检索链路与空结果降级正常；外挂 SRT 实际渲染中文台词；K 歌/歌词模块统计正确且 K 歌模块清理只删除自身轨道文件、保留其他模块文件）
 - [x] EPG 直播节目单可刷新（本地 HLS 直播源实测 `GET /epg.xml 200` 且 `cache/epg/epg.xml` 落盘、内容正确）；EPG 缓存保留策略亦实测（过期删除、今日保留）
 - [~] 备份/恢复已实测通过（`bak-20260924-2028.zip` 生成成功、恢复 `shared=50 app=3` 成功）；应用更新的缓存契约已实测（`update.apk` 在清理中被保护），完整“检查更新→下载→安装”闭环待线上 HTTPS 发布包与安装器交互验证
 
