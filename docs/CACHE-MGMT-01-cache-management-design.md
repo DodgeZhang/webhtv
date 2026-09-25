@@ -12,7 +12,7 @@
 - 当前状态：P0-P4 及各收口阶段均已提交并带恢复标签；缓存纯测试 41/41 通过（含注册表根路径校验、越界删除防护、祖先符号链接误判回归）。5563 已恢复可用并实测：缓存统计/清理恢复真实值、深度清理单窗口两步确认、播放/seek/预载正常、播放中标准清理不中断。
 - 关键约束：`Path.cache()` 是混合目录，绝不能被当作一个全局可任意淘汰的缓存池。
 - 实施顺序：P0 缓存清单 → P1 分类清理 → P2 模块上限 → P3 自动清理 → P4 运行中治理增强。
-- 阻塞：5563 无直播配置（点击「直播」弹出新增直播二维码），EPG 自动刷新无法在该设备验证；K 歌轨道需真实曲目音频指纹。
+- 阻塞：5563 无直播配置（点击「直播」弹出新增直播二维码），EPG 自动刷新无法在该设备验证；K 歌轨道需真实曲目音频指纹；应用内更新需安装器交互。
 - 下一步：有可用直播源后验证 EPG 自动刷新；有真实曲目指纹时验证 K 歌轨道生成/导入。
 
 ## 1. 背景
@@ -60,6 +60,7 @@
 - 2026-09-25：歌词与字幕设备实测（5563，沉浸式音频模式已开启）。①**歌词链路**：推送音频源后设备正确识别为音频内容并进入歌词流程，日志依次记录 `qqmusic search mode=lite` → `load source=QQMusic done` → `load source=LRCLIB done` → `load ranked` → `match result=none`，并在无匹配时调用 `refresh empty` + `views clear`（不残留错误字幕）；即多源检索、排序、空结果降级均正常执行。②**字幕**：通过 `/action?do=file` 投递 `/sdcard/Download/Obsession.2025.zh-Hans.srt`（HTTP 200），全屏播放至 00:02:32 时画面实际渲染出中文台词（“好吧，那，那也太尴尬了。”“天哪，我就知道。”），证明字幕加载与渲染链路未被缓存改动影响。K 歌轨道需绑定真实音频 fingerprint 的在线曲目，本次合成音频无对应指纹，未做设备级 K 歌生成/导入实测。
 - 2026-09-25：EPG 缓存保留策略设备实测（5563）。在 `cache/epg/` 构造 `today.xml`（当前日期）与 `old.xml`（mtime 回拨 2 天）后执行轻度清理，结果 `清理完成 · 释放 4 bytes · 删除 1 个文件`：`old.xml` 被删除、`today.xml` 保留，符合设计「清理 EPG：过期删除，今天的保留」。该项此前因设备无直播源无法验证自动刷新，本次以缓存策略层实测补齐可验证部分；EPG 自动下载刷新仍需有可用直播源。
 - 2026-09-25：完成设计 §23.1 的缓存管理功能开关。`CachePolicyStore.isManagementEnabled()` 读取 `cache_mgmt_enabled`（默认 `true`，缺失即开启），TV `SettingActivity` 与移动端 `SettingFragment` 在关闭时回退到旧实现（`FileUtil.getCacheSize()` 显示、`FileUtil.clearCache()` 一键清理），开启时使用 `CacheCenter` + `CacheManagementDialog`。默认值语义由纯函数 `enabledByDefault(Boolean)` 承载并由 `CachePolicyStoreTest` 覆盖；缓存包独立 JUnit **41/41 通过**，双形态 Java 编译通过。设备实测（5563，覆盖安装 leanback debug）：置 `cache_mgmt_enabled=false` 后设置页显示旧式 `60.3 MB`，点击缓存行不打开新面板、直接全量清理并把文案更新为「无」（`cache` 目录由约 60MB 降至 4KB）；验证后已把开关恢复为 `true`。
+- 2026-09-25：低空间触发设备实测（5563，root 可逆构造）。为不破坏设备存储，仅在应用 `cache` 目录挂载 400MB tmpfs（`/data/data/com.silent.android.webhtv/cache`），使 `StatFs` 真实返回 low-space；同时写入 `cache_mgmt_auto_enabled=true`、`cache_mgmt_last_auto_ms=now`、`cache_mgmt_low_space_streak=1` 并放入一个 2 天前的 `pushed-stale.apk`。启动应用后 `dumpsys jobscheduler` 记录 `START-P: #u0a58/1128350465 ... CacheCleanupJobService`，清理历史新增 **`{"mode":"STANDARD","reason":"low-space","status":"COMPLETED","deletedFiles":1}`**，临时文件被删除：证明持久化 Job 在真实低空间下触发，且按策略执行 L2（**未执行 L3**）。验证后已卸载 tmpfs、恢复检测前的偏好文件，并确认应用可正常启动（无 FATAL EXCEPTION）。设备常规环境可用空间 25GB，因此此前无法在不动设备的前提下制造低空间。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1611,8 +1612,8 @@ bash scripts/build_arm64_debug_install.sh
 - [x] 支持总缓存软上限（L1→L2 升级，永不自动 L3）
 - [x] 支持图片、歌词、K 歌、WebHome、EPG、插件、临时文件的模块上限（统一档位，见 §20.6）
 - [x] 播放器上限继续由播放器设置驱动，没有重复配置
-- [x] 支持自动清理开关与保留期限；触发条件为固定的启动/周期/低空间策略（不支持用户裁剪，见 §20.6）
-- [x] 支持启动、周期、低空间触发（含持久化 JobScheduler 重启恢复）
+- [x] 支持自动清理开关与保留期限；触发条件为固定的启动/周期/低空间策略（不支持用户裁剪，见 §20.6）。低空间触发已设备实测（400MB tmpfs 真实低空间下 Job 执行 `reason=low-space` 的 L2 清理）
+- [x] 支持启动、周期、低空间触发（含持久化 JobScheduler 重启恢复；`dumpsys jobscheduler` 记录 Job 实际运行，历史含 `reason=periodic` 与 `reason=low-space` 记录）
 - [x] 自动清理永不执行 L3
 
 ### 20.2 安全验收
@@ -1635,7 +1636,7 @@ bash scripts/build_arm64_debug_install.sh
 - [x] 清理每 250ms 最多一次 UI 更新（当前按模块上报进度，低于该频率）
 - [x] 列表滚动无明显掉帧（扫描/删除均在后台线程）
 - [x] 自动清理不阻塞应用启动（延迟 30 秒）
-- [x] 低空间设备上不会同时发起多个清理任务（全局单任务锁）
+- [x] 低空间设备上不会同时发起多个清理任务（全局单任务锁；`CacheCleanupManager.isRunning()` 拒绝并发）
 
 ### 20.4 兼容性验收
 
