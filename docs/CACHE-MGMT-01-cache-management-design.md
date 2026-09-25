@@ -67,6 +67,7 @@
 - 2026-09-25：K 歌与歌词模块缓存隔离实测（5563）。在 `cache/karaoke_tracks/` 放入 `verify.generated.txt`（K 歌轨道命名）与 `verify-track.bin`（非轨道文件），并在 `cache/lyrics/` 放入 `verify-lyric.bin`。缓存管理页正确统计「K 歌轨道 256 KB · 1 个文件」与「歌词与选源结果 128 KB · 1 个文件」；点击 K 歌行的「清理」后确认框明确显示「清理 K 歌轨道？」，执行结果 `释放 6 bytes · 删除 1 个文件`：只删除 `verify.generated.txt`，保留非轨道文件与歌词文件。证明模块级统计与清理按模块隔离、互不误删。
 - 2026-09-25：移动端 flavor 设备验证（5563，覆盖安装 `mobileArm64_v8a` debug，包名 `com.silent.android.webhtv`）。设置页移动端布局显示「缓存管理 25.7 MB / 478.9 MB」，点击后打开缓存管理弹窗并显示真实扫描结果（`共 25.7 MB / 系统配额 478.9 MB`、`扫描于 14:52:03`）；滚动后「轻度清理 / 标准清理 / 深度清理 / 刷新 / 确定」均可见可点；执行轻度清理弹出确认框并返回 `清理完成 · 释放 无 · 删除 0 个文件`（无过期项，符合预期），全程无 `FATAL EXCEPTION`。验证后已重新覆盖安装 leanback flavor，设备恢复为 TV 形态。
 - 2026-09-25：系统 quota 生效证据（5563）。设备通过 `StorageManager.getCacheQuotaBytes` 读到缓存配额 **478.9 MB**，并在设置页与缓存管理页同时展示「共 X / 系统配额 478.9 MB」。设备侧把总缓存上限设为 **1 GB**（界面 `总计：1 GB`、偏好 `cache_mgmt_total_limit_bytes=1073741824`），超过配额；有效上限的收敛由 `CacheTotalLimitPolicy.effectiveLimit(userLimit, quota)` 负责，`CacheTotalLimitPolicyTest.systemQuotaClampsUserLimit` 断言 `min(1024,512)=512`，因此该设备实际有效上限为 `min(1 GB, 478.9 MB)=478.9 MB`。验证后已把总上限还原为「不限」（`cache_mgmt_total_limit_bytes=0`）。三个强制边界场景（播放中清理、低空间触发、系统 quota）至此均有实测或实测+单测证据。
+- 2026-09-25：应用更新可验证范围与剩余限制。审查确认 `Updater` 的下载目标是 `Path.cache("update.apk")`，`HttpUpdateTransfer`/`OciUpdateTransfer` 写入同一文件，且取消路径会清理该文件；与本计划相关的缓存契约是「下载/安装进行中不得被缓存清理删除」，已由 `CacheTempFilePolicy` + `Updater.isDownloading()`（`downloading` 为 `volatile`）实现并设备实测（新写入的 `update.apk` 在轻度清理后保留，2 天前的 `pushed-stale.apk` 被删除）。完整更新闭环在本环境无法验证，原因有三：①`ApkUrlPolicy` 明确拒绝私网与 HTTP，无法用本机自建发布源；②没有真实线上 HTTPS 发布包与版本号；③安装需系统安装器人工确认（`FileUtil.openFile` 走 `ACTION_VIEW` + FileProvider）。因此按 §24 第 5 条如实标注为「缓存契约已通过、完整闭环受环境限制」，不虚报为完成。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1662,7 +1663,8 @@ bash scripts/build_arm64_debug_install.sh
 - [x] 播放、seek、预载、重缓冲不变差（180s 测试媒体实测播放推进、seek 后缓冲持续增长、播放中标准清理不中断）
 - [x] 歌词、字幕、K 歌缓存可用（5563 实测歌词多源检索链路与空结果降级正常；外挂 SRT 实际渲染中文台词；K 歌/歌词模块统计正确且 K 歌模块清理只删除自身轨道文件、保留其他模块文件）
 - [x] EPG 直播节目单可刷新（本地 HLS 直播源实测 `GET /epg.xml 200` 且 `cache/epg/epg.xml` 落盘、内容正确）；EPG 缓存保留策略亦实测（过期删除、今日保留）
-- [~] 备份/恢复已实测通过（`bak-20260924-2028.zip` 生成成功、恢复 `shared=50 app=3` 成功）；应用更新的缓存契约已实测（`update.apk` 在清理中被保护），完整“检查更新→下载→安装”闭环待线上 HTTPS 发布包与安装器交互验证
+- [x] 备份/恢复已实测通过（`bak-20260924-2028.zip` 生成成功、恢复 `shared=50 app=3` 成功）
+- [~] 应用更新的**缓存契约**已实测：`Updater` 目标为 `cache/update.apk`，进行中该项在清理中被显式保护（`CacheTempFilePolicy` + `Updater.isDownloading()`），过期临时包正常淘汰。完整“检查更新→HTTPS 下载→安装器交互”闭环需真实 HTTPS 发布包与人工确认安装，本地环境（私网被 `ApkUrlPolicy` 拒绝、无线上发布包、安装器需交互）无法完成
 
 ### 20.6 设计与实现的已知偏离（第 24 节第 1 条要求逐项记录）
 
