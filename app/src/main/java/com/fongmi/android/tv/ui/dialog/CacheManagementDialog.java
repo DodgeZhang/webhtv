@@ -103,7 +103,14 @@ public class CacheManagementDialog extends DialogFragment {
         binding.autoCleanup.setOnClickListener(view -> toggleAutoCleanup());
         binding.retention.setOnClickListener(view -> chooseRetention());
         binding.totalLimit.setOnClickListener(view -> chooseTotalLimit());
-        binding.close.setOnClickListener(view -> dismiss());
+        // The close button must follow the same rule as BACK: during a cleanup it requests cancellation instead of hiding a still-running job.
+        binding.close.setOnClickListener(view -> {
+            if (CacheCleanupManager.isRunning()) {
+                CacheCleanupManager.cancel();
+                return;
+            }
+            dismiss();
+        });
         updatePolicyButtons();
     }
 
