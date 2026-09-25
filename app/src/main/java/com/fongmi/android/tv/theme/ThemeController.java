@@ -10,6 +10,10 @@ import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.content.ContextCompat;
+
+import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.R;
 
 /** Read-only application entry point for future theme adoption. */
 public final class ThemeController {
@@ -90,8 +94,11 @@ public final class ThemeController {
     }
 
     private static ThemeTokens resolveWith(ThemeProfile profile) {
-        boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        ThemeMode themeMode = currentThemeMode();
+        // Both the base palette and the profile's light/dark slot selection follow the
+        // compiled table, so the active tokens stay comparable with inflated colours on
+        // every flavour (see resolvedDark()).
+        boolean systemDark = resolvedDark();
+        ThemeMode themeMode = ThemeMode.SYSTEM;
         int themeColor = com.fongmi.android.tv.setting.Setting.getThemeColor();
         if (themeColor == -1) {
             return ThemeResolver.resolve(themeMode, ThemeSeed.NONE, 0, 0, profile, null, systemDark);
@@ -114,13 +121,97 @@ public final class ThemeController {
      * silently degraded to the legacy site dialog.
      */
     private static ThemeTokens frozenPalette() {
-        boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        return ThemeResolver.resolve(currentThemeMode(), ThemeSeed.NONE, 0, 0, null, null, systemDark);
+        return ThemeResolver.resolve(ThemeMode.SYSTEM, ThemeSeed.NONE, 0, 0, null, null, resolvedDark());
     }
 
     private static ThemeMode currentThemeMode() {
         int mode = com.fongmi.android.tv.setting.Setting.getThemeMode();
         return mode < 0 ? ThemeMode.SYSTEM : (mode == 0 ? ThemeMode.LIGHT : ThemeMode.DARK);
+    }
+
+    /**
+     * Whether the palette the running build actually ships is the dark table.
+     *
+     * <p>{@link #frozenPalette()} must describe the colours inflation produced, and
+     * those come from the compiled {@code webhtv_color_*} resources. Resource
+     * selection is not purely a function of uiMode: the TV flavour overrides
+     * {@code values/} with the dark table and ships no light table of its own, so on
+     * a light-mode device its views are dark while a uiMode-derived baseline was
+     * light. Every binder rewrite compares against that baseline exactly, so the
+     * mismatch silently turned the whole TV theme channel into a no-op (measured:
+     * probe vs default = 0 changed pixels on TV while the identical probe changed
+     * ~49k pixels on mobile, and switching the device to dark made TV respond).
+     *
+     * <p>The compiled table is therefore read from resources whenever it can be
+     * identified, and only an unidentifiable palette falls back to the uiMode rule.
+     */
+    private static boolean resolvedDark() {
+        boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        return darkPaletteFor(compiledDarkPalette(), currentThemeMode(), systemDark);
+    }
+
+    /**
+     * The dark/light decision shared by the baseline and the active palette.
+     *
+     * <p>When the compiled table is identifiable it is authoritative: it is literally
+     * what inflation resolved, so it must win even over an explicit appearance mode.
+     * The TV flavour needs that - its {@code values/} holds the dark table, so a
+     * light-mode device (or a user who picked light) still renders dark views. Only an
+     * unidentifiable palette falls back to the historical mode/uiMode rule.
+     */
+    static boolean darkPaletteFor(Boolean compiledDark, ThemeMode mode, boolean systemDark) {
+        if (compiledDark != null) return compiledDark;
+        return mode == ThemeMode.DARK || (mode != ThemeMode.LIGHT && systemDark);
+    }
+
+    /**
+     * Identifies which canonical table this APK compiled by comparing every role the
+     * binder may rewrite against its {@code webhtv_color_*} resource. Returns
+     * {@code null} when no context is available or neither table matches exactly, so
+     * an unmodelled future palette keeps the previous uiMode behaviour instead of
+     * silently binding against the wrong baseline.
+     */
+    private static Boolean compiledDarkPalette() {
+        Context context = App.get();
+        if (context == null) return null;
+        ThemeTokens light = ThemeTokens.light();
+        ThemeTokens dark = ThemeTokens.dark();
+        boolean matchesLight = true;
+        boolean matchesDark = true;
+        for (ThemeRole role : ThemeRole.values()) {
+            int resource = colorResourceOf(role);
+            if (resource == 0) continue;
+            int compiled = ContextCompat.getColor(context, resource);
+            matchesLight &= compiled == role.colorOf(light);
+            matchesDark &= compiled == role.colorOf(dark);
+        }
+        if (matchesLight == matchesDark) return null;
+        return matchesDark;
+    }
+
+    /** The compiled default of a binder role, or 0 when the role has no resource. */
+    private static int colorResourceOf(ThemeRole role) {
+        return switch (role) {
+            case PRIMARY -> R.color.webhtv_color_primary;
+            case PRIMARY_CONTAINER -> R.color.webhtv_color_primary_container;
+            case SECONDARY_CONTAINER -> R.color.webhtv_color_secondary_container;
+            case FOCUS -> R.color.webhtv_color_focus;
+            case SURFACE -> R.color.webhtv_color_surface;
+            case SURFACE_CONTAINER -> R.color.webhtv_color_surface_container;
+            case SURFACE_CONTAINER_HIGH -> R.color.webhtv_color_surface_container_high;
+            case ON_SURFACE -> R.color.webhtv_color_on_surface;
+            case ON_SURFACE_VARIANT -> R.color.webhtv_color_on_surface_variant;
+            case OUTLINE -> R.color.webhtv_color_outline;
+            case ERROR -> R.color.webhtv_color_error;
+            case SUCCESS -> R.color.webhtv_color_success;
+            case WARNING -> R.color.webhtv_color_warning;
+            case ON_PRIMARY -> R.color.webhtv_color_on_primary;
+            case ON_PRIMARY_CONTAINER -> R.color.webhtv_color_on_primary_container;
+            case ON_SECONDARY_CONTAINER -> R.color.webhtv_color_on_secondary_container;
+            case ON_ERROR -> R.color.webhtv_color_on_error;
+            case ON_SUCCESS -> R.color.webhtv_color_on_success;
+            case ON_WARNING -> R.color.webhtv_color_on_warning;
+        };
     }
 
     /**

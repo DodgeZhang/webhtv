@@ -406,6 +406,78 @@ public class ThemeBinderContractTest {
                 .replacementFor(staticPalette.colorSurface(), active));
     }
 
+    /**
+     * The TV flavour compiles the dark table into {@code values/} and ships no light
+     * table of its own, yet {@code frozenPalette()} used to derive the baseline from
+     * uiMode alone. On a light-mode device the baseline was therefore
+     * {@link ThemeTokens#light()} while inflation produced {@link ThemeTokens#dark()};
+     * because every rewrite requires an exact baseline match, the whole TV theme
+     * channel bound nothing. Device evidence behind this guard: the same probe against
+     * the same build changed 0 pixels on TV while changing ~49k pixels on mobile, and
+     * switching the device to dark mode made TV respond (159174 px).
+     */
+    @Test
+    public void tvFlavourBaselineMustDescribeTheCompiledResources() throws Exception {
+        ThemeTokens light = ThemeTokens.light();
+        ThemeTokens compiled = ThemeTokens.dark();
+        ThemeColorIndex fromLight = ThemeColorIndex.of(light);
+        ThemeColorIndex fromCompiled = ThemeColorIndex.of(compiled);
+
+        // A light baseline cannot see a single colour the TV build actually inflated.
+        assertNull(fromLight.replacementFor(compiled.colorPrimary(), light));
+        assertNull(fromLight.replacementFor(compiled.colorSurface(), light));
+        // The compiled table does index them, so the corrected baseline can bind again.
+        assertFalse(fromCompiled.rolesFor(compiled.colorPrimary()).isEmpty());
+        assertFalse(fromCompiled.rolesFor(compiled.colorSurface()).isEmpty());
+
+        // Pin the fix itself: the baseline must be read from the compiled resources
+        // instead of being inferred from uiMode.
+        String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
+        assertTrue(controller.contains("compiledDarkPalette()"));
+        assertTrue(controller.contains("R.color.webhtv_color_primary"));
+        assertTrue(controller.contains("R.color.webhtv_color_on_warning"));
+        assertTrue(controller.contains("resolvedDark()"));
+        assertFalse("the frozen palette must not be derived from uiMode alone",
+                controller.contains("ThemeResolver.resolve(currentThemeMode(), ThemeSeed.NONE, 0, 0, null, null, systemDark)"));
+    }
+
+    /**
+     * Pins the shared dark/light decision so the TV fix cannot silently re-break, and so
+     * the mobile answer is provably unchanged:
+     *
+     * <ul>
+     *   <li>mobile light/dark: the compiled table equals the canonical table, so the
+     *       result matches the pre-fix {@code mode}/{@code uiMode} answer;
+     *   <li>TV: the compiled table is dark in every configuration, so TV stays dark even
+     *       on a light-mode device or when the user explicitly picked light;
+     *   <li>unidentifiable table: the historical rule is kept instead of guessing.
+     * </ul>
+     */
+    @Test
+    public void darkPaletteDecisionKeepsMobileStableAndForcesTvOntoItsCompiledTable() {
+        // Mobile: compiled table matches the canonical one, so both branches agree and
+        // the pre-fix behaviour is preserved exactly.
+        assertFalse(ThemeController.darkPaletteFor(false, ThemeMode.SYSTEM, false));
+        assertTrue(ThemeController.darkPaletteFor(true, ThemeMode.SYSTEM, true));
+        assertTrue(ThemeController.darkPaletteFor(true, ThemeMode.DARK, false));
+
+        // TV: the compiled table wins over a light system or an explicit light choice.
+        assertTrue(ThemeController.darkPaletteFor(true, ThemeMode.SYSTEM, false));
+        assertTrue(ThemeController.darkPaletteFor(true, ThemeMode.LIGHT, false));
+        assertTrue(ThemeController.darkPaletteFor(true, ThemeMode.LIGHT, true));
+
+        // Unidentifiable table: keep the historical rule rather than guessing.
+        assertFalse(ThemeController.darkPaletteFor(null, ThemeMode.SYSTEM, false));
+        assertTrue(ThemeController.darkPaletteFor(null, ThemeMode.SYSTEM, true));
+        assertFalse(ThemeController.darkPaletteFor(null, ThemeMode.LIGHT, true));
+        assertTrue(ThemeController.darkPaletteFor(null, ThemeMode.DARK, false));
+
+        // The canonical tables must stay identifiable from the flavour resources; a
+        // drift here is what silently disabled every TV rewrite.
+        assertNotEquals(ThemeTokens.light().colorPrimary(), ThemeTokens.dark().colorPrimary());
+        assertNotEquals(ThemeTokens.light().colorSurface(), ThemeTokens.dark().colorSurface());
+    }
+
     @Test
     public void bottomSheetsBindThroughTheSharedDialogChannel() throws Exception {
         String sheet = read("src/main/java/com/fongmi/android/tv/ui/dialog/BaseBottomSheetDialog.java");

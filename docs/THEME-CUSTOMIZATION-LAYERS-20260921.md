@@ -12,7 +12,7 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。框架文本角色已在主题层补齐（见 4.25），程序化控件不再是盲区。4.7 设备矩阵已验收 4 行（16 槽、浅深模式、透明度、资源回收，见 4.26），其中透明度暴露出 `dialogOpacity` 死槽并已修复。**当前剩余：`scrimOpacity`/`overlayOpacity` 两个死槽（需先裁定原生语义边界）、TV 遥控一行设备验收（需 leanback 设备）、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面；播放回归已于 4.27 验收通过，WebHome 全局皮肤经用户 2026-09-24 决定保持独立、不再是本任务项（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。框架文本角色已在主题层补齐（见 4.25），程序化控件不再是盲区。4.7 设备矩阵已验收 4 行（16 槽、浅深模式、透明度、资源回收，见 4.26），其中透明度暴露出 `dialogOpacity` 死槽并已修复。**当前剩余：`scrimOpacity`/`overlayOpacity` 两个死槽（需先裁定原生语义边界）、TV 遥控一行的**主题着色**验收（TV 主题通道已于 4.28 定位并修复，5559 上可继续执行）、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面；播放回归已于 4.27 验收通过，WebHome 全局皮肤经用户 2026-09-24 决定保持独立、不再是本任务项（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
 - 下一步唯一动作：裁定 `scrimOpacity` / `overlayOpacity` 的原生语义边界并接线（4.26 记录，二者当前为零引用死槽），然后继续 4.7 节剩余三行设备验收（TV 遥控需 leanback 设备，待用户分配）。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
@@ -974,6 +974,22 @@ Layer 2 DoD：
 - 设备偏好还原：实验前基线 `/tmp/w_base.xml`（profile `Default`、`theme_color=-291840`、`detail_open_mode=1`）写回后 `cmp` 校验 **byte-identical**（md5 `da54c8a4a153a04aa18c8fbdf4e64c7d`）。
 - 仍未覆盖：TV 遥控（需 leanback 设备，待用户分配）；半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面。WebHome 经用户决定保持独立，不再是本任务验收项。
 - 回滚锚点：本任务仅更新文档，无代码、资源或偏好格式变更。
+
+---
+
+### 4.28 TV（leanback）主题通道失效定位与修复（2026-09-25）
+
+- 任务：`TV-THEME-PALETTE-20260925`。承接 4.27 之后在 TV 侧新发现的功能缺口。
+- 现象（严格 A/B，dev3 `192.168.50.3:5559`）：同一极端探针（`primary=#C62828`、`surface=#FFF8E1`、`focus=#7B1FA2`）在**浅色系统**下，TV 首页与设置页对比 Default 均为 **0 像素**；把系统切到**深色**后，同一探针 TV 首页 **159174**、设置页 **11474** 像素。同一方法在手机版为 4.9 万像素量级。这不是“TV 缺少消费方”，而是**基线判定**错误。
+- 根因（零成本穷举证明）：`app/src/leanback/res/values/webhtv_tokens.xml` 的 **53 项 token 全部覆盖为暗色表**，且与 `main/res/values-night/webhtv_tokens.xml` **53/53 逐项相同**；leanback 自身**没有 `values-night`**，因此 TV 侧 inflate 出的颜色**永远**是暗色，与系统浅/深无关。而 `ThemeController.frozenPalette()` / `resolveWith()` 原先用 `Resources.getSystem().uiMode` 推断浅深：浅色系统 → 基线取 `ThemeTokens.light()`，与实际 inflate 的 `ThemeTokens.dark()` 不相等。`ThemeBinder` 只改写“与基线**精确相等**”的颜色，于是一整条 TV 主题通道静默 no-op（与 3 节记录的“基线必须描述真实 inflate 的颜色”是同一条契约，只是此前只考虑了 uiMode、没考虑 flavor 资源覆盖）。
+- 修复（最小化）：新增 `compiledDarkPalette()`，用本 flavor **实际编译**的 `webhtv_color_*` 资源逐项比对 19 个 binder role，判定当前 APK 编译进去的是浅色表还是暗色表；再由 `darkPaletteFor(compiled, mode, systemDark)` 让“可识别的编译表”成为权威——显式浅/深偏好不再能把它判错（TV 就是这样：资源恒暗，用户选浅色时视图仍是暗色）——只有**无法识别**时才退回原 uiMode 规则，避免对未来未知调色板做错误猜测。`frozenPalette()` 与 `resolveWith()` 共用这一判定。
+- 为什么手机端行为不变：手机侧编译表随配置变化，资源判定结果与旧 uiMode 判定一致（`main/values` 与 `ThemeTokens.light()` 一致、`main/values-night` 与 `ThemeTokens.dark()` 53/53 一致），且新增单测把该等价关系固定下来。
+- 自动化证据：`:app:testMobileArm64_v8aDebugUnitTest --tests 'com.fongmi.android.tv.theme.*'` → **105 项全绿**；新增 `ThemeBinderContractTest#tvFlavourBaselineMustDescribeTheCompiledResources`（浅色基线看不到 TV 实际 inflate 的颜色）与 `#darkPaletteDecisionKeepsMobileStableAndForcesTvOntoItsCompiledTable`（TV 恒暗、手机等价、未知表回退）。
+- 设备证据（dev3 `192.168.50.3:5559`，API 28，浅色系统，覆盖安装）：修复前 TV 首页 **0** / 设置页 **0**；修复后 TV 首页 **36999** / 设置页 **11474**，其中设置页数值与“修复前深色系统”对照值 **11474 完全一致**，证明现在恒取编译暗色表；手机端同探针确定性设置页 **19827** 像素、仍正常响应 → 无回归。
+- 环境还原：设备偏好按字节还原至实验前基线 `/tmp/w_base.xml`（`cmp` 一致）、夜间模式恢复 `no`、最终设备上为 mobile flavor、应用可正常启动。
+- 回滚锚点：回退本任务即恢复 `frozenPalette()` / `resolveWith()` 用 uiMode 推断基线；不涉及 profile 数据格式、偏好键或资源。
+- 顺带记录的**既有缺陷（未修，超出本任务范围）**：不带 `keyword` extra 直接启动 `SearchActivity` 会 NPE（`SearchFragment.setKeyword` 对 null 调用 `length()`，`SearchFragment.java:208`）。本任务仅在测试取证时踩到，未改动该路径。
+
 
 ---
 
