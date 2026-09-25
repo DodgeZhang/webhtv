@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.Window;
@@ -71,6 +72,14 @@ public class CacheManagementDialog extends DialogFragment {
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(getBinding().getRoot());
         dialog.setCanceledOnTouchOutside(true);
+        // Design §15.2: while a cleanup is running the BACK key must request cancellation
+        // instead of silently closing the panel and leaving the job running invisibly.
+        dialog.setOnKeyListener((ignored, keyCode, event) -> {
+            if (keyCode != KeyEvent.KEYCODE_BACK || event.getAction() != KeyEvent.ACTION_UP) return false;
+            if (!CacheCleanupManager.isRunning()) return false;
+            CacheCleanupManager.cancel();
+            return true;
+        });
         initView();
         initEvent();
         return dialog;
@@ -231,8 +240,18 @@ public class CacheManagementDialog extends DialogFragment {
     private void startCleanup(CacheCleanupPlan plan) {
         if (CacheCleanupManager.isRunning()) return;
         setCleanupEnabled(false);
+        setDismissableWhileIdle(false);
         binding.cancel.setVisibility(android.view.View.VISIBLE);
         CacheCleanupManager.execute(plan, this::renderProgress, this::renderResult);
+    }
+
+    /**
+     * Keeps the panel on screen for the whole cleanup so the user always sees progress and the
+     * final outcome; BACK is still handled separately as a cancellation request.
+     */
+    private void setDismissableWhileIdle(boolean dismissable) {
+        Dialog dialog = getDialog();
+        if (dialog != null) dialog.setCanceledOnTouchOutside(dismissable);
     }
 
     private CacheCleanupPlan buildPlan(CacheCleanupMode mode) {
@@ -248,6 +267,7 @@ public class CacheManagementDialog extends DialogFragment {
     private void renderResult(CacheCleanupResult result) {
         if (binding == null || !isAdded()) return;
         setCleanupEnabled(true);
+        setDismissableWhileIdle(true);
         binding.cancel.setVisibility(android.view.View.GONE);
         int message;
         if (result.status() == CacheCleanupStatus.COMPLETED) {
