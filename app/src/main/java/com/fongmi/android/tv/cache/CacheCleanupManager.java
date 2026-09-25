@@ -4,11 +4,13 @@ import androidx.media3.mpvplayer.MpvHlsCacheCoordinator;
 
 import com.bumptech.glide.Glide;
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.Updater;
 import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.api.parser.EpgParser;
 import com.fongmi.android.tv.player.exo.MediaSourceFactory;
 import com.fongmi.android.tv.player.karaoke.KaraokeTrackRepository;
 import com.fongmi.android.tv.player.lyrics.LyricsRepository;
+import com.fongmi.android.tv.server.process.ApkUrlPush;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.web.WebHomeRawAdapter;
 import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
@@ -200,10 +202,13 @@ public final class CacheCleanupManager {
         boolean success = true;
         ArrayList<String> warnings = new ArrayList<>();
         ArrayList<File> remaining = new ArrayList<>();
+        boolean updaterDownloading = Updater.isDownloading();
+        boolean apkUrlPushing = ApkUrlPush.isActive();
         for (File file : files) {
             String name = file.getName();
             if (!isTemporaryName(name)) continue;
-            if (!isExpired(file, now, retentionMs)) {
+            if (!isExpired(file, now, retentionMs)
+                    || CacheTempFilePolicy.isInUse(name, updaterDownloading, apkUrlPushing)) {
                 remaining.add(file);
                 continue;
             }

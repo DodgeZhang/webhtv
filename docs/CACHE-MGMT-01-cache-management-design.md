@@ -9,7 +9,7 @@
 ## Recovery anchor
 
 - 目标：把设置页现有“缓存大小 + 一键全删”升级为可观测、可分级清理、可配置上限、可自动维护的缓存管理中心。
-- 当前状态：P0-P4 及各收口阶段均已提交并带恢复标签；缓存纯测试 36/36 通过（含注册表根路径校验、越界删除防护、祖先符号链接误判回归）。5563 已恢复可用并实测：缓存统计/清理恢复真实值、深度清理单窗口两步确认、播放/seek/预载正常、播放中标准清理不中断。
+- 当前状态：P0-P4 及各收口阶段均已提交并带恢复标签；缓存纯测试 39/39 通过（含注册表根路径校验、越界删除防护、祖先符号链接误判回归）。5563 已恢复可用并实测：缓存统计/清理恢复真实值、深度清理单窗口两步确认、播放/seek/预载正常、播放中标准清理不中断。
 - 关键约束：`Path.cache()` 是混合目录，绝不能被当作一个全局可任意淘汰的缓存池。
 - 实施顺序：P0 缓存清单 → P1 分类清理 → P2 模块上限 → P3 自动清理 → P4 运行中治理增强。
 - 阻塞：5563 无直播配置（点击「直播」弹出新增直播二维码）、点播为最小 smoke 源，缺 EPG 与媒体增强所需源；应用内更新需安装器交互。
@@ -56,6 +56,7 @@
   3) **播放器切换不影响其他模块统计**：EXO → MPV 切换前后模块统计完全一致（总计 58.9 MB、歌词 1 MB/1 文件、MPV HLS 519.8 KB/2 文件、JS·Python·Jar 12.7 MB/31 文件、Exo 1 文件）；切换后 MPV 亦正常播放（position 3,971→6,973 ms），验证完已恢复为 EXO。
   4) **备份/恢复**：备份实测生成 `/sdcard/TV/bak-20260924-2028.zip`（998,683 字节，与日志 `create complete size=998683` 一致，toast「备份成功」，临时 zip 已清理）；恢复实测最新备份 `restore complete shared=50 login=0 app=3 warning=`，toast「恢复成功」，临时包已清理。
   5) EPG 与歌词/字幕/K 歌：5563 的直播配置为空（点击「直播」弹出新增直播二维码），点播配置为最小 smoke 源，缺少 EPG 与媒体增强所需源，本机无法验证，保持未通过。
+- 2026-09-25：临时文件“使用中跳过”补齐（设计 §9.12）。原实现仅靠 24 小时保留期间接避免误删进行中的 `update.apk`/`pushed-url-*.apk`，缺少设计要求的显式“使用中禁止”。现新增 `CacheTempFilePolicy.isInUse(name, updaterDownloading, apkUrlPushing)`，并在 `CacheCleanupManager.clearTemporaryFiles` 中接入 `Updater.isDownloading()`（`downloading` 改为 `volatile`）与 `ApkUrlPush.isActive()`；使用中的 `update.apk` 与 `pushed-url-*.apk` 一律跳过，其余临时文件仍按 24h + 字节上限处理。新增 `CacheTempFilePolicyTest`（3 例）覆盖进行中保护与无关文件放行；缓存包独立 JUnit **39/39 通过**，双形态 Java 编译通过。设备复测（覆盖安装 leanback debug）：同时放入新写入的 `update.apk` 与 2 天前的 `pushed-stale.apk` 后执行轻度清理，结果 `释放 512 KB · 删除 1 个文件`，`update.apk` 保留、过期包被删除。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
