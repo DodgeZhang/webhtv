@@ -12,7 +12,7 @@
 - 已确认边界：用户同意先做 Layer 1；Layer 2 倾向 B，但由实施者选择更稳妥、更适用的子集。本方案裁定为 **B-safe：16 个语义槽 + 自动派生依赖角色 + 严格控制透明度范围**，不开放 49 个原始 token，不允许用户直接制造不可读配对。
 - 验收标准：Layer 1、Layer 2 分别满足本文 DoD；静态检查、JVM 测试、mobile/leanback debug 编译、代表性设备场景、主题取消/应用/重启/回滚全部通过；播放器画面和性能不得回退。
 - 当前证据：当前 `Theme.Base` 仍继承系统 Material/DynamicColors 主题；`ThemeController` 已能解析/保存快照，但没有把任意 token 应用到现有 `?attr/color*` 视图树；页面仍有 2007 个 `?attr/color*`/`?attr/webhtvColor*` 引用和 303 个直接 token 资源引用。
-- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。框架文本角色已在主题层补齐（见 4.25），程序化控件不再是盲区。4.7 设备矩阵已验收 4 行（16 槽、浅深模式、透明度、资源回收，见 4.26），其中透明度暴露出 `dialogOpacity` 死槽并已修复。**当前剩余：`scrimOpacity`/`overlayOpacity` 两个死槽（需先裁定原生语义边界）、TV 遥控与 WebHome 与播放回归三行设备验收、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面，（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
+- 当前状态：Layer 1（3.4）、Layer 2A（4.8）、Layer 2B（4.9）、Layer 2C（4.10）均已提交并打 recovery tag；Layer 2D 的 Web 快照与备份收口已完成（见 4.11）。原生“外观→主题色”入口阻塞已由 `NAV-THEME-ENTRY-20260922` 修复并完成代表性设备验证（见 4.12）。主题色彩“只有站点弹框生效”的运行时缺陷已定位并修复（见 4.13），`AlertDialog`/`LightDialog` 家族已接入绑定（见 4.14），追更页整页接入并建立“BaseActivity 之外 Activity 必须显式豁免”的守门测试（见 4.15），背景通道扩展到 Material 形状面板并取到弹窗绑定的真实设备证据（见 4.16），共享 main 模块 125 处弹窗构造统一接入主题构建器（见 4.17）。4.17 提出的 P0 崩溃已修复并加守门测试、其错误普查结论已在 4.18 更正。对话框**窗口背景（面板）通道**已于 4.19 打通并取得设备证据。`colorPrimary` 对表面色的可读性契约已按 M3 一手证据恢复（见 4.23，实测 1.28:1 → 4.57:1）。框架文本角色已在主题层补齐（见 4.25），程序化控件不再是盲区。4.7 设备矩阵已验收 4 行（16 槽、浅深模式、透明度、资源回收，见 4.26），其中透明度暴露出 `dialogOpacity` 死槽并已修复。**当前剩余：`scrimOpacity`/`overlayOpacity` 两个死槽（需先裁定原生语义边界）、TV 遥控一行设备验收（需 leanback 设备）、半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面；播放回归已于 4.27 验收通过，WebHome 全局皮肤经用户 2026-09-24 决定保持独立、不再是本任务项（4.20 记录的陈旧红灯已由 4.21 修复，移动端全量 4863 个测试现为全绿）**，因此按第 8 节完成定义，尚不能宣称“全局主题自定义已完成”。
 - 已知任务外缺陷：`3f3ab82b1f` 在 leanback 播放器布局中引用了从未声明的 `colorOnSurface_20/70/80/90`，导致 TV 资源链接失败；Layer 1 已按用户批准的方案 A 一并补齐（见 3.4）。
 - 下一步唯一动作：裁定 `scrimOpacity` / `overlayOpacity` 的原生语义边界并接线（4.26 记录，二者当前为零引用死槽），然后继续 4.7 节剩余三行设备验收（TV 遥控需 leanback 设备，待用户分配）。在此之前 Layer 2 仍只能标记为“代码完成、完整设备验收未完成”。
 
@@ -946,8 +946,34 @@ Layer 2 DoD：
 - 修复过程中修正的两处失败：一是我把 `0.70 * 255 = 178.5` 的期望写成了 178（`Math.round` 取 179）；二是 4.19 的既有断言仍在匹配 `return bindDrawable(...)`，而本次实现把它改成了赋值形式——两处都按真实行为更正，没有放宽断言。
 - 自动化证据：mobile 与 leanback `--tests 'com.fongmi.android.tv.theme.*'` 均 BUILD SUCCESSFUL；双 flavor `compileWithJavac` 通过。
 - **本轮新发现的残余缺陷（未修，需独立设计决策）**：`scrimOpacity` 与 `overlayOpacity` 同样**没有任何原生消费点**——`colorScrim` / `colorOverlayLight` 在 `theme` 包之外全仓库零引用。即 16 槽中目前有 2 槽（scrim、overlay）仍是死槽。与 `dialogOpacity` 不同，这两者**不是遗漏修复**：设计文档只规定它们作用于「scrim / overlay」，但从未指定原生侧哪个界面元素承担该角色，需要先裁定语义边界（对话框遮罩？播放器浮层？壁纸遮罩？）再实施。
-- 仍未验收/未完成：4.7 节的「预设、非法输入、取消、应用、重启、备份、动态 UI」已在 4.10/4.12 记录过代表性结果，本轮未重复；**TV 遥控、WebHome、播放回归三行仍未执行**（TV 遥控需 leanback 设备，待用户分配）；半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面仍未覆盖。
+- 仍未验收/未完成：4.7 节的「预设、非法输入、取消、应用、重启、备份、动态 UI」已在 4.10/4.12 记录过代表性结果，本轮未重复；**TV 遥控一行仍未执行**（需 leanback 设备，待用户分配）；WebHome 于 2026-09-24 经用户决定保持独立、不再是本任务验收项；**播放回归已于 4.27 补验通过**；半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面仍未覆盖。
 - 回滚锚点：回退本任务即移除 `applyShellOpacity` 调用；不涉及 profile 数据格式、偏好键或资源。
+
+---
+
+### 4.27 播放回归设备验收（2026-09-25）
+
+- 任务：`THEME-PLAYBACK-REGRESSION-20260925`。承接 4.26 未完成的设备矩阵「播放回归」一行。设备：dev3 `192.168.50.3:5559`（V1923A，API 28，mobile arm64 debug 覆盖安装）。
+- 探针：沿用 4.26 的 `playprobe` profile（light/dark 同值，`primary=#C62828`、`surface=#FFF8E1`、`theme_color=-1`），整个播放过程处于自定义主题激活态，用于同时检验「主题不侵入播放器」。
+- **环境阻塞与绕行（必须记录，否则结论会被误读）**：设备到 `api.themoviedb.org` **100% 丢包**（`ping` 2/2 loss），从历史卡片进入的 TMDB 详情页稳定停在「正在加载 TMDB 详情...」不再前进（观察 >10 分钟，`FATAL=0`）。这是**外部数据源不可达**，与主题无关。为把播放链路与详情依赖解耦，本轮走应用自身的本地推送入口：`am start -a android.intent.action.VIEW -d file:///sdcard/Movies/webhtv-regression.mp4 -t video/mp4 -n .../HomeActivity`，即 `HomeActivity.checkAction → VideoActivity.push`；验证后临时改动的 `detail_open_mode`（1→2）与 `tmdb_enabled` 已随偏好一并还原（见末条）。
+- 播放证据（同一进程 pid 17375，全程 `FATAL EXCEPTION = 0`）：
+
+| 观测点 | 实测值 | 说明 |
+| --- | --- | --- |
+| 播放器内核 | `MPV_SIZE ... player=EXO` | 走 Exo 路径，未被主题通道接管 |
+| 首帧 | `TV-playback-telemetry phase=READY ... firstFrameMs=3748` | 首帧已解码并渲染 |
+| 丢帧/重缓冲 | `dropped=0`、`rebufferCount=0`、`rebufferTotalMs=0` | 无卡顿证据 |
+| 解码器档案 | `TV-exo-decoder-profile firstFrames=1 failures=0 drops=0 recoverableErrors=0 blacklisted=false` | 解码器稳定、未被拉黑、无回退 |
+| 音频链路 | `OMX.google.aac.decoder` + `SoftAAC2 Reconfiguring decoder: 0->44100 Hz, 0->1 channels` | 音频解码与 sink 正常建立 |
+| 播放推进 | `playing=false→true`（偏好 `player_auto_play=false`，按 `KEYCODE_MEDIA_PLAY` 起播后）`pos=3363→4362ms`，OSD `00:10 / 03:00` | 时间轴真实推进 |
+| 画面推进 | 间隔取样的两帧在播放器区域 bbox `(28,13,728,464)` 变化 **209922 像素** | 视频帧在刷新，非静态贴图 |
+| 主题隔离 | 探针主题只改写周边 UI，播放器画面（彩条测试图）颜色未被 token 改写 | 符合「播放器画面不在范围内」的既有契约 |
+| 生命周期 | `Back` → `HomeActivity`，再次进入 → `VideoActivity`；二段播放 `phase=READY positionMs=47314`（断点续播） | 退出/重入与续播正常 |
+
+- 过程中一次误判已纠正：用 `--es url` / `--es key/id` 经 `am start` 直接拉起**非导出**的 `VideoActivity`，会被系统静默丢弃或落到空态（`state=0, position=0`、纯白空页，截图均值约 `(243,245,248)`），**不能**作为播放证据；上表数据全部来自 `HomeActivity` 导出的真实推送链路。
+- 设备偏好还原：实验前基线 `/tmp/w_base.xml`（profile `Default`、`theme_color=-291840`、`detail_open_mode=1`）写回后 `cmp` 校验 **byte-identical**（md5 `da54c8a4a153a04aa18c8fbdf4e64c7d`）。
+- 仍未覆盖：TV 遥控（需 leanback 设备，待用户分配）；半透明填充匹配策略、`StateListDrawable`/`RippleDrawable` 背景、远程 Web 主题页面。WebHome 经用户决定保持独立，不再是本任务验收项。
+- 回滚锚点：本任务仅更新文档，无代码、资源或偏好格式变更。
 
 ---
 
