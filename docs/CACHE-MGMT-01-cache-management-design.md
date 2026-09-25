@@ -12,8 +12,8 @@
 - 当前状态：P0-P4 及各收口阶段均已提交并带恢复标签；缓存纯测试 41/41 通过（含注册表根路径校验、越界删除防护、祖先符号链接误判回归）。5563 已恢复可用并实测：缓存统计/清理恢复真实值、深度清理单窗口两步确认、播放/seek/预载正常、播放中标准清理不中断。
 - 关键约束：`Path.cache()` 是混合目录，绝不能被当作一个全局可任意淘汰的缓存池。
 - 实施顺序：P0 缓存清单 → P1 分类清理 → P2 模块上限 → P3 自动清理 → P4 运行中治理增强。
-- 阻塞：5563 无直播配置（点击「直播」弹出新增直播二维码），EPG 自动刷新无法在该设备验证；K 歌轨道需真实曲目音频指纹；应用内更新需安装器交互。
-- 下一步：有可用直播源后验证 EPG 自动刷新；有真实曲目指纹时验证 K 歌轨道生成/导入。
+- 阻塞：K 歌轨道需真实曲目音频指纹；应用内更新完整闭环需线上 HTTPS 发布包与安装器交互。
+- 下一步：有真实曲目指纹时验证 K 歌轨道生成/导入；有线上 HTTPS 发布包时验证应用更新完整闭环。
 
 ## 1. 背景
 
@@ -61,6 +61,9 @@
 - 2026-09-25：EPG 缓存保留策略设备实测（5563）。在 `cache/epg/` 构造 `today.xml`（当前日期）与 `old.xml`（mtime 回拨 2 天）后执行轻度清理，结果 `清理完成 · 释放 4 bytes · 删除 1 个文件`：`old.xml` 被删除、`today.xml` 保留，符合设计「清理 EPG：过期删除，今天的保留」。该项此前因设备无直播源无法验证自动刷新，本次以缓存策略层实测补齐可验证部分；EPG 自动下载刷新仍需有可用直播源。
 - 2026-09-25：完成设计 §23.1 的缓存管理功能开关。`CachePolicyStore.isManagementEnabled()` 读取 `cache_mgmt_enabled`（默认 `true`，缺失即开启），TV `SettingActivity` 与移动端 `SettingFragment` 在关闭时回退到旧实现（`FileUtil.getCacheSize()` 显示、`FileUtil.clearCache()` 一键清理），开启时使用 `CacheCenter` + `CacheManagementDialog`。默认值语义由纯函数 `enabledByDefault(Boolean)` 承载并由 `CachePolicyStoreTest` 覆盖；缓存包独立 JUnit **41/41 通过**，双形态 Java 编译通过。设备实测（5563，覆盖安装 leanback debug）：置 `cache_mgmt_enabled=false` 后设置页显示旧式 `60.3 MB`，点击缓存行不打开新面板、直接全量清理并把文案更新为「无」（`cache` 目录由约 60MB 降至 4KB）；验证后已把开关恢复为 `true`。
 - 2026-09-25：低空间触发设备实测（5563，root 可逆构造）。为不破坏设备存储，仅在应用 `cache` 目录挂载 400MB tmpfs（`/data/data/com.silent.android.webhtv/cache`），使 `StatFs` 真实返回 low-space；同时写入 `cache_mgmt_auto_enabled=true`、`cache_mgmt_last_auto_ms=now`、`cache_mgmt_low_space_streak=1` 并放入一个 2 天前的 `pushed-stale.apk`。启动应用后 `dumpsys jobscheduler` 记录 `START-P: #u0a58/1128350465 ... CacheCleanupJobService`，清理历史新增 **`{"mode":"STANDARD","reason":"low-space","status":"COMPLETED","deletedFiles":1}`**，临时文件被删除：证明持久化 Job 在真实低空间下触发，且按策略执行 L2（**未执行 L3**）。验证后已卸载 tmpfs、恢复检测前的偏好文件，并确认应用可正常启动（无 FATAL EXCEPTION）。设备常规环境可用空间 25GB，因此此前无法在不动设备的前提下制造低空间。
+- 2026-09-25：EPG 直播源尝试与应用更新缓存契约。
+  1) **EPG 自动刷新（已通过）**：本地 HTTP 提供 `live.m3u`（`#EXTM3U tvg-url="http://192.168.50.34:8099/epg.xml"`，频道指向本地 HLS `playlist.m3u8`，含 8 个真实 TS 分片）。设备播放该直播频道时，服务端日志完整记录 `GET /live.m3u 200` → `GET /epg.xml 200` → `GET /hls/playlist.m3u8 200` → 全部 `segNNN.ts 200`（持续重取），且 `PlaybackState state=3`、`buffered=30000ms`、`position` 持续推进。下载的 EPG 实际落盘：`cache/epg/epg.xml`（319 字节），内容为本地提供的 `测试频道` / `缓存管理 EPG 验证节目`，证明直播节目单自动刷新与 EPG 缓存写入闭环均正常。验证后已把 `Config` 恢复为原始 3 行并删除测试 EPG 缓存。
+  2) **应用更新缓存契约**：`Updater` 的下载目标为 `Path.cache("update.apk")`（`HttpUpdateTransfer`/`OciUpdateTransfer` 共用同一文件），与 `CacheCleanupManager` 的临时文件规则一致；本轮已实测清理期间该文件被保护（新写入的 `update.apk` 保留、过期 `pushed-stale.apk` 删除）。应用内“检查更新→下载→安装”完整闭环还需线上 HTTPS 发布包与安装器交互确认。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1655,8 +1658,8 @@ bash scripts/build_arm64_debug_install.sh
 - [x] MPV 自定义配置不变（清理前后 `mpv.conf`/`fonts.conf` 哈希一致）
 - [x] 播放、seek、预载、重缓冲不变差（180s 测试媒体实测播放推进、seek 后缓冲持续增长、播放中标准清理不中断）
 - [x] 歌词、字幕可用（5563 实测歌词多源检索链路与空结果降级正常；外挂 SRT 实际渲染中文台词）；K 歌轨道待真实曲目指纹实测
-- [~] EPG 缓存保留策略已实测（过期删除、今日保留）；直播节目单自动刷新待有可用直播源验证
-- [ ] 应用更新仍可完成；备份/恢复已实测通过（`bak-20260924-2028.zip` 生成成功、恢复 `shared=50 app=3` 成功）
+- [x] EPG 直播节目单可刷新（本地 HLS 直播源实测 `GET /epg.xml 200` 且 `cache/epg/epg.xml` 落盘、内容正确）；EPG 缓存保留策略亦实测（过期删除、今日保留）
+- [~] 备份/恢复已实测通过（`bak-20260924-2028.zip` 生成成功、恢复 `shared=50 app=3` 成功）；应用更新的缓存契约已实测（`update.apk` 在清理中被保护），完整“检查更新→下载→安装”闭环待线上 HTTPS 发布包与安装器交互验证
 
 ### 20.6 设计与实现的已知偏离（第 24 节第 1 条要求逐项记录）
 
