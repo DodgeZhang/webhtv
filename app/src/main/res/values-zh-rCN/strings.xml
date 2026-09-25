@@ -939,7 +939,7 @@
     <string name="theme_editor_slot_warning">警告色</string>
     <string name="theme_editor_slot_scrim_opacity">遮罩透明度</string>
     <string name="theme_editor_slot_dialog_opacity">对话框透明度</string>
-    <string name="theme_editor_slot_overlay_opacity">浮层透明度</string>
+    <string name="theme_editor_slot_overlay_opacity">浮层透明度（仅 Web 主题生效）</string>
     <string name="setting_appearance">外观与语言</string>
     <string name="setting_appearance_summary">5 项</string>
     <string name="setting_auto">自动</string>

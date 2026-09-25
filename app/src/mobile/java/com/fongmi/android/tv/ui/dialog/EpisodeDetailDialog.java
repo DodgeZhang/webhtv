@@ -26,6 +26,7 @@ import com.fongmi.android.tv.bean.TmdbItem;
 import com.fongmi.android.tv.bean.TmdbPerson;
 import com.fongmi.android.tv.service.TmdbService;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
 import com.fongmi.android.tv.ui.adapter.EpisodeStillAdapter;
 import com.fongmi.android.tv.ui.adapter.TmdbPersonAdapter;
@@ -286,7 +287,7 @@ public class EpisodeDetailDialog {
         TextView photoTitle = view.findViewById(R.id.photoTitle);
         TextView guestsTitle = view.findViewById(R.id.guestsTitle);
 
-        int overlay = light ? 0x99F4F7FA : 0xB3000000;
+        int overlay = applyScrimOpacity(light ? 0x99F4F7FA : 0xB3000000, light);
         int panelColor = light ? 0xFFF4F7FA : 0xFF2A2A2A;
         int imageBg = light ? 0xFFE7EDF3 : 0xFF1A1A1A;
         int primary = light ? 0xFF12202D : 0xFFFFFFFF;
@@ -367,6 +368,19 @@ public class EpisodeDetailDialog {
     private static boolean resolveLightTheme(Activity activity) {
         int night = activity.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
         return Setting.resolveTmdbDetailLightTheme(Setting.getTmdbDetailTheme(), night == Configuration.UI_MODE_NIGHT_YES);
+    }
+
+    /**
+     * Keeps this dialog's own scrim colour and lets the user drive only its alpha.
+     *
+     * <p>The shipped scrim is translucent white in light mode and translucent black in
+     * dark mode; the theme token is translucent black in both. Substituting the token
+     * was measured to invert the light-mode scrim from lightening to darkening, so the
+     * user's {@code scrimOpacity} is applied to the dialog's existing colour instead.
+     * An unset slot returns {@code base} untouched, keeping the default byte-identical.
+     */
+    private static int applyScrimOpacity(int base, boolean light) {
+        return ThemeController.applyScrimOpacity(base, ThemeController.configuredScrimOpacity(light));
     }
 
     private static void showSimpleDialog(FragmentActivity activity, Episode episode,

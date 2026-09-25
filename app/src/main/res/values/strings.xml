@@ -942,7 +942,7 @@
     <string name="theme_editor_slot_warning">Warning</string>
     <string name="theme_editor_slot_scrim_opacity">Scrim opacity</string>
     <string name="theme_editor_slot_dialog_opacity">Dialog opacity</string>
-    <string name="theme_editor_slot_overlay_opacity">Overlay opacity</string>
+    <string name="theme_editor_slot_overlay_opacity">Overlay opacity (web theme only)</string>
     <string name="setting_appearance">Appearance &amp; language</string>
     <string name="setting_appearance_summary">5 options</string>
     <string name="setting_auto">Auto</string>

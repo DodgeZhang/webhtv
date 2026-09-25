@@ -218,3 +218,35 @@ if (root != null) root.setBackgroundColor(overlay);
 ### 12.2 结论
 
 `scrimOpacity` 的接线**比原评估更复杂**：真正的阻塞不是"找消费点"，而是"现有默认遮罩色与 token 基线不一致"。在选定路径 1 或路径 2 之前不应实施。本任务据此保持**未实施**状态。
+
+---
+
+## 13. 实施记录：路径 1（保默认外观）已落地（2026-09-26）
+
+用户批准"路径 1（保默认外观）"，并要求同时完成 `overlayOpacity` 的编辑器标注。任务 `THEME-SCRIM-WIRE-P1-20260926`。
+
+### 13.1 实现
+
+| 文件 | 改动 |
+| --- | --- |
+| `ThemeController.java` | 新增 `configuredScrimOpacity(boolean light)`：返回**用户显式设置**的 scrim alpha，未设置为 `null`（这是保住默认外观的关键——必须区分"未设置"与"恰好等于默认值"）；新增纯函数 `applyScrimOpacity(int base, Float opacity)`：`null` 原样返回，否则**只替换 alpha 字节**、保留 RGB |
+| mobile `EpisodeDetailDialog.java` | `int overlay = applyScrimOpacity(light ? 0x99F4F7FA : 0xB3000000, light)`；本地 helper 委托给 `ThemeController` |
+| `TmdbPersonDialog.java` | 同上，基色为 `light ? 0x99F4F7FA : 0x8F000000` |
+| `values/strings.xml`、`values-zh-rCN`、`values-zh-rTW` | `overlayOpacity` 文案追加"仅 Web 主题生效"（`web theme only` / `仅 Web 主题生效` / `僅 Web 主題生效`） |
+
+**设计要点**：没有把 token 的 `colorScrim` 替换进弹窗，而是保留每个弹窗自己的遮罩色相（浅色半透明白、深色半透明黑），只让用户控制 alpha。这直接回应第 12 节的阻塞——既有默认值原样保留，用户在编辑器拖动时才有变化。
+
+### 13.2 自动化验证（通过）
+
+- `:app:testMobileArm64_v8aDebugUnitTest --tests 'com.fongmi.android.tv.theme.*'` → **BUILD SUCCESSFUL**，新增 3 条契约：
+  - `scrimOpacityKeepsTheDialogOwnColourAndOnlyMovesAlphaWhenSet`：两弹窗必须保留 `0x99F4F7FA` 字面量、必须**不**出现 `colorScrim()`、必须委托共享函数；并直接断言算术行为——`null` 严格等于原值（`0x99F4F7FA`/`0xB3000000`）、`0f→0x00F4F7FA`、`1f→0xFFF4F7FA`、越界 `-1f/2f` 被夹取、`0.85f→0xD9F4F7FA`。
+  - `configuredScrimOpacityReportsUnsetSeparatelyFromAnyValue`：通过反射注入 profile，断言未设置→`null`、仅设 light 时 dark 仍为 `null`、**设成 0.322f（等于 token 基线）仍报告为用户值而非"未设置"**。
+  - `overlayOpacityIsLabelledAsWebOnly`：三语文案存在。
+- 回归：`:app:testMobileArm64_v8aDebugUnitTest` 覆盖 `theme.*`、`ui.dialog.*`、`EpisodeAdapterTest`、`TmdbDetailActivityLayoutTest` → **全部通过**（这些测试直接引用被改动文件）。
+- 编译：`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均 **BUILD SUCCESSFUL**。
+
+### 13.3 未完成的验证（如实记录，不冒充通过）
+
+- **未取得设备端截图证据**。两个弹窗都只能从 TMDB 详情路径进入，而当前设备 `192.168.50.3:5559` 无观看历史、无站点配置，无法在合理成本内到达该路径。
+- 已排除"网络是阻塞"这一误判：早前 `ping api.themoviedb.org` 100% 丢包与裸请求 401 均具误导性——TMDB 封 ICMP，且裸请求缺少 `api_key`；用设备内配置的 key 实测 `search/person` **返回 200 且带真实数据**。因此该弹窗在**有内容源**的设备上应可打开，但本次未实测。
+- 因此 `scrimOpacity` 的**运行时像素级效果**目前只有单元级行为证据，缺设备级确认。建议在有可用内容源时补一次：设 `scrimOpacity` 两个极值打开 `TmdbPersonDialog`，比对遮罩区域像素差异应 > 0，而分隔线（`dialog_ad_block_stats`）应 0 差异。

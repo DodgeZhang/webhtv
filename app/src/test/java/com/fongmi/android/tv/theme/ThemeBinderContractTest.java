@@ -490,6 +490,106 @@ public class ThemeBinderContractTest {
         assertTrue(controller.contains("ThemeProfileStore.load()"));
     }
 
+    /**
+     * scrimOpacity has to stay a strict no-op while unset.
+     *
+     * <p>The modal scrims in this app do not use the token colour: the episode-detail and
+     * TMDB-person dialogs paint a translucent white scrim in light mode and translucent
+     * black in dark. Replacing those with {@code colorScrim()} (translucent black in both)
+     * was measured to invert the light-mode scrim, so the wiring keeps each dialog's own
+     * colour and only replaces its alpha when the user explicitly set the slot. This pins
+     * the two halves of that contract: an unset slot must return the shipped literal
+     * untouched, and a set slot must change only the alpha.
+     */
+    @Test
+    public void scrimOpacityKeepsTheDialogOwnColourAndOnlyMovesAlphaWhenSet() throws Exception {
+        String episode = read("src/mobile/java/com/fongmi/android/tv/ui/dialog/EpisodeDetailDialog.java");
+        String person = read("src/main/java/com/fongmi/android/tv/ui/dialog/TmdbPersonDialog.java");
+        String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
+        for (String source : new String[]{episode, person}) {
+            // The shipped literals must survive as the base colour...
+            assertTrue(source.contains("0x99F4F7FA"));
+            assertTrue(source.contains("applyScrimOpacity("));
+            // ...the token must NOT be substituted for the dialog's own scrim colour...
+            assertFalse(source.contains("colorScrim()"));
+            // ...and the scrim maths must be delegated, not re-implemented.
+            assertTrue(source.contains(
+                    "ThemeController.applyScrimOpacity(base, ThemeController.configuredScrimOpacity(light))"));
+        }
+
+        // Behaviour of the shared maths, asserted directly rather than by string match.
+        int lightScrim = 0x99F4F7FA;
+        int darkScrim = 0xB3000000;
+        // Unset is a strict no-op: this is what keeps the shipped look byte-identical.
+        assertEquals(lightScrim, ThemeController.applyScrimOpacity(lightScrim, null));
+        assertEquals(darkScrim, ThemeController.applyScrimOpacity(darkScrim, null));
+        // Set replaces only the alpha, preserving hue.
+        assertEquals(0x00F4F7FA, ThemeController.applyScrimOpacity(lightScrim, 0f));
+        // clamped low
+        assertEquals(0x00F4F7FA, ThemeController.applyScrimOpacity(lightScrim, -1f));
+        assertEquals(0xFFF4F7FA, ThemeController.applyScrimOpacity(lightScrim, 1f));
+        // clamped high
+        assertEquals(0xFFF4F7FA, ThemeController.applyScrimOpacity(lightScrim, 2f));
+        assertEquals(0xD9F4F7FA, ThemeController.applyScrimOpacity(lightScrim, 0.85f));
+        assertEquals(0xD9000000, ThemeController.applyScrimOpacity(darkScrim, 0.85f));
+        // The accessor must report "unset" rather than the shipped default, otherwise the
+        // default rendering could change whenever the stored value equals the default.
+        assertTrue(controller.contains("public static Float configuredScrimOpacity(boolean light)"));
+        assertTrue(controller.contains("Float value = slots.scrimOpacity;"));
+        assertTrue(controller.contains("if (value == null || !Float.isFinite(value)) return null;"));
+        // The slot must be read from the same light/dark answer the dialog resolved.
+        assertTrue(controller.contains("ThemeProfile.SlotSet slots = light ? active.light : active.dark;"));
+    }
+
+    /**
+     * The accessor must distinguish "user set the slot" from "the value happens to equal
+     * the shipped default", because the dialogs only move their own scrim alpha when the
+     * slot is genuinely set. Reads the private active profile via reflection rather than
+     * adding a test-only production setter.
+     */
+    @Test
+    public void configuredScrimOpacityReportsUnsetSeparatelyFromAnyValue() throws Exception {
+        java.lang.reflect.Field field = ThemeController.class.getDeclaredField("profile");
+        field.setAccessible(true);
+        Object previous = field.get(null);
+        try {
+            ThemeProfile profile = ThemeProfile.defaultProfile();
+
+            field.set(null, profile);
+            assertNull("an untouched profile must read as unset", ThemeController.configuredScrimOpacity(true));
+            assertNull("an untouched profile must read as unset", ThemeController.configuredScrimOpacity(false));
+
+            profile.light.scrimOpacity = 0.85f;
+            assertEquals(Float.valueOf(0.85f), ThemeController.configuredScrimOpacity(true));
+            assertNull("the dark half stays unset when only light was set",
+                    ThemeController.configuredScrimOpacity(false));
+
+            // A value equal to the token baseline is still a user choice, not "unset".
+            profile.light.scrimOpacity = 0.322f;
+            assertEquals(Float.valueOf(0.322f), ThemeController.configuredScrimOpacity(true));
+
+            profile.dark.scrimOpacity = 0f;
+            assertEquals(Float.valueOf(0f), ThemeController.configuredScrimOpacity(false));
+        } finally {
+            field.set(null, previous);
+        }
+    }
+
+    /**
+     * overlayOpacity has no correct native landing site (its token is a divider colour and
+     * the only real image veil uses the frozen overlayDark), so it is documented in the
+     * editor as web-only instead of being wired to a wrong surface.
+     */
+    @Test
+    public void overlayOpacityIsLabelledAsWebOnly() throws Exception {
+        assertTrue(read("src/main/res/values/strings.xml")
+                .contains("Overlay opacity (web theme only)"));
+        assertTrue(read("src/main/res/values-zh-rCN/strings.xml")
+                .contains("浮层透明度（仅 Web 主题生效）"));
+        assertTrue(read("src/main/res/values-zh-rTW/strings.xml")
+                .contains("浮層透明度（僅 Web 主題生效）"));
+    }
+
     private static String read(String path) throws Exception {
         Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
         return Files.readString(root.resolve(path), StandardCharsets.UTF_8);

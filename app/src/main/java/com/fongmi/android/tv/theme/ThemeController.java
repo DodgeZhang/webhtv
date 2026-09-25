@@ -72,6 +72,46 @@ public final class ThemeController {
         return (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
+    /**
+     * The user's explicit scrim opacity, or {@code null} when they never set one.
+     *
+     * <p>Callers must keep this distinguished from "the set opacity happens to equal
+     * the shipped default". Modal scrims in this app do not use the token colour:
+     * the episode-detail and TMDB-person dialogs paint their own scrim (a translucent
+     * white in light mode, translucent black in dark) and that is the shipped design.
+     * Replacing those colours with {@code colorScrim()} was measured to flip light-mode
+     * scrims from lightening to darkening, so the wiring instead lets the user drive
+     * only the alpha of each dialog's own scrim colour, and stays a strict no-op while
+     * the slot is unset so the default rendering is byte-identical.
+     *
+     * @param light which slot set the caller resolved for its own colours; the scrim
+     *              owner decides light/dark, so the same answer is reused here instead
+     *              of re-deriving it from the uiMode bit
+     * @return the configured alpha in {@code 0..1}, or {@code null} when unset
+     */
+    public static Float configuredScrimOpacity(boolean light) {
+        ThemeProfile active = profile;
+        if (active == null) return null;
+        ThemeProfile.SlotSet slots = light ? active.light : active.dark;
+        if (slots == null) return null;
+        Float value = slots.scrimOpacity;
+        if (value == null || !Float.isFinite(value)) return null;
+        return Math.max(0f, Math.min(1f, value));
+    }
+
+    /**
+     * Applies a scrim opacity to a surface's own scrim colour, replacing only the alpha.
+     *
+     * <p>{@code null} (the user never set the slot) returns {@code base} untouched, which
+     * is what keeps the shipped look byte-identical. Package-visible and taking the
+     * opacity explicitly so both branches can be asserted without an Android device.
+     */
+    public static int applyScrimOpacity(int base, Float opacity) {
+        if (opacity == null) return base;
+        int alpha = Math.max(0, Math.min(255, Math.round(opacity * 255f)));
+        return (base & 0x00FFFFFF) | (alpha << 24);
+    }
+
     public static void refresh() {
         boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         current = ThemeResolver.resolve(ThemeMode.SYSTEM, ThemeSeed.NONE, 0, 0, systemDark);
