@@ -1029,6 +1029,26 @@ Layer 2 DoD：
 
 ---
 
+### 4.31 修复输入框无边框且文字裁切（2026-09-26）
+
+- 任务：`THEME-INPUT-STYLE-REGRESSION-20260926`。用户报告：4.30 修复崩溃后，弹窗"排版变丑了，输入框显示不全也看不出是输入框了"。
+- 根因（`0af2340d4`「unify dialog and settings visual system」引入的回归）：该提交把 TMDB/AI 等布局里的输入框样式从 `Widget.WebHTV.LightDialog.Input` 换成 `Widget.WebHTV.Input`，而后者父样式是 **`Widget.Material3.TextInputLayout.OutlinedBox`**——这是给 **TextInputLayout 容器**用的样式，描边由容器绘制、内边距为浮动标签预留。但两处事实叠加导致完全失效：
+  1. 这些布局里**根本没有 `TextInputLayout`**（4 个布局共 19 处全是裸 `TextInputEditText`），所以没有任何东西画边框；
+  2. 容器样式不再自带背景——而被替换掉的旧样式恰恰含 `android:background="@drawable/selector_dialog_input"`（就是可见的输入框外观）以及 `textSize/textColor/cursor`。
+  - 两者叠加 = 无边框 + 文字在固定 `44dp` 高度里被挤压裁切，与用户截图完全一致。
+- 修复（最小）：`Widget.WebHTV.Input` 改为**独立输入框样式**，不再继承任何容器样式，自带主题感知背景与文字色：
+  - `android:background="@drawable/selector_dialog_input"`（焦点/默认两态，颜色为 `?attr/colorPrimary` / `?attr/colorOutline` / `?attr/colorSurfaceContainerHighest`）
+  - `android:textColor="?attr/colorOnSurface"`、`android:textColorHint="?attr/colorOnSurfaceVariant"`、`@drawable/shape_cursor_dialog`、`14sp`
+  - 该写法与仓库既有正确做法一致（`dialog_ad_block_stats` 三个 source set 的独立输入框就是裸 `AppCompatEditText` + 同一 drawable），且 `selector_dialog_input` 已是主题感知、仍在使用，未新增资源。
+- 守门测试：`UiStyleSourceTest#standaloneInputStyleProvidesItsOwnBox`——解析 `Widget.WebHTV.Input` 定义，断言其**父样式不得含 `TextInputLayout`**、**必须自带 `@drawable/selector_dialog_input`**、**必须自带 `android:textColor`**。
+- 设备验证（dev3 `192.168.50.3:5559`，覆盖安装，真实点击路径）：
+  - 设置 → TMDB → 「TMDB 数据配置」：输入框恢复**可见圆角边框**，API Key `304ca56b1b7b57ca7a47d9b59946be94`、语言 `zh-CN`、API 域名、图片域名**均完整显示不再裁切**，排版正常，`FATAL EXCEPTION = 0`；
+  - 设置 → AI 服务 → 「AI 通用配置」：同类输入框同样恢复边框与完整文字，`FATAL=0`——证明是整类修复而非单点。
+- 自动化：`:app:testMobileArm64_v8aDebugUnitTest --tests 'com.fongmi.android.tv.ui.style.*'` BUILD SUCCESSFUL。
+- 回滚锚点：回退本任务即把 `Widget.WebHTV.Input` 恢复为继承 `Widget.Material3.TextInputLayout.OutlinedBox`（会重新引入无框+裁切），无数据格式/偏好键变更。
+
+---
+
 ### 4.30 修复「TMDB 数据配置」必崩：声明但未赋值的语义属性（2026-09-26）
 
 - 任务：`TMDB-DIALOG-INFLATE-CRASH-20260926`。用户报告：设置 → TMDB → 「TMDB 数据配置」一按即崩。设备崩溃栈（dev3 `192.168.50.3:5559`，mobile arm64 debug）定位到 `TmdbSourceDialog.show(TmdbSourceDialog.java:75)` → `LayoutInflater.inflate(R.layout.dialog_tmdb_source)`。
