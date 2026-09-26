@@ -250,3 +250,25 @@ if (root != null) root.setBackgroundColor(overlay);
 - **未取得设备端截图证据**。两个弹窗都只能从 TMDB 详情路径进入，而当前设备 `192.168.50.3:5559` 无观看历史、无站点配置，无法在合理成本内到达该路径。
 - 已排除"网络是阻塞"这一误判：早前 `ping api.themoviedb.org` 100% 丢包与裸请求 401 均具误导性——TMDB 封 ICMP，且裸请求缺少 `api_key`；用设备内配置的 key 实测 `search/person` **返回 200 且带真实数据**。因此该弹窗在**有内容源**的设备上应可打开，但本次未实测。
 - 因此 `scrimOpacity` 的**运行时像素级效果**目前只有单元级行为证据，缺设备级确认。建议在有可用内容源时补一次：设 `scrimOpacity` 两个极值打开 `TmdbPersonDialog`，比对遮罩区域像素差异应 > 0，而分隔线（`dialog_ad_block_stats`）应 0 差异。
+
+### 13.4 设备级像素验证补全（2026-09-27）
+
+任务 `THEME-SCRIM-PIXEL-20260927` 在 dev3 指定设备 `192.168.50.3:5559`（Android 9 / API 28，安装 mobile arm64 debug 覆盖包）补齐了此前缺失的设备级截图证据。为了避免真实站点、网络图片和滚动动画干扰，验证使用 debug-only 宿主 `TmdbScrimHostActivity` 与 instrumentation 测试 `TmdbPersonScrimPixelDeviceTest`，直接显示生产 `TmdbPersonDialog`。
+
+- 验证对象：`scrimOpacity` 未设置 vs 产品允许的最大值 `ThemeProfileValidator.MAX_SCRIM_OPACITY = 0.85f`。
+- 遮罩采样点（屏幕坐标约 `(4,4)`）：未设置 `#ff9fbad6`，`0.85` 为 `#ffd5e0ed`；两者 RGB/alpha 均不同，证明用户设置确实改变遮罩像素。
+- 面板中心采样 `(960,540)`：未设置 `#fff4f7fa`，`0.85` 仍为 `#fff4f7fa`，二者完全相同；证明遮罩透明度没有误伤不透明弹窗面板。
+- 自动断言：遮罩区域变化像素数 `> 0`，弹窗面板中心变化像素数 `= 0`。
+- 执行命令：
+
+```bash
+./gradlew :app:assembleMobileArm64_v8aDebug :app:assembleMobileArm64_v8aDebugAndroidTest
+adb -s 192.168.50.3:5559 install -r app/build/outputs/apk/mobileArm64_v8a/debug/app-mobile-arm64_v8a-debug.apk
+adb -s 192.168.50.3:5559 install -r app/build/outputs/apk/androidTest/mobileArm64_v8a/debug/app-mobile-arm64_v8a-debug-androidTest.apk
+adb -s 192.168.50.3:5559 shell am instrument -w -r \
+  -e class com.fongmi.android.tv.theme.TmdbPersonScrimPixelDeviceTest \
+  com.silent.android.webhtv.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+- 结果：`OK (1 test)`，`Tests run: 1, Failures: 0`。
+- 回滚锚点：该验证只新增 debug-only 宿主、instrumentation 测试和本文记录，不修改生产运行时行为；回退本提交即可移除验证入口。
