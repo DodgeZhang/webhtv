@@ -97,9 +97,15 @@ public class CacheManagementDialog extends DialogFragment {
     protected void initEvent() {
         binding.refresh.setOnClickListener(view -> refresh(true));
         binding.cancel.setOnClickListener(view -> CacheCleanupManager.cancel());
-        binding.cleanupLight.setOnClickListener(view -> confirm(CacheCleanupMode.LIGHT));
-        binding.cleanupStandard.setOnClickListener(view -> confirm(CacheCleanupMode.STANDARD));
-        binding.cleanupDeep.setOnClickListener(view -> confirmDeep());
+        binding.cleanupLight.setOnClickListener(view -> {
+            if (!CacheCleanupManager.isRunning()) confirm(CacheCleanupMode.LIGHT, view);
+        });
+        binding.cleanupStandard.setOnClickListener(view -> {
+            if (!CacheCleanupManager.isRunning()) confirm(CacheCleanupMode.STANDARD, view);
+        });
+        binding.cleanupDeep.setOnClickListener(view -> {
+            if (!CacheCleanupManager.isRunning()) confirmDeep(view);
+        });
         binding.autoCleanup.setOnClickListener(view -> toggleAutoCleanup());
         binding.retention.setOnClickListener(view -> chooseRetention());
         binding.totalLimit.setOnClickListener(view -> chooseTotalLimit());
@@ -192,7 +198,7 @@ public class CacheManagementDialog extends DialogFragment {
                         : FileUtil.byteCountToDisplaySize(totalLimit)));
     }
 
-    private void confirm(CacheCleanupMode mode) {
+    private void confirm(CacheCleanupMode mode, View returnFocus) {
         int message = switch (mode) {
             case LIGHT -> R.string.cache_cleanup_confirm_light;
             case STANDARD -> R.string.cache_cleanup_confirm_standard;
@@ -205,10 +211,11 @@ public class CacheManagementDialog extends DialogFragment {
                 .setPositiveButton(R.string.dialog_positive, (ignored, which) -> startCleanup(mode))
                 .create();
         focusNegativeOnShow(dialog);
+        restoreFocusOnDismiss(dialog, returnFocus);
         dialog.show();
     }
 
-    private void confirmModule(CacheModuleId id) {
+    private void confirmModule(CacheModuleId id, View returnFocus) {
         AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(getString(R.string.cache_cleanup_confirm_module, getModuleName(id)))
@@ -217,7 +224,18 @@ public class CacheManagementDialog extends DialogFragment {
                         com.fongmi.android.tv.cache.CachePolicyEngine.module(id)))
                 .create();
         focusNegativeOnShow(dialog);
+        restoreFocusOnDismiss(dialog, returnFocus);
         dialog.show();
+    }
+
+    /** Restore the trigger after a confirmation closes, instead of letting geometry choose again. */
+    private void restoreFocusOnDismiss(AlertDialog dialog, @Nullable View returnFocus) {
+        if (returnFocus == null) return;
+        dialog.setOnDismissListener(ignored -> returnFocus.post(() -> {
+            if (!returnFocus.isAttachedToWindow() || !returnFocus.isShown()
+                    || !returnFocus.isEnabled() || !returnFocus.isFocusable()) return;
+            returnFocus.requestFocus();
+        }));
     }
 
     /**
@@ -237,7 +255,7 @@ public class CacheManagementDialog extends DialogFragment {
         });
     }
 
-    private void confirmDeep() {
+    private void confirmDeep(View returnFocus) {
         AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(R.string.cache_cleanup_confirm_deep)
@@ -266,6 +284,7 @@ public class CacheManagementDialog extends DialogFragment {
                 if (negative != null) negative.post(negative::requestFocus);
             });
         });
+        restoreFocusOnDismiss(dialog, returnFocus);
         dialog.show();
     }
 
@@ -276,7 +295,7 @@ public class CacheManagementDialog extends DialogFragment {
 
     private void startCleanup(CacheCleanupPlan plan) {
         if (CacheCleanupManager.isRunning()) return;
-        setCleanupEnabled(false);
+        setCleanupInteractive(false);
         setDismissableWhileIdle(false);
         binding.cancel.setVisibility(android.view.View.VISIBLE);
         CacheCleanupManager.execute(plan, this::renderProgress, this::renderResult);
@@ -303,7 +322,7 @@ public class CacheManagementDialog extends DialogFragment {
 
     private void renderResult(CacheCleanupResult result) {
         if (binding == null || !isAdded()) return;
-        setCleanupEnabled(true);
+        setCleanupInteractive(true);
         setDismissableWhileIdle(true);
         binding.cancel.setVisibility(android.view.View.GONE);
         int message;
@@ -334,10 +353,20 @@ public class CacheManagementDialog extends DialogFragment {
         refresh(true);
     }
 
-    private void setCleanupEnabled(boolean enabled) {
-        binding.cleanupLight.setEnabled(enabled);
-        binding.cleanupStandard.setEnabled(enabled);
-        binding.cleanupDeep.setEnabled(enabled);
+    private void setCleanupInteractive(boolean enabled) {
+        setCleanupButtonInteractive(binding.cleanupLight, enabled);
+        setCleanupButtonInteractive(binding.cleanupStandard, enabled);
+        setCleanupButtonInteractive(binding.cleanupDeep, enabled);
+    }
+
+    /**
+     * Keep cleanup buttons focusable while a cleanup runs, but prevent a second click. Disabling
+     * the trigger before the confirmation dialog dismisses removes the only safe focus target and
+     * makes Android TV move focus to an arbitrary neighbouring button.
+     */
+    private void setCleanupButtonInteractive(MaterialButton button, boolean enabled) {
+        button.setClickable(enabled);
+        button.setAlpha(enabled ? 1f : 0.55f);
     }
 
     private void refresh(boolean force) {
@@ -365,6 +394,7 @@ public class CacheManagementDialog extends DialogFragment {
     }
 
     private void renderModules(@Nullable CacheSnapshot snapshot) {
+        ModuleFocusTag focusedModule = focusedModuleTag(binding.getRoot().findFocus());
         binding.modules.removeAllViews();
         moduleButtons.clear();
         long totalBytes = snapshot == null ? 0 : snapshot.totalBytes();
@@ -377,6 +407,25 @@ public class CacheManagementDialog extends DialogFragment {
         if (snapshot == null) for (CacheModuleId id : MODULE_ORDER) addRow(id, null, 0);
         else for (CacheMeasurement measurement : ordered) addRow(measurement.id(), measurement, totalBytes);
         wireFocusOrder();
+        restoreModuleFocus(focusedModule);
+    }
+
+    @Nullable
+    private ModuleFocusTag focusedModuleTag(@Nullable View focused) {
+        Object tag = focused == null ? null : focused.getTag();
+        return tag instanceof ModuleFocusTag moduleTag ? moduleTag : null;
+    }
+
+    private void restoreModuleFocus(@Nullable ModuleFocusTag target) {
+        if (target == null) return;
+        for (MaterialButton button : moduleButtons) {
+            if (!target.equals(button.getTag())) continue;
+            button.post(() -> {
+                if (!button.isAttachedToWindow() || !button.isShown() || !button.isEnabled()) return;
+                button.requestFocus();
+            });
+            return;
+        }
     }
 
     private void addRow(CacheModuleId id, @Nullable CacheMeasurement measurement, long totalBytes) {
@@ -414,7 +463,10 @@ public class CacheManagementDialog extends DialogFragment {
                 R.drawable.selector_cache_button_focus));
         button.setText(R.string.cache_limit_button);
         button.setEnabled(supportsLimit(id));
-        if (supportsLimit(id)) button.setOnClickListener(view -> chooseLimit(id));
+        if (supportsLimit(id)) {
+            button.setTag(new ModuleFocusTag(id, true));
+            button.setOnClickListener(view -> chooseLimit(id));
+        }
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMarginStart(8);
@@ -456,13 +508,19 @@ public class CacheManagementDialog extends DialogFragment {
         boolean restricted = id == CacheModuleId.PLUGIN_SCRIPTS;
         button.setEnabled(!restricted);
         button.setText(restricted ? R.string.cache_cleanup_owner_managed : R.string.cache_cleanup_module);
-        if (!restricted) button.setOnClickListener(view -> confirmModule(id));
+        if (!restricted) {
+            button.setTag(new ModuleFocusTag(id, false));
+            button.setOnClickListener(view -> confirmModule(id, view));
+        }
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMarginStart(8);
         button.setLayoutParams(params);
         moduleButtons.add(button);
         return button;
+    }
+
+    private record ModuleFocusTag(CacheModuleId id, boolean limitButton) {
     }
 
     /**
