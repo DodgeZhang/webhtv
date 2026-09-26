@@ -271,4 +271,5 @@ adb -s 192.168.50.3:5559 shell am instrument -w -r \
 ```
 
 - 结果：`OK (1 test)`，`Tests run: 1, Failures: 0`。
+- 提交：`401b65b83fc2a349234a33e02ce97a3886ffc5b1`；恢复标签：`recovery/THEME-SCRIM-PIXEL-20260927/20260927034658-401b65b83fc2`。
 - 回滚锚点：该验证只新增 debug-only 宿主、instrumentation 测试和本文记录，不修改生产运行时行为；回退本提交即可移除验证入口。
