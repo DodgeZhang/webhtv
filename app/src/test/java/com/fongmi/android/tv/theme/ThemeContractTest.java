@@ -53,6 +53,55 @@ public class ThemeContractTest {
         assertFalse(attrs.contains("format=\"string\""));
     }
 
+    /**
+     * A semantic attr that is declared and referenced but never assigned is a crash, not a
+     * silent fallback.
+     *
+     * <p>{@code ?attr/webhtvColorOnSurface} and {@code ?attr/webhtvColorOnSurfaceVariant} were
+     * declared in {@code webhtv_attrs.xml} and referenced by every {@code TextAppearance.WebHTV.*}
+     * style, but no theme ever assigned them - {@code Theme.WebHTV} only maps the standard
+     * Material attrs. Reading such a text appearance makes {@code TextView.readTextAppearance}
+     * call {@code TypedArray.getColorStateList} on an unresolvable attribute, which throws
+     * {@code UnsupportedOperationException} inside the constructor, so inflation dies. That is
+     * exactly how "TMDB data configuration" crashed on open (and with it every other dialog
+     * using {@code Widget.WebHTV.Label}/{@code Helper}/{@code SliderLabel}).
+     *
+     * <p>Guard: every referenced {@code webhtv*} attr must also be assigned by a theme, so the
+     * attrs and their assignments can never drift apart again.
+     */
+    @Test
+    public void everyReferencedSemanticAttrIsAssignedByATheme() throws Exception {
+        Pattern reference = Pattern.compile("\\?attr/(webhtv[A-Za-z0-9_]+)");
+        java.util.Set<String> referenced = new java.util.TreeSet<>();
+        for (String sourceSet : new String[]{"main", "mobile", "leanback"}) {
+            Path base = Path.of("src/" + sourceSet + "/res");
+            if (!Files.exists(base)) continue;
+            try (java.util.stream.Stream<Path> paths = Files.walk(base)) {
+                for (Path path : paths.filter(p -> p.toString().endsWith(".xml")).toList()) {
+                    Matcher matcher = reference.matcher(Files.readString(path, StandardCharsets.UTF_8));
+                    while (matcher.find()) referenced.add(matcher.group(1));
+                }
+            }
+        }
+
+        StringBuilder assignedSources = new StringBuilder();
+        Path values = Path.of("src/main/res/values");
+        try (java.util.stream.Stream<Path> paths = Files.walk(values)) {
+            for (Path path : paths.filter(p -> p.toString().endsWith(".xml")).toList()) {
+                if (path.getFileName().toString().equals("webhtv_attrs.xml")) continue;
+                assignedSources.append(Files.readString(path, StandardCharsets.UTF_8));
+            }
+        }
+        String themes = assignedSources.toString();
+        java.util.List<String> unassigned = new java.util.ArrayList<>();
+        for (String attr : referenced) {
+            // An assignment is an <item name="attr"> entry; the bare declaration is not enough.
+            if (!themes.contains("name=\"" + attr + "\">")) unassigned.add(attr);
+        }
+        assertTrue("these semantic attrs are referenced but no theme assigns them, so any view "
+                + "reading them crashes during inflation: " + unassigned, unassigned.isEmpty());
+    }
+
     private static void assertResourceMapping(ThemeTokens tokens, Path path) throws Exception {
         Map<String, Integer> colors = colors(path);
         assertEquals(49, colors.size());

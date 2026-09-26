@@ -1029,6 +1029,24 @@ Layer 2 DoD：
 
 ---
 
+### 4.30 修复「TMDB 数据配置」必崩：声明但未赋值的语义属性（2026-09-26）
+
+- 任务：`TMDB-DIALOG-INFLATE-CRASH-20260926`。用户报告：设置 → TMDB → 「TMDB 数据配置」一按即崩。设备崩溃栈（dev3 `192.168.50.3:5559`，mobile arm64 debug）定位到 `TmdbSourceDialog.show(TmdbSourceDialog.java:75)` → `LayoutInflater.inflate(R.layout.dialog_tmdb_source)`。
+- 根因链（每一环都有证据）：
+  1. 崩溃异常是 `UnsupportedOperationException: Failed to resolve attribute at index 3: TypedValue{t=0x2/d=0x7f040665}`，抛在 `TypedArray.getColorStateList` ← `TextView.readTextAppearance` ← `MaterialTextView.<init>`，即**inflate 时读 textAppearance 就炸**。
+  2. `0x7f040665` 在 `app/build/intermediates/runtime_symbol_list/mobileArm64_v8aDebug/.../R.txt` 中解析为 **`attr webhtvColorOnSurface`**。
+  3. `app/src/main/res/values/webhtv_type.xml` 的 5 个 `TextAppearance.WebHTV.*` 都把 `android:textColor` 指向 `?attr/webhtvColorOnSurface` / `?attr/webhtvColorOnSurfaceVariant`。
+  4. `app/src/main/res/values/webhtv_attrs.xml` **声明**了这些属性，但**全仓库没有任何主题给它们赋值**（`grep 'name="webhtvColor' | grep -v format="color"` 为空）；`Theme.WebHTV` 只把**标准** Material 属性映射到同一批 token（`colorOnSurface → @color/webhtv_color_on_surface`、`colorOnSurfaceVariant → @color/webhtv_color_on_surface_variant`）。
+  - 因此任何使用 `TextAppearance.WebHTV.*` 的控件都会在 inflate 崩溃。受影响样式：`Widget.WebHTV.Label`、`Widget.WebHTV.Label.Secondary`、`Widget.WebHTV.Helper`、`Widget.WebHTV.SliderLabel`；受影响弹窗：`dialog_tmdb_source`、`dialog_ai_config`、`dialog_ai_prompt_config`、`dialog_speed`、`dialog_buffer` 等（**不止用户报告的那一个**）。
+- 修复（最小）：`webhtv_type.xml` 的 5 处改为引用主题确实赋值的标准属性 `?attr/colorOnSurface` / `?attr/colorOnSurfaceVariant`。二者在 `Theme.WebHTV` 中指向**完全相同的 token 色**，故视觉零变化，仅移除对"无人赋值属性"的依赖。
+- 守门测试：`ThemeContractTest#everyReferencedSemanticAttrIsAssignedByATheme`——扫描 `main/mobile/leanback` 三套 res 中所有 `?attr/webhtv*` 引用，要求每个属性都能在 `values/` 里找到 `<item name="该属性">` 赋值。**该测试在修复前失败并精确报出 `[webhtvColorOnSurface, webhtvColorOnSurfaceVariant]`**，修复后通过，防止两类文件再次漂移。
+- 设备验证（决定性，按用户原始路径）：设置 → TMDB → 「TMDB 数据配置」→ 弹窗**正常打开**，渲染出标题「TMDB 数据配置」、数据源说明、API Key、语言 `zh-CN`、API 域名、图片域名与取消/确定按钮，进程存活（pid 32224），**`FATAL EXCEPTION = 0`**（修复前该操作必崩）。
+- 自动化：`:app:testMobileArm64_v8aDebugUnitTest --tests 'com.fongmi.android.tv.theme.*' --tests 'com.fongmi.android.tv.ui.dialog.*'` BUILD SUCCESSFUL。
+- 归属说明：该缺陷源自主题整合提交（`webhtv_attrs.xml`/`webhtv_type.xml`，`6cdc7dd36` 等），**不是**本轮 scrim 工作引入；本轮 scrim 改动未触碰这两个文件。
+- 回滚锚点：回退本任务即把 `webhtv_type.xml` 的 5 处改回 `?attr/webhtvColor*`（会重新引入崩溃），无数据格式/偏好键变更。
+
+---
+
 ### TASK L1：默认主题来源整合
 
 - 输入：本文第 3 节。
