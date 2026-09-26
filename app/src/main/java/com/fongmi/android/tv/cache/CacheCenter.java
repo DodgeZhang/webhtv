@@ -24,6 +24,7 @@ public final class CacheCenter {
 
     private CacheCenter(Context context) {
         this.context = context.getApplicationContext();
+        CachePolicyStore.migrate();
         this.inventory = new CacheInventory(context);
         this.executor = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "cache-inventory");

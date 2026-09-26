@@ -42,6 +42,7 @@ public final class CacheScheduler {
     }
 
     public void start() {
+        CachePolicyStore.migrate();
         if (!CachePolicyStore.isAutoCleanupEnabled()) return;
         schedulePersistent(App.get());
         if (!started.compareAndSet(false, true)) return;
