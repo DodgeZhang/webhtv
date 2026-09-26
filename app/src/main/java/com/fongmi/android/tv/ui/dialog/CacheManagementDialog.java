@@ -198,22 +198,43 @@ public class CacheManagementDialog extends DialogFragment {
             case STANDARD -> R.string.cache_cleanup_confirm_standard;
             default -> R.string.cache_cleanup_confirm_deep;
         };
-        new MaterialAlertDialogBuilder(requireContext())
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(message)
                 .setNegativeButton(R.string.dialog_negative, null)
-                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> startCleanup(mode))
-                .show();
+                .setPositiveButton(R.string.dialog_positive, (ignored, which) -> startCleanup(mode))
+                .create();
+        focusNegativeOnShow(dialog);
+        dialog.show();
     }
 
     private void confirmModule(CacheModuleId id) {
-        new MaterialAlertDialogBuilder(requireContext())
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(getString(R.string.cache_cleanup_confirm_module, getModuleName(id)))
                 .setNegativeButton(R.string.dialog_negative, null)
-                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> startCleanup(
+                .setPositiveButton(R.string.dialog_positive, (ignored, which) -> startCleanup(
                         com.fongmi.android.tv.cache.CachePolicyEngine.module(id)))
-                .show();
+                .create();
+        focusNegativeOnShow(dialog);
+        dialog.show();
+    }
+
+    /**
+     * Design §15.1: cleanup confirmation dialogs must open with the focus on "cancel" so a
+     * single remote OK press can never delete cache data by accident.
+     */
+    private void focusNegativeOnShow(AlertDialog dialog) {
+        dialog.setOnShowListener(ignored -> {
+            Button negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (negative == null) return;
+            negative.setFocusable(true);
+            negative.setFocusableInTouchMode(true);
+            // requestFocus() during onShow is too early: the dialog lays out afterwards and
+            // drops the focus again, leaving no button focused (a remote OK press then does
+            // nothing). Posting defers it until after layout.
+            negative.post(negative::requestFocus);
+        });
     }
 
     private void confirmDeep() {
@@ -224,6 +245,12 @@ public class CacheManagementDialog extends DialogFragment {
                 .setPositiveButton(R.string.cache_cleanup_continue, null)
                 .create();
         dialog.setOnShowListener(ignored -> {
+            Button negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (negative != null) {
+                negative.setFocusable(true);
+                negative.setFocusableInTouchMode(true);
+                negative.post(negative::requestFocus);
+            }
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             positive.setOnClickListener(view -> {
                 // Keep the second confirmation in the same window. Creating a second alert here
@@ -234,6 +261,9 @@ public class CacheManagementDialog extends DialogFragment {
                     dialog.dismiss();
                     startCleanup(CacheCleanupMode.DEEP);
                 });
+                // The step-2 text replaces step-1, so re-seat focus on cancel to keep the same
+                // "safe default" rule for the irreversible action.
+                if (negative != null) negative.post(negative::requestFocus);
             });
         });
         dialog.show();

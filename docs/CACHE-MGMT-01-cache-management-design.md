@@ -70,6 +70,7 @@
 - 2026-09-25：应用更新可验证范围与剩余限制。审查确认 `Updater` 的下载目标是 `Path.cache("update.apk")`，`HttpUpdateTransfer`/`OciUpdateTransfer` 写入同一文件，且取消路径会清理该文件；与本计划相关的缓存契约是「下载/安装进行中不得被缓存清理删除」，已由 `CacheTempFilePolicy` + `Updater.isDownloading()`（`downloading` 为 `volatile`）实现并设备实测（新写入的 `update.apk` 在轻度清理后保留，2 天前的 `pushed-stale.apk` 被删除）。完整更新闭环在本环境无法验证，原因有三：①`ApkUrlPolicy` 明确拒绝私网与 HTTP，无法用本机自建发布源；②没有真实线上 HTTPS 发布包与版本号；③安装需系统安装器人工确认（`FileUtil.openFile` 走 `ACTION_VIEW` + FileProvider）。**实测确认发布端本身不可用（非本机网络故障）**：`Updater` 的检查路径是 `Github.getReleasesApi()/latest`。设备与宿主机分别请求 `https://api.github.com/repos/fish2018/webhtv/releases/latest` 均返回 `403`，响应体为 `API rate limit exceeded`（匿名调用被限流）；发布镜像 `https://cnb.cool/fish2035/webhtv-release/-/git/raw/main/apk/tv-arm64_v8a.json` 返回 `403 {"errcode":10003,"errmsg":"Repo fish2035/webhtv-release has been frozen."}`（仓库已冻结）。宿主机同样失败，说明是本项目发布端/配额问题而非设备网络问题，因此无法在本环境完成「检查更新」真实流程。按 §24 第 5 条如实标注为「缓存契约已通过、完整闭环受外部网络与安装器交互限制」，不虚报为完成。
 - 2026-09-25：清理结果改为通知，不再弹确认框（用户反馈）。`renderResult` 原实现用 `MaterialAlertDialogBuilder` 并复用确认标题 `cache_cleanup_confirm_title`，导致清理**已经完成后**还要再按一次「确定」——职责错误（确认框用于执行前，结果不应再要求确认）。现改为：①用 `Notify.show(text)` 发被动通知（Toast）；②同时把结果文本写入面板自身状态行并在随后刷新中保留，信息不会随通知消失而丢失；③不再创建任何结果弹窗。设备实测（5563，覆盖安装 leanback debug）：构造 2 天前的 `pushed-stale.apk` 后执行轻度清理，清理瞬间截图显示 Toast「清理完成 释放 512 KB · 删除 1 个文件」且**无任何弹窗**；4 秒后 Toast 自然消失、界面无「确定/取消」按钮；无障碍树读取 `id/status` 为「清理完成\n释放 512 KB · 删除 1 个文件」，`id/summary` 刷新为「共 19.3 MB / 系统配额 478.9 MB」，证明结果只以通知 + 状态行呈现。回归确认深度清理**执行前**的二次确认未被影响（点击「深度清理」仍为第一步「取消/继续」）。
 - 2026-09-26：补齐设计 §15.2「进度对话框处理返回键：运行中只请求取消，不直接关闭」。原实现既没有拦截 BACK，也没有禁用点击外部关闭：清理进行中按返回键或点弹窗外部会直接关闭面板，而清理线程继续在后台运行——用户既看不到进度也拿不到结果；面板底部「确定/关闭」按钮有同样问题。现统一为：①`Dialog.setOnKeyListener` 拦截 BACK，`CacheCleanupManager.isRunning()` 为真时调用 `cancel()` 并消费事件（面板保持打开），未运行时返回键仍按层级正常关闭；②关闭按钮在运行中同样只请求取消；③清理开始时 `setCanceledOnTouchOutside(false)`，结果回调时恢复，避免清理被“点外部”静默丢弃。设备实测（5563，覆盖安装 leanback debug，预置 30000~120000 个 2 天前的 `.tmp` 使清理持续数秒）：清理中按 BACK 面板不关闭、任务取消且状态行显示「缓存清理已取消」；清理中点击底部关闭按钮同样保持面板打开（无障碍树仍可读到「缓存管理」，无任何弹窗按钮）；空闲时按 BACK 正常关闭回到设置页。测试文件已全部清理。
+- 2026-09-26：补齐设计 §15.1「清理确认对话框默认焦点在取消」。原先 `confirm()`/`confirmModule()`/`confirmDeep()` 都只 `show()`，遥控器打开确认框后**没有任何按钮获得焦点**（无障碍树显示 focused 为空），此时按确认键无反应，用户必须先按方向键才能操作；且默认落在操作按钮上有误删风险。现在统一改为构造 `AlertDialog` 后注册 `setOnShowListener`，在 `post()` 中把焦点显式放到「取消」并标记 `focusable/focusableInTouchMode`（在 `onShow` 里直接 `requestFocus()` 会被随后的布局顶掉）。深度清理第二步（文案切换为“不可撤销”）同样重新把焦点放回「取消」。设备实测（5563，覆盖安装 leanback debug）：打开轻度/标准清理确认框后无障碍树 `focused` 立即为 `android.widget.Button '取消'`，**单击一次确认键即执行「取消」**（预置的 4 个过期 `tmp` 文件清理前后数量均为 4，确认框关闭且未清理）；深度清理第一步同样默认聚焦「取消」。测试文件已全部清理。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -1615,7 +1616,7 @@ bash scripts/build_arm64_debug_install.sh
 - [x] 缓存管理页显示每个模块的大小、占比、文件数和最近时间
 - [x] 各模块可以单项清理（插件/owner-managed 模块按设计禁用直接清理）
 - [x] 提供轻度、标准、深度三级清理
-- [x] 清理前有明确确认，深度清理有二次确认
+- [x] 清理前有明确确认，深度清理有二次确认（确认框默认焦点在「取消」，单次确认键即安全取消；深度第二步同样回到「取消」）
 - [x] 清理中有进度，可取消
 - [x] 清理后有释放量、删除数、跳过数和失败明细（以被动通知 + 面板状态行呈现，不再要求用户二次确认；执行前的三级清理确认与深度二次确认保持不变）
 - [x] 支持总缓存软上限（L1→L2 升级，永不自动 L3）；设备实测可设 1 GB，受系统配额 478.9 MB 收敛
