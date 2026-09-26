@@ -155,10 +155,29 @@
         <item name="android:textColor">?attr/colorPrimary</item>
     </style>
 
-    <style name="Widget.WebHTV.Input" parent="Widget.Material3.TextInputLayout.OutlinedBox">
-        <item name="boxStrokeColor">?attr/colorOutline</item>
-        <item name="hintTextColor">?attr/colorOnSurfaceVariant</item>
-        <item name="errorTextColor">?attr/colorError</item>
+    <!--
+        Standalone dialog input.
+
+        Every caller applies this directly to a bare TextInputEditText - there is no
+        TextInputLayout container anywhere in the tree (dialog_tmdb_source,
+        dialog_ai_config, dialog_ai_prompt_config, dialog_group_rule_edit). So this must
+        be an edit-field style. Its former parent,
+        Widget.Material3.TextInputLayout.OutlinedBox, is a *container* style: it draws the
+        outline on the TextInputLayout, not on the field, and it sets up floating-label
+        space. Applied to the field itself it produced no border at all and squeezed the
+        text inside the fixed 44dp heights, which is the reported "input boxes are cut off
+        and no longer look like inputs".
+
+        The replacement mirrors what the rest of the tree already does for standalone
+        fields - dialog_ad_block_stats puts @drawable/selector_dialog_input on a bare
+        AppCompatEditText - and both drawables resolve their colours through theme attrs.
+    -->
+    <style name="Widget.WebHTV.Input">
+        <item name="android:background">@drawable/selector_dialog_input</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textColorHint">?attr/colorOnSurfaceVariant</item>
+        <item name="android:textCursorDrawable">@drawable/shape_cursor_dialog</item>
+        <item name="android:textSize">14sp</item>
     </style>
 
     <style name="Widget.WebHTV.ListItem">

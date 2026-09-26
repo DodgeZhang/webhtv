@@ -105,6 +105,32 @@ public class UiStyleSourceTest {
         assertFalse("player controls must not reintroduce raw yellow", control.contains("#FFD700"));
     }
 
+    /**
+     * Standalone inputs must draw their own box and must not inherit a container style.
+     *
+     * <p>Every caller applies {@code Widget.WebHTV.Input} directly to a bare
+     * {@code TextInputEditText} - there is no {@code TextInputLayout} anywhere in those
+     * trees. When the style inherited {@code Widget.Material3.TextInputLayout.OutlinedBox}
+     * (a container style) the outline was never drawn, because the container owns it, and
+     * the floating-label metrics squeezed the text inside the fixed 44dp heights. Reported
+     * as "the input boxes are cut off and no longer look like inputs".
+     */
+    @Test
+    public void standaloneInputStyleProvidesItsOwnBox() throws Exception {
+        String styles = Files.readString(Path.of("src/main/res/values/webhtv_styles.xml"), StandardCharsets.UTF_8);
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("<style name=\"Widget.WebHTV.Input\"([^>]*)>(.*?)</style>",
+                        java.util.regex.Pattern.DOTALL)
+                .matcher(styles);
+        assertTrue("Widget.WebHTV.Input must exist", matcher.find());
+        assertFalse("a TextInputLayout container style cannot be applied to a bare edit field",
+                matcher.group(1).contains("TextInputLayout"));
+        assertTrue("a standalone field must draw its own box",
+                matcher.group(2).contains("@drawable/selector_dialog_input"));
+        assertTrue("the standalone field must set its own text colours",
+                matcher.group(2).contains("android:textColor"));
+    }
+
     private static String value(String source, String name) {
         java.util.regex.Matcher matcher = java.util.regex.Pattern
                 .compile("<color name=\\\"" + name + "\\\">(#[0-9A-Fa-f]{6,8})</color>")
