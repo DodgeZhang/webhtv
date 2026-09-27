@@ -3177,10 +3177,11 @@ public class TmdbDetailActivityLayoutTest {
                 onTime.contains("canUpdateProgress = isInlinePlayerSettledOnSelection();"));
         assertTrue("saveInlineHistory must not poison the episode position cache during the switch window",
                 saveHistory.contains("if (!isInlinePlayerSettledOnSelection())"));
-        // 单点汇入的进度写入同样必须被守卫拦下，覆盖 syncInlineHistory 等其它调用方。
+        // 单点汇入的进度写入同样必须被守卫拦下，覆盖 syncInlineHistory 等其它调用方；
+        // 双条件：解析归属 settled + 播放器就绪 mediaReady。
         assertTrue("updateInlineHistoryProgress(long,...) must keep the stale window guard",
-                progress.contains("if (!inlinePlaybackSettled)")
-                        && progress.indexOf("if (!inlinePlaybackSettled)") < progress.indexOf("history.setPosition(position)"));
+                progress.contains("if (!inlinePlaybackSettled || !isInlinePlayerCurrentMediaReady())")
+                        && progress.indexOf("if (!inlinePlaybackSettled || !isInlinePlayerCurrentMediaReady())") < progress.indexOf("history.setPosition(position)"));
         // 播放器被清空时窗口态必须回到安全默认，避免泄漏的 false 永久禁用进度。
         assertTrue("stopInlinePlayerForReload must restore the safe default",
                 stopForReload.contains("inlinePlaybackSettled = true;"));
@@ -3188,6 +3189,22 @@ public class TmdbDetailActivityLayoutTest {
         assertTrue("same-episode replay must also open the stale-progress window",
                 onReplay.contains("inlinePlaybackSettled = false;")
                         && refresh.contains("inlinePlaybackSettled = false;"));
+        // 加载期守卫：stop 后到新集 READY 前，播放器 getPosition() 仍是旧集残留位置，
+        // 这段窗口的每秒 tick 同样不得写回（红果短剧快切实测复现点）。
+        assertTrue("media-ready guard field must exist",
+                source.contains("private boolean inlinePlayerMediaReady = true;"));
+        assertTrue("startInlinePlayer must invalidate media readiness before stopping the old episode",
+                startPlayer.indexOf("inlinePlayerMediaReady = false;") >= 0
+                        && startPlayer.indexOf("inlinePlayerMediaReady = false;") < startPlayer.indexOf("player().stop();"));
+        String onStateChanged = javaBlockAt(source, "protected void onStateChanged(int state)");
+        assertTrue("STATE_READY must restore media readiness before applying the resume seek",
+                onStateChanged.indexOf("inlinePlayerMediaReady = true;") >= 0
+                        && onStateChanged.indexOf("inlinePlayerMediaReady = true;") < onStateChanged.indexOf("applyInlineStartPosition();"));
+        assertTrue("cache writes must also require ready media",
+                saveHistory.contains("if (!isInlinePlayerSettledOnSelection())")
+                        && source.contains("return inlinePlaybackSettled && isInlinePlayerCurrentMediaReady();"));
+        assertTrue("stopInlinePlayerForReload must restore the media-ready default too",
+                stopForReload.contains("inlinePlayerMediaReady = true;"));
     }
 
     @Test

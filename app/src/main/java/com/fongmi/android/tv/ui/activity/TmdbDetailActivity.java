@@ -446,6 +446,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private boolean inlineStartPositionApplied;
     /** 切集异步解析窗口期内为 false：此时播放器仍在旧集上，进度禁止写入已指向新集的 history。 */
     private boolean inlinePlaybackSettled = true;
+    /** 播放器当前媒体是否已就绪（STATE_READY）。stop 后到新集 READY 前，Exo getPosition()
+     * 仍返回旧集残留位置，这段加载期禁止把播放器读数写回 history。 */
+    private boolean inlinePlayerMediaReady = true;
     private boolean inlineFirstReady;
     private boolean inlinePlayHealthRecorded;
     private String inlinePlayHealthKey = "";
@@ -7622,6 +7625,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         inlineStartPositionApplied = false;
         // 播放器已清空：窗口态回安全默认，避免残留的 false 永久禁用后续同集进度更新。
         inlinePlaybackSettled = true;
+        inlinePlayerMediaReady = true;
         pendingInlineResult = null;
         currentInlineResult = null;
         inlinePlaybackEpisode = null;
@@ -7684,6 +7688,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         hideInlineControls();
         resetInlineShortDramaMode();
         updateInlineButtons(false);
+        // 媒体就绪态在此失效：stop 之后、新集 READY 之前，getPosition() 仍返回旧集的残留
+        // 位置（Exo stop 不归零，直到新 media prepare 完成）。这段加载期里每秒 tick 若把
+        // 播放器读数写回 history，旧集的末尾位置就会记到新集名下——新集 READY 后
+        // applyInlineStartPosition 会顺着它 seekTo 到上一集看过的位置，表现为「下一集从
+        // 上一集的进度开始」。短剧快切尤其必现（解析快，tick 大概率落在加载窗口内）。
+        inlinePlayerMediaReady = false;
         player().stop();
         player().clear();
         if (resumePosition == C.TIME_UNSET) resetInlineHistoryIfNearEnding();
@@ -11009,6 +11019,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     protected void onStateChanged(int state) {
         if (!isInlinePlayerMode()) return;
         if (state == Player.STATE_READY) {
+            // 新集媒体真正就绪：此后播放器读数才属于本集，进度写入重新放行。
+            inlinePlayerMediaReady = true;
             hideInlineControls();
             player().reset();
             boolean pendingResumeSeekApplied = applyInlineStartPosition();
@@ -11353,15 +11365,21 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void updateInlineHistoryProgress(long time, long position, long duration) {
         if (history == null) return;
-        if (!inlinePlaybackSettled) {
+        if (!inlinePlaybackSettled || !isInlinePlayerCurrentMediaReady()) {
             // 切集解析窗口期：position/duration 仍来自上一集，写进已指向新集的 history
-            // 就是「下一集从上一集的位置开播」的直接来源。
+            // 就是「下一集从上一集的位置开播」的直接来源。加载期同理：stop 后到新集 READY
+            // 前，播放器读数仍是旧集残留。
             history.setCreateTime(time);
             return;
         }
         history.setCreateTime(time);
         if (position > 0) history.setPosition(position);
         if (duration > 0) history.setDuration(duration);
+    }
+
+    /** 播放器已实际承载本集媒体且进入 READY；期间任何进度写入都可能是旧集残留。 */
+    private boolean isInlinePlayerCurrentMediaReady() {
+        return inlinePlayerMediaReady;
     }
 
     /**
@@ -11377,7 +11395,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
      * 一致」，因此同样覆盖 startInlinePlayer 之后、首个 READY 之前的加载段。
      */
     private boolean isInlinePlayerSettledOnSelection() {
-        return inlinePlaybackSettled;
+        return inlinePlaybackSettled && isInlinePlayerCurrentMediaReady();
     }
 
     /**
