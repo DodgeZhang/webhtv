@@ -14,6 +14,7 @@ import com.fongmi.android.tv.server.process.ApkUrlPush;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.web.WebHomeRawAdapter;
 import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
+import com.github.catvod.crawler.DebugLogStore;
 import com.github.catvod.utils.Path;
 
 import java.io.File;
@@ -189,9 +190,51 @@ public final class CacheCleanupManager {
             }
             case PLUGIN_SCRIPTS -> clearPluginCache(retention, Set.copyOf(BaseLoader.get().activePluginKeys()));
             case TEMP_FILES -> clearTemporaryFiles(TEMP_RETENTION_MS, limit);
-            case LEGACY_FILES -> clearAgedTree(new File(cache, "restore-legacy"),
-                    mode == CacheCleanupMode.MODULE ? 0 : LEGACY_RETENTION_MS);
+            case DIAGNOSTIC_LOGS -> outcome(clearDiagnosticLogs());
+            case LEGACY_FILES -> clearLegacyPaths(cache, mode);
+            // Owner-managed and deliberately unreported: a cleanup must not guess at caches whose
+            // owner is unknown, so this module is only ever measured.
+            case UNCLASSIFIED -> new Outcome(true, List.of());
         };
+    }
+
+    /**
+     * Clears exactly the paths the legacy rule table reports.
+     *
+     * <p>The previous implementation measured an inverted orphan tree and then deleted only
+     * {@code restore-legacy}, so the module could report megabytes it would never remove. Both
+     * sides now iterate the same rule table.</p>
+     *
+     * <p>A MODULE-level clean (the per-row button) means "remove this legacy path now" and ignores
+     * the retention window; the tiered L1/L3 runs keep the 7-day age guard so an upgrade never
+     * deletes a staging directory that the current process is still using.</p>
+     */
+    private static Outcome clearLegacyPaths(File cache, CacheCleanupMode mode) {
+        long retentionMs = mode == CacheCleanupMode.MODULE ? 0 : LEGACY_RETENTION_MS;
+        boolean success = true;
+        ArrayList<String> warnings = new ArrayList<>();
+        for (CacheLegacyRules.Rule rule : CacheLegacyRules.rules()) {
+            Outcome result = clearTree(new File(cache, rule.name()), retentionMs);
+            success &= result.success();
+            warnings.addAll(result.warnings());
+        }
+        return new Outcome(success, warnings);
+    }
+
+    /**
+     * Deletes the diagnostic log family through its owner.
+     *
+     * <p>{@code DebugLogStore.clear()} also drops the in-memory buffer and re-opens collection, so
+     * the next log line recreates the file. Deleting the files directly would leave the writer
+     * pointing at removed descriptors.</p>
+     */
+    private static boolean clearDiagnosticLogs() {
+        try {
+            DebugLogStore.clear();
+            return true;
+        } catch (Throwable error) {
+            return false;
+        }
     }
 
     private static Outcome clearTemporaryFiles(long retentionMs, long limitBytes) {
@@ -252,21 +295,34 @@ public final class CacheCleanupManager {
         return success;
     }
 
-    private static Outcome clearAgedTree(File root, long retentionMs) {
+    /**
+     * Clears a tree, optionally keeping entries newer than {@code retentionMs}.
+     *
+     * <p>{@code retentionMs <= 0} removes the whole tree; a positive value removes only entries
+     * last modified before the cutoff.</p>
+     */
+    private static Outcome clearTree(File root, long retentionMs) {
         if (root == null || !root.exists()) return new Outcome(true, List.of());
         if (retentionMs <= 0) return clearTree(root);
         long cutoff = System.currentTimeMillis() - retentionMs;
-        boolean success = deleteAged(root, cutoff, new ArrayList<>());
-        return new Outcome(success, List.of());
+        ArrayList<String> warnings = new ArrayList<>();
+        boolean success = deleteAged(root, cutoff, warnings);
+        return new Outcome(success, warnings);
     }
 
     private static boolean deleteAged(File file, long cutoff, List<String> warnings) {
         if (file == null || !file.exists()) return true;
-        if (CachePathSafety.isSymbolicLink(file)) return false;
+        if (CachePathSafety.isSymbolicLink(file)) {
+            warnings.add("symbolic link skipped: " + file.getName());
+            return true;
+        }
         boolean success = true;
         if (file.isDirectory()) {
             File[] children = file.listFiles();
-            if (children == null) return false;
+            if (children == null) {
+                warnings.add("unreadable directory: " + file.getName());
+                return false;
+            }
             for (File child : children) success &= deleteAged(child, cutoff, warnings);
         }
         if (file.lastModified() >= cutoff) return success;
@@ -290,18 +346,35 @@ public final class CacheCleanupManager {
 
     private static Outcome clearTree(File root) {
         if (root == null || !root.exists()) return new Outcome(true, List.of());
-        boolean success = deleteTree(root);
-        return new Outcome(success, success ? List.of() : List.of("delete failed: " + root.getName()));
+        ArrayList<String> warnings = new ArrayList<>();
+        boolean success = deleteTree(root, warnings);
+        return new Outcome(success, warnings);
     }
 
-    private static boolean deleteTree(File file) {
+    private static boolean deleteTree(File file, List<String> warnings) {
         if (file == null || !file.exists()) return true;
-        if (CachePathSafety.isSymbolicLink(file) || PROTECTED_NAMES.contains(file.getName())) return false;
+        if (CachePathSafety.isSymbolicLink(file)) {
+            warnings.add("symbolic link skipped: " + file.getName());
+            return true;
+        }
+        if (PROTECTED_NAMES.contains(file.getName())) {
+            warnings.add("protected file skipped: " + file.getName());
+            return true;
+        }
+        boolean success = true;
         if (file.isDirectory()) {
             File[] children = file.listFiles();
-            if (children != null) for (File child : children) deleteTree(child);
+            if (children == null) {
+                warnings.add("unreadable directory: " + file.getName());
+                return false;
+            }
+            for (File child : children) success &= deleteTree(child, warnings);
         }
-        return !file.exists() || file.delete();
+        if (file.exists() && !file.delete()) {
+            warnings.add("delete failed: " + file.getName());
+            return false;
+        }
+        return success;
     }
 
     private static boolean isExpired(File file, long now, long retentionMs) {

@@ -33,6 +33,7 @@ import com.fongmi.android.tv.cache.CacheFormat;
 import com.fongmi.android.tv.cache.CacheLimitOptions;
 import com.fongmi.android.tv.cache.CacheMeasurement;
 import com.fongmi.android.tv.cache.CacheModuleId;
+import com.fongmi.android.tv.cache.CachePolicyEngine;
 import com.fongmi.android.tv.cache.CachePolicyStore;
 import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.cache.CacheSnapshot;
@@ -505,14 +506,15 @@ public class CacheManagementDialog extends DialogFragment {
         button.setTextSize(14);
         button.setForeground(androidx.core.content.ContextCompat.getDrawable(requireContext(),
                 R.drawable.selector_cache_button_focus));
-        boolean restricted = id == CacheModuleId.PLUGIN_SCRIPTS;
+        // Read the restriction from the registry instead of hardcoding one module: an entry that
+        // declares allowManualCleanup=false must not be offered as directly cleanable.
+        boolean restricted = !CachePolicyEngine.manualCleanupAllowed(id, requireContext().getCacheDir());
         button.setEnabled(!restricted);
         button.setText(restricted ? R.string.cache_cleanup_owner_managed : R.string.cache_cleanup_module);
         if (!restricted) {
             button.setTag(new ModuleFocusTag(id, false));
             button.setOnClickListener(view -> confirmModule(id, view));
-        }
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+        }        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMarginStart(8);
         button.setLayoutParams(params);
@@ -595,7 +597,9 @@ public class CacheManagementDialog extends DialogFragment {
             case GLIDE -> R.string.cache_module_glide;
             case PLUGIN_SCRIPTS -> R.string.cache_module_plugin_scripts;
             case TEMP_FILES -> R.string.cache_module_temp_files;
+            case DIAGNOSTIC_LOGS -> R.string.cache_module_diagnostic_logs;
             case LEGACY_FILES -> R.string.cache_module_legacy_files;
+            case UNCLASSIFIED -> R.string.cache_module_unclassified;
         });
     }
 

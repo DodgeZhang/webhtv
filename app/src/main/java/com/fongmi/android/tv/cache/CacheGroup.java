@@ -6,5 +6,7 @@ public enum CacheGroup {
     NETWORK,
     PLUGIN,
     TEMPORARY,
-    LEGACY
+    DIAGNOSTIC,
+    LEGACY,
+    UNCLASSIFIED
 }

@@ -110,6 +110,30 @@ public class CacheInventoryTest {
         }
     }
 
+    /**
+     * A name excluded by prefix applies to both files and directories, so an owner-managed family
+     * such as the diagnostic logs is never reported as unclassified cache.
+     */
+    @Test
+    public void orphanRootHonoursExcludePrefixes() throws Exception {
+        Path root = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")).toRealPath(), "cache-inventory-orphan-prefix");
+        try {
+            Files.writeString(root.resolve("webhtv-debug-log.txt"), "1234", StandardCharsets.UTF_8);
+            Files.writeString(root.resolve("webhtv-diagnostic-incident-0.txt"), "12", StandardCharsets.UTF_8);
+            Files.writeString(root.resolve("unknown.bin"), "123456", StandardCharsets.UTF_8);
+
+            CacheMeasurement result = CacheInventory.measureRoots(
+                    CacheModuleId.UNCLASSIFIED,
+                    List.of(CacheRoot.orphanTree(root.toFile(), Set.of(), Set.of(),
+                            Set.of("webhtv-debug-log", "webhtv-diagnostic-incident-"))));
+
+            assertEquals(6, result.bytes());
+            assertEquals(1, result.fileCount());
+        } finally {
+            delete(root.toFile());
+        }
+    }
+
     private static void delete(File file) {
         File[] children = file.listFiles();
         if (children != null) for (File child : children) delete(child);

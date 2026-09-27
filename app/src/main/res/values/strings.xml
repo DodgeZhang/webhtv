@@ -736,7 +736,9 @@
     <string name="cache_module_glide">Images and covers</string>
     <string name="cache_module_plugin_scripts">JS/Python/Jar resources</string>
     <string name="cache_module_temp_files">Temporary files</string>
-    <string name="cache_module_legacy_files">Legacy/orphan files</string>
+    <string name="cache_module_diagnostic_logs">Diagnostic logs</string>
+    <string name="cache_module_legacy_files">Legacy paths</string>
+    <string name="cache_module_unclassified">Unclassified cache</string>
     <string name="setting_backup">Backup</string>
     <string name="setting_restore">Restore</string>
     <string name="setting_about">About</string>

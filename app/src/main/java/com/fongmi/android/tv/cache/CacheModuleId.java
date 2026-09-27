@@ -13,7 +13,9 @@ public enum CacheModuleId {
     GLIDE("image.glide"),
     PLUGIN_SCRIPTS("plugin.scripts"),
     TEMP_FILES("temp.file"),
-    LEGACY_FILES("legacy.file");
+    DIAGNOSTIC_LOGS("diagnostic.logs"),
+    LEGACY_FILES("legacy.file"),
+    UNCLASSIFIED("unclassified.cache");
 
     private final String id;
 

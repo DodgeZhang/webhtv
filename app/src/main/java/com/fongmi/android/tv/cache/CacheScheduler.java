@@ -11,6 +11,7 @@ import com.fongmi.android.tv.service.PlaybackService;
 import com.github.catvod.utils.Prefers;
 
 import java.io.File;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -109,15 +110,30 @@ public final class CacheScheduler {
         long effective = CacheTotalLimitPolicy.effectiveLimit(configured,
                 CacheCenter.get().systemQuotaBytes());
         if (!CacheTotalLimitPolicy.overLimit(totalCacheBytes(), effective)) return;
-        CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.LIGHT), "total-limit", first -> {
+        CacheCleanupManager.execute(automaticPlan(CacheCleanupMode.LIGHT), "total-limit", first -> {
             if (PlaybackService.isRunning()) return;
             executor.execute(() -> {
                 if (!CacheTotalLimitPolicy.overLimit(totalCacheBytes(), effective)) return;
-                CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.STANDARD),
+                CacheCleanupManager.execute(automaticPlan(CacheCleanupMode.STANDARD),
                         "total-limit", ignored -> {
                         });
             });
         });
+    }
+
+    /**
+     * Auto-triggered cleanup must never delete a live diagnostic log.
+     *
+     * <p>The module stays manually cleanable, but an automatic run is not the right moment to
+     * destroy the evidence a user may still need. Explicit "clean" and "deep clean" keep their
+     * policy-planned behaviour.</p>
+     */
+    private static CacheCleanupPlan automaticPlan(CacheCleanupMode mode) {
+        CacheCleanupPlan plan = CachePolicyEngine.plan(mode);
+        List<CacheModuleId> modules = plan.modules().stream()
+                .filter(id -> id != CacheModuleId.DIAGNOSTIC_LOGS)
+                .toList();
+        return modules.size() == plan.modules().size() ? plan : new CacheCleanupPlan(plan.mode(), modules);
     }
 
     private long totalCacheBytes() {
@@ -138,7 +154,7 @@ public final class CacheScheduler {
             if (finished != null) finished.run();
             return false;
         }
-        CacheCleanupManager.execute(CachePolicyEngine.plan(mode), reason, result -> {
+        CacheCleanupManager.execute(automaticPlan(mode), reason, result -> {
             if (result.status() == CacheCleanupStatus.COMPLETED
                     || result.status() == CacheCleanupStatus.PARTIAL) {
                 Prefers.put(KEY_LAST_AUTO_MS, System.currentTimeMillis());

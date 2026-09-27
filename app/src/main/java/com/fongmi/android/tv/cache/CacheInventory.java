@@ -99,8 +99,11 @@ public final class CacheInventory {
             return;
         }
         if (root.excludeNames().contains(file.getName())) return;
+        if (matchesAnyPrefix(file.getName(), root.excludePrefixes())) return;
         if (file.isFile()) {
             if (!root.recursive() && depth > 1) return;
+            if (!root.includePrefixes().isEmpty()
+                    && !matchesAnyPrefix(file.getName(), root.includePrefixes())) return;
             if (!root.excludeSuffixes().isEmpty()
                     && matchesAnySuffix(file.getName(), root.excludeSuffixes())) return;
             if (!matchesSuffix(file.getName(), root.includeSuffixes())) return;
@@ -121,6 +124,11 @@ public final class CacheInventory {
     private static boolean matchesSuffix(String name, Set<String> suffixes) {
         if (suffixes.isEmpty()) return true;
         return matchesAnySuffix(name, suffixes);
+    }
+
+    private static boolean matchesAnyPrefix(String name, Set<String> prefixes) {
+        for (String prefix : prefixes) if (name.startsWith(prefix)) return true;
+        return false;
     }
 
     private static boolean matchesAnySuffix(String name, Set<String> suffixes) {

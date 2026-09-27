@@ -43,6 +43,9 @@ public final class CachePolicyStore {
     private static boolean supportsPersistedLimit(CacheModuleId id) {
         return switch (id) {
             case GLIDE, LYRICS, KARAOKE, WEBHOME_EXT, EPG, PLUGIN_SCRIPTS, TEMP_FILES, LEGACY_FILES -> true;
+            // Diagnostic logs are bounded by the owner's own rolling segment budget, and
+            // unclassified cache is report-only: neither may gain a second, conflicting limit.
+            case DIAGNOSTIC_LOGS, UNCLASSIFIED -> false;
             default -> false;
         };
     }
@@ -108,6 +111,8 @@ public final class CachePolicyStore {
         return switch (id) {
             case GLIDE, LYRICS, KARAOKE, WEBHOME_EXT, PLUGIN_SCRIPTS -> 256L * 1024L * 1024L;
             case EPG, TEMP_FILES, LEGACY_FILES -> 128L * 1024L * 1024L;
+            // Owner-bounded or report-only: no user-tunable limit applies.
+            case DIAGNOSTIC_LOGS, UNCLASSIFIED -> UNLIMITED;
             default -> UNLIMITED;
         };
     }

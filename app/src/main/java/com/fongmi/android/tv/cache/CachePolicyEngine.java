@@ -22,7 +22,23 @@ public final class CachePolicyEngine {
             CacheModuleId.WEBHOME_EXT,
             CacheModuleId.WEBHOME_RAW
     );
-    private static final Set<CacheModuleId> DEEP = EnumSet.allOf(CacheModuleId.class);
+
+    private static final Set<CacheModuleId> DEEP = deepModules();
+
+    /**
+     * L3 by design §12.1 is L2 plus the playback caches, and nothing else.
+     *
+     * <p>The two report-only modules added with the legacy fix are excluded explicitly: a tiered
+     * run must not remove diagnostic logs (owner-bounded, evidence the user may still need) or
+     * unclassified cache (owner unknown). Both remain reachable through their own module row, which
+     * is a separate {@link CacheCleanupMode#MODULE} plan and therefore unaffected.</p>
+     */
+    private static Set<CacheModuleId> deepModules() {
+        EnumSet<CacheModuleId> ids = EnumSet.allOf(CacheModuleId.class);
+        ids.remove(CacheModuleId.DIAGNOSTIC_LOGS);
+        ids.remove(CacheModuleId.UNCLASSIFIED);
+        return ids;
+    }
 
     private CachePolicyEngine() {
     }
@@ -43,12 +59,32 @@ public final class CachePolicyEngine {
         };
     }
 
+    /**
+     * Whether the user may trigger this module's cleanup from the UI (design §14.3).
+     *
+     * <p>Read from the registry rather than hardcoded per call site, so a module that declares
+     * itself owner-managed can not be shown as directly cleanable.</p>
+     *
+     * <p>This is a pure function: it builds the registry from the supplied cache directory instead
+     * of resolving the process cache dir, so it is testable without an Android context and can not
+     * drift with runtime state.</p>
+     */
+    public static boolean manualCleanupAllowed(CacheModuleId id, java.io.File cache) {
+        if (id == null || cache == null) return false;
+        for (CacheModule module : CacheModuleRegistry.modules(cache)) {
+            if (module.id() == id) return module.protection().allowManualCleanup();
+        }
+        return false;
+    }
+
     public static CacheCleanupStatus directCleanupStatus(CacheModuleId id, boolean playing) {
         if (id == null) return CacheCleanupStatus.NOT_ALLOWED;
         return switch (id) {
             case EXO, MPV_HLS, MPV_DEMUXER, MPV_RUNTIME, KARAOKE -> playing
                     ? CacheCleanupStatus.DEFERRED : CacheCleanupStatus.COMPLETED;
             case PLUGIN_SCRIPTS -> CacheCleanupStatus.NOT_ALLOWED;
+            // An owner-managed or unclassified module must never run through direct cleanup.
+            case UNCLASSIFIED -> CacheCleanupStatus.NOT_ALLOWED;
             default -> CacheCleanupStatus.COMPLETED;
         };
     }

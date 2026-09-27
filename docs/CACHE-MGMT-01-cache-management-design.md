@@ -73,6 +73,17 @@
 - 2026-09-26：补齐设计 §15.1「清理确认对话框默认焦点在取消」。原先 `confirm()`/`confirmModule()`/`confirmDeep()` 都只 `show()`，遥控器打开确认框后**没有任何按钮获得焦点**（无障碍树显示 focused 为空），此时按确认键无反应，用户必须先按方向键才能操作；且默认落在操作按钮上有误删风险。现在统一改为构造 `AlertDialog` 后注册 `setOnShowListener`，在 `post()` 中把焦点显式放到「取消」并标记 `focusable/focusableInTouchMode`（在 `onShow` 里直接 `requestFocus()` 会被随后的布局顶掉）。深度清理第二步（文案切换为“不可撤销”）同样重新把焦点放回「取消」。设备实测（5563，覆盖安装 leanback debug）：打开轻度/标准清理确认框后无障碍树 `focused` 立即为 `android.widget.Button '取消'`，**单击一次确认键即执行「取消」**（预置的 4 个过期 `tmp` 文件清理前后数量均为 4，确认框关闭且未清理）；深度清理第一步同样默认聚焦「取消」。测试文件已全部清理。
 - 2026-09-26：补齐设计 §11.3 的版本化迁移。`CachePolicyStore` 新增 `cache_mgmt_schema_version` 标记与幂等 `migrate()`：在 `CacheCenter` 初始化（UI/清单入口）和 `CacheScheduler.start()`（自动维护入口）调用，且 `getLimit()` 读取前兜底；迁移只把本功能拥有的模块上限、保留期和总上限规范化为安全范围，现有 key 不删除，播放器的 `play_cache` / `preload_size` 等设置不改动，未知或更高版本保持原样，失败时保留旧值并留待下次启动重试。`CachePolicyStoreTest` 新增 fresh/current/newer 三种版本判定，独立 JUnit **3/3 通过**；`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均通过。
 - 2026-09-27：修复清理确认框关闭后焦点随机跳转（用户反馈）。原实现只保证确认框打开时默认聚焦「取消」，但关闭后让系统按几何寻焦重新选择，遥控器焦点可能离开触发按钮。现在为模块「清理」、三级清理和深度清理确认框记录触发 `View`，在 `OnDismiss` 后 `post()` 回原按钮；清理启动时按钮保持 focusable、仅关闭 clickable 并降低透明度，避免确认框消失瞬间原按钮不可聚焦而再次随机寻焦。模块列表刷新还会按 `ModuleFocusTag(id, limitButton)` 恢复原「清理/上限」按钮。设备实测（5563，覆盖安装 leanback debug）：在「Exo 播放缓存」的「清理」按钮上打开确认框并点「确定」，关闭约 0.4 秒后无障碍树 `focused=true` 仍为该行原「清理」按钮（坐标 `[1344,673]-[1568,761]`），未跳到相邻模块或策略行。`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均通过。
+- 2026-09-27：修复「遗留/孤立文件」清理失败（用户反馈，截图证据 `QQ20260927-101816.png`：模块报告 17 MB · 93 个文件，点击「清理」返回「清理完成 释放 无 · 删除 0 个文件」）。两项根因：
+  1) **统计与清理范围互斥**：`LEGACY_FILES` 统计的是 `CacheRoot.orphanTree(cache, ...)`（“除已登记根目录外的全部”），而 `CacheCleanupManager` 只清理 `clearAgedTree(cache/"restore-legacy")`，且 `restore-legacy` 同时还在 `MANAGED_ROOTS` 里被统计排除 —— 该模块报告的任何字节都不可能被它自己删除。
+  2) **把活跃缓存谎报为遗留**：5563 实测该模块的 17 MB / 93 文件实际是 `plugin-preheat`（82 文件 3.9 MB，内容是 `//@name...` 的插件脚本预热点）与 `webhtv-debug-log.txt{,.1,.2,.3,.pinned}` 轮转日志（约 13.4 MB），两者都是当前应用仍在使用的活跃数据；而设计 §9.13 明确要求「版本化规则表」「不根据文件名模糊匹配未知文件」。
+  修复：新增版本化规则表 `CacheLegacyRules`（`TABLE_VERSION = 2`，规则 `restore-legacy`、`subtitle_asset`），统计根与清理路径均从 `CacheLegacyRules.rules()` 派生，保证“报告即删除”；`restore-legacy` 从 `MANAGED_ROOTS` 移除（它过去同时被排除与清理，是 incoherence 的来源）；新增 `diagnostic.logs`（owner 清理 + 手动可清 + 永不自动/分级清理）与 `unclassified.cache`（只统计不清理）两个模块；`CacheRoot` 增加前后缀过滤（`prefixedFiles`/`orphanTree` 前缀重载），使 `webhtv-debug-log.txt.1` 这类派生名可被整体寻址；`CachePolicyEngine` 的 L3 显式排除两个新模块（设计 §12.1 的 L3 = L2 + 播放缓存），UI 的“清理」按钮是否禁用改由注册表 `allowManualCleanup` 决定（不再硬编码 `PLUGIN_SCRIPTS`），模块文案改为「遗留路径 / 诊断日志 / 未归类缓存」。
+  验证：缓存包独立 JUnit **57/57 通过**（新增 `CacheLegacyRulesTest` 6 例、`CacheRootPrefixTest` 4 例，并扩展 `CacheInventoryTest`/`CachePolicyEngineTest`），`CacheModuleRegistryTest.productionRegistryPassesValidation` 仍通过（前缀过滤已纳入根定义去重）；`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均通过。
+  设备实测（NX627J / Android 9 / 192.168.50.3:5563，leanback arm64 debug 覆盖安装，无卸载）：为匹配设备上既有包名，临时把 `applicationId` 改为 `com.silent.android.webhtv` 构建，安装后已恢复 `app/build.gradle` 并校对 md5 一致（`c6ad2a8176046335686bac30be2c9c45`）、`git status` 无此文件改动。
+  ①**不再谎报**：同一设备上，修复前该行显示 `遗留/孤立文件 90.4% — 17 MB · 93 个文件`；修复后拆分为 `诊断日志 69.3% — 13.3 MB · 5 个文件`、`未归类缓存 19.5% — 3.7 MB · 87 个文件`（按钮为「由模块管理」，不可直接清理）、`遗留路径 <0.1% — 20 bytes · 2 个文件`（正是本次放入的 2 个测试遗留文件），而 `plugin-preheat`（82 文件）与 debug log 已不再被当作遗留。
+  ②**报告即删除（核心回归）**：点击「遗留路径」行的「清理」，确认框文案为「清理 遗留路径？」且默认焦点在「取消」；确认后返回「清理完成 · 释放 20 bytes · 删除 2 个文件」，与统计值完全一致；随后 `run-as ... ls` 确认 `cache/restore-legacy/interrupted-restore.bin` 与 `cache/subtitle_asset/old-asset.bin` 两个目录均已不存在，且 `cache_mgmt_cleanup_history` 新增 `bytesBefore=20 → bytesAfter=0, deletedFiles=2, mode=MODULE, status=COMPLETED`。修复前同样的操作返回「删除 0 个文件」。
+  ③**诊断日志模块可用**：点击「诊断日志」行「清理」，返回「清理完成 · 释放 13.3 MB · 删除 3 个文件」，journal 记录 `bytesBefore=13987893 → bytesAfter=4048, deletedFiles=3`；磁盘上 4 个轮转分段（`.1/.2/.3` ≥3.4 MB）被删、活动段与 `.pinned` 由 owner 的写入器立即重建（各自 2024 bytes），未破坏日志写入。
+  ④**分级/自动清理不误伤（本次改动的关键不变式）**：执行「轻度清理」（L1）后返回「删除 0 个文件」，日志族与 82 个 `plugin-preheat` 文件全部保留；执行「深度清理」（L3，两步确认后）journal 记录 `bytesBefore=2261255 → bytesAfter=1901071, deletedFiles=16, warnings=["not_allowed"]`（`not_allowed` 来自按设计不可直接清理的插件脚本模块），日志族与 `plugin-preheat` 仍全部保留。证明新拆出的两个模块确实被排除在 L1/L3 与自动清理之外。
+  全程 `pid` 6974 未重启、无 `FATAL EXCEPTION`。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
@@ -776,12 +787,16 @@ Android `File.lastModified()` 可以用于“最近修改/最近使用”近似�
 
 ### 9.13 遗留和孤立文件
 
-设计：
+实现（版本化规则表，`CacheLegacyRules`）：
 
-1. 必须有版本化规则表，例如 `v1 → v2` 后允许删除的旧目录名
-2. 不根据文件名模糊匹配未知文件
-3. 默认只报告，用户在高级选项中确认后才删除
-4. 每次升级只操作明确声明的 legacy 路径
+1. 必须有版本化规则表；当前 `TABLE_VERSION = 2`，规则为 `restore-legacy`（v1）与 `subtitle_asset`（v2）。新增/移除规则时必须同时递增版本号，并有测试断言表版本等于最高规则版本。
+2. 不根据文件名模糊匹配未知文件：只有规则表里显式声明的路径才进入本模块。
+3. **统计与清理必须使用同一份规则表**（`CacheLegacyRules.rules()`）：`CacheModuleRegistry` 的统计根来自 `CacheLegacyRules.roots(cache)`，`CacheCleanupManager.clearLegacyPaths` 遍历同一组规则。旧实现统计“除已登记根目录外的全部”、却只清理 `restore-legacy`，导致「报告 17 MB 却删除 0 个文件」，该结构性缺陷已由 `CacheLegacyRulesTest.moduleRootsAreBuiltFromTheSameRuleTableCleanupUses` 锁定。
+4. 分级清理（L1/L3）保留 7 天年龄保护；模块行的「清理」按钮表示“立即移除该遗留路径”，不受保留期限制。
+5. 未登记的活跃缓存不再谎报为“遗留”。原先 `plugin-preheat`（82 文件）、`webhtv-debug-log.txt{,.1,.2,.3,.pinned}` 等被当作遗留文件统计，既无法清理也误导用户。现在拆分为两个模块：
+   - `diagnostic.logs`（诊断日志）：owner 为 `DebugLogStore`，手动可清理，通过 owner 的 `clear()` 删除；**不进入任何分级清理与自动清理**（用户可能还需要这些排障证据）。
+   - `unclassified.cache`（未归类缓存）：只统计、不清理（`allowManualCleanup=false`、`allowAutomaticCleanup=false`）。这里保留“排除已知 owner 后全部计入”的逆向规则是**有意的**：需要看见未来新增但尚未登记的缓存目录；因为该模块永不删除，逆向规则在此处不产生危害。
+6. 每次升级只操作明确声明的 legacy 路径。
 
 ## 10. 淘汰策略实现
 
