@@ -58,6 +58,17 @@ public class WebThemeTokenSourceTest {
         assertFalse(controller.contains("ThemeController.apply("));
     }
 
+    @Test
+    public void webHomeTokenDeclarationsStayInsideRootScope() throws Exception {
+        String home = read("app/src/main/assets/webhome/eclipse.html");
+        assertTrue(home.contains(":root {\n      --eclipse-color-1: #a8c7fa;"));
+        assertTrue(home.contains("      --eclipse-color-56: #000;\n    }"));
+
+        String detail = read("app/src/main/assets/webhome/eclipse-detail.html");
+        assertTrue(detail.contains(":root {\n      --eclipse-detail-color-1: #a8c7fa;"));
+        assertTrue(detail.contains("      --eclipse-detail-color-105: #705cff;\n    }"));
+    }
+
     private static String read(String path) throws Exception {
         Path root = Files.exists(Path.of("src")) ? Path.of("") : Path.of("app");
         String relative = path.startsWith("app/") ? path.substring("app/".length()) : path;
