@@ -9,11 +9,11 @@
 ## Recovery anchor
 
 - 目标：把设置页现有“缓存大小 + 一键全删”升级为可观测、可分级清理、可配置上限、可自动维护的缓存管理中心。
-- 当前状态：P0-P4、全部收口修复与 §11.3 配置迁移均已提交并带恢复标签。缓存包独立 JUnit 曾 **41/41 通过**，本轮迁移判定另以 `CachePolicyStoreTest` **3/3 通过**复核；双形态 Java 编译通过。5563 设备端已实测：统计/清理恢复真实值（此前因祖先符号链接误判恒为 0，已修复）、深度清理单窗口两步确认、播放/seek/预载正常、播放中标准清理不中断、EXO↔MPV 切换不改动模块统计、低空间 Job 触发 L2、系统配额展示与上限收敛、EPG 自动刷新落盘、歌词多源链路、字幕渲染、K 歌模块隔离、备份/恢复闭环、进行中临时包保护、移动端 flavor 主路径。
+- 当前状态：P0-P4、全部收口修复与 §11.3 配置迁移均已提交并带恢复标签。缓存包独立 JUnit 曾 **41/41 通过**，本轮迁移判定另以 `CachePolicyStoreTest` **3/3 通过**复核；双形态 Java 编译通过。5563 设备端已实测：统计/清理恢复真实值（此前因祖先符号链接误判恒为 0，已修复）、深度清理单窗口两步确认、播放/seek/预载正常、播放中标准清理不中断、EXO↔MPV 切换不改动模块统计、低空间 Job 触发 L2、系统配额展示与上限收敛、EPG 自动刷新落盘、歌词多源链路、字幕渲染、K 歌模块隔离、备份/恢复闭环、进行中临时包保护、移动端 flavor 主路径；另于 2026-09-28 修复并实测「清理完成后设置页缓存数值立即刷新」（leanback 22.1→14.2 MB、移动端 23.5→14.5 MB，均在同一个 Activity/pid、无翻页/无 tab 切换下完成，与弹窗可信值一致）。
 - 关键约束：`Path.cache()` 是混合目录，绝不能被当作一个全局可任意淘汰的缓存池。
 - 实施顺序：P0 缓存清单 → P1 分类清理 → P2 模块上限 → P3 自动清理 → P4 运行中治理增强。
-- 已知边界（非阻塞、已记录）：①应用更新完整「检查更新→HTTPS 下载→安装器交互」闭环受环境限制（`ApkUrlPolicy` 拒绝私网/HTTP、无线上发布包、安装需人工确认），其缓存契约部分已实测；②插件模块上限仅持久化配置，自动淘汰按安全设计暂不启用（§20.6）。
-- 下一步：如需继续，仅剩上述两项环境/设计边界；无未解决的 P0/P1 缺陷，无未勾选的验收项。
+- 已知边界（非阻塞、已记录）：①应用更新完整「检查更新→HTTPS 下载→安装器交互」闭环受环境限制（`ApkUrlPolicy` 拒绝私网/HTTP、无线上发布包、安装需人工确认），其缓存契约部分已实测；②插件模块上限仅持久化配置，自动淘汰按安全设计暂不启用（§20.6）；③**冷启动首次清单扫描可能被每模块 2 秒预算截断而少计一个模块**（见下方 2026-09-28 记录第③条），与清理后刷新链路无关，已列为独立跟进项。
+- 下一步：如需继续，仅剩上述三项环境/设计边界；无未解决的 P0/P1 缺陷，无未勾选的验收项。
 
 ## 1. 背景
 
@@ -84,6 +84,17 @@
   ③**诊断日志模块可用**：点击「诊断日志」行「清理」，返回「清理完成 · 释放 13.3 MB · 删除 3 个文件」，journal 记录 `bytesBefore=13987893 → bytesAfter=4048, deletedFiles=3`；磁盘上 4 个轮转分段（`.1/.2/.3` ≥3.4 MB）被删、活动段与 `.pinned` 由 owner 的写入器立即重建（各自 2024 bytes），未破坏日志写入。
   ④**分级/自动清理不误伤（本次改动的关键不变式）**：执行「轻度清理」（L1）后返回「删除 0 个文件」，日志族与 82 个 `plugin-preheat` 文件全部保留；执行「深度清理」（L3，两步确认后）journal 记录 `bytesBefore=2261255 → bytesAfter=1901071, deletedFiles=16, warnings=["not_allowed"]`（`not_allowed` 来自按设计不可直接清理的插件脚本模块），日志族与 `plugin-preheat` 仍全部保留。证明新拆出的两个模块确实被排除在 L1/L3 与自动清理之外。
   全程 `pid` 6974 未重启、无 `FATAL EXCEPTION`。
+- 2026-09-28：修复「清理完成后设置页缓存数值不刷新」（用户反馈，截图证据 `QQ20260927-203536.png`：设置页「缓存管理 12.2 MB / 486.5 MB」，描述为“清理完成后要及时刷新这里的数据，现在没刷新需要切换到其他页面后再切换设置也才能看到清理后的正确的值”）。
+  根因：设置页那一行只在自己的视图创建时读一次缓存清单 —— leanback 是 `SettingActivity.initView()`（`onCreate`），移动端是 `SettingFragment.onHiddenChanged(false)`（翻页/切 tab 才会回调）。清理是被 `CacheManagementDialog` 发起的，它只更新弹窗自己的 `summary/status`；**没有任何东西告诉设置页“缓存已经变了”**，所以该行会一直保留清理前的数值，直到用户离开再回到设置页触发一次新的视图创建/翻页回调 —— 这正是用户描述的“切到其他页面再切回来才能看到正确的值”。次要因素：`CacheCenter` 的清单快照有 3 秒 TTL，即使有人重新读取也可能命中旧快照。
+  修复（`Exo`/`MPV` 等播放器代码与清理策略均未改动）：
+  1) 新增 `RefreshEvent.Type.CACHE` 与 `RefreshEvent.cache()`，作为“缓存内容已变化”的公共信号。
+  2) `CacheCenter` 新增 `invalidate()`（丢掉清单快照，字段是 `volatile`，任意线程可调）、`publishChanged()`（发 `CACHE` 事件）；`notifyChanged()` = 两者组合，供其他缓存变更点复用。
+  3) `CacheCleanupManager.run()` 结束时按 `invalidate → 结果回调 → publishChanged` 的顺序投递到主线程，保证结果摘要先渲染、设置页随后按新快照刷新；`applyConfiguredLimits()`（上限/TTL 淘汰）同样 `notifyChanged()`。
+  4) 两个设置入口订阅 `CACHE` 并调用既有的 `setCacheText()`：leanback `SettingActivity.onRefreshEvent()`、移动端 `SettingFragment.onRefreshEvent()`（移动端同时把 `mBinding` 在 `onDestroyView` 置空，避免事件打到已销毁的视图上）。
+  验证：缓存包独立 JUnit **57/57 通过**（本轮未改纯函数，属回归复核）；`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均 BUILD SUCCESSFUL。设备实测（NX627J / Android 9 / 192.168.50.3:5563，arm64 debug 覆盖安装，无卸载；为匹配既有包名临时把 `applicationId` 改为 `com.silent.android.webhtv`，验证后 `app/build.gradle` 已按 md5 `c6ad2a8176046335686bac30be2c9c45` 还原为字节相同）：
+  ①**leanback**：预置过期临时包 `pushed-verify9.apk`（9 MB）与过期遗留路径 `restore-legacy/verify-legacy-stale.bin`（8 MB）。清理前设置页该行 `22.1 MB / 486.5 MB`，弹窗可信值 `共 31.2 MB`；执行「轻度清理」后 journal 记录 `bytesBefore=17825792 → bytesAfter=0, deletedFiles=2, status=COMPLETED`（与两个夹具字节数完全一致）；**在同一个 `ActivityRecord{... t31}` / 同一个 `pid 20949` 下**（`logcat` 无任何新的 `START/Displayed ... SettingActivity`，且弹窗是宿主 Activity 的 `DialogFragment`、全程只按了一次 BACK 关闭弹窗、没有翻页）该行自动变为 `14.2 MB / 486.5 MB`，与随后重新打开弹窗得到的 `共 14.2 MB` 一致。
+  ②**移动端 flavor**：覆盖安装 `mobileArm64_v8a` debug 后预置 `pushed-mobile9.apk`（9 MB）。清理前该行 `23.5 MB / 486.5 MB` 且弹窗 `共 23.5 MB`（基线可信）；「轻度清理」journal `bytesBefore=9437184 → bytesAfter=0, deletedFiles=1, COMPLETED`；**在同一个 `ActivityRecord{... t32}` / 同一个 `pid 22345`、始终停留在“设置”tab（无 tab 切换、无 Activity 重建）**下该行变为 `14.5 MB / 486.5 MB`（= 23.5 − 9.0），与重新打开弹窗的 `共 14.5 MB` 一致。验证后重新覆盖安装 leanback，设备恢复 TV 形态；测试夹具与临时创建的 `cache/restore-legacy` 目录均已删除，`cache` 目录条目恢复为验证前清单。
+  ③**未修复的相邻缺陷（已确认，另行跟进，不在本次改动范围）**：冷启动后的**首次**清单扫描可能触发 `CacheInventory` 的每模块 2 秒预算（`MODULE_TIMEOUT_NS`），被截断的模块会整块丢失字节，因此该次 `totalBytes()` 偏小，而设置页那一行不像弹窗那样显示「部分结果 · N 项警告」。实测（同上设备）：冷启动首扫 `warnings=1, duration=4875ms/2341ms`，该行 `13.4 MB`，而同一时刻热扫描的弹窗为 `共 37.4 MB`（按磁盘逐项核算：临时文件 24 MB + 图片 6.4 MB + 未归类 3.7 MB + JS 1.8 MB + 诊断 1.4 MB ≈ 37 MB，弹窗值正确、该行偏小）；把夹具换成 `restore-legacy`（8 MB）后复现同样模式（冷扫丢该模块 8 MB，热扫可见 `遗留路径 8 MB · 1 个文件`）。该问题与清理后的刷新链路无关（清理后的刷新发生在进程内第二次扫描，实测 `warnings=0`、`52–54ms`），因此本次不修改扫描预算；如需跟进，属于独立需求（放大预算或让设置页暴露 partial 状态）。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：

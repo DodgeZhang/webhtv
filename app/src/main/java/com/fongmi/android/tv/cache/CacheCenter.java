@@ -5,6 +5,7 @@ import android.os.Build;
 import android.os.storage.StorageManager;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.event.RefreshEvent;
 import com.github.catvod.utils.Prefers;
 
 import java.util.concurrent.ExecutorService;
@@ -60,6 +61,37 @@ public final class CacheCenter {
             Prefers.put("cache_mgmt_inventory_warnings", next.warnings().size());
             App.post(() -> callback.accept(next));
         });
+    }
+
+    /**
+     * Drops the cached snapshot so the next read reflects the current disk state.
+     *
+     * <p>Without this the 3-second snapshot cache keeps serving pre-cleanup numbers, and every
+     * other cache surface stays stale until the user leaves and re-enters the screen. Safe to call
+     * from any thread: the fields are volatile.</p>
+     */
+    public void invalidate() {
+        snapshot = null;
+        snapshotAtMs = 0L;
+    }
+
+    /**
+     * Asks every cache surface to display the current cache state.
+     *
+     * <p>Surfaces only re-read the inventory when told to, so a cleanup result would otherwise stay
+     * invisible until the page is left and re-entered.</p>
+     */
+    public void publishChanged() {
+        RefreshEvent.cache();
+    }
+
+    /**
+     * Invalidates the snapshot and notifies every cache surface. Call after any cache mutation
+     * (cleanup, configured limits, quota changes).
+     */
+    public void notifyChanged() {
+        invalidate();
+        RefreshEvent.cache();
     }
 
     public long systemQuotaBytes() {

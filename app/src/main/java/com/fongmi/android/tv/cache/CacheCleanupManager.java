@@ -95,6 +95,7 @@ public final class CacheCleanupManager {
         CacheRetentionManager.applyLimit(new File(cache, "epg"),
                 CachePolicyStore.getLimit(CacheModuleId.EPG), Math.min(retention, 6L * 60L * 60L * 1000L),
                 () -> now, Set.of());
+        CacheCenter.get().notifyChanged();
     }
 
     private static void run(CacheCleanupPlan plan, String reason,
@@ -132,7 +133,12 @@ public final class CacheCleanupManager {
                 startedAt, Math.max(0, finishedAt - startedAt), reason == null ? "manual" : reason,
                 plan.mode(), result.status(), result.bytesBefore(), result.bytesAfter(),
                 result.deletedFiles(), result.skippedFiles(), result.warnings()));
+        // Any cleanup mutates the disk, so the cached inventory is stale and every cache surface
+        // (settings row, panel summary) must re-read it. Without this the settings row keeps the
+        // pre-cleanup value until the user leaves and re-enters the page.
+        App.post(CacheCenter.get()::invalidate);
         App.post(() -> callback.accept(result));
+        App.post(CacheCenter.get()::publishChanged);
     }
 
     private static CacheCleanupResult cleanModule(CacheModuleId id, CacheCleanupMode mode) {

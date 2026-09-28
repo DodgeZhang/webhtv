@@ -376,6 +376,19 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         setWallText();
     }
 
+    /**
+     * Re-reads the cache inventory the moment a cleanup (or any other cache mutation) finishes.
+     *
+     * <p>Without this the settings row kept the pre-cleanup value until the user left the activity
+     * and opened it again, because nothing told the row the cache had changed.</p>
+     */
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onRefreshEvent(RefreshEvent event) {
+        if (event.getType() != RefreshEvent.Type.CACHE) return;
+        if (mBinding == null || isFinishing() || isDestroyed()) return;
+        setCacheText();
+    }
+
     private void setWallText() {
         mBinding.wallUrl.setText(Setting.getWallDesc(WallConfig.getDesc()));
     }

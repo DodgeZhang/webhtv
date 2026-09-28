@@ -20,6 +20,7 @@ import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.databinding.FragmentSettingBinding;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.ConfigEvent;
+import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.impl.ConfigListener;
 import com.fongmi.android.tv.impl.LiveListener;
@@ -369,6 +370,19 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
         setWallText();
     }
 
+    /**
+     * Re-reads the cache inventory the moment a cleanup (or any other cache mutation) finishes.
+     *
+     * <p>The settings row used to keep showing the pre-cleanup value until the user switched to
+     * another page and back, because nothing told it the cache had changed.</p>
+     */
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onRefreshEvent(RefreshEvent event) {
+        if (event.getType() != RefreshEvent.Type.CACHE) return;
+        if (mBinding == null || !isAdded()) return;
+        setCacheText();
+    }
+
     private void setWallText() {
         mBinding.wallUrl.setText(Setting.getWallDesc(WallConfig.getDesc()));
     }
@@ -383,5 +397,6 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
     public void onDestroyView() {
         super.onDestroyView();
         EventBus.getDefault().unregister(this);
+        mBinding = null;
     }
 }
