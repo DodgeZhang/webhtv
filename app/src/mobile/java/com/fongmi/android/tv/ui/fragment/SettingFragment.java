@@ -19,6 +19,7 @@ import com.fongmi.android.tv.bean.Live;
 import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.databinding.FragmentSettingBinding;
 import com.fongmi.android.tv.db.AppDatabase;
+import com.fongmi.android.tv.setting.ConfigSyncPolicy;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.impl.ConfigListener;
@@ -30,7 +31,6 @@ import com.fongmi.android.tv.ui.base.BaseFragment;
 import com.fongmi.android.tv.ui.dialog.AboutDialog;
 import com.fongmi.android.tv.ui.dialog.AppearanceDialog;
 import com.fongmi.android.tv.ui.dialog.ChoiceDialog;
-import com.fongmi.android.tv.ui.dialog.ConfigDialog;
 import com.fongmi.android.tv.ui.dialog.HistoryDialog;
 import com.fongmi.android.tv.ui.dialog.LiveDialog;
 import com.fongmi.android.tv.ui.dialog.RestoreDialog;
@@ -125,11 +125,8 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
         mBinding.subtitle.setOnClickListener(this::onSubtitle);
         mBinding.restore.setOnClickListener(this::onRestore);
         mBinding.version.setOnClickListener(this::onVersion);
-        mBinding.vod.setOnLongClickListener(this::onVodEdit);
         mBinding.vodHome.setOnClickListener(this::onVodHome);
-        mBinding.live.setOnLongClickListener(this::onLiveEdit);
         mBinding.liveHome.setOnClickListener(this::onLiveHome);
-        mBinding.wall.setOnLongClickListener(this::onWallEdit);
         mBinding.incognito.setOnClickListener(this::setIncognito);
         mBinding.vodHistory.setOnClickListener(this::onVodHistory);
         mBinding.liveHistory.setOnClickListener(this::onLiveHistory);
@@ -152,7 +149,12 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
     private void load(Config config) {
         switch (config.getType()) {
             case 0:
+                String previousVodUrl = VodConfig.getUrl();
                 VodConfig.load(config, getCallback());
+                if (ConfigSyncPolicy.shouldSyncLive(previousVodUrl, LiveConfig.getUrl())) {
+                    Config liveConfig = AppDatabase.get().getConfigDao().find(config.getUrl(), 1);
+                    if (liveConfig != null) LiveConfig.load(liveConfig, new Callback());
+                }
                 break;
             case 1:
                 LiveConfig.load(config, getCallback());
@@ -196,30 +198,15 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
     }
 
     private void onVod(View view) {
-        ConfigDialog.create().vod().show(this);
+        HistoryDialog.create().vod().manage().show(this);
     }
 
     private void onLive(View view) {
-        ConfigDialog.create().live().show(this);
+        HistoryDialog.create().live().manage().show(this);
     }
 
     private void onWall(View view) {
-        ConfigDialog.create().wall().show(this);
-    }
-
-    private boolean onVodEdit(View view) {
-        ConfigDialog.create().vod().edit().show(this);
-        return true;
-    }
-
-    private boolean onLiveEdit(View view) {
-        ConfigDialog.create().live().edit().show(this);
-        return true;
-    }
-
-    private boolean onWallEdit(View view) {
-        ConfigDialog.create().wall().edit().show(this);
-        return true;
+        HistoryDialog.create().wall().manage().show(this);
     }
 
     private void onVodHome(View view) {

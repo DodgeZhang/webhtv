@@ -20,7 +20,6 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
@@ -51,10 +50,8 @@ import com.fongmi.android.tv.utils.Task;
 import com.fongmi.android.tv.utils.Util;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 
 public class FollowingActivity extends AppCompatActivity implements FollowingAdapter.Listener {
 
@@ -65,7 +62,6 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     private static final int FILTER_ENDED = 3;
     private static final int FILTER_FAILED = 4;
     private static final int FILTER_COUNT = 5;
-    private static final long VISIBLE_READ_DELAY_MS = 800;
     private static final Comparator<Following> LIST_ORDER = Comparator
             .comparing((Following item) -> !item.hasUpdate)
             .thenComparing(Comparator.comparingInt((Following item) -> item.unwatchedCount).reversed())
@@ -76,8 +72,6 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     private FollowingAdapter adapter;
     private String focusIdentity;
     private String pendingNotifyIdentity;
-    private final Set<String> readPending = new HashSet<>();
-    private final Runnable visibleReadRunnable = this::markVisibleReadNow;
     private int filterIndex = FILTER_ALL;
     private final ActivityResultLauncher<String> notificationPermission = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(), granted -> {
@@ -147,13 +141,8 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         binding.recycler.setLayoutManager(new LinearLayoutManager(this));
         binding.recycler.addItemDecoration(new SpaceItemDecoration(1, 8));
         binding.recycler.setAdapter(adapter = new FollowingAdapter(this));
-        binding.recycler.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override
-            public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
-                if (newState == RecyclerView.SCROLL_STATE_IDLE) scheduleVisibleRead();
-            }
-        });
         binding.check.setOnClickListener(view -> checkAll());
+        binding.readAll.setOnClickListener(view -> markAllRead());
         binding.filter.setOnClickListener(view -> {
             filterIndex = (filterIndex + 1) % FILTER_COUNT;
             load();
@@ -198,7 +187,6 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         binding.recycler.setVisibility(rows.isEmpty() ? View.GONE : View.VISIBLE);
         binding.summary.setText(getString(R.string.following_summary, rows.size(), unread));
         adapter.setItems(rows);
-        scheduleVisibleRead();
         int index = TextUtils.isEmpty(focusIdentity) ? -1 : adapter.indexOf(focusIdentity);
         if (index >= 0) {
             binding.recycler.post(() -> {
@@ -208,35 +196,18 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
         }
     }
 
-    private void scheduleVisibleRead() {
-        if (binding == null) return;
-        binding.recycler.removeCallbacks(visibleReadRunnable);
-        binding.recycler.postDelayed(visibleReadRunnable, VISIBLE_READ_DELAY_MS);
-    }
-
-    private void markVisibleReadNow() {
-        if (binding == null || isFinishing() || isDestroyed()) return;
-        RecyclerView.LayoutManager manager = binding.recycler.getLayoutManager();
-        if (!(manager instanceof LinearLayoutManager linear)) return;
-        int first = linear.findFirstVisibleItemPosition();
-        int last = linear.findLastVisibleItemPosition();
+    private void markAllRead() {
         List<String> keys = new ArrayList<>();
-        for (int i = first; i <= last; i++) {
-            FollowingAdapter.Row row = adapter.rowAt(i);
-            if (row == null || !row.following.hasUpdate || readPending.contains(row.following.identityKey)) continue;
-            keys.add(row.following.identityKey);
+        for (FollowingAdapter.Row row : adapter.getItems()) {
+            if (row.following.hasUpdate && !TextUtils.isEmpty(row.following.identityKey)) keys.add(row.following.identityKey);
         }
         markReadNow(keys);
     }
 
     private void markReadNow(List<String> keys) {
         if (keys == null || keys.isEmpty()) return;
-        List<String> pending = new ArrayList<>();
-        for (String key : keys) if (!TextUtils.isEmpty(key) && readPending.add(key)) pending.add(key);
-        if (pending.isEmpty()) return;
-        adapter.markReadLocally(pending);
-        FollowingPlaybackBridge.markReadAllAsync(pending, error -> {
-            readPending.removeAll(pending);
+        adapter.markReadLocally(keys);
+        FollowingPlaybackBridge.markReadAllAsync(keys, error -> {
             if (error != null) load();
             else refreshUnreadSummary();
         });
@@ -284,9 +255,8 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
                 return;
             }
             FollowingUpdateCoordinator coordinator = new FollowingUpdateCoordinator();
-            int limit = Math.min(5, items.size());
             boolean success = false;
-            for (int i = 0; i < limit; i++) success |= coordinator.checkNow(items.get(i).identityKey, true);
+            for (Following item : items) success |= coordinator.checkNow(item.identityKey, true);
             boolean finalSuccess = success;
             App.post(() -> {
                 if (binding == null) return;
@@ -396,7 +366,6 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
     @Override
     public void onOpenDetail(Following item, FollowingSource source) {
         if (item == null) return;
-        markReadNow(List.of(item.identityKey));
         StringBuilder message = new StringBuilder();
         int released = FollowingUpdatePolicy.releasedEpisode(item);
         message.append(released > 0 ? getString(R.string.following_official, released) : getString(R.string.following_official_unknown));
@@ -438,7 +407,7 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
             App.post(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 if (history != null) {
-                    TmdbDetailActivity.startFromHistory(this, history);
+                    VideoActivity.startFromFollowingHistory(this, history);
                     return;
                 }
                 FollowingSource target = preferred(item, source);
@@ -537,7 +506,8 @@ public class FollowingActivity extends AppCompatActivity implements FollowingAda
 
     @Override
     public void onRead(Following item) {
-        if (item != null) markReadNow(List.of(item.identityKey));
+        if (item == null || TextUtils.isEmpty(item.identityKey)) return;
+        markReadNow(List.of(item.identityKey));
     }
 
     @Override

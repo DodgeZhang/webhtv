@@ -58,6 +58,25 @@ public class DetailModeControllerTest {
     }
 
     @Test
+    public void enhancedDetailController_keepsThemeControlOfCinemaPresentation() throws Exception {
+        Path controllerPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "detail", "EnhancedDetailController.java"));
+        Path hostPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "detail", "DetailModeHost.java"));
+        Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String controller = new String(Files.readAllBytes(controllerPath), StandardCharsets.UTF_8);
+        String host = new String(Files.readAllBytes(hostPath), StandardCharsets.UTF_8);
+        String activity = new String(Files.readAllBytes(activityPath), StandardCharsets.UTF_8);
+
+        assertTrue("Enhanced mode must delegate cinema presentation to the selected detail theme",
+                controller.contains("return host.isCinemaStyle();"));
+        assertTrue("DetailModeHost must expose the selected cinema style",
+                host.contains("boolean isCinemaStyle();"));
+        assertTrue("Activity must wire the host cinema style to rawCinemaMode()",
+                activity.contains("public boolean isCinemaStyle()") && activity.contains("return rawCinemaMode();"));
+        assertTrue("The mode refactor must not hard-code EnhancedDetailController.isCinemaStyle() to true",
+                !controller.contains("return true;") || !controller.contains("public boolean isCinemaStyle()"));
+    }
+
+    @Test
     public void playerDetailController_hasCorrectVisibilityLogic() throws Exception {
         Path controllerPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "detail", "PlayerDetailController.java"));
         String source = new String(Files.readAllBytes(controllerPath), StandardCharsets.UTF_8);
@@ -118,6 +137,20 @@ public class DetailModeControllerTest {
                 !initPageBody.contains("binding.fusionActions.setVisibility(isFusionMode()"));
         assertTrue("initPage should not set detailActions visibility based on mode (delegated to Controller)",
                 !initPageBody.contains("binding.detailActions.setVisibility(isFusionMode()"));
+    }
+
+    @Test
+    public void modeController_isInitializedBeforeModeDependentViewSetup() throws Exception {
+        Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String source = Files.readString(activityPath, StandardCharsets.UTF_8);
+        String initViewBody = methodBody(source, "protected void initView(Bundle savedInstanceState)");
+
+        int controller = initViewBody.indexOf("initModeController();");
+        int edgeToEdge = initViewBody.indexOf("applyDetailEdgeToEdge();");
+        int insets = initViewBody.indexOf("applySystemBarInsets();");
+        int page = initViewBody.indexOf("initPage();");
+        assertTrue("mode controller must exist before mode-dependent setup",
+                controller >= 0 && edgeToEdge > controller && insets > controller && page > controller);
     }
 
     @Test

@@ -27,6 +27,14 @@
 
 | 顺序 | 任务 ID | 类别 | 功能/能力 | 状态 | 唯一文档 |
 | ---: | --- | --- | --- | --- | --- |
+| 既有任务续修 | `E11` | Exo/App | 压缩音频输出、跳转释放状态、隧道一致性与起播恢复 | A 为 `123d871c027eb686702766bca995f616e8d2bd1e`，首次起播研究为 `e9fef2b90ee8aa634327c2c179eb3dc5d22cb1be`，直通开关修复为 `24fa078d2dc8a404fad23fc30972e5fc4a8a1b5b`。首次快速恢复现已实现：完整 AU 供数及启动门槛读回后，以 800 ms 窗口和原始播放头/路由复核判错，使用 Media3 内部恢复复用当前媒体与缓存；保留正常直出与关闭开关的 PCM 行为。C4 第七轮合并保留本地厂商直出初始化失败立即 PCM 回退，并接入按媒体/路由失败记忆、直通开关一致性和已缓冲起播恢复；合并冲突组合的最终验证记录见唯一任务文档。 | [E11-exo-compressed-audio-direct.md](E11-exo-compressed-audio-direct.md) |
+| 插入修复 | `P11` | MPV/App | AV3A 直播使用 `.m3u8?ts=…` 媒体端点时保持分片语义，修复代理误报 HTTP 400 | 已修复；19 项定向测试、Debug/快速 Release 构建和手机同源实播通过，持续超过 6 分钟、AV3A 音频输出无写入错误；Release 已安装，视频手动解码合同保持；源内迅雷插件 Debug JNI 问题独立记录 | [P11-mpv-live-av3a.md](P11-mpv-live-av3a.md) |
+| 插入需求 | `P10` | MPV/App | 全局智能去广开关接入，复用Exo识别并保持HLS时间轴/跳转 | 已实现并续修误跳正文、广告闪帧及Surface复用；原生输出边界fixture零广告帧，原链接正常跨广告；25项广告测试与4项Surface测试通过，Mobile64已安装且用户确认正常；原生库保持 | [P10-mpv-smart-adblock.md](P10-mpv-smart-adblock.md) |
+| 插入需求 | `C-AVS3` | 通用，Exo → MPV | AVS3 视频解码，基准档次与 High profile 分阶段验证 | baseline/0x32软件后端及MPV MediaCodec接入已交付；手机不具备AVS3硬件，硬解实际出帧与性能待目标设备验证 | [C-AVS3-video-decoding.md](C-AVS3-video-decoding.md) |
+| 插入需求 | `AV-DIAG-01` | 通用/App，Exo → MPV → IJK | 无 ADB 音视频分层诊断、脱敏和可判读的日志导出 | D0–D5实现/产物补齐，覆盖与验证见14.13–14.14；设备/性能待用户实测 | [AV-DIAG-01-playback-diagnostics.md](AV-DIAG-01-playback-diagnostics.md) |
+| 22 | `E9-3` | Exo/App | 普通 HEVC 硬解 + Vulkan/libplacebo 的 DV5 色彩映射默认准入 | 2026-09-12默认准入已实现，三个定向测试类及 Mobile/Leanback arm64 Java 编译通过；保留原生杜比和设备能力门控，待新版包原场景复测 | [E9-3-exo-dv5-vulkan-renderer.md](E9-3-exo-dv5-vulkan-renderer.md) |
+| P2 子阶段 | `P2-4` | MPV/native/App | Android BL 硬解 + EL 软解 + GPU FEL 重建，新增手动选择项 | 日志33否决9.20的整体性能收益；9.22完成跨项目/二进制复核，推荐先修正重复建链，再做绑定类型/外部图像对照；新方案未实施，电视实时性能未验收 | [P2-4-mpv-android-fel.md](P2-4-mpv-android-fel.md) |
+| 38 | `P9-MPV-BLURAY-MENU` | MPV/native/App | HDMV Blu-ray 菜单画面、按钮高亮、方向/确认/返回/Popup、菜单跳转与 still frame；BD-J 无提示回退现状 | 2026-09-11父菜单未命中修复已实现，定向验证及构建通过，用户测试确认并要求tag | [P9-MPV-BLURAY-MENU.md](P9-MPV-BLURAY-MENU.md) |
 
 新增产品需求（不改变既有上游提交的实施顺序）：
 
@@ -39,6 +47,7 @@
 | `C18` | common / beta 同步复评 | 将 beta 最新代码合入 dev4，复评 FOLLOW-1 与 C16 等全部未推送改动并完成交付 | **已完成**：合并提交 `9f998d6808f3e8144d2d4d68f23d92308e49b599`；PR [#331](https://github.com/Silent1566/webhtv/pull/331) 目标 `beta` | [C18-beta-sync-review-dev4-20260920.md](C18-beta-sync-review-dev4-20260920.md) |
 | `C18` | common / beta 同步复评 | 将 beta 最新代码合入 dev4，复评 FOLLOW-1 与 C16 等全部未推送改动并完成交付 | **进行中**：合并树双端编译和移动端 JVM 全量测试已通过，待最终复评、提交、推送和 PR 到 `beta` | [C18-beta-sync-review-dev4-20260920.md](C18-beta-sync-review-dev4-20260920.md) |
 | `E-SP8` | Exo 性能/播放行为 | 基于现有短剧源设置的单实例队列连播、下一集预解析与受控预加载 | **代码实施及 beta 合并后复评通过**：`2b22c5240d52a8c2054299326f44fee6743ab26f` / `recovery/E-SP8/20260911201514-2b22c5240d52`；实验默认策略不变，连续切集双端设备验收与正式放量尚未完成；不变更依赖 | [E-SP8-exo-short-drama-queue.md](E-SP8-exo-short-drama-queue.md) |
+| `C20` | common / 追更刷新策略 | App 前台使用时将常规追更检查间隔缩短为 15 分钟，并提高前台到期批量；后台 6 小时兜底和已完结/计划中低频策略保持不变 | **已实现**：聚焦策略单测 5/5 与 Mobile/Leanback arm64 Java 编译通过，待 task guard 原子提交和恢复标签 | [C20-foreground-following-refresh.md](C20-foreground-following-refresh.md) |
 
 `C1` 是跨播放器真实输入验收维度，不单独形成代码任务或文档；它写入对应的 E/P 任务文档。`E-SP3` 已在 `fongmi-sync` 完成 App/Media3 合并，保留既有 `E4-J1`/`E6-1`/`E7-1`/`E7-2 + C3` 能力；`E9-3` 与已完成的 `P1` 现已共同进入集成树，后续按既定顺序处理 P2 阶段。
 

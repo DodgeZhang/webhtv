@@ -27,6 +27,41 @@ public class TmdbSourceDialogInflationContractTest {
         assertTrue(source.contains("resetBtn.setText(R.string.dialog_tmdb_reset_default)"));
     }
 
+    @Test
+    public void apiAndImageRoutesUseSeparateDropdownInputs() throws Exception {
+        String layout = read(sourcePath().resolve(Path.of("..", "..", "main", "res", "layout", "dialog_tmdb_source.xml")));
+        String source = read(sourcePath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "dialog", "TmdbSourceDialog.java")));
+        assertTrue(layout.contains("@+id/apiHostInput"));
+        assertTrue(layout.contains("@+id/imageHostInput"));
+        assertTrue(layout.contains("MaterialAutoCompleteTextView"));
+        assertTrue(layout.contains("TextInputLayout"));
+        assertFalse(layout.contains("@+id/proxyHostInput"));
+        assertTrue(source.contains("setupRouteDropdown(apiHostInput, apiOptionLabels(), activity.getString(R.string.dialog_tmdb_api_host_label))"));
+        assertTrue(source.contains("setupRouteDropdown(imageHostInput, imageOptionLabels(), activity.getString(R.string.dialog_tmdb_image_host_label))"));
+        assertTrue(source.contains("wireRouteDpadFocus(apiHostInput, apiOptionLabels(),\n"
+                + "                activity.getString(R.string.dialog_tmdb_api_host_label), languageInput, imageHostInput)"));
+        assertTrue(source.contains("wireRouteDpadFocus(imageHostInput, imageOptionLabels(),\n"
+                + "                activity.getString(R.string.dialog_tmdb_image_host_label), apiHostInput, omdbApiKeyInput)"));
+        assertTrue("route focus wiring must preserve the route activation key handler",
+                source.indexOf("wireRouteDpadFocus(apiHostInput", source.indexOf("private void wireConfigDialogFocus")) > 0);
+        assertTrue(source.contains("showRoutePicker(input, labels, title)"));
+        assertTrue(source.contains(".setSingleChoiceItems(labels, checked"));
+        int show = source.indexOf("private void showRoutePicker");
+        assertTrue("route picker should clear focus callbacks before showing",
+                source.indexOf("clearRouteFocusPickers();", show) > show
+                        && source.indexOf("String current = inputText(input);", show)
+                        > source.indexOf("clearRouteFocusPickers();", show));
+        assertTrue(source.contains("input.setText(labels[which], false)"));
+        assertTrue(source.contains("input.setKeyListener(null)"));
+        assertTrue(source.contains("input.setAdapter(null)"));
+        assertTrue(source.contains("input.post(routeFocusPicker)"));
+        assertTrue(source.contains("input.hasFocus() && !activity.isFinishing() && !activity.isDestroyed()"));
+        assertTrue(source.contains("clearRouteFocusPickers()"));
+        assertTrue(source.contains("keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER"));
+        assertTrue(source.contains("apiDisplayFor(config)"));
+        assertTrue(source.contains("imageDisplayFor(config)"));
+    }
+
     private static String buttonBlock(String layout, String id) {
         String marker = "android:id=\"@+id/" + id + "\"";
         int idStart = layout.indexOf(marker);

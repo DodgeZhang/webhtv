@@ -1,5 +1,7 @@
 package com.fongmi.android.tv.bean;
 
+import android.text.TextUtils;
+
 import com.fongmi.android.tv.api.loader.BaseLoader;
 
 import android.content.SharedPreferences;
@@ -7,6 +9,7 @@ import android.content.SharedPreferences;
 import androidx.annotation.NonNull;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.ad.audio.SpeechAdSetting;
 import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.api.config.HlsRuleConfig;
 import com.fongmi.android.tv.api.config.VodConfig;
@@ -70,7 +73,8 @@ public class Backup {
 
     public static Backup create() {
         Backup backup = new Backup();
-        backup.setPrefers(Prefers.getPrefers().getAll());
+        backup.setPrefers(SpeechAdSetting.sanitizePreferences(
+                Prefers.getPrefers().getAll(), Collections.emptyMap(), true));
         backup.setSite(AppDatabase.get().getSiteDao().findAll());
         backup.setLive(AppDatabase.get().getLiveDao().findAll());
         backup.setKeep(AppDatabase.get().getKeepDao().findAll());
@@ -104,7 +108,8 @@ public class Backup {
             backup.setFollowingSource(payload.sources());
             backup.setFollowingSchemaVersion(FollowingDatabase.VERSION);
         }
-        backup.setPrefers(filter(Prefers.getPrefers().getAll(), options));
+        backup.setPrefers(filter(SpeechAdSetting.sanitizePreferences(
+                Prefers.getPrefers().getAll(), Collections.emptyMap(), true), options));
         return backup;
     }
 
@@ -183,11 +188,19 @@ public class Backup {
         Map<Integer, Integer> cids = new HashMap<>();
         for (Config item : getConfig()) {
             int source = item.getId();
-            Config current = AppDatabase.get().getConfigDao().find(item.getUrl(), item.getType());
+            Config current = TextUtils.isEmpty(item.getInterfaceKey()) ? null
+                    : AppDatabase.get().getConfigDao().findByInterfaceKey(item.getInterfaceKey(), item.getType());
+            if (current == null) current = AppDatabase.get().getConfigDao().find(item.getUrl(), item.getType());
+            if (current != null) {
+                item.interfaceKey(current.getInterfaceKey()).mergeUrls(current.getUrls()).addLegacyConfigKeys(current.getLegacyConfigKeys()).addAddressMatchAliases(current.getAddressMatchAliases());
+            } else {
+                item.ensureInterfaceKey();
+            }
             item.setId(current == null ? 0 : current.getId());
             long id = AppDatabase.get().getConfigDao().insert(item);
             if (id == -1) AppDatabase.get().getConfigDao().update(item);
             else item.setId(Math.toIntExact(id));
+            com.fongmi.android.tv.playback.PlaybackIdentityResolver.resolveSaved(item);
             if (source > 0) cids.put(source, item.getId());
         }
         return cids;
@@ -289,6 +302,7 @@ public class Backup {
     }
 
     private static void restorePrefers(Map<String, ?> values, boolean clear, boolean preserveMissingWebHomePrefs) {
+        values = SpeechAdSetting.sanitizePreferences(values, Prefers.getPrefers().getAll(), clear);
         Map<String, Object> preserved = new HashMap<>();
         if (clear && preserveMissingWebHomePrefs) {
             for (Map.Entry<String, ?> entry : Prefers.getPrefers().getAll().entrySet()) {

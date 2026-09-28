@@ -192,6 +192,23 @@ public class BackupPreferenceFilterTest {
     }
 
     @Test
+    public void themeProfilePreferencesFollowSettingsOption() {
+        SyncOptions settingsOnly = new SyncOptions().config(false).spider(false).webHome(false).settings(true);
+        SyncOptions webHomeOnly = new SyncOptions().config(false).spider(false).webHome(true).settings(false);
+
+        // The B-safe profile is persisted under the v2 keys only: the legacy v1
+        // `theme_profile_*` keys are deliberately never reused, so an old TweakCN
+        // profile can never be misread as a current one.
+        assertTrue(Backup.include("theme_profile_v2_json", settingsOnly));
+        assertTrue(Backup.include("theme_profile_v2_last_good", settingsOnly));
+        assertTrue(Backup.include("theme_profile_v2_schema", settingsOnly));
+        assertTrue(Backup.include("theme_mode", settingsOnly));
+        assertFalse(Backup.include("theme_profile_v2_json", webHomeOnly));
+        assertFalse("the legacy v1 profile key must not come back",
+                Backup.include("theme_profile_json", settingsOnly));
+    }
+
+    @Test
     public void updateDownloadSettingsFollowAppSettingsSync() {
         SyncOptions settings = new SyncOptions().config(false).spider(false).settings(true);
 

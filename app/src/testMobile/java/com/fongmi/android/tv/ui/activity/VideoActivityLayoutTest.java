@@ -1454,10 +1454,12 @@ public class VideoActivityLayoutTest {
         String arrayAdapter = new String(Files.readAllBytes(arrayAdapterPath), StandardCharsets.UTF_8);
         Path segmentSelectorPath = findLeanbackResPath().resolve(Path.of("drawable", "selector_video_item.xml"));
         String segmentSelector = new String(Files.readAllBytes(segmentSelectorPath), StandardCharsets.UTF_8);
-        assertTrue("original detail modes must keep the active episode range highlighted after focus moves to an episode", source.contains("mArrayAdapter.setSelectedPosition(position);")
+        assertTrue("original detail modes must keep the active episode range highlighted after focus moves to an episode", source.contains("selectEpisodeSegmentPosition(position);")
+                && source.contains("private void selectEpisodeSegmentPosition(int position)")
+                && source.contains("mArrayAdapter.setSelectedPosition(position);")
                 && arrayAdapter.contains("setActivated(position == selectedPosition)")
                 && segmentSelector.contains("android:state_activated=\"true\"")
-                && segmentSelector.contains("#2CC56F"));
+                && segmentSelector.contains("android:color=\"?attr/colorPrimary\""));
     }
 
     @Test
@@ -3452,7 +3454,8 @@ public class VideoActivityLayoutTest {
             assertTrue(sourcePath + " must persist the identity-first adapter index with quarterly progress",
                     body.contains("mFlagAdapter.indexOf(flag)")
                             && body.contains("TmdbUIAdapter.flagKey(flag, index)")
-                            && body.contains("mHistory.setSourceBindingKey(flagKey)"));
+                            && body.contains("mHistory.setSourceBindingKey(flagKey)")
+                            && body.contains("syncHistory()"));
             assertTrue(sourcePath + " must recover the stable index before the TMDB adapter is bound",
                     body.contains("TmdbUIAdapter.flagIndex(mVod.getFlags(), flag)"));
         }
