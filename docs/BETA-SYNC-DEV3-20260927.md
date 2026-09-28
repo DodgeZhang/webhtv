@@ -7,8 +7,8 @@
 - **允许路径**：合并与冲突解决所需的全仓库路径（`.codex`、`README.md`、`app`、`docs`、`gradle`、`serverless`）。
 - **保护面**：任务开始时工作树干净（0 个脏路径）。
 - **分支/HEAD**：`dev3`；合并前 `dee79790408b67ce92fd0b2825b30a8ab9b07195`。
-- **当前状态**：合并、两轮复评、测试修复、双 flavor 全量测试、打包安装与设备实测均已完成，进入收尾提交与 PR。
-- **下一动作**：提交本任务改动，推送 `dev3`，创建 `dev3 -> beta` 的中文 PR（只创建，不合并）。
+- **当前状态**：任务已完成。合并提交 `c900dac20e0a35229633d070c080a774d210d448`（双父：`dee797904` + `163cdf037`）已生成并带 recovery tag，`dev3` 已推送，PR #382（base `beta`）已创建。
+- **下一动作**：无。等待 PR #382 评审；本方只创建、不代为合并。
 
 ## 时间与设备
 
@@ -66,6 +66,7 @@ dev3 的 52 个未推送提交全部属于**统一主题系统**（`ThemeBinder`
 - **双 flavor 全量单测**：`bash ./gradlew :app:testMobileArm64_v8aDebugUnitTest :app:testLeanbackArm64_v8aDebugUnitTest` → `BUILD SUCCESSFUL`；mobile **5032 项 / 0 failure / 0 error / 2 skipped**，leanback **4160 项 / 0 failure / 0 error / 2 skipped**（合计 9192 项）。
 - **双 flavor Java 编译**：`:app:compileMobileArm64_v8aDebugJavaWithJavac`、`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` → 通过；两个测试源集编译任务同样通过。
 - **静态守门**：`git diff --cached --check` 通过；全仓库无冲突标记残留；布局无重复 view id；无同目录重复资源名。
+- **合并完整性复核（提交前）**：`git diff --diff-filter=U --name-only` 为 0（无未解决冲突）；全仓库无冲突标记；被剔除提交 `5682f2b05` 经 `git merge-base --is-ancestor` 判定既非 `origin/beta` 祖先也非合并结果祖先；`app/src/main/java/com/fongmi/android/tv/theme/ThemeCatalog.java`、`ThemeCatalogStore.java` 在工作树中不存在（beta 旧主题系统未被带回），dev3 侧 `ThemeBinder` / `ThemeEditor` / `ThemeTokens` 等存活。
 - **打包与覆盖安装**：`bash scripts/build_arm64_debug_install.sh --flavor mobile --serial 192.168.50.3:5559` → `BUILD SUCCESSFUL in 1m`（129 tasks），APK 193M，`adb install -r` 覆盖安装成功（未卸载）。
 - **设备实测（dev3 机位 `192.168.50.3:5559`，mobile arm64 debug）**：
   - 冷启动进入 `HomeActivityCurrent`，进程存活、无 `FATAL EXCEPTION` / `fatal signal` / `ANR`。
@@ -77,17 +78,21 @@ dev3 的 52 个未推送提交全部属于**统一主题系统**（`ThemeBinder`
 
 ## PR 边界
 
-相对 `origin/beta`，合并结果净差异为 **531 个文件、+13379 / −6570**，按区域分布：`app/src/main` 277、`app/src/mobile` 109、`app/src/leanback` 100、`app/src/test` 20、`app/src/testMobile` 15、`docs` 5、`app/src/debug` 2、`scripts` 1、`app/src/testLeanback` 1、`app/src/androidTest` 1。其中相对 beta 新增 54 个文件、删除 22 个（均为 beta 旧主题系统文件）、修改 455 个。
+相对 `origin/beta`，合并提交 `c900dac20` 的净差异为 **532 个文件、+13472 / −6570**（`app/src` 525 个文件；`docs/` 5 篇设计文档；`scripts/check_ui_tokens.sh`）。其中相对 beta 新增 55 个文件、删除 22 个（均为 beta 旧主题系统文件）、修改 455 个。
+
+合并提交本身相对其第一父提交 `dee797904` 的差异为 **258 个路径**，即本次冲突解决与复评修复的全部落地改动。
 
 内容主体是 dev3 的统一语义主题系统（Layer 1 + B-safe 16 槽）及其配套的移动/电视端接入、追更页壁纸面板、`WebHtvAlertDialogBuilder` 弹窗通道、`scrimOpacity` 接线与 `WebThemeTokenSourceTest` 等；同时完整包含本次从 `origin/beta` 合入的全部远端改动。
 
 ## 回滚锚点
 
 - 合并前状态：`git reset --hard dee79790408b67ce92fd0b2825b30a8ab9b07195`，另有注释 tag `backup/dev3-before-beta-merge-20260927`。
-- 本任务提交由 `task_guard.sh finish` 生成独立 recovery tag。
+- 合并提交：`c900dac20e0a35229633d070c080a774d210d448`，recovery tag `recovery/BETA-SYNC-DEV3-20260927/20260928110441-c900dac20e0a`。
+- 远端分支：`origin/dev3` 已从 `e36207984` 快进到 `c900dac20`。
 - 本轮不涉及依赖升级、ABI、原生二进制或数据迁移；未修改 `theme_profile_v2_*` 数据格式。
 
 ## 状态与下一步
 
 - 两轮复评、修复与全部验证已通过。
-- 下一步唯一动作：提交本任务改动，推送 `dev3`，创建 base `beta` / head `dev3` 的中文 PR（只创建，不合并）。
+- 合并提交 `c900dac20e0a35229633d070c080a774d210d448` 已创建（父提交 `dee797904` + `163cdf037`）并带 recovery tag；`dev3` 已推送；PR #382（base `beta` / head `dev3`，中文说明）已创建：https://github.com/Silent1566/webhtv/pull/382
+- 下一步唯一动作：无。等待 PR #382 评审；只创建、不代为合并。
