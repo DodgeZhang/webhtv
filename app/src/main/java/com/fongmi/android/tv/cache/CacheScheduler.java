@@ -86,17 +86,23 @@ public final class CacheScheduler {
     }
 
     private void startupCheck() {
+        // The scheduled tasks are queued once for the whole process, while cancelPersistent() only
+        // cancels the platform job. Every tick must therefore re-read the switch, otherwise turning
+        // auto cleanup off would still delete cache at the next periodic/limit tick.
+        if (!CachePolicyStore.isAutoCleanupEnabled()) return;
         trigger("startup", null);
         enforceTotalLimit();
     }
 
     private void periodicCheck() {
+        if (!CachePolicyStore.isAutoCleanupEnabled()) return;
         long last = Prefers.getLong(KEY_LAST_AUTO_MS, 0L);
         if (System.currentTimeMillis() - last < PERIODIC_INTERVAL_MS) return;
         trigger("periodic", null);
     }
 
     private void limitCheck() {
+        if (!CachePolicyStore.isAutoCleanupEnabled()) return;
         long now = System.currentTimeMillis();
         if (now - Prefers.getLong(KEY_LAST_LIMIT_MS, 0L) < LIMIT_INTERVAL_MS) return;
         Prefers.put(KEY_LAST_LIMIT_MS, now);
@@ -121,27 +127,30 @@ public final class CacheScheduler {
         });
     }
 
-    /**
-     * Auto-triggered cleanup must never delete a live diagnostic log.
-     *
-     * <p>The module stays manually cleanable, but an automatic run is not the right moment to
-     * destroy the evidence a user may still need. Explicit "clean" and "deep clean" keep their
-     * policy-planned behaviour.</p>
-     */
-    private static CacheCleanupPlan automaticPlan(CacheCleanupMode mode) {
-        CacheCleanupPlan plan = CachePolicyEngine.plan(mode);
-        List<CacheModuleId> modules = plan.modules().stream()
-                .filter(id -> id != CacheModuleId.DIAGNOSTIC_LOGS)
-                .toList();
-        return modules.size() == plan.modules().size() ? plan : new CacheCleanupPlan(plan.mode(), modules);
-    }
-
     private long totalCacheBytes() {
         try {
             return new CacheInventory(App.get()).scan().totalBytes();
         } catch (Throwable ignored) {
             return 0;
         }
+    }
+
+    /**
+     * The module list an automatic run may touch.
+     *
+     * <p>The tiered sets describe what a user may clean when pressing L1/L2/L3. An automatic run is
+     * narrower by design (§13.2: "只对 allowAutomaticCleanup 模块生成 plan"): it keeps only the
+     * modules the registry declares automatically cleanable. That drops the report-only diagnostic
+     * log module and also {@link CacheModuleId#GLIDE}/{@link CacheModuleId#WEBHOME_RAW}, which the
+     * STANDARD tier includes for manual cleanup but whose registry entries declare
+     * {@code allowAutomaticCleanup=false}.</p>
+     */
+    static CacheCleanupPlan automaticPlan(CacheCleanupMode mode) {
+        CacheCleanupMode resolved = mode == null ? CacheCleanupMode.LIGHT : mode;
+        List<CacheModuleId> modules = CachePolicyEngine.plan(resolved).modules().stream()
+                .filter(CachePolicyEngine::allowsAutomatic)
+                .toList();
+        return new CacheCleanupPlan(resolved, modules);
     }
 
     private boolean trigger(String reason, Runnable finished) {

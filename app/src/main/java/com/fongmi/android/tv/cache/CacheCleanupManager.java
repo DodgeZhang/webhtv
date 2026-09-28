@@ -19,6 +19,7 @@ import com.github.catvod.utils.Path;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -253,9 +254,10 @@ public final class CacheCleanupManager {
         ArrayList<File> remaining = new ArrayList<>();
         boolean updaterDownloading = Updater.isDownloading();
         boolean apkUrlPushing = ApkUrlPush.isActive();
+        TemporaryFamily family = temporaryFamily(cache);
         for (File file : files) {
             String name = file.getName();
-            if (!isTemporaryName(name)) continue;
+            if (!family.matches(name)) continue;
             if (!isExpired(file, now, retentionMs)
                     || CacheTempFilePolicy.isInUse(name, updaterDownloading, apkUrlPushing)) {
                 remaining.add(file);
@@ -388,17 +390,36 @@ public final class CacheCleanupManager {
         return retentionMs <= 0 || modified > 0 && now - modified >= retentionMs;
     }
 
-    private static boolean isTemporaryName(String name) {
-        return name.equals("update.apk")
-                || name.startsWith("pushed-")
-                || name.startsWith("pushed-url-")
-                || name.startsWith("apk-push-")
-                || name.startsWith("webhtv-sync-")
-                || name.startsWith("webhtv-login-state-")
-                || name.startsWith("webhtv-mpv-sync-")
-                || name.startsWith("webhtv-mpv-restore-")
-                || name.startsWith("webhtv-git-restore-")
-                || name.endsWith(".tmp");
+    /**
+     * Builds the temporary-file candidate set from the registry definition of the
+     * {@link CacheModuleId#TEMP_FILES} module, so cleanup can delete exactly the same family the
+     * inventory reports ("reported is what gets deleted"). The previous hand-rolled prefix list
+     * skipped {@code .zip}/{@code .log} siblings the registry counts and re-invented the naming
+     * scheme in two places.
+     */
+    static TemporaryFamily temporaryFamily(File cache) {
+        HashSet<String> suffixes = new HashSet<>();
+        HashSet<String> excludeNames = new HashSet<>();
+        for (CacheModule module : CacheModuleRegistry.modules(cache)) {
+            if (module.id() != CacheModuleId.TEMP_FILES) continue;
+            for (CacheRoot root : module.roots()) {
+                suffixes.addAll(root.includeSuffixes());
+                excludeNames.addAll(root.excludeNames());
+            }
+        }
+        return new TemporaryFamily(suffixes, excludeNames);
+    }
+
+    /**
+     * A candidate set over the cache-root temporary files, derived from the registry.
+     */
+    record TemporaryFamily(Set<String> suffixes, Set<String> excludeNames) {
+
+        boolean matches(String name) {
+            if (name == null || excludeNames.contains(name)) return false;
+            for (String suffix : suffixes) if (name.endsWith(suffix)) return true;
+            return false;
+        }
     }
 
     private static CacheMeasurement measure(CacheModuleId id) {
