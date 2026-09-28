@@ -6,8 +6,8 @@
 - 本轮截图定位基线：`dev4` / `908774597a32eca30786fdd3c0c55ab002512ac4`。guard `ui-remove-duplicate-history-watched-mobile`，`quick-fix`；开始前工作区干净，保护面 0。
 - 2026-09-28 新需求：手机版历史记录卡片下部重复出现的“已看 mm:ss”行要去掉，进度只保留封面上原有的时间标签。电视端已在 `7605a7d589f` 做过同类清理，本轮只处理手机版。
 - 完成条件：手机版历史卡片下部只保留集数（remark）+片名（name），不再出现“已看 …”行；封面标签（playback）保留；收藏页 Goalkeeper/卡片尺寸/删除态/跑马灯契约不变。
-- 当前状态：已完成。手机版 `adapter_vod.xml` 删除 `historyProgress` 节点，`HistoryAdapter` 移除对应绑定、`HistoryProgressFormatter`/`R` 导入；新增定向回归断言；定向单测 2/2 通过；APK 已覆盖安装并在模拟器上确认视图树无 `historyProgress`、截图中已看行消失、封面标签仍在。
-- 唯一下一动作：紧接本记录由 guard finish 原子提交并创建本地恢复 tag；不 push。
+- 当前状态：已完成并已交付。手机版 `adapter_vod.xml` 删除 `historyProgress` 节点，`HistoryAdapter` 移除对应绑定与导入；复评后补删已无生产引用的 `HistoryProgressFormatter` 及其单测与三语言 `history_watched_time`；定向单测 3/3 通过；APK 已覆盖安装并在模拟器上确认视图树无 `historyProgress`、截图中已看行消失、封面标签仍在。
+- 唯一下一动作：无（已推送 `dev4` 并创建 PR `Silent1566/webhtv#384`，base `beta`，等待维护者评审；本任务不代为合并）。
 
 ## 展示设计与证据（2026-09-10）
 
