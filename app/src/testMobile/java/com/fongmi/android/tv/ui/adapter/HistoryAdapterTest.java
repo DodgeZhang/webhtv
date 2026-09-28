@@ -138,6 +138,15 @@ public class HistoryAdapterTest {
                         || source.contains("binding.remark.setVisibility(same ? View.INVISIBLE : View.VISIBLE);"));
     }
 
+    @Test
+    public void mobileHistoryCardDoesNotRepeatWatchedTimeBelowThePoster() throws Exception {
+        String mobileAdapter = read(findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "adapter", "HistoryAdapter.java")));
+        assertTrue("mobile history must show the watched position only in the poster tag, never in a second below-poster line",
+                !mobileAdapter.contains("historyProgress")
+                        && !mobileAdapter.contains("HistoryProgressFormatter")
+                        && !mobileAdapter.contains("R.string.history_watched_time"));
+    }
+
     private static Element parseLayout(String layout) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
