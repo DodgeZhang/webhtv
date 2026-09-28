@@ -137,6 +137,48 @@ public class ThemeBaseWiringTest {
             assertAlphaVariants(palette[0], palette[2]);
         }
         assertAlphaVariants("src/leanback/res/values/webhtv_tokens.xml", null);
+        assertAlphaVariants("src/mobile/res/values/webhtv_tokens.xml", null);
+    }
+
+    /**
+     * Both flavours must compile the same, dark semantic table.
+     *
+     * <p>Every mobile activity paints a full-screen {@code CustomWallView} under its content
+     * and every built-in wall is dark, so the light {@code ?attr/colorOnSurface} of
+     * {@code src/main/res/values/webhtv_tokens.xml} put near-black text on a dark wallpaper while
+     * the toolbar title and the vector icons stayed hardcoded white - the settings page drew
+     * half its text in each colour. The TV flavour never had the bug because its plain
+     * {@code values/} directory already ships the dark table.
+     *
+     * <p>Guard: the two flavour overrides and the night table must stay byte-identical in their
+     * colour values, so a future palette edit cannot silently re-light only one flavour.
+     */
+    @Test
+    public void bothFlavoursCompileTheSameDarkTableAsTheNightPalette() throws Exception {
+        String mobile = read("src/mobile/res/values/webhtv_tokens.xml");
+        String leanback = read("src/leanback/res/values/webhtv_tokens.xml");
+        String night = read("src/main/res/values-night/webhtv_tokens.xml");
+        String light = read("src/main/res/values/webhtv_tokens.xml");
+        assertEquals("mobile must compile the same table as leanback", colors(leanback), colors(mobile));
+        assertEquals("the flavour tables must match the night palette", colors(night), colors(mobile));
+        assertTrue("the flavour table must be the dark one, not the light default",
+                colors(mobile).contains("webhtv_color_on_surface=#E2E2E9"));
+        assertFalse("mobile must not keep the unreadable light foreground",
+                colors(mobile).contains("webhtv_color_on_surface=#1A1C1E"));
+        assertFalse("a flavour override that equals the light table is redundant", colors(mobile).equals(colors(light)));
+    }
+
+    /** Every colour declaration as {@code name=#VALUE}, independent of comments and order. */
+    private static String colors(String source) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("<color name=\"([^\"]+)\">(#[0-9A-Fa-f]{6,8})</color>")
+                .matcher(source);
+        java.util.TreeMap<String, String> found = new java.util.TreeMap<>();
+        while (matcher.find()) found.put(matcher.group(1), matcher.group(2).toUpperCase(java.util.Locale.ROOT));
+        StringBuilder out = new StringBuilder();
+        found.forEach((name, value) -> out.append(name).append('=').append(value).append('\n'));
+        assertTrue("no colour declarations found", out.length() > 0);
+        return out.toString();
     }
 
     private static void assertAlphaVariants(String lightOrTvPath, String nightPath) throws Exception {
