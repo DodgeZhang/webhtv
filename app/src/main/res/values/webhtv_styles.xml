@@ -51,6 +51,7 @@
         <item name="colorOnSurface_70">@color/webhtv_on_surface_70</item>
         <item name="colorOnSurface_80">@color/webhtv_on_surface_80</item>
         <item name="colorOnSurface_90">@color/webhtv_on_surface_90</item>
+        <item name="webhtvColorOnWallpaper">@color/webhtv_on_wallpaper</item>
         <item name="android:colorBackground">@color/webhtv_color_surface</item>
         <item name="android:windowBackground">?attr/colorSurface</item>
         <item name="android:navigationBarColor">@color/webhtv_color_surface</item>

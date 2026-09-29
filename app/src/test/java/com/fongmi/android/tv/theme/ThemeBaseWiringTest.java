@@ -2,6 +2,7 @@ package com.fongmi.android.tv.theme;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -42,6 +43,14 @@ public class ThemeBaseWiringTest {
     /** Layouts draw these over video, so they keep their own alpha instead of ?attr/colorOnSurface. */
     private static final String[] ON_SURFACE_ALPHA_ATTRS = {
             "colorOnSurface_20", "colorOnSurface_70", "colorOnSurface_80", "colorOnSurface_90",
+    };
+
+    /** Pages whose rows sit directly on the (dark) app wallpaper. */
+    private static final String[] WALLPAPER_PAGES = {
+            "fragment_setting.xml", "fragment_setting_ad.xml", "fragment_setting_ai.xml",
+            "fragment_setting_danmaku.xml", "fragment_setting_enhance.xml",
+            "fragment_setting_personal.xml", "fragment_setting_player.xml",
+            "fragment_setting_subtitle.xml", "fragment_setting_tmdb.xml",
     };
 
     @Test
@@ -137,6 +146,80 @@ public class ThemeBaseWiringTest {
             assertAlphaVariants(palette[0], palette[2]);
         }
         assertAlphaVariants("src/leanback/res/values/webhtv_tokens.xml", null);
+    }
+
+    /**
+     * A page that sits on the wallpaper must not use {@code ?attr/colorOnSurface}.
+     *
+     * <p>{@code BaseActivity} paints a full-screen {@code CustomWallView} under every
+     * mobile activity and every built-in wall is dark, while dialogs draw their text on a
+     * light panel. A single {@code ?attr/colorOnSurface} therefore cannot serve both: the
+     * light table made the settings rows near-black on the wallpaper (measured 1.27:1),
+     * the dark table turned dialog text light on a light card (measured 1.24:1). The two
+     * consumers are separated by {@code ?attr/webhtvColorOnWallpaper}, which is always
+     * light.
+     *
+     * <p>Guard: this pins both halves so a future migration cannot quietly put a page back
+     * on the dialog role, and cannot make the wallpaper role follow the surface at all.
+     */
+    @Test
+    public void wallpaperPagesUseTheWallpaperForegroundRole() throws Exception {
+        for (String name : WALLPAPER_PAGES) {
+            String source = read("src/mobile/res/layout/" + name);
+            assertFalse(name + " still paints wallpaper rows with the dialog on-surface role",
+                    source.contains("android:textColor=\"?attr/colorOnSurface\""));
+            assertTrue(name + " must use ?attr/webhtvColorOnWallpaper for its rows",
+                    source.contains("android:textColor=\"?attr/webhtvColorOnWallpaper\""));
+        }
+    }
+
+    /**
+     * The wallpaper foreground must stay light, identical in every palette, and out of
+     * the binder's reach.
+     *
+     * <p>It is 0xFFFFFFFF in all three tables because the wallpaper is dark in both
+     * system night modes. {@code ThemeBinder} only rewrites a view colour when
+     * {@code ThemeColorIndex.replacementFor} yields a different value, so the guard is:
+     * for every baseline palette and every active palette, 0xFFFFFFFF must resolve to
+     * either no replacement or the value it already has.
+     *
+     * <p>The two palettes keep the colour out of reach for different reasons, and both
+     * are fragile, so both are pinned. In the light palette 0xFFFFFFFF is shared by
+     * {@code onPrimary}, {@code onError}, {@code onSuccess} and {@code onWarning}; those
+     * roles only agree when they resolve to the identical colour, and the index reports
+     * that as no change. In the dark palette no indexed role carries the value at all
+     * ({@code colorPlayerControl} is 0xFFFFFFFF in both palettes but is not a
+     * {@link ThemeRole}), so the lookup finds nothing to rewrite. A future palette edit
+     * that made an indexed role resolve 0xFFFFFFFF to a different colour would start
+     * repainting wallpaper text - this test fails first.
+     */
+    @Test
+    public void wallpaperForegroundIsLightAndNotBinderRewritable() throws Exception {
+        String light = read("src/main/res/values/webhtv_tokens.xml");
+        String night = read("src/main/res/values-night/webhtv_tokens.xml");
+        String tv = read("src/leanback/res/values/webhtv_tokens.xml");
+        for (String source : new String[]{light, night, tv}) {
+            assertTrue("every palette must declare webhtv_on_wallpaper",
+                    source.contains("<color name=\"webhtv_on_wallpaper\">#FFFFFF</color>"));
+        }
+
+        String attrs = read("src/main/res/values/webhtv_attrs.xml");
+        assertTrue("webhtvColorOnWallpaper must be declared",
+                attrs.contains("name=\"webhtvColorOnWallpaper\" format=\"color\""));
+        String theme = styleBody(read("src/main/res/values/webhtv_styles.xml"), "Theme.WebHTV");
+        assertTrue("Theme.WebHTV must assign webhtvColorOnWallpaper",
+                theme.contains("<item name=\"webhtvColorOnWallpaper\">@color/webhtv_on_wallpaper</item>"));
+
+        // The binder only rewrites a colour when the index yields a different
+        // replacement, so 0xFFFFFFFF must never resolve to one for any palette pair.
+        ThemeTokens[] palettes = {ThemeTokens.light(), ThemeTokens.dark()};
+        for (ThemeTokens baseline : palettes) {
+            ThemeColorIndex index = ThemeColorIndex.of(baseline);
+            for (ThemeTokens active : palettes) {
+                assertNull("the wallpaper foreground must never be rewritten by the binder",
+                        index.replacementFor(0xFFFFFFFF, active));
+            }
+        }
     }
 
     private static void assertAlphaVariants(String lightOrTvPath, String nightPath) throws Exception {

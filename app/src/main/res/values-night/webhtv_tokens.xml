@@ -54,5 +54,30 @@
     <color name="webhtv_color_health_bad">#FFB4AB</color>
     <color name="webhtv_color_overlay_light">#14FFFFFF</color>
     <color name="webhtv_color_overlay_dark">#66000000</color>
+    <!--
+        Foreground for content drawn straight on the app wallpaper.
+
+        One ?attr/colorOnSurface cannot serve both mobile consumers: every mobile
+        activity paints a full-screen CustomWallView under its content and the built-in
+        walls are dark, while dialogs draw their text on a light panel. Whichever table
+        is compiled, one of the two loses: the light table left the settings rows
+        near-black on the wallpaper, the dark table turned dialog text light on a light
+        card. This role is the missing third value.
+
+        It is 0xFFFFFFFF in both palettes because the wallpaper is always dark, so it
+        needs no flavour or values-night override, and it matches the colour upstream
+        painted these rows with (@color/white) so the default appearance is unchanged.
+
+        The name deliberately avoids the webhtv_color_ prefix: ThemeTokens models the
+        Material role contract and ThemeContractTest freezes that contract at exactly
+        49 entries, so this is an extra non-role resource in the same family as
+        webhtv_on_surface_20/70/80/90 in each palette.
+
+        ThemeBinder leaves it alone. The baseline palette assigns 0xFFFFFFFF to several
+        unrelated roles (onPrimary, onError, onSuccess, onWarning), whose active values
+        never agree, so ThemeColorIndex sees the value as shared and skips the rewrite.
+        ThemeBaseWiringTest freezes that property.
+    -->
+    <color name="webhtv_on_wallpaper">#FFFFFF</color>
     <dimen name="webhtv_focus_scale">1.1</dimen>
 </resources>

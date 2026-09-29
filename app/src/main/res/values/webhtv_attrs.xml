@@ -55,4 +55,9 @@
     <attr name="colorOnSurface_70" format="color" />
     <attr name="colorOnSurface_80" format="color" />
     <attr name="colorOnSurface_90" format="color" />
+    <!-- Foreground for text drawn straight on the app wallpaper.
+         Mobile paints a full-screen dark CustomWallView under every activity, while
+         dialogs draw on a light panel, so ?attr/colorOnSurface cannot serve both.
+         This role is always light and is assigned by Theme.WebHTV. -->
+    <attr name="webhtvColorOnWallpaper" format="color" />
 </resources>
