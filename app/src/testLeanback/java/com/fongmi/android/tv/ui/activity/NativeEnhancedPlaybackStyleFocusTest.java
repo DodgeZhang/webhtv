@@ -144,10 +144,46 @@ public class NativeEnhancedPlaybackStyleFocusTest {
         assertFalse("演员卡不允许再用白色焦点描边", cast.contains("STROKE_FOCUSED = 0xFFFFFFFF"));
 
         String video = read("app/src/leanback/java/com/fongmi/android/tv/ui/presenter/TmdbVideoPresenter.java");
-        assertTrue("相关视频焦点环必须是 3dp #FFD166",
-                video.contains("STROKE_FOCUSED = 0xFFFFD166") && video.contains("STROKE_WIDTH_FOCUSED_DP = 3"));
-        assertTrue("相关视频常态描边必须是 1dp #33FFFFFF",
-                video.contains("STROKE_NORMAL = 0x33FFFFFF") && video.contains("STROKE_WIDTH_NORMAL_DP = 1"));
+        // 封面 ImageView 是全出血的，卡片描边画在背景层会被封面盖住：焦点环必须走前景 selector。
+        assertTrue("相关视频必须用前景 selector 画焦点环（卡片描边会被全出血封面盖住）",
+                video.contains("R.drawable.selector_tmdb_media_focus") && video.contains("card.setForeground("));
+        // RecyclerView 复用后卡片可能已持有焦点，只挂监听拿不到回调，必须按当前状态补一次。
+        assertTrue("相关视频必须在绑定时同步当前焦点态，否则停下的卡片看不到焦点环",
+                video.contains("applyFocusChrome(holder, card.hasFocus())"));
+    }
+
+    @Test
+    public void photoCardsHaveAFocusAppearanceAtAll() throws Exception {
+        // 剧照/海报卡片此前只有卡面图片，布局关闭了系统焦点高亮且 presenter 不改描边，
+        // 遥控停下时完全没有视觉反馈，用户报告“看不出焦点到哪里”。
+        String photo = read("app/src/leanback/java/com/fongmi/android/tv/ui/presenter/TmdbPhotoPresenter.java");
+        assertTrue("剧照/海报卡片必须安装焦点前景 selector",
+                photo.contains("bindFocusStyle(") && photo.contains("R.drawable.selector_tmdb_media_focus"));
+        assertTrue("剧照/海报卡片必须在创建时按当前焦点态落地外观",
+                photo.contains("applyFocusStyle(card, card.hasFocus())"));
+        String selector = read("app/src/main/res/drawable/selector_tmdb_media_focus.xml");
+        String body = values(selector);
+        assertTrue("剧照/海报焦点环必须使用统一主题属性与 3dp",
+                body.contains("android:width=\"3dp\"") && body.contains("android:color=\"?attr/tvFocusRing\""));
+    }
+
+    @Test
+    public void everyTmdbRowCardCarriesItsOwnVerticalFocusTargets() throws Exception {
+        // 只给容器设 nextFocusDown 不够：焦点在卡片上时 Android 优先读卡片自身的声明，
+        // 否则退回几何搜索，出现“第一张剧照下不去、第二张可以”这类位置相关行为。
+        String source = read(VIDEO_ACTIVITY);
+        assertTrue("必须存在按可见行重排纵向焦点链的方法",
+                source.contains("private void applyTmdbRowFocusChain()"));
+        assertTrue("绑定完成后必须立即应用纵向焦点链",
+                source.contains("applyTmdbRowFocusChain();\n        updateFocus();"));
+        assertTrue("行内卡片必须写入自己的上下焦点目标",
+                source.contains("card.setNextFocusUpId(grid.getNextFocusUpId())")
+                        && source.contains("card.setNextFocusDownId(grid.getNextFocusDownId())"));
+        assertTrue("新接入的卡片必须补写焦点目标（RecyclerView 复用）",
+                source.contains("installRowCardFocusLinks(")
+                        && source.contains("onChildViewAttachedToWindow"));
+        assertTrue("焦点链必须跳过已隐藏的行（否则下键指向不可见 View 会退回几何搜索）",
+                source.contains("row.getVisibility() == View.VISIBLE && row.getAdapter() != null"));
     }
 
     // ---------------------------------------------------------------- 焦点链路

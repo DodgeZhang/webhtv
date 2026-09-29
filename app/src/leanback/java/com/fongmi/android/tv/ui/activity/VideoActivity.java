@@ -1765,6 +1765,70 @@ private boolean runtimeSourceOnly;
         attachRecommendationLazyLoader(mBinding.tmdbRecommendations, RecommendationRow.RECOMMENDATIONS);
         attachRecommendationLazyLoader(mBinding.tmdbPersonalTmdbRecommendations, RecommendationRow.PERSONAL_TMDB);
         attachRecommendationLazyLoader(mBinding.tmdbPersonalDoubanRecommendations, RecommendationRow.PERSONAL_DOUBAN);
+        for (HorizontalGridView row : tmdbMediaRows()) installRowCardFocusLinks(row);
+    }
+
+    /** TMDB 详情区块的横向行，顺序与 getEpisodeFocusOrders() 的纵向焦点链保持一致。 */
+    private List<HorizontalGridView> tmdbMediaRows() {
+        return Arrays.asList(
+                mBinding.tmdbCast,
+                mBinding.tmdbPhotos,
+                mBinding.tmdbPosters,
+                mBinding.tmdbRelatedVideos,
+                mBinding.tmdbCrew,
+                mBinding.tmdbRecommendations,
+                mBinding.tmdbPersonalTmdbRecommendations,
+                mBinding.tmdbPersonalDoubanRecommendations,
+                mBinding.tmdbPersonalAiRecommendations);
+    }
+
+    /**
+     * 卡片被 RecyclerView 回收后重新接入时，补写它自己的上下焦点目标。
+     * 只靠容器的 nextFocusDown 不生效：焦点此刻在卡片上，Android 优先读卡片自身的声明。
+     */
+    private void installRowCardFocusLinks(HorizontalGridView grid) {
+        grid.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
+            @Override
+            public void onChildViewAttachedToWindow(@NonNull View child) {
+                applyCardFocusLinks(grid, child);
+            }
+
+            @Override
+            public void onChildViewDetachedFromWindow(@NonNull View child) {
+            }
+        });
+    }
+
+    private void applyCardFocusLinks(HorizontalGridView grid, View card) {
+        card.setNextFocusUpId(grid.getNextFocusUpId());
+        card.setNextFocusDownId(grid.getNextFocusDownId());
+    }
+
+    /**
+     * 按当前可见行重排纵向焦点链：每行只指向上下相邻的可见行，跳过已隐藏的区块。
+     * 之前只给容器设 nextFocusDown，遥控在行内卡片上按向下会退回几何搜索，
+     * 于是出现“第一张剧照下不去、第二张可以”这类与横向位置相关的不确定行为。
+     */
+    private void applyTmdbRowFocusChain() {
+        List<HorizontalGridView> rows = new ArrayList<>();
+        for (HorizontalGridView row : tmdbMediaRows()) {
+            if (row != null && row.getVisibility() == View.VISIBLE && row.getAdapter() != null && row.getAdapter().getItemCount() > 0) {
+                rows.add(row);
+            }
+        }
+        int ratingsId = 0;
+        ViewGroup ratings = mBinding.getRoot().findViewById(R.id.tmdbOmdbRatings);
+        if (ratings != null && isVisible(ratings)) ratingsId = R.id.tmdbOmdbRatings;
+        for (int i = 0; i < rows.size(); i++) {
+            HorizontalGridView row = rows.get(i);
+            int up = i == 0 ? ratingsId : rows.get(i - 1).getId();
+            int down = i == rows.size() - 1 ? R.id.flag : rows.get(i + 1).getId();
+            row.setNextFocusUpId(up == 0 ? View.NO_ID : up);
+            row.setNextFocusDownId(down);
+            for (int child = 0; child < row.getChildCount(); child++) {
+                applyCardFocusLinks(row, row.getChildAt(child));
+            }
+        }
     }
 
     private void setVideoView() {
@@ -6215,6 +6279,7 @@ private boolean runtimeSourceOnly;
         mBinding.tmdbPersonalTmdbRecommendations.setNextFocusDownId(hasDouban ? R.id.tmdbPersonalDoubanRecommendations : hasAi ? R.id.tmdbPersonalAiRecommendations : R.id.flag);
         mBinding.tmdbPersonalDoubanRecommendations.setNextFocusDownId(hasAi ? R.id.tmdbPersonalAiRecommendations : R.id.flag);
         mBinding.tmdbPersonalAiRecommendations.setNextFocusDownId(R.id.flag);
+        applyTmdbRowFocusChain();
     }
 
     private void attachRecommendationLazyLoader(HorizontalGridView grid, RecommendationRow row) {
@@ -6319,6 +6384,7 @@ private boolean runtimeSourceOnly;
                 if (!changed) return;
                 bindRecommendationGrid(mBinding.tmdbPersonalTmdbRecommendations, mBinding.tmdbPersonalTmdbRecommendationsLabel, mTmdbUIAdapter.getPersonalTmdbRecommendations(), RecommendationRow.PERSONAL_TMDB);
                 bindRecommendationGrid(mBinding.tmdbPersonalDoubanRecommendations, mBinding.tmdbPersonalDoubanRecommendationsLabel, mTmdbUIAdapter.getPersonalDoubanRecommendations(), RecommendationRow.PERSONAL_DOUBAN);
+                applyTmdbRowFocusChain();
             });
         } else {
             loadNativePersonalRecommendations(mVod);
@@ -6334,6 +6400,7 @@ private boolean runtimeSourceOnly;
             mBinding.tmdbPersonalTmdbRecommendations.setNextFocusDownId(hasAi ? R.id.tmdbPersonalAiRecommendations : R.id.flag);
         }
         mBinding.tmdbPersonalAiRecommendations.setNextFocusDownId(R.id.flag);
+        applyTmdbRowFocusChain();
     }
 
     // 细粒度刷新：相关推荐（“猜你喜欢”）异步到达时只重绑该列表，不触碰详情头部与集数，
@@ -6341,12 +6408,14 @@ private boolean runtimeSourceOnly;
     private void refreshTmdbRecommendations() {
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isLoaded() || mTmdbDetailLoading) return;
         bindRecommendationGrid(mBinding.tmdbRecommendations, mBinding.tmdbRecommendationsLabel, mTmdbUIAdapter.getRecommendations(), RecommendationRow.RECOMMENDATIONS);
+        applyTmdbRowFocusChain();
     }
 
     // 细粒度刷新：个性化推荐（TMDB / 豆瓣）异步到达时只重绑这两个列表。
     private void refreshTmdbRelatedVideos() {
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isLoaded() || mTmdbDetailLoading) return;
         bindTmdbVideoGrid(mBinding.tmdbRelatedVideos, mBinding.tmdbRelatedVideosLabel, mTmdbUIAdapter.getRelatedVideos());
+        applyTmdbRowFocusChain();
         updateFocus();
     }
 
@@ -6366,6 +6435,7 @@ private boolean runtimeSourceOnly;
         if (mTmdbUIAdapter == null || !mTmdbUIAdapter.isLoaded() || mTmdbDetailLoading) return;
         bindRecommendationGrid(mBinding.tmdbPersonalTmdbRecommendations, mBinding.tmdbPersonalTmdbRecommendationsLabel, mTmdbUIAdapter.getPersonalTmdbRecommendations(), RecommendationRow.PERSONAL_TMDB);
         bindRecommendationGrid(mBinding.tmdbPersonalDoubanRecommendations, mBinding.tmdbPersonalDoubanRecommendationsLabel, mTmdbUIAdapter.getPersonalDoubanRecommendations(), RecommendationRow.PERSONAL_DOUBAN);
+        applyTmdbRowFocusChain();
     }
 
     // 细粒度刷新：集数标题异步补全。useTmdbCard 由 shouldUseTmdbEpisodeCards(hasTmdbEpisodeData)
@@ -6599,6 +6669,7 @@ private boolean runtimeSourceOnly;
         }
 
         SpiderDebug.log("tmdb-tv", "绑定完成: 演员=%d 剧照=%d 海报=%d 主创=%d 推荐=%d 个性TMDB=%d 个性豆瓣=%d 个性智能=%d", cast.size(), photos.size(), posters.size(), creators.size(), recommendations.size(), personalTmdbRecommendations.size(), personalDoubanRecommendations.size(), personalAiRecommendations.size());
+        applyTmdbRowFocusChain();
         updateFocus();
 
         // TMDB / OMDB 多来源评分（TMDB / IMDb / 烂番茄 / Metacritic 等）

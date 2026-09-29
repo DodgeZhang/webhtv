@@ -3,7 +3,6 @@ package com.fongmi.android.tv.ui.presenter;
 import android.content.res.ColorStateList;
 import android.os.Build;
 import android.view.LayoutInflater;
-import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
@@ -42,6 +41,7 @@ public class TmdbPhotoPresenter extends Presenter {
             params.height = ResUtil.dp2px(222);
             binding.getRoot().setLayoutParams(params);
         }
+        bindFocusStyle(binding.getRoot());
         return new ViewHolder(binding);
     }
 
@@ -51,7 +51,6 @@ public class TmdbPhotoPresenter extends Presenter {
         ViewHolder holder = (ViewHolder) viewHolder;
         int label = poster ? R.string.tmdb_posters_label : R.string.tmdb_photos_label;
         ImgUtil.load(holder.binding.photo.getContext().getString(label), url, holder.binding.photo);
-        bindFocusStyle(holder.binding.getRoot());
         setOnClickListener(holder, view -> {
             if (mListener != null) mListener.onItemClick(url, 0);
         });
@@ -59,13 +58,14 @@ public class TmdbPhotoPresenter extends Presenter {
 
     @Override
     public void onUnbindViewHolder(Presenter.ViewHolder viewHolder) {
-        View root = viewHolder.view;
-        root.setOnFocusChangeListener(null);
-        root.setForeground(null);
-        root.setActivated(false);
-        root.setSelected(false);
     }
 
+    /**
+     * 剧照/海报卡片此前完全没有焦点外观：布局里关闭了系统默认焦点高亮，presenter 也不改描边，
+     * 所以遥控停在卡片上时看不出焦点在哪里。这里用前景 selector 画 3dp 焦点环，
+     * 与演员卡（selector_tmdb_cast_focus.xml）同一套做法：前景绘制在图片之上，
+     * 不需要在每次绑定时改动卡片描边。
+     */
     private static void bindFocusStyle(MaterialCardView card) {
         card.setRippleColor(ColorStateList.valueOf(0x00000000));
         card.setForeground(card.getContext().getDrawable(R.drawable.selector_tmdb_media_focus));
@@ -76,12 +76,7 @@ public class TmdbPhotoPresenter extends Presenter {
     }
 
     private static void applyFocusStyle(MaterialCardView card, boolean focused) {
-        card.setSelected(false);
         card.setActivated(focused);
-        card.setStrokeColor(card.getContext().getColor(R.color.tv_item_normal_stroke));
-        card.setStrokeWidth(ResUtil.dp2px(1));
-        card.setCardElevation(0);
-        card.setTranslationZ(0);
     }
 
     static class ViewHolder extends Presenter.ViewHolder {
