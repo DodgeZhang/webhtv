@@ -235,6 +235,42 @@ public class PlayerControlFocusIntegrationTest {
     }
 
     @Test
+    public void fusionControlWakeKeepsUserChosenFocusOutsideTheIntroRange() throws Exception {
+        Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String activity = new String(Files.readAllBytes(activityPath), StandardCharsets.UTF_8);
+
+        int predicate = activity.indexOf("private boolean hasRememberedInlineControlFocus()");
+        int resolver = activity.indexOf("private View getInlineControlFocus()", predicate);
+        int show = activity.indexOf("private void showInlineControls(boolean show, boolean focus)");
+        int focusDefault = activity.indexOf("focusInlineDefaultControl();", show);
+
+        assertTrue("fusion must keep one shared predicate for a usable remembered control focus", predicate >= 0);
+        assertTrue("the remembered-focus predicate must precede the default focus resolver", resolver > predicate);
+        assertTrue("the control wake path must resolve focus after the overlay becomes visible",
+                show >= 0 && focusDefault > show);
+
+        String predicateBody = enclosingMethodBody(activity, predicate);
+        assertTrue("a remembered focus must stay visible and enabled inside the inline control bar",
+                predicateBody.contains("isVisibleInHierarchy(inlineControlFocus)")
+                        && predicateBody.contains("inlineControlFocus.isEnabled()"));
+        assertTrue("the intro/outro buttons must never count as a remembered user focus",
+                predicateBody.contains("inlineControlFocus != binding.playerOpening")
+                        && predicateBody.contains("inlineControlFocus != binding.playerEnding"));
+
+        String resolverBody = enclosingMethodBody(activity, resolver);
+        assertTrue("the fusion default focus resolver must reuse the shared predicate",
+                resolverBody.contains("hasRememberedInlineControlFocus()"));
+        assertTrue("the fusion default focus resolver must keep a non-intro fallback",
+                resolverBody.contains("binding.playerNext"));
+
+        int focusDefaultMethod = activity.indexOf("private void focusInlineDefaultControl()");
+        String wakeBody = enclosingMethodBody(activity, focusDefaultMethod);
+        assertTrue("waking the fusion control bar must go through the shared resolver",
+                wakeBody.contains("PlayerControlFocusHelper.ensureFocus(")
+                        && wakeBody.contains("getInlineControlFocus()"));
+    }
+
+    @Test
     public void leanbackPlaybackControlButtonsKeepConfirmActionsWired() throws Exception {
         Path sourcePath = findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
