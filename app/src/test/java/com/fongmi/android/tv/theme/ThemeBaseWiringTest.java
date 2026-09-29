@@ -46,24 +46,57 @@ public class ThemeBaseWiringTest {
     };
 
     /**
-     * List/overlay layouts drawn on the same dark wallpaper as the pages above.
+     * List/overlay layouts whose text is a flat colour over a fill that is dark in
+     * every state.
      *
-     * <p>Every one of these was painted with a light colour upstream ({@code @color/white},
-     * {@code @color/white_60/80} or {@code @color/selector_video_text}, whose default entry
-     * is white). Unified to {@code ?attr/colorOnSurface} they resolved to #1A1C1E in day mode
-     * and went dark-on-dark over the wallpaper, the video surface and the translucent white
-     * glass panels. Upstream reused the very same item layouts inside
-     * {@code dialog_quick_search}, {@code dialog_episode_list} and {@code dialog_receive}, so a
-     * single always-light role is correct in both the page and the dialog host.
+     * <p>Upstream painted these with a flat light colour ({@code @color/white},
+     * {@code @color/white_60/80}); the unification to {@code ?attr/colorOnSurface}
+     * resolved them to #1A1C1E in day mode and made them dark-on-dark over the
+     * wallpaper, the video surface and the translucent white glass panels. Upstream
+     * reused the very same item layouts inside {@code dialog_quick_search},
+     * {@code dialog_episode_list} and {@code dialog_receive}, so a single always-light
+     * role is correct in both the page and the dialog host.
+     *
+     * <p>The fill of each of these is {@code shape_live} (#47000000 / #5C000000),
+     * {@code shape_vod_list} / {@code shape_vod_name} (#33000000),
+     * {@code shape_video_episode_grid} (#99000000), {@code shape_quick_search_item} or a
+     * {@code ?attr/colorSurfaceContainer*} panel - never a light one - so no state list
+     * is needed. Their adapters were checked for {@code setSelected}: none of them call
+     * it except through {@code shape_item}'s states, which this list excludes.
      */
     private static final String[] WALLPAPER_ITEMS = {
-            "adapter_channel.xml", "adapter_collect.xml", "adapter_epg_data.xml",
-            "adapter_file.xml", "adapter_group.xml", "adapter_quality.xml",
-            "adapter_search.xml", "adapter_search_hot_word.xml", "adapter_search_record.xml",
-            "adapter_search_word.xml", "adapter_type.xml", "adapter_vod.xml",
+            "adapter_channel.xml", "adapter_epg_data.xml", "adapter_file.xml",
+            "adapter_group.xml", "adapter_search.xml", "adapter_search_hot_word.xml",
+            "adapter_search_record.xml", "adapter_search_word.xml", "adapter_vod.xml",
             "adapter_vod_list.xml", "adapter_vod_oval.xml", "view_empty.xml",
-            "adapter_episode_grid.xml", "adapter_episode_group.xml", "adapter_episode_hori.xml",
-            "adapter_flag.xml", "adapter_quick.xml", "view_progress.xml",
+            "adapter_quick.xml", "view_progress.xml",
+    };
+
+    /**
+     * Selectable items whose fill turns light when selected, so a flat colour cannot
+     * serve both states.
+     *
+     * <p>{@code selector_item} is the shared fill of these items in the mobile flavour:
+     * {@code state_selected} paints {@code colorSecondaryContainer} at 0.65 alpha - a
+     * light grey in day mode (#DFE2E6 over the wallpaper measured #BAB9C5) - while the
+     * default entry paints 15% black over the wallpaper, which is dark. Measured on the
+     * home type chips: white text on the selected chip gave 1.94:1, dark text gave
+     * 8.82:1; on an unselected chip white gave 6.32:1 and dark 2.71:1. Neither a flat
+     * white nor a flat dark value can be right for both, which is why upstream shipped
+     * these as state lists and why dev3 carried them until the unification replaced them.
+     *
+     * <p>This is the exact set dev3 used before that change; restoring it is the fix.
+     */
+    private static final String[][] WALLPAPER_STATE_ITEMS = {
+            // chips over shape_item / shape_item_round -> selector_item
+            {"adapter_type.xml", "@color/selector_text"},
+            {"adapter_collect.xml", "@color/selector_text"},
+            // episode / quality / flag rows over shape_video_item
+            {"adapter_episode_grid.xml", "@color/selector_video_text"},
+            {"adapter_episode_group.xml", "@color/selector_video_text"},
+            {"adapter_episode_hori.xml", "@color/selector_video_text"},
+            {"adapter_flag.xml", "@color/selector_video_text"},
+            {"adapter_quality.xml", "@color/selector_video_text"},
     };
 
     /** Pages whose rows sit directly on the (dark) app wallpaper. */
@@ -195,6 +228,68 @@ public class ThemeBaseWiringTest {
             assertTrue(name + " must use ?attr/webhtvColorOnWallpaper for its rows",
                     source.contains("android:textColor=\"?attr/webhtvColorOnWallpaper\""));
         }
+    }
+
+    /**
+     * Selectable items must keep a state list, not a flat colour.
+     *
+     * <p>Their shared fill turns light when selected, so the text has to switch with it:
+     * {@code selector_text} resolves to {@code colorOnSecondaryContainer}, and
+     * {@code selector_video_text} resolves to the selected highlight, both falling back
+     * to a light default. Collapsing either to one colour reintroduces an unreadable pair
+     * on whichever state loses.
+     */
+    @Test
+    public void selectableWallpaperItemsKeepAStateList() throws Exception {
+        for (String[] entry : WALLPAPER_STATE_ITEMS) {
+            String name = entry[0];
+            String selector = entry[1];
+            String source = read("src/mobile/res/layout/" + name);
+            assertFalse(name + " must not fall back to the dialog on-surface role",
+                    source.contains("android:textColor=\"?attr/colorOnSurface\""));
+            assertTrue(name + " must paint its selectable text with " + selector,
+                    source.contains("android:textColor=\"" + selector + "\""));
+        }
+    }
+
+    /**
+     * The state lists themselves must stay light by default and distinct when selected.
+     *
+     * <p>A flat list would silently defeat the guard above, so the semantics are pinned:
+     * every entry resolves to a colour, the default entry is the light one used over the
+     * dark wallpaper, and the selected entry is not the same as it.
+     */
+    @Test
+    public void wallpaperStateListsAreLightByDefaultAndDistinctWhenSelected() throws Exception {
+        String[][] selectors = {
+                {"selector_text.xml", "@color/white"},
+                {"selector_video_text.xml", "@color/white"},
+        };
+        for (String[] entry : selectors) {
+            String name = entry[0];
+            String source = read("src/mobile/res/color/" + name);
+            assertTrue(name + " must declare a selected state",
+                    source.contains("state_selected=\"true\""));
+            assertTrue(name + " must fall back to the light wallpaper foreground",
+                    source.contains("<item android:color=\"" + entry[1] + "\" />"));
+            String selected = selectedColor(source);
+            assertFalse(name + " selected colour must differ from its default",
+                    entry[1].equals(selected));
+            assertFalse(name + " must not reuse the dialog on-surface role",
+                    selected.contains("colorOnSurface\""));
+        }
+    }
+
+    /** Colour of the first entry guarded by {@code state_selected}. */
+    private static String selectedColor(String selectorSource) {
+        for (String line : selectorSource.split("\n")) {
+            if (line.contains("state_selected=\"true\"")) {
+                int start = line.indexOf("android:color=\"");
+                assertTrue("selected entry has no colour: " + line, start >= 0);
+                return line.substring(start + "android:color=\"".length(), line.indexOf('"', start + "android:color=\"".length()));
+            }
+        }
+        throw new AssertionError("no state_selected entry found");
     }
 
     /**
