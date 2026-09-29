@@ -11,6 +11,6 @@
     android:maxWidth="240dp"
     android:scrollHorizontally="true"
     android:singleLine="true"
-    android:textColor="?attr/colorOnSurface"
+    android:textColor="?attr/webhtvColorOnWallpaper"
     android:textSize="14sp"
     tools:text="泥巴" />

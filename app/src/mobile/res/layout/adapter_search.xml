@@ -43,7 +43,7 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="3"
-            android:textColor="?attr/colorOnSurface"
+            android:textColor="?attr/webhtvColorOnWallpaper"
             android:textSize="14sp"
             tools:text="蜘蛛人" />
 
@@ -56,7 +56,7 @@
             android:marqueeRepeatLimit="marquee_forever"
             android:scrollHorizontally="true"
             android:singleLine="true"
-            android:textColor="?attr/colorOnSurface"
+            android:textColor="?attr/webhtvColorOnWallpaper"
             android:textSize="12sp"
             tools:text="1080p" />
 

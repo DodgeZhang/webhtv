@@ -17,7 +17,7 @@
         android:marqueeRepeatLimit="marquee_forever"
         android:scrollHorizontally="true"
         android:singleLine="true"
-        android:textColor="?attr/colorOnSurface"
+        android:textColor="?attr/webhtvColorOnWallpaper"
         android:textSize="15sp"
         tools:text="20" />
 
@@ -188,7 +188,7 @@
                     android:ellipsize="end"
                     android:lineSpacingExtra="1dp"
                     android:maxLines="2"
-                    android:textColor="?attr/colorOnSurface"
+                    android:textColor="?attr/webhtvColorOnWallpaper"
                     android:textSize="10sp"
                     tools:text="Episode overview preview." />
 

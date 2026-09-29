@@ -45,6 +45,27 @@ public class ThemeBaseWiringTest {
             "colorOnSurface_20", "colorOnSurface_70", "colorOnSurface_80", "colorOnSurface_90",
     };
 
+    /**
+     * List/overlay layouts drawn on the same dark wallpaper as the pages above.
+     *
+     * <p>Every one of these was painted with a light colour upstream ({@code @color/white},
+     * {@code @color/white_60/80} or {@code @color/selector_video_text}, whose default entry
+     * is white). Unified to {@code ?attr/colorOnSurface} they resolved to #1A1C1E in day mode
+     * and went dark-on-dark over the wallpaper, the video surface and the translucent white
+     * glass panels. Upstream reused the very same item layouts inside
+     * {@code dialog_quick_search}, {@code dialog_episode_list} and {@code dialog_receive}, so a
+     * single always-light role is correct in both the page and the dialog host.
+     */
+    private static final String[] WALLPAPER_ITEMS = {
+            "adapter_channel.xml", "adapter_collect.xml", "adapter_epg_data.xml",
+            "adapter_file.xml", "adapter_group.xml", "adapter_quality.xml",
+            "adapter_search.xml", "adapter_search_hot_word.xml", "adapter_search_record.xml",
+            "adapter_search_word.xml", "adapter_type.xml", "adapter_vod.xml",
+            "adapter_vod_list.xml", "adapter_vod_oval.xml", "view_empty.xml",
+            "adapter_episode_grid.xml", "adapter_episode_group.xml", "adapter_episode_hori.xml",
+            "adapter_flag.xml", "adapter_quick.xml", "view_progress.xml",
+    };
+
     /** Pages whose rows sit directly on the (dark) app wallpaper. */
     private static final String[] WALLPAPER_PAGES = {
             "fragment_setting.xml", "fragment_setting_ad.xml", "fragment_setting_ai.xml",
@@ -164,7 +185,10 @@ public class ThemeBaseWiringTest {
      */
     @Test
     public void wallpaperPagesUseTheWallpaperForegroundRole() throws Exception {
-        for (String name : WALLPAPER_PAGES) {
+        String[] all = new String[WALLPAPER_PAGES.length + WALLPAPER_ITEMS.length];
+        System.arraycopy(WALLPAPER_PAGES, 0, all, 0, WALLPAPER_PAGES.length);
+        System.arraycopy(WALLPAPER_ITEMS, 0, all, WALLPAPER_PAGES.length, WALLPAPER_ITEMS.length);
+        for (String name : all) {
             String source = read("src/mobile/res/layout/" + name);
             assertFalse(name + " still paints wallpaper rows with the dialog on-surface role",
                     source.contains("android:textColor=\"?attr/colorOnSurface\""));

@@ -10,6 +10,6 @@
     android:gravity="center"
     android:padding="8dp"
     android:singleLine="true"
-    android:textColor="?attr/colorOnSurface"
+    android:textColor="?attr/webhtvColorOnWallpaper"
     android:textSize="14sp"
     tools:text="泥巴" />
