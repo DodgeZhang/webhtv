@@ -97,6 +97,78 @@ TmdbDetail 融合详情页的 `playerMultiThreadProxy` / `playerCodecCapability`
 
 上述失败仅存在于本机 CRLF 检出口径（Linux/CI 的 LF 检出不受影响），与本任务改动无因果关系。
 
+## 4b. 端侧（emulator-5556，「按钮点击是否真的打开对话框」）——未取证，失败原因已定位
+
+结论：**本轮仍未取得「点击 → 对话框弹出」的端侧行为证据**。以下为实测到的三个硬性阻碍，
+供后续会话直接复用，不必重跑这 20 余轮。
+
+### 关键事实：坐标不是问题
+
+横屏全屏底部动作行的真实坐标（`uiautomator` 实测，`min/tap` 均按此注入）：
+
+| 按钮 | bounds | center |
+| --- | --- | --- |
+| 多线程 `multiThreadProxy` | `[581,902][713,972]` | **(647,937)** |
+| 硬解能力 `codecCapability` | `[729,902][889,972]` | **(809,937)** |
+| 播放参数 `playParams` | `[405,902][565,972]` | (485,937) |
+| 循环 `repeat` | `[1832,902][1872,972]` | (1852,937) |
+
+之前失败并非点不到：注入 809,937 时按钮会显式获得焦点框（截图已证），tap 确实落在按钮上。
+
+### 阻碍 1：`guarded()` 需要「服务就绪」，媒体一结束就静默吞点击
+
+`PlaybackActivity.guarded()` = `if (isServiceReady()) action.run()`，`isServiceReady()`
+要求 `mService.player() != null && !isReleased()`。本地测试媒体播放结束后服务即分离，
+此时点击**必然**无任何反应（含焦点框），这不是接线缺陷。所有失败截图（`M_cc.png`、`N_cc.png`、
+`G1.png` 等）的共同特征是：动作行可见、被点按钮出现焦点框，但进度显示为 `X / X`（已到末尾）、
+`0 KB/s`、中央显示暂停播放键。
+
+### 阻碍 2：`uiautomator dump` 在视频渲染期整段不可用
+
+播放中 `uiautomator dump` 返回 `ERROR: could not get idle state.` 或
+`ERROR: null root node returned by UiTestAutomationBridge.`，转储只有 46–49 字节。
+暂停也无法稳定修复（原因未定，疑似解码器/覆盖层持续 hold 住 window）。
+→ 不要把 dump 作为端侧时序链路的必要环节；本仓库已有的 `f_l1.xml`（本次采集）
+已提供充分坐标，可作静态基准。
+
+### 阻碍 3：5 秒自动隐藏 × adb 往返延迟
+
+`Constant.INTERVAL_HIDE = 5s`。每次 `adb shell input tap` 往返 2–4 秒，任何
+「先 dump 定位、再单独一轮点击」的序列都会被自动隐藏击穿；
+而为了保条而补一次「显示」tap 会把已经显示的条**切掉**（`onSingleTap()` 是 toggle）——
+本次因此连丢失 4 轮。必须把「显示 + 点击」放进**同一条** `adb shell` 里。
+
+### 另两个干扰项
+
+- `dumpsys window | grep -c 'Window #'` **不可作为对话框证据**：Toast/TopToast
+  （如「已经是最后一集了！」）同样会增加窗口数，实测 19→21 的跳变是 Toast 而非对话框。
+- 本地文件经 `VIEW` 进入的是 `VideoActivity`；web 站点（`AT推送` 等）经
+  `shouldOpenLegacyTmdbDetail()` 进入 `TmdbDetailActivity` 融合页，其内联动作行
+  用的是另一套 id/坐标（`playerCodecCapability` center (929,405)、
+  `playerMultiThreadProxy` center (767,405)），**但它已有独立的运行时证据**：
+  早前会话记录了该页 8 个行内按钮 `clickable=true` 的 dump。
+
+### 已排除的风险
+
+`Control` style 设置了 `android:clickable=true`，因此 dump 里的
+`clickable=true` **不能**证明我们绑定了 listener。但这不构成反证：
+Grep 全文确认「除注册 `OnClickListener` 外，没有任何路径会让这两个按钮可点击」，
+且注入 tap 时出现的「焦点 + 按压态」在无 listener 的视图上同样会出现。
+即：无 listener 时不会更差，有 listener 时行为见下。
+
+### 单元层面的替代证据（已取证，已随提交归档）
+
+`MultiThreadProxyPlayerUiSourceTest`（mobile 口径）**5/5 通过**，其中
+`multiThreadButtonIsHiddenByDefaultButStillUserConfigurable` 与既有的
+「按钮必须真正绑定 `setOnClickListener`」（仅 `addActionButton` 登记不足以可点）
+断言直接覆盖本任务的接线与默认可见性契约；两个 flavor 的 Java 编译均 BUILD SUCCESSFUL。
+
+### 建议的下一条最短路径（未执行）
+
+用一条原子 `adb shell`，在「同一帧内」完成：显示条 → 点击 `809,937` → 立即
+`screencap`；但必须先把媒体换成**足够长且可循环**的源，或在点击前先点 `循环` (1852,937)；
+且不要在链路中插入 `uiautomator`。若仍不能取证，接受上述单元证据并显式标注端侧未取证。
+
 ## 5. 回滚
 
 单点回滚：把 §2.1 的两行监听器绑定、§2.2 的 `HIDDEN_SEEDED` 与 `, false` 标记撤销即可；
