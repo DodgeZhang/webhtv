@@ -183,7 +183,41 @@ public class NativeEnhancedPlaybackStyleFocusTest {
                 source.contains("installRowCardFocusLinks(")
                         && source.contains("onChildViewAttachedToWindow"));
         assertTrue("焦点链必须跳过已隐藏的行（否则下键指向不可见 View 会退回几何搜索）",
-                source.contains("row.getVisibility() == View.VISIBLE && row.getAdapter() != null"));
+                source.contains("row.getVisibility() == View.VISIBLE && row.getAdapter() != null")
+                        && source.contains("row.getAdapter().getItemCount() > 0"));
+    }
+
+    @Test
+    public void everyTmdbRowHasRowHeightConfigured() throws Exception {
+        // Leanback 的 HorizontalGridView 不配置 rowHeight 时行高会塔陷为 0：
+        // 标签正常显示但卡片一张都看不到（海报行曾漏配，用户报告“海报卡片一张都没显示”）。
+        String source = read(VIDEO_ACTIVITY);
+        int start = source.indexOf("private void setupTmdbGridViews()");
+        int end = source.indexOf("private List<HorizontalGridView> tmdbMediaRows()", start);
+        assertTrue("TMDB 行初始化方法必须存在", start >= 0 && end > start);
+        String body = source.substring(start, end);
+        for (String row : new String[]{"tmdbCast", "tmdbPhotos", "tmdbPosters", "tmdbCrew", "tmdbRelatedVideos",
+                "tmdbRecommendations", "tmdbPersonalTmdbRecommendations", "tmdbPersonalDoubanRecommendations",
+                "tmdbPersonalAiRecommendations"}) {
+            assertTrue(row + " 必须配置 rowHeight，否则行高塔陷为 0、卡片不可见",
+                    body.contains("mBinding." + row + ".setRowHeight("));
+        }
+    }
+
+    @Test
+    public void posterLabelVisibilityFollowsTheSameSourceAsItsCards() throws Exception {
+        // 标签与卡片必须同源：海报列表为空时标签与行一起隐藏，不能只隐行或只隐标签。
+        String source = read(VIDEO_ACTIVITY);
+        int start = source.indexOf("// 海报", source.indexOf("private void bindTmdbData()"));
+        int end = source.indexOf("// TMDB related videos", start);
+        assertTrue("海报绑定分支必须存在", start >= 0 && end > start);
+        String body = source.substring(start, end);
+        assertTrue("海报列表非空时必须同时显示行与标签",
+                body.contains("mBinding.tmdbPosters.setVisibility(View.VISIBLE)")
+                        && body.contains("postersLabel.setVisibility(View.VISIBLE)"));
+        assertTrue("海报列表为空时必须同时隐藏行与标签",
+                body.contains("mBinding.tmdbPosters.setVisibility(View.GONE)")
+                        && body.contains("postersLabel.setVisibility(View.GONE)"));
     }
 
     // ---------------------------------------------------------------- 焦点链路
@@ -261,6 +295,24 @@ public class NativeEnhancedPlaybackStyleFocusTest {
         assertTrue("评分卡片必须在异步到达后重算焦点链",
                 source.contains("private void renderTmdbRatingChips(View label, ViewGroup container, java.util.List<String[]> chips)")
                         && source.contains("// 卡片是异步到达的（OMDB 回包），到达后必须重算焦点链，"));
+    }
+
+    @Test
+    public void ratingRowVisibilityChangesRecomputeTheRowChain() throws Exception {
+        // 评分行是 TMDB 区块第一行的 up 邻居，且是异步到达的。
+        // 若它的显隐变化不重算行链，第一行向上会指向一个已隐藏（或尚未出现）的 View，
+        // 后退回几何搜索，出现“向上/向下跑到意料之外的行”。
+        String source = read(VIDEO_ACTIVITY);
+        int hide = source.indexOf("private void hideTmdbRatingChips");
+        int render = source.indexOf("private void renderTmdbRatingChips");
+        int build = source.indexOf("private java.util.List<String[]> buildTmdbRatingChips");
+        assertTrue("两个评分渲染方法必须存在", hide >= 0 && render > hide && build > render);
+        assertTrue("隐藏评分行后必须重算行链", source.substring(hide, render).contains("applyTmdbRowFocusChain()"));
+        String renderBody = source.substring(render, build);
+        assertTrue("评分卡片为空时必须重算行链", renderBody.contains("applyTmdbRowFocusChain()"));
+        assertTrue("评分卡片到达后必须重算行链",
+                renderBody.indexOf("applyTmdbRowFocusChain()", renderBody.indexOf("container.setVisibility(View.VISIBLE)"))
+                        > renderBody.indexOf("container.setVisibility(View.VISIBLE)"));
     }
 
     private static int countOf(String source, String needle) {

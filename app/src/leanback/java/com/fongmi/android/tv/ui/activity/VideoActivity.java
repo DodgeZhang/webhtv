@@ -1750,6 +1750,11 @@ private boolean runtimeSourceOnly;
         mBinding.tmdbCast.setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
         mBinding.tmdbPhotos.setHorizontalSpacing(ResUtil.dp2px(12));
         mBinding.tmdbPhotos.setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
+        // 海报行此前漏配 rowHeight（拆分剧照/海报时新增，只加了布局没加这里的配置）：
+        // Leanback 的 HorizontalGridView 不设 rowHeight 时行高塔陷为 0，
+        // 于是“海报”标签正常显示但一张卡片都看不到。
+        mBinding.tmdbPosters.setHorizontalSpacing(ResUtil.dp2px(12));
+        mBinding.tmdbPosters.setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
         mBinding.tmdbCrew.setHorizontalSpacing(ResUtil.dp2px(12));
         mBinding.tmdbCrew.setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
         mBinding.tmdbRecommendations.setHorizontalSpacing(ResUtil.dp2px(12));
@@ -1810,21 +1815,27 @@ private boolean runtimeSourceOnly;
      * 于是出现“第一张剧照下不去、第二张可以”这类与横向位置相关的不确定行为。
      */
     private void applyTmdbRowFocusChain() {
-        List<HorizontalGridView> rows = new ArrayList<>();
-        for (HorizontalGridView row : tmdbMediaRows()) {
-            if (row != null && row.getVisibility() == View.VISIBLE && row.getAdapter() != null && row.getAdapter().getItemCount() > 0) {
-                rows.add(row);
-            }
+        List<HorizontalGridView> candidates = tmdbMediaRows();
+        boolean[] present = new boolean[candidates.size()];
+        for (int i = 0; i < candidates.size(); i++) {
+            HorizontalGridView row = candidates.get(i);
+            present[i] = row != null && row.getVisibility() == View.VISIBLE && row.getAdapter() != null && row.getAdapter().getItemCount() > 0;
         }
+        // 空行（没数据或标签与行一起隐藏）被直接跳过：剧照下面没有海报就落到相关视频，
+        // 相关视频也没有就落到主创团队——焦点永远交给一个真实存在的行。
+        int[][] links = com.fongmi.android.tv.ui.helper.TmdbRowFocusChain.link(present);
         int ratingsId = 0;
         ViewGroup ratings = mBinding.getRoot().findViewById(R.id.tmdbOmdbRatings);
         if (ratings != null && isVisible(ratings)) ratingsId = R.id.tmdbOmdbRatings;
-        for (int i = 0; i < rows.size(); i++) {
-            HorizontalGridView row = rows.get(i);
-            int up = i == 0 ? ratingsId : rows.get(i - 1).getId();
-            int down = i == rows.size() - 1 ? R.id.flag : rows.get(i + 1).getId();
-            row.setNextFocusUpId(up == 0 ? View.NO_ID : up);
-            row.setNextFocusDownId(down);
+        for (int i = 0; i < candidates.size(); i++) {
+            HorizontalGridView row = candidates.get(i);
+            if (row == null || !present[i]) continue;
+            int upIndex = links[i][0];
+            int downIndex = links[i][1];
+            int upId = upIndex < 0 ? ratingsId : candidates.get(upIndex).getId();
+            int downId = downIndex < 0 ? R.id.flag : candidates.get(downIndex).getId();
+            row.setNextFocusUpId(upId == 0 ? View.NO_ID : upId);
+            row.setNextFocusDownId(downId);
             for (int child = 0; child < row.getChildCount(); child++) {
                 applyCardFocusLinks(row, row.getChildAt(child));
             }
@@ -7113,6 +7124,9 @@ private boolean runtimeSourceOnly;
         container.setTag(null);
         container.removeAllViews();
         updateRatingChipFocus();
+        // 评分行是本行的邻居，它的显隐变化必须重算行链：
+        // 否则第一行 TMDB 区块的 up 目标会停留在已隐藏的评分行上。
+        applyTmdbRowFocusChain();
     }
 
     private String omdbRatingCacheKey(String imdbId, String omdbApiKey) {
@@ -7126,6 +7140,7 @@ private boolean runtimeSourceOnly;
             if (label != null) label.setVisibility(View.GONE);
             container.setVisibility(View.GONE);
             updateRatingChipFocus();
+            applyTmdbRowFocusChain();
             return;
         }
         for (String[] chip : chips) {
@@ -7136,6 +7151,7 @@ private boolean runtimeSourceOnly;
         // 卡片是异步到达的（OMDB 回包），到达后必须重算焦点链，
         // 否则选集下方仍然指向旧的下一行。
         updateRatingChipFocus();
+        applyTmdbRowFocusChain();
     }
 
     private java.util.List<String[]> buildTmdbRatingChips() {
