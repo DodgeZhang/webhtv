@@ -189,7 +189,7 @@ public class NativeEnhancedPlaybackStyleFocusTest {
 
     @Test
     public void everyTmdbRowHasRowHeightConfigured() throws Exception {
-        // Leanback 的 HorizontalGridView 不配置 rowHeight 时行高会塔陷为 0：
+        // Leanback 的 HorizontalGridView 不配置 rowHeight 时行高会塌陷为 0：
         // 标签正常显示但卡片一张都看不到（海报行曾漏配，用户报告“海报卡片一张都没显示”）。
         String source = read(VIDEO_ACTIVITY);
         int start = source.indexOf("private void setupTmdbGridViews()");
@@ -199,7 +199,7 @@ public class NativeEnhancedPlaybackStyleFocusTest {
         for (String row : new String[]{"tmdbCast", "tmdbPhotos", "tmdbPosters", "tmdbCrew", "tmdbRelatedVideos",
                 "tmdbRecommendations", "tmdbPersonalTmdbRecommendations", "tmdbPersonalDoubanRecommendations",
                 "tmdbPersonalAiRecommendations"}) {
-            assertTrue(row + " 必须配置 rowHeight，否则行高塔陷为 0、卡片不可见",
+            assertTrue(row + " 必须配置 rowHeight，否则行高塌陷为 0、卡片不可见",
                     body.contains("mBinding." + row + ".setRowHeight("));
         }
     }

@@ -1751,7 +1751,7 @@ private boolean runtimeSourceOnly;
         mBinding.tmdbPhotos.setHorizontalSpacing(ResUtil.dp2px(12));
         mBinding.tmdbPhotos.setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
         // 海报行此前漏配 rowHeight（拆分剧照/海报时新增，只加了布局没加这里的配置）：
-        // Leanback 的 HorizontalGridView 不设 rowHeight 时行高塔陷为 0，
+        // Leanback 的 HorizontalGridView 不设 rowHeight 时行高塌陷为 0，
         // 于是“海报”标签正常显示但一张卡片都看不到。
         mBinding.tmdbPosters.setHorizontalSpacing(ResUtil.dp2px(12));
         mBinding.tmdbPosters.setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
