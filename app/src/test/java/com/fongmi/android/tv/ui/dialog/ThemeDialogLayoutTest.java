@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -74,11 +75,18 @@ public class ThemeDialogLayoutTest {
             assertTrue(flavour + " must apply the size to the window",
                     dialog.contains("window.setLayout(width, height)"));
             assertTrue(flavour + " must drop Material's background inset",
-                    dialog.contains("window.getDecorView().setPadding(0, 0, 0, 0)"));
+                    dialog.contains("decorView.setPadding(0, 0, 0, 0)"));
             assertTrue(flavour + " must let the scroll area absorb the freed height",
                     dialog.contains("ViewGroup.LayoutParams.MATCH_PARENT"));
             assertTrue(flavour + " must configure the window when the dialog starts",
                     dialog.contains("configureWindow(dialog)"));
+            // Regression guard: the panel is painted by the window background, so replacing
+            // it with a transparent fill (safe only for a dialog whose layout has its own
+            // card) erased the whole editor and showed the settings page through it.
+            assertTrue(flavour + " must keep the themed panel as the window background",
+                    dialog.contains("ThemeDialogLayout.panelBackground(decorView.getBackground())"));
+            assertFalse(flavour + " must not replace the panel with a transparent fill",
+                    dialog.contains("new ColorDrawable(Color.TRANSPARENT)"));
         }
     }
 

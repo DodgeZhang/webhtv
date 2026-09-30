@@ -2,7 +2,7 @@ package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Dialog;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -149,9 +149,13 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
      *
      * <p>The gutter is a constant dp value, not a screen percentage, so the visible
      * margin is identical on every panel size and never reaches the edge of an
-     * overscanning television. A transparent window background plus zero decor padding
-     * removes Material's own background inset, which otherwise consumes part of the
-     * height we just gave the dialog.
+     * overscanning television.
+     *
+     * <p>The panel is not a view background: {@code WebHtvAlertDialogBuilder} paints it
+     * through the window background. That drawable is therefore carried over with Material's
+     * inset wrapper stripped - the wrapper is what kept the panel narrower than the window,
+     * while the panel itself has to stay because nothing inside this editor paints its own
+     * card.
      */
     private void configureWindow(Dialog dialog) {
         Window window = dialog.getWindow();
@@ -163,10 +167,13 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
         params.width = width;
         params.height = height;
         params.gravity = Gravity.CENTER;
-        // ColorDrawable reports no padding, so the inset Material already wrote into the
-        // DecorView has to be cleared explicitly after the background swap.
-        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        window.getDecorView().setPadding(0, 0, 0, 0);
+        // Capture the themed panel before touching the window background, then reinstall it
+        // without Material's inset gutter. Handing the window a transparent fill instead
+        // erases the panel and leaves the page behind the editor showing through it.
+        View decorView = window.getDecorView();
+        Drawable panel = ThemeDialogLayout.panelBackground(decorView.getBackground());
+        if (panel != null) window.setBackgroundDrawable(panel);
+        decorView.setPadding(0, 0, 0, 0);
         window.setAttributes(params);
         window.setLayout(width, height);
         // AlertController installs the custom view with a wrap_content height, so a tall

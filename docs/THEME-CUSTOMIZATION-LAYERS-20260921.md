@@ -1029,7 +1029,21 @@ Layer 2 DoD：
 
 ---
 
+### 4.33 修复主题色彩弹窗完全透明（回归，2026-09-30）
+
+- 任务：`THEME-EDITOR-DIALOG-PANEL-REGRESSION-20260930`。用户报告：「主题色彩设置页面怎么直接完全透明了」（附截图 `QQ20260930-140038.png`：弹窗区域整片透明，底层「外观与语言」设置页与壁纸直接透出，只剩标题、预设芯片和底部三个按钮可见）。
+- 根因（4.32 引入的视觉回归）：4.32 里写了 `window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT))`，把**弹窗面板本身**换成了透明。本仓库的面板不在任何 view 上：`WebHtvAlertDialogBuilder.create()` 的既有注释已明确「面板是这个 builder 的 window background，不是 view background」，它调用 `ThemeController.bindWindowBackground(getBackground())` 对面板着色；而 Material 1.14.0 `MaterialAlertDialogBuilder.create()` 的源码是 `window.setBackgroundDrawable(MaterialDialogs.insetDrawable(background, backgroundInsets))`（`getBackground()` 返回内层 `MaterialShapeDrawable`）。`ThemeDialog` 的标题行、13 个色槽、weighted 滚动区、底部按钮全部是代码拼的纯 `LinearLayout`，没有任何一个自带卡片背景，因此窗口背景一旦透明，整个面板就连同其上所有绘制一起消失。参考弹窗 `AdBlockStatsDialog` 之所以能用同一招，是因为它的 XML 根布局本身自带卡片（`binding.getRoot().setMinimumHeight(height)` + 布局背景）；4.32 把「参考它的窗口契约」误扩为「照抄它的透明窗口背景」，且当轮验证只量了窗口外框坐标、未看画面，因此漏掉了这一整类视觉回归。
+- 修复（`app/src/main/java/com/fongmi/android/tv/ui/dialog/ThemeDialogLayout.java` + mobile/leanback 两个 `ThemeDialog`，两 flavor 文件逐字节相同）：新增 `ThemeDialogLayout.panelBackground(Drawable)`，递归剥掉 Material 的 `InsetDrawable` 包装后返回内层面板；`configureWindow` 改为在改窗口前先取 `decorView.getBackground()`，把**去掉 inset 包装的主题面板**重新装回窗口背景（`null` 时不动窗口背景），只保留 `decorView.setPadding(0,0,0,0)`。即：仍然只丢弃 Material 的 inset 留白（那才是让面板窄于窗口的原因），而面板本身必须留着。这样既不透明，又保持 4.32 已验收的放大占比与 `dialogOpacity`（shell 透明度滑块）语义不变。
+- 设备验证（dev3 `192.168.50.3:5559`，覆盖安装 mobile arm64，真实点击路径 设置 → 外观与语言 → 主题色彩，截图 `/tmp/panel_fixed.png`）：面板恢复为不透明主题圆角面板，外框实测 `[28,48][1892,1032]` = **1864x984**（16dp 边距 = 28px，与 4.32 实测一致，放大占比未回退）；面板内完整可见 `主题色彩` 标题、`正在编辑` 状态、`浅色` 切换、8 个预设芯片、`浅色` 分区的 `主色/主色容器/次色容器/焦点色/表面色/卡片表面色/对话框表面色/正文颜色` 行，底部 `恢复默认`/`取消`/`应用` 正常，底层设置页不再透出。
+- 自动化：`ThemeDialogLayoutTest.bothFlavoursApplyTheSharedSizingContract` 追加两条回归守卫（两 flavor 必须调用 `ThemeDialogLayout.panelBackground(decorView.getBackground())`，且不得再出现 `new ColorDrawable(Color.TRANSPARENT)`）；同时把原先写死 `window.getDecorView().setPadding(0, 0, 0, 0)` 字面形式的断言改为 `decorView.setPadding(0, 0, 0, 0)`（decorView 在修复中提为局部变量，断言意图不变）。`:app:testMobileArm64_v8aDebugUnitTest` 与 `:app:testLeanbackArm64_v8aDebugUnitTest`（`--tests ThemeDialogLayoutTest`，各 5 项）均 0 failure / 0 error；mobile/leanback 两个 flavor 的 `ThemeDialog` 在两次测试任务中均编译通过。leanback **未**单独上机复验：两 flavor 该文件逐字节相同、走同一条 `WebHtvAlertDialogBuilder` 窗口背景路径，且同设备只分配了一个模拟器（`5559`），为避免把用户当前使用的 mobile 构建覆盖成 TV 构建而未做 flavor 切换。
+- 回滚锚点：回退本任务即把 `configureWindow` 恢复为「透明窗口背景」写法（会立刻重新引入全透明回归），并删除 `ThemeDialogLayout.panelBackground`；无偏好键/数据格式变更。
+- 教训：验证「窗口占比」这类改动时，坐标测量不能替代画面检查；参考另一个弹窗的实现时，只能沿用被验证过的那部分契约（这里是窗口尺寸与边距），不能连带照抄其内容侧前提（这里是「布局自带卡片」）。
+
+---
+
 ### 4.32 主题色彩弹出框放大占比（2026-09-30）
+
+> ⚠️ 本节的「透明窗口背景」做法已由 4.33 判定为**错误**并修正（导致弹窗全透明）。本节保留的尺寸目标、固定 dp 边距、参考弹窗占比结论仍然有效。
 
 - 任务：`THEME-EDITOR-DIALOG-SIZE-20260930`。用户要求：「主题色彩弹出框放大占比，可以参考广告拦截统计弹出框」。
 - 现状（设备实测，dev3 `192.168.50.3:5559`，leanback arm64，1920x1080）：`ThemeDialog` 未做任何窗口尺寸配置，沿用 Material 默认弹窗宽度，实测外框 `[405,160][1515,920]` = **1110x760 = 57.8% x 70.4%**。13 个颜色槽、3 个透明度滑块和实时预览被压在窄列里，且弹窗只占屏幕中部一小块。

@@ -1,5 +1,8 @@
 package com.fongmi.android.tv.ui.dialog;
 
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.InsetDrawable;
+
 /**
  * Window sizing for the theme colour editor.
  *
@@ -39,5 +42,30 @@ final class ThemeDialogLayout {
     /** Window height that keeps {@code margin} above and below, never below one pixel. */
     static int height(int screenHeight, int margin) {
         return Math.max(1, Math.max(1, screenHeight) - Math.max(0, margin) * 2);
+    }
+
+    /**
+     * The panel drawable the editor must keep as its window background.
+     *
+     * <p>{@code WebHtvAlertDialogBuilder} paints this editor's panel through the window
+     * background rather than through a view: the title row, the colour slots, the weighted
+     * scroll area and the action buttons carry no background of their own. Material wraps
+     * that panel in an {@link InsetDrawable} gutter, which is what kept the panel narrower
+     * than the window, so the wrapper is dropped now that the window carries the margin
+     * itself.
+     *
+     * <p>The panel itself has to be kept. Replacing the window background with a transparent
+     * fill is only safe for a dialog whose layout supplies its own card - the ad-block
+     * statistics dialog does - while here it erased the panel and left the settings page
+     * visible through the whole editor.
+     *
+     * @return the inset-free panel, or {@code null} when the window carries no background.
+     */
+    static Drawable panelBackground(Drawable windowBackground) {
+        Drawable panel = windowBackground;
+        while (panel instanceof InsetDrawable inset) {
+            panel = inset.getDrawable();
+        }
+        return panel;
     }
 }
