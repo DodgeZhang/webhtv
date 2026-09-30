@@ -7961,8 +7961,14 @@ private boolean runtimeSourceOnly;
         return mFocus1 == null || mFocus1.getVisibility() != View.VISIBLE ? mBinding.video : mFocus1;
     }
 
+    private boolean hasRememberedFocus() {
+        return mFocus2 != null && mFocus2.getVisibility() == View.VISIBLE
+                && PlayerControlFocusHelper.isDescendant(mBinding.control.getRoot(), mFocus2)
+                && mFocus2 != mBinding.control.action.opening && mFocus2 != mBinding.control.action.ending;
+    }
+
     private View getFocus2() {
-        return mFocus2 == null || mFocus2.getVisibility() != View.VISIBLE || !PlayerControlFocusHelper.isDescendant(mBinding.control.getRoot(), mFocus2) || mFocus2 == mBinding.control.action.opening || mFocus2 == mBinding.control.action.ending ? mBinding.control.action.next : mFocus2;
+        return hasRememberedFocus() ? mFocus2 : mBinding.control.action.next;
     }
 
     private boolean dispatchOpeningEndingAdjust(KeyEvent event) {
@@ -8194,15 +8200,19 @@ private boolean runtimeSourceOnly;
 
     @Override
     public void onKeyUp() {
-        long position = player().getPosition();
-        long duration = player().getDuration();
-        if (player().canSetOpening(position, duration)) {
-            showControl(mBinding.control.action.opening);
-        } else if (player().canSetEnding(position, duration)) {
-            showControl(mBinding.control.action.ending);
-        } else {
-            showControl(getFocus2());
+        if (!hasRememberedFocus()) {
+            long position = player().getPosition();
+            long duration = player().getDuration();
+            if (player().canSetOpening(position, duration)) {
+                showControl(mBinding.control.action.opening);
+                return;
+            }
+            if (player().canSetEnding(position, duration)) {
+                showControl(mBinding.control.action.ending);
+                return;
+            }
         }
+        showControl(getFocus2());
     }
 
     @Override
