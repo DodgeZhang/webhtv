@@ -1658,6 +1658,15 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             if (focused) inlineControlFocus = control;
             updatePlayerPanelFocus();
         });
+        // 遥控以外的输入（鼠标/触摸点击）不会移动焦点：只靠上面的焦点监听时，
+        // 用户点过的按钮不会被记住，再唤出控制栏就只能落到默认候选按钮上。
+        // 返回 false 保证不吞事件，原有点击链路不受影响。
+        if (!Util.isMobile()) {
+            view.setOnTouchListener((control, event) -> {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) inlineControlFocus = control;
+                return false;
+            });
+        }
     }
 
     private boolean hasFocusedChild(View view) {

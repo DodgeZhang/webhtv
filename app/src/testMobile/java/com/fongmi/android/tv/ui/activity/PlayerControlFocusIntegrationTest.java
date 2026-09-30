@@ -271,6 +271,32 @@ public class PlayerControlFocusIntegrationTest {
     }
 
     @Test
+    public void tvControlClickIsRememberedAndPreferredFocusWinsOnWake() throws Exception {
+        Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String activity = new String(Files.readAllBytes(activityPath), StandardCharsets.UTF_8);
+        Path helperPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "helper", "PlayerControlFocusHelper.java"));
+        String helper = new String(Files.readAllBytes(helperPath), StandardCharsets.UTF_8);
+
+        int setup = activity.indexOf("private void setupInlineControl(View view)");
+        assertTrue("inline controls must keep a single setup entry point", setup >= 0);
+        String setupBody = enclosingMethodBody(activity, setup);
+        assertTrue("touch recording must stay remote-only so mobile focus behaviour is untouched",
+                setupBody.contains("!Util.isMobile()"));
+        assertTrue("a mouse/touch click must also become the remembered control, not only focus navigation",
+                setupBody.contains("MotionEvent.ACTION_DOWN") && setupBody.contains("inlineControlFocus = control"));
+        assertTrue("recorded touches must never consume the event, otherwise the existing click path breaks",
+                setupBody.contains("return false;"));
+
+        int ensure = helper.indexOf("public static boolean ensureFocus");
+        assertTrue(helperPath + " is missing ensureFocus", ensure >= 0);
+        String ensureBody = enclosingMethodBody(helper, ensure);
+        assertTrue("an explicitly preferred target must be resolved before whatever already holds focus inside the root",
+                ensureBody.indexOf("firstFocusable(preferred)") < ensureBody.indexOf("root.findFocus()"));
+        assertTrue("focus restoration must still fall back to the first focusable when no preference is usable",
+                ensureBody.contains("firstFocusable(root)"));
+    }
+
+    @Test
     public void leanbackPlaybackControlButtonsKeepConfirmActionsWired() throws Exception {
         Path sourcePath = findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
