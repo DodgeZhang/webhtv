@@ -1029,6 +1029,22 @@ Layer 2 DoD：
 
 ---
 
+### 4.32 主题色彩弹出框放大占比（2026-09-30）
+
+- 任务：`THEME-EDITOR-DIALOG-SIZE-20260930`。用户要求：「主题色彩弹出框放大占比，可以参考广告拦截统计弹出框」。
+- 现状（设备实测，dev3 `192.168.50.3:5559`，leanback arm64，1920x1080）：`ThemeDialog` 未做任何窗口尺寸配置，沿用 Material 默认弹窗宽度，实测外框 `[405,160][1515,920]` = **1110x760 = 57.8% x 70.4%**。13 个颜色槽、3 个透明度滑块和实时预览被压在窄列里，且弹窗只占屏幕中部一小块。
+- 参考基准（同一设备实测）：广告拦截统计弹窗 `AdBlockStatsDialog` 实测 `[28,49][1892,1073]` = **1864x1024 = 97.1% x 94.8%**，其做法是「屏幕减固定 dp 边距」（mobile 16dp、leanback 24dp）+ 透明窗口背景 + DecorView padding 归零。
+- 修复：新增共享尺寸助手 `app/src/main/java/com/fongmi/android/tv/ui/dialog/ThemeDialogLayout.java`（`marginDp`/`width`/`height`，边距为**固定 dp 常量**而非屏幕百分比），并在 mobile/leanback 两个 `ThemeDialog` 的 `onStart()` 中调用新增的 `configureWindow(dialog)`：按固定 dp 边距算出窗口宽高、`setBackgroundDrawable(TRANSPARENT)`、`getDecorView().setPadding(0,0,0,0)`、`setLayout(width, height)`，并把 `AlertController` 以 `wrap_content` 装入的根布局改成 `MATCH_PARENT`，让带 weight 的滚动区吃掉腾出的高度。
+  - 选择固定 dp 而非百分比：编辑器的行高是固定 dp、预览需要可预期的空间，百分比会随面板分辨率悄悄改变可用面积；固定边距在所有设备上给出相同物理留白，且永远不会贴到有 overscan 的电视面板边缘。
+- 设备验证（dev3 `192.168.50.3:5559`，覆盖安装，真实点击路径）：
+  - leanback：设置 → 外观与语言 → 主题色彩，外框实测 `[48,48][1872,1032]` = **1824x984 = 95.0% x 91.1%**（24dp 边距 = 48px，1920-96=1824、1080-96=984，与实现完全一致）；对比修改前的 1110x760，宽 +714px、高 +224px。向下滚动可达 3 个透明度槽（遮罩/对话框/浮层透明度）与实时预览区（`色调按钮`/`标题文字`/`scrim 0.32 · dialog 1.00 · overlay 0.08`），底部 `恢复默认`/`取消`/`应用` 三个按钮始终完整可见、未被裁切。
+  - mobile：设置 → 外观与语言 → 主题色彩，外框实测 `[28,49][1892,1073]` = **1864x1024 = 97.1% x 94.8%**（16dp 边距 = 28px，1920-56=1864、1080-56=1024）；滚动后预览与三个按钮位置/可见性正常。
+  - **与参考弹窗逐一比对**：同一 mobile 构建下广告拦截统计弹窗实测同为 `[28,49][1892,1073]` = **1864x1024 = 97.1% x 94.8%**，与主题色彩弹窗**数值完全一致**——即「参考广告拦截统计弹窗」的占比目标已按同一契约达成，而非仅近似。
+- 自动化：新增 `app/src/test/java/com/fongmi/android/tv/ui/dialog/ThemeDialogLayoutTest.java`（边距常量与参考弹窗一致、宽高等于屏减边距、放大后尺寸显著大于实测基线且 >90% 屏占比、退化输入不产生非正尺寸、两个 flavor 均接入共享契约）。`:app:testMobileArm64_v8aDebugUnitTest`（5041 项）与 `:app:testLeanbackArm64_v8aDebugUnitTest`（4169 项）均 0 failure/0 error；`:app:compileMobileArm64_v8aDebugJavaWithJavac` 通过。
+- 回滚锚点：回退本任务即删除 `ThemeDialogLayout`、移除两个 `ThemeDialog` 的 `configureWindow` 调用与新增 import，弹窗恢复 Material 默认宽度（1110x760）；无偏好键/数据格式变更。
+
+---
+
 ### 4.31 修复输入框无边框且文字裁切（2026-09-26）
 
 - 任务：`THEME-INPUT-STYLE-REGRESSION-20260926`。用户报告：4.30 修复崩溃后，弹窗"排版变丑了，输入框显示不全也看不出是输入框了"。

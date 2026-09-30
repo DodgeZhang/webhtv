@@ -2,9 +2,14 @@ package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Dialog;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
@@ -29,6 +34,8 @@ import com.fongmi.android.tv.theme.ThemeProfileStore;
 import com.fongmi.android.tv.theme.ThemeResolver;
 import com.fongmi.android.tv.theme.ThemeTokens;
 import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
+import com.fongmi.android.tv.utils.ResUtil;
+import com.fongmi.android.tv.utils.Util;
 
 /**
  * B-safe theme editor: 13 colour slots, 3 opacity slots, light/dark switching,
@@ -66,6 +73,7 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
 
     private ThemeEditor editor;
     private boolean dark;
+    private LinearLayout root;
     private LinearLayout panel;
     private LinearLayout rowPresets;
     private TextView status;
@@ -79,7 +87,7 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
         editor = ThemeEditor.load();
         dark = isDarkNow();
-        LinearLayout root = new LinearLayout(requireContext());
+        root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(4);
         root.setPadding(pad, pad, pad, pad);
@@ -114,6 +122,7 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
         super.onStart();
         Dialog dialog = getDialog();
         if (dialog == null) return;
+        configureWindow(dialog);
         Button reset = ((androidx.appcompat.app.AlertDialog) dialog).getButton(Dialog.BUTTON_NEUTRAL);
         reset.setOnClickListener(view -> {
             ThemeProfileStore.ApplyResult result = editor.reset();
@@ -126,6 +135,49 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
             setStatus(getString(R.string.theme_editor_reset_done));
             if (getParentFragment() instanceof AppearanceDialog appearance) appearance.onThemeProfileApplied();
         });
+    }
+
+    /**
+     * Enlarges the editor to the same near-full-screen footprint as the ad-block
+     * statistics dialog.
+     *
+     * <p>Only shrinking the gutter would not be enough: the editor carries a title row,
+     * a preset row, a status line and the action buttons around a weighted scroll area,
+     * so the window itself has to grow or the 13 colour slots and the live preview stay
+     * compressed into the middle of the screen. The dialog was measured on device at
+     * [405,160][1515,920] on a 1920x1080 panel - about 58% by 70% of the screen.
+     *
+     * <p>The gutter is a constant dp value, not a screen percentage, so the visible
+     * margin is identical on every panel size and never reaches the edge of an
+     * overscanning television. A transparent window background plus zero decor padding
+     * removes Material's own background inset, which otherwise consumes part of the
+     * height we just gave the dialog.
+     */
+    private void configureWindow(Dialog dialog) {
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        int margin = ResUtil.dp2px(ThemeDialogLayout.marginDp(Util.isLeanback()));
+        int width = ThemeDialogLayout.width(ResUtil.getScreenWidth(requireContext()), margin);
+        int height = ThemeDialogLayout.height(ResUtil.getScreenHeight(requireContext()), margin);
+        WindowManager.LayoutParams params = window.getAttributes();
+        params.width = width;
+        params.height = height;
+        params.gravity = Gravity.CENTER;
+        // ColorDrawable reports no padding, so the inset Material already wrote into the
+        // DecorView has to be cleared explicitly after the background swap.
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        window.getDecorView().setPadding(0, 0, 0, 0);
+        window.setAttributes(params);
+        window.setLayout(width, height);
+        // AlertController installs the custom view with a wrap_content height, so a tall
+        // window on its own still leaves the panel centred in a short box. Matching the
+        // parent lets the weighted scroll area absorb the freed space.
+        if (root != null && root.getLayoutParams() != null) {
+            ViewGroup.LayoutParams rootParams = root.getLayoutParams();
+            rootParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            rootParams.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            root.setLayoutParams(rootParams);
+        }
     }
 
     private View buildModeRow() {
