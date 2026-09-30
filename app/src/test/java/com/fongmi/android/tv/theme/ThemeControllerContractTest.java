@@ -78,9 +78,12 @@ public class ThemeControllerContractTest {
         String card = read("src/leanback/java/com/fongmi/android/tv/ui/presenter/TmdbCastPresenter.java");
         assertTrue(card.contains("ThemeController.current()"));
         assertTrue(card.contains("tokens.colorSurfaceContainerHigh()"));
-        assertTrue(card.contains("tokens.colorFocus()"));
+        // 焦点环已由前景 selector（?attr/tvFocusRing，取值 tv_item_focus_ring）统一绘制，
+        // presenter 只维护常态描边与卡面 token；不再自己画焦点描边以免双重描边。
+        assertFalse(card.contains("tokens.colorFocus()"));
+        assertTrue(card.contains("STROKE_NORMAL"));
         String video = read("src/leanback/java/com/fongmi/android/tv/ui/presenter/TmdbVideoPresenter.java");
-        assertTrue(video.contains("colorPlayerControlActive()"));
+        assertTrue(video.contains("selector_tmdb_media_focus"));
         String dialog = read("src/mobile/java/com/fongmi/android/tv/ui/dialog/AppearanceDialog.java");
         assertTrue(dialog.contains("ThemeController.current().colorOnSurface()"));
         assertTrue(dialog.contains("ThemeController.current().colorOnSurfaceVariant()"));

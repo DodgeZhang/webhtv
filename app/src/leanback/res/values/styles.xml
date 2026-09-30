@@ -1,6 +1,14 @@
 <resources>
 
     <style name="Theme.Base" parent="Theme.WebHTV.TV">
+        <!--
+            原生增强播放页统一焦点/选中语义色。TV 侧 colorPrimary 由 Theme.WebHTV 统一定义，
+            且同时驱动全局聚焦文字色，因此焦点环单独走这三个主题属性；
+            自定义主题（ThemeBinder / ThemeController）可在运行时覆写它们。
+        -->
+        <item name="tvFocusRing">@color/tv_item_focus_ring</item>
+        <item name="tvCurrentRing">@color/tv_item_current_ring</item>
+        <item name="tvNormalStroke">@color/tv_item_normal_stroke</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.WebHTV.Dialog</item>
         <item name="android:windowBackground">?attr/colorSurface</item>
         <item name="android:windowFullscreen">true</item>
