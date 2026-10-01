@@ -289,8 +289,10 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
     private void setActionEnabled(boolean enabled) {
         binding.search.setEnabled(enabled);
         binding.change.setEnabled(enabled);
-        binding.select.setEnabled(enabled && type > 0);
-        binding.cancel.setEnabled(enabled && type > 0);
+        // Keep bulk actions in the D-pad focus chain even in plain switch mode.
+        // setType() controls whether they are clickable; enabled only reflects loading state.
+        binding.select.setEnabled(enabled);
+        binding.cancel.setEnabled(enabled);
     }
 
     @Override
