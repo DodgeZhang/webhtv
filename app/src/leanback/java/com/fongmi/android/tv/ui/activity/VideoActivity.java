@@ -2621,7 +2621,7 @@ private boolean runtimeSourceOnly;
     }
 
     private void setEmpty(boolean finish) {
-        if (isFromCollect() || finish) {
+        if (finish) {
             finish();
         } else if (getName().isEmpty()) {
             showEmpty();
