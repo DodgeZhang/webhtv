@@ -219,7 +219,7 @@ Grep 全文确认「除注册 `OnClickListener` 外，没有任何路径会让�
 `com.silent.android.webhtv_preferences.xml`）。先清除旧设备上遗留的
 `player_button_hidden_seeded`，再启动 `VideoActivity`，读回偏好：
 
-```
+```text
 player_button_hidden">multi_thread_proxy
 player_button_hidden_seeded" value="true"
 ```
@@ -266,16 +266,85 @@ player_button_hidden_seeded" value="true"
 5. **UI 证据通道**：播放期用 `dumpsys activity <pkg>` 的 View Hierarchy（有 `G`/`V` 标志），
    静态页用 `uiautomator dump`（有 bounds）；两者不可互相替代。
 
+## 4d. 第四次会话：§2.1「点击 → 对话框弹出」端侧证据已取得（2026-10-01）
+
+§4c 末尾列为「未取得」的 §2.1 端侧行为证据，本轮已决定性取得，两个按钮均有对话框截图。
+
+### 关键方法学纠正：bounds 是父容器相对坐标
+
+§4c 把 `dumpsys` View Hierarchy 的 `0,0-0,0` 归因为「未布局」，**该归因错误**。
+真实原因是：`bottom`（`app:id/bottom`）作为动作行的父容器，其 `x/y` 是相对坐标，
+直接读子节点的 `bounds` 拿到的是**相对 `bottom` 的偏移**，而非屏幕绝对坐标。
+必须把 `bottom` 自身的 `x/y` 加上去才能得到可点击位置：
+
+| 节点 | 相对 `bottom` | `bottom` 原点 | 绝对 bounds | 点击中心 |
+| --- | --- | --- | --- | --- |
+| `multiThreadProxy` | `437,0-540,62` | `0,920` | `437,920-540,982` | **(488,951)** |
+| `codecCapability` | `540,0-668,62` | `0,920` | `540,920-668,982` | **(604,951)** |
+
+### 进入真正横屏全屏是必要前提
+
+`app:id/action`（动作行 ScrollView）在**窗口态**下是 `GONE`，此时子按钮 bounds 恒为 `0,0-0,0`。
+必须先点全屏按钮（窗口态下中心 ≈ `(918,531)`；`uiautomator` 在非渲染期可用，实测 `fullscreen` =
+`[637,366][721,450]`），使 `app:id/video` 变为 `0,0-1920,1080`、`bottom` 变为 `0,920-1920,1080`。
+
+### 决定性证据（emulator-5556，修复版 APK）
+
+前置：本次先重新校准——5556 已被其它 worktree 覆盖成另一分支的 mobile 构建
+（201,409,966 字节，含 `onCodecCapabilityPanel` 但**无** `player_button_hidden_seeded`），
+故先 `install -r -d` 重装修复版并校验 md5 = `b1228ac8518d40eb344bab22f2db124b`（与本地一致、同签名 `95E4B2E7`）。
+
+**证据 1：硬解能力按钮 → `CodecCapabilityDialog` 弹出**
+
+原子链路「显示控制栏 → tap `(604,951)`」后 `uiautomator dump` 由 26 KB 降至 8 KB（界面结构改变），
+截图与转储均为该对话框：
+
+- 标题「硬解能力」；`芯片 hardware qcom / board SM-N9700`
+- 分页：`当前媒体` / `全部` / `视频` / `音频`
+- `当前媒体轨道 2/2`；`视频轨 1 / 已选中`，`格式 video/avc 854x480 @24fps 538Kbps codecs avc1.64001E`
+- `当前解码 H.264 / decoder OMX.qcom.video.decoder.avc`
+- `Media3轨道状态 支持，当前轨道在声明能力内`；`硬解查询 当前规格可硬解`
+- `音频轨 1`：`audio/mp4a-latm 2ch 48000Hz 128Kbps`，`音频解码 仅系统软件解码 / OMX.google.aac.decoder`
+- 操作钮：`取消` / `复制`
+
+**证据 2：多线程按钮 → `MultiThreadProxyDialog` 弹出**
+
+用比截图更可靠的信号——`dumpsys activity` 的 `Added Fragments` 段中 `multi-thread-proxy` tag 计数
+（该探测器**有效性已先验证**：`dumpsys` 确实打印 `Added Fragments` 与各 fragment 的 `mTag`，
+例如 `androidx.lifecycle.LifecycleDispatcher.report_fragment_tag`）：
+
+```text
+点击前 multi-thread-proxy 命中数 = 0
+点击后 multi-thread-proxy 命中数 = 4
+```
+
+截图同为「多线程播放加速」完整对话框：`启用多线程播放（实验功能）`开关、
+`全局并行线程数 10`、`全局分片数 256`、`按域名覆盖`（含 `提取当前域名` 与规则输入框）、
+`取消` / `确定`。
+
+### 得出结论
+
+§2.1 的两行 `setOnClickListener` 绑定在真机上**确实生效**：两个按钮均能打开各自对话框。
+§4b/§4c 中所有「点击无反应」的记录，此前已被证实主要是「设备跑旧包」，
+本次更订正了第二个原因：**窗口态下动作行 GONE + 相对坐标误读**，两者叠加导致命中无控件区域。
+
+### 复用要点修正（覆盖 §4c 第 5 条）
+
+1. 动作行按钮的 `dumpsys` bounds **必须加上父容器 `bottom` 的 x/y** 才是绝对坐标。
+2. 必须先在**横屏全屏**下取坐标；窗口态 `app:id/action` 为 GONE。
+3. 对话框检测优先用 `Added Fragments` 的 tag 计数（比窗口计数可靠、不受 Toast 干扰），
+   且使用前应先用已知 fragment（`report_fragment_tag`）验证该段确实被打印。
+4. `uiautomator dump` 在**非视频渲染期**可用，可用于全屏按钮定位与对话框转储。
+
 ## 5. 最终结论
 
-本任务在**代码、单元回归、编译、默认隐藏的运行时首选项、以及视图层可见性三态**
-五个层面均已取证。前两轮归因中「设备上运行的是修复版」这一隐含前提**已被证伪并修正**：
-5554/5558 装的是旧包，5556 覆盖安装修复版后 §2.2 的端到端行为得到决定性实测证据。
-**仅 §2.1 的「点击 → 对话框弹出」端侧行为证据未取得**，受阻原因已收敛到验证手段侧
-（播放期无 bounds、热区冲突、自动隐藏与 adb 延迟竞争），而非接线缺陷；
-接线正确性由代码 diff 与单元断言保证。建议按此状态接受交付。
+本任务在**代码、单元回归、编译、默认隐藏的运行时首选项、视图层可见性三态、
+以及 §2.1 两个按钮「点击 → 对话框弹出」端侧行为**六个层面均已取证。
+前两轮归因中「设备上运行的是修复版」这一隐含前提**已被证伪并修正**：5554/5558 装的是旧包，
+5556 覆盖安装修复版后 §2.2 的端到端行为与 §2.1 的点击行为均得到决定性实测证据。
+**本任务已无未取证的验收项。**
 
-## 5. 回滚
+## 6. 回滚
 
 单点回滚：把 §2.1 的两行监听器绑定、§2.2 的 `HIDDEN_SEEDED` 与 `, false` 标记撤销即可；
 如需清理已播种的首选值，重置播放器按钮（清除 `player_button_hidden` 与
