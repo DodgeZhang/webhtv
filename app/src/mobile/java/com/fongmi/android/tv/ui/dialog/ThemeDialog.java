@@ -28,6 +28,7 @@ import com.fongmi.android.tv.theme.ThemeColorPickerDialog;
 import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.theme.ThemeEditor;
 import com.fongmi.android.tv.theme.ThemeMode;
+import com.fongmi.android.tv.theme.ThemePaletteStyle;
 import com.fongmi.android.tv.theme.ThemePreviewView;
 import com.fongmi.android.tv.theme.ThemeProfile;
 import com.fongmi.android.tv.theme.ThemeProfileStore;
@@ -76,6 +77,7 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
     private LinearLayout root;
     private LinearLayout panel;
     private LinearLayout rowPresets;
+    private LinearLayout rowPalette;
     private TextView status;
 
     public static void show(Fragment fragment) {
@@ -93,6 +95,7 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
         root.setPadding(pad, pad, pad, pad);
 
         root.addView(buildModeRow());
+        root.addView(buildPaletteRow());
         root.addView(buildPresetRow());
 
         status = new TextView(requireContext());
@@ -131,6 +134,8 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
                 return;
             }
             editor = ThemeEditor.load();
+            fillPaletteRow();
+            fillPresetRow();
             rebuildPanel();
             setStatus(getString(R.string.theme_editor_reset_done));
             if (getParentFragment() instanceof AppearanceDialog appearance) appearance.onThemeProfileApplied();
@@ -211,7 +216,80 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
             rebuildPanel();
         });
         row.addView(toggle);
+
+        Button importButton = new Button(requireContext());
+        importButton.setAllCaps(false);
+        importButton.setText(R.string.theme_editor_import);
+        importButton.setTextColor(ThemeController.current().colorPrimary());
+        importButton.setBackground(outlinedPill());
+        importButton.setOnClickListener(view -> ThemeImportDialog.show(this, profile -> {
+            editor = new ThemeEditor(profile);
+            fillPaletteRow();
+            fillPresetRow();
+            rebuildPanel();
+            setStatus(getString(R.string.theme_editor_dirty));
+        }));
+        row.addView(importButton);
         return row;
+    }
+
+    private View buildPaletteRow() {
+        HorizontalScrollView scroll = new HorizontalScrollView(requireContext());
+        rowPalette = new LinearLayout(requireContext());
+        rowPalette.setOrientation(LinearLayout.HORIZONTAL);
+        rowPalette.setPadding(dp(8), dp(2), dp(8), dp(2));
+        fillPaletteRow();
+        scroll.addView(rowPalette);
+        return scroll;
+    }
+
+    private void fillPaletteRow() {
+        if (rowPalette == null) return;
+        rowPalette.removeAllViews();
+        String active = ThemeProfile.normalizePaletteStyle(editor.draft().paletteStyle);
+        for (ThemePaletteStyle style : ThemePaletteStyle.values()) {
+            boolean selected = active.equals(style.id());
+            int fill = paletteColor(style);
+            Button button = new Button(requireContext());
+            button.setAllCaps(false);
+            button.setText(getString(paletteLabel(style)));
+            button.setTextColor(readableOn(fill));
+            button.setBackground(presetBackground(fill, selected, true));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            params.rightMargin = dp(8);
+            button.setLayoutParams(params);
+            button.setOnClickListener(view -> {
+                editor.setPaletteStyle(style.id());
+                fillPaletteRow();
+                rebuildPanel();
+            });
+            rowPalette.addView(button);
+        }
+    }
+
+    private int paletteColor(ThemePaletteStyle style) {
+        ThemeEditor probe = new ThemeEditor(editor.draft());
+        probe.setPaletteStyle(style.id());
+        ThemeProfile profile = probe.draft();
+        int seed = ThemeProfileStore.legacyThemeColor(profile);
+        ThemeTokens tokens = ThemeResolver.resolve(dark ? ThemeMode.DARK : ThemeMode.LIGHT,
+                ThemePreviewView.seedOf(profile), seed, Setting.getWallColor(), profile, null, dark);
+        return tokens.colorPrimary();
+    }
+
+    private int paletteLabel(ThemePaletteStyle style) {
+        return switch (style) {
+            case TONAL_SPOT -> R.string.theme_editor_palette_tonal;
+            case VIBRANT -> R.string.theme_editor_palette_vibrant;
+            case EXPRESSIVE -> R.string.theme_editor_palette_expressive;
+            case RAINBOW -> R.string.theme_editor_palette_rainbow;
+            case FRUIT_SALAD -> R.string.theme_editor_palette_fruit_salad;
+            case FIDELITY -> R.string.theme_editor_palette_fidelity;
+            case CONTENT -> R.string.theme_editor_palette_content;
+            case NEUTRAL -> R.string.theme_editor_palette_neutral;
+            case MONOCHROME -> R.string.theme_editor_palette_monochrome;
+        };
     }
 
     private View buildPresetRow() {
@@ -260,6 +338,7 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
                 return;
             }
             fillPresetRow();
+            fillPaletteRow();
             rebuildPanel();
         });
         return button;

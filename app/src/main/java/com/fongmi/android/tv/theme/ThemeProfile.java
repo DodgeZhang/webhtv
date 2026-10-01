@@ -19,6 +19,7 @@ public final class ThemeProfile {
     public String id = "webhtv.local";
     public String name = "Default";
     public String mode = MODE_SYSTEM;
+    public String paletteStyle = ThemePaletteStyle.TONAL_SPOT.id();
     public String seedSource = SEED_NONE;
     public String seedColor;
     public SlotSet light = new SlotSet();
@@ -38,6 +39,7 @@ public final class ThemeProfile {
         copy.id = id;
         copy.name = name;
         copy.mode = mode;
+        copy.paletteStyle = paletteStyle;
         copy.seedSource = seedSource;
         copy.seedColor = seedColor;
         copy.light = light == null ? null : light.copy();
@@ -62,6 +64,10 @@ public final class ThemeProfile {
         if (MODE_LIGHT.equals(value)) return MODE_LIGHT;
         if (MODE_DARK.equals(value)) return MODE_DARK;
         return MODE_SYSTEM;
+    }
+
+    public static String normalizePaletteStyle(String value) {
+        return ThemePaletteStyle.from(value).id();
     }
 
     public static String normalizeSeedSource(String value) {

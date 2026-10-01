@@ -76,6 +76,11 @@ public final class ThemeEditor {
         return Result.success(draft.copy());
     }
 
+    public Result setPaletteStyle(String style) {
+        draft.paletteStyle = ThemeProfile.normalizePaletteStyle(style);
+        return Result.success(draft.copy());
+    }
+
     public Result setSeed(String seedSource, String seedColor) {
         ThemeProfile.SlotSet ignored = draft.light;
         String source = ThemeProfile.normalizeSeedSource(seedSource);

@@ -37,6 +37,7 @@ public final class ThemeProfileValidator {
         if (profile.id.length() > 64) errors.add("id is too long");
         if (profile.name.length() > 64) errors.add("name is too long");
         profile.mode = ThemeProfile.normalizeMode(profile.mode);
+        profile.paletteStyle = ThemeProfile.normalizePaletteStyle(profile.paletteStyle);
         profile.seedSource = ThemeProfile.normalizeSeedSource(profile.seedSource);
         profile.seedColor = color(profile.seedColor, errors, "seedColor");
         if (ThemeProfile.SEED_CUSTOM.equals(profile.seedSource) && profile.seedColor == null) {

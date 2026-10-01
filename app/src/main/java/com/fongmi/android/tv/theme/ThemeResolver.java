@@ -2,7 +2,6 @@ package com.fongmi.android.tv.theme;
 
 import com.google.android.material.color.utilities.DynamicScheme;
 import com.google.android.material.color.utilities.Hct;
-import com.google.android.material.color.utilities.SchemeTonalSpot;
 
 /** Resolves semantic tokens without exposing seed colors directly to UI surfaces. */
 public final class ThemeResolver {
@@ -43,6 +42,9 @@ public final class ThemeResolver {
         ThemeTokens fallback = dark ? ThemeTokens.dark() : ThemeTokens.light();
         ThemeTokens base = fallback;
         String path = "default";
+        ThemePaletteStyle paletteStyle = profile == null
+                ? ThemePaletteStyle.TONAL_SPOT
+                : ThemePaletteStyle.from(profile.paletteStyle);
         try {
             if (seed != null && seed != ThemeSeed.NONE) {
                 int source = seed == ThemeSeed.WALLPAPER ? wallpaperColor : seedColor;
@@ -50,8 +52,11 @@ public final class ThemeResolver {
                     LAST_DIAGNOSTIC.set("fallback:invalid-seed:" + seed.name().toLowerCase(java.util.Locale.US));
                     return fallback;
                 }
-                base = derive(source, dark, fallback);
+                base = derive(source, dark, fallback, paletteStyle);
                 path = "seed:" + seed.name().toLowerCase(java.util.Locale.US);
+            } else if (profile != null && paletteStyle != ThemePaletteStyle.TONAL_SPOT) {
+                base = derive(paletteStyle.defaultSeed(), dark, fallback, paletteStyle);
+                path = "palette:" + paletteStyle.id();
             }
             ThemeTokens candidate = profile == null ? base : applyProfile(base, profile, dark);
             candidate.requireContrast();
@@ -279,8 +284,9 @@ public final class ThemeResolver {
         }
     }
 
-    private static ThemeTokens derive(int seedColor, boolean dark, ThemeTokens fallback) {
-        DynamicScheme scheme = new SchemeTonalSpot(Hct.fromInt(seedColor), dark, 0.0);
+    private static ThemeTokens derive(int seedColor, boolean dark, ThemeTokens fallback,
+                                      ThemePaletteStyle paletteStyle) {
+        DynamicScheme scheme = paletteStyle.create(seedColor, dark);
         return new ThemeTokens(
                 scheme.getPrimary(), scheme.getOnPrimary(), scheme.getPrimaryContainer(), scheme.getOnPrimaryContainer(),
                 scheme.getSecondary(), scheme.getOnSecondary(), scheme.getSecondaryContainer(), scheme.getOnSecondaryContainer(),
