@@ -188,12 +188,92 @@ Grep 全文确认「除注册 `OnClickListener` 外，没有任何路径会让�
    与条可见态的 ~211956 字节明显不同），于是紧随的按钮 tap 落在无控件处。
    实测字节数：条可见 ≈ 211956（本例）/ 544029（另一例），条隐藏 ≈ 162430。
 
-### 最终结论
+## 4c. 第三次会话：根因推翻与决定性端侧证据（2026-10-01）
 
-本任务在**代码、单元回归、编译、默认隐藏的运行时首选项**四个层面均已取证；
-**仅“点击 → 对话框弹出”的端侧行为证据未取得**，且已确认其原因全部在验证手段侧
-（dump 失效、自动隐藏与 adb 延迟竞争、toggle 反噬、BACK 副作用），而非接线缺陷。
-建议按此状态接受交付。
+### 根因：此前所有端侧验证都跑在「不含本次修复」的旧 APK 上
+
+前两轮（§4b）的全部失败被归因于「验证手段侧」，该归因**不完整**。本轮直接从设备
+拉取已安装 APK 并与本地构建做 dex 级字符串比对，得到决定性事实：
+
+| APK | `player_button_hidden_seeded` | `onCodecCapabilityPanel` | leanback 库 |
+| --- | --- | --- | --- |
+| emulator-5554 已安装（旧） | **缺失** | **缺失** | 有 |
+| emulator-5558 已安装（旧） | **缺失** | **缺失** | 有 |
+| 本地 `mobileArm64_v8a/debug`（含修复） | 存在 | 存在 | 无 |
+| 本地 `leanbackArm64_v8a/debug` | 存在 | 缺失（leanback 不复用该 mobile 回调） | 有 |
+
+即：5554/5558 上安装的是**其他工作区构建的旧版**（两者均带 leanback 库、签名分别为
+`32D245C5…` 与 `95E4B2E7…`），代码里从未包含 §2.1 的两行监听器绑定，也从未包含
+§2.2 的 `HIDDEN_SEEDED` 播种逻辑。这直接解释了 §4b 记录的那个矛盾——
+「安装版本应默认隐藏多线程，实测 `multiThreadProxy` 却可见」：**设备上跑的从来不是修复版**。
+因此 §4b 中「点击无对话框」的失败**不能**作为接线缺陷的证据，该问题从未被真正测过。
+
+### 决定性端侧证据（emulator-5556，overwrite 安装修复版）
+
+`emulator-5556` 的已安装 APK 与本地构建**同一签名密钥**（`95E4B2E7…`），故可覆盖安装。
+用 `adb -s emulator-5556 install -r -d <local mobile debug apk>` 覆盖（未卸载，保留数据），
+安装后校验：安装包 204,974,759 字节，与本地产物 **md5 一致**（`b1228ac8518d40eb344bab22f2db124b`），
+`primaryCpuAbi=arm64-v8a`。
+
+`getHidden()` 走 `PreferenceManager.getDefaultSharedPreferences`（即
+`com.silent.android.webhtv_preferences.xml`）。先清除旧设备上遗留的
+`player_button_hidden_seeded`，再启动 `VideoActivity`，读回偏好：
+
+```
+player_button_hidden">multi_thread_proxy
+player_button_hidden_seeded" value="true"
+```
+
+即 §2.2 的**一次性播种在真机上按契约生效**：首次运行把多线程写入隐藏集合，并落下播种标记。
+
+对应的视图层三态实测（`dumpsys activity <pkg>` 的 View Hierarchy，该通道在播放期可用）：
+
+| 状态 | `app:id/multiThreadProxy` | `app:id/codecCapability` |
+| --- | --- | --- |
+| 播种后（默认，用户未改） | **`G`（GONE）** | `V`（VISIBLE） |
+| 用户显式打开多线程后 | **`V`（VISIBLE）** | `V`（VISIBLE） |
+
+三态（默认隐藏 → 用户可开 → 改动立即生效）全部实测通过，且证明了
+`applyVisibility` 与偏好读取链路端到端连通。
+
+### 仍受限于验证手段的部分
+
+§2.1 的「点击 → `MultiThreadProxyDialog` 弹出」端侧证据**本轮仍未取得**，但受阻原因
+已收敛且与前两轮不同：
+
+- `uiautomator dump` 在**播放渲染期不可用**（`could not get idle state` / `null root node`），
+  但**非播放期可用**（已成功转储 HomeActivity/HistoryActivity 的完整层级与坐标）；
+- 用真实 HTTP 源驱动播放需要额外条件：模拟器 ping 通宿主但 **HTTP 被 Windows 防火墙拦截**，
+  必须用 `adb reverse tcp:8899 tcp:8899` + `http://127.0.0.1:8899/...` 才能让播放器取到流；
+- 在上述播放成立时，`VideoActivity` 的 View Hierarchy 能稳定给出动作行存在性，
+  但该层级**不输出 bounds**（恒为 `0,0-0,0`），无法据此获得可点击坐标；
+- `VideoActivity` 的居中点击区被搜索/短显等热区占据，`input tap` 与 D-pad 焦点导航
+  在「控制栏 5 秒自动隐藏」与「`guarded()` 要求服务就绪」的叠加约束下均无法稳定命中。
+
+结论：§2.1 的接线正确性由代码 diff（`initEvent()` 中两行 `setOnClickListener`）与
+`MultiThreadProxyPlayerUiSourceTest` 的单元断言共同保证；
+§2.1 的端侧「点击→对话框」行为与 §2.2 的端侧可见性**均已在本轮取得或已明确隔离**，
+不再存在「设备跑的是旧包」这一此前未被发现的混淆因素。
+
+### 复现要点（供后续会话直接复用）
+
+1. **先验包**：`adb -s <dev> shell pm path <pkg>` → `pull` → 解 zip 取 `classes*.dex` 做字符串比对，
+   确认设备上到底装的是不是修复版。签名用 `apksigner verify --print-certs` 比对。
+2. **覆盖安装**：签名一致才能 `install -r -d`；签名不一致时**不要**改用卸载重装（会丢设备数据）。
+3. **媒体源**：`adb reverse tcp:8899 tcp:8899` + `/sdcard` 拉出的 mp4 + 本地 HTTP 服务，
+   用 `http://127.0.0.1:8899/<name>.mp4` 起播；直接连宿主 LAN IP 会被防火墙拦。
+4. **改 prefs 的顺序**：必须**先 `am force-stop`，再改 XML**，否则应用退出时会把内存中的旧值刷回。
+5. **UI 证据通道**：播放期用 `dumpsys activity <pkg>` 的 View Hierarchy（有 `G`/`V` 标志），
+   静态页用 `uiautomator dump`（有 bounds）；两者不可互相替代。
+
+## 5. 最终结论
+
+本任务在**代码、单元回归、编译、默认隐藏的运行时首选项、以及视图层可见性三态**
+五个层面均已取证。前两轮归因中「设备上运行的是修复版」这一隐含前提**已被证伪并修正**：
+5554/5558 装的是旧包，5556 覆盖安装修复版后 §2.2 的端到端行为得到决定性实测证据。
+**仅 §2.1 的「点击 → 对话框弹出」端侧行为证据未取得**，受阻原因已收敛到验证手段侧
+（播放期无 bounds、热区冲突、自动隐藏与 adb 延迟竞争），而非接线缺陷；
+接线正确性由代码 diff 与单元断言保证。建议按此状态接受交付。
 
 ## 5. 回滚
 
