@@ -67,7 +67,7 @@ public final class NodeRuntime {
     /**
      * 如果 :node 子进程已死（崩溃/被系统杀掉）但还在 serving，立刻用原 bundle 重启它。
      *
-     * <p>崩溃时 {\@link #running} 没有回调可置假，只能靠进程探活发现。调用方（如爬虫发现
+     * <p>崩溃时 {@link #running} 没有回调可置假，只能靠进程探活发现。调用方（如爬虫发现
      * 本机 bundle 连不上）检测到后调这里，把运行时恢复到可用状态，后续请求会走新端口。
      * 返回 true 表示本次调用发起了重启（或本来就健康无需动作）。
      */
@@ -122,11 +122,12 @@ public final class NodeRuntime {
         // 复用要求「同一地址」且「来源身份仍与运行中的一致」：只比地址的话，服务端原地更新
         // bundle、或本地包被改写后都会继续跑旧 JS。本地包按内容指纹判定，内容没变就无需重启。
         // 还必须确认子进程仍在：它被杀掉时没有任何回调会把 running 置假。
-        if (running && serviceAlive() && same(url) && NodeBundle.servesCurrentSource(url, servingSourceKey)) {
+        boolean alive = running && serviceAlive();
+        if (alive && same(url) && NodeBundle.servesCurrentSource(url, servingSourceKey)) {
             if (callback != null) callback.onReady(baseUrl());
             return;
         }
-        if (running && !serviceAlive()) {
+        if (running && !alive) {
             SpiderDebug.log("node", "node process is gone while runtime still marked running, restarting");
             running = false;
             servingSourceKey = "";

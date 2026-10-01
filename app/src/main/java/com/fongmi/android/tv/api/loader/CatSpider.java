@@ -35,13 +35,18 @@ public class CatSpider extends Spider {
 
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
-    /** 本机 bundle 的 api 形如 {@code http://127.0.0.1:<port>/spider/<site>/3[/...]}。 */
-    private static final Pattern BUNDLE_BASE = Pattern.compile("^((http|https)://[^/]+)?(/spider/[^/]+/[^/]+(?:/[^/]+)*)$");
+    /** 本机 bundle 的 api 形如 {@code http://127.0.0.1:<port>/spider/<site>/3[/...]}；测试断言形状用。 */
+    static final Pattern BUNDLE_BASE = Pattern.compile("^((http|https)://[^/]+)?(/spider/[^/]+/[^/]+(?:/[^/]+)*)$");
 
     private final String api;
 
     public CatSpider(String api) {
         this.api = api.endsWith("/") ? api.substring(0, api.length() - 1) : api;
+    }
+
+    /** 测试专用：尾斜杠归一后的 api。 */
+    String apiForTest() {
+        return api;
     }
 
     /** api 是绝对地址且落在 bundle 的爬虫路由上。 */
@@ -57,7 +62,8 @@ public class CatSpider extends Spider {
      * 一旦 :node 子进程崩溃被 {@link NodeRuntime} 检测并自动重启，新进程可能占用不同端口
      * （首选 9988 被释放后大概率仍取 9988，但并发占用/端口扫描变化时可能变）。
      * 若请求仍打到旧端口，会得到一个无人监听的连接、白白等完整超时，用户看到
-     * 的就是「搜索不出来」，即使 node 已重启也一直失败。所以这里每次都用当前端口重建。
+     * 的就是「搜索不出来」，即使 node 已重启也一直失败。所以这里对<b>本机回环 api</b>每次
+     * 都用当前端口重建；远端（非本机）api 原样使用，不得被改写到本机。
      */
 
     @Override
@@ -172,10 +178,25 @@ public class CatSpider extends Spider {
     private String resolve(String path) {
         Matcher matcher = BUNDLE_BASE.matcher(api);
         if (!matcher.matches()) return api + path;
-        int port = NodeRuntime.port();
         String base = matcher.group(1);
-        if (port > 0 && (base == null || !base.contains(":" + port))) return "http://127.0.0.1:" + port + matcher.group(3) + path;
+        // 远端 T4 猫源（https://…/spider/…）必须原样请求：本地 node 在跑（port>0）时若跟着
+        // 本机端口重建，远端站点会被错误改写到 127.0.0.1，表现为远端源全部失效。只有本机
+        // bundle（api 在配置加载时被 rebase 成 http://127.0.0.1:<port>）才跟随当前端口。
+        if (base != null && !isLoopbackBase(base)) return api + path;
+        int port = NodeRuntime.port();
+        if (port > 0 && (base == null || !base.endsWith(":" + port))) return "http://127.0.0.1:" + port + matcher.group(3) + path;
         return api + path;
+    }
+
+    /** base 是否指向本机回环地址——本机 bundle 的 api 固定是 {@code http://127.0.0.1:<port>}。 */
+    static boolean isLoopbackBase(String base) {
+        int mark = base.indexOf("://");
+        String authority = mark >= 0 ? base.substring(mark + 3) : base;
+        int at = authority.lastIndexOf('@');
+        String host = at >= 0 ? authority.substring(at + 1) : authority;
+        int colon = host.indexOf(':');
+        if (colon >= 0) host = host.substring(0, colon);
+        return "127.0.0.1".equals(host) || "localhost".equalsIgnoreCase(host);
     }
 
     /** 部分路由把结果包在 {@code {code, data}} 里，取出 data 才是标准结果体。 */
