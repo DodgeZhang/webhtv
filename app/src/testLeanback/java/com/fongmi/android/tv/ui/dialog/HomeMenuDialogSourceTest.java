@@ -79,7 +79,7 @@ public class HomeMenuDialogSourceTest {
         // 菜单项按 3 列排布，新增条目也会由运行时数组自动显示
         assertTrue(dialog.contains("app:spanCount=\"3\""));
         assertTrue(dialog.contains("GridLayoutManager"));
-        // 英文文案最长 13 字符，18sp 在窄列上会被 ellipsize 截断，需要自适应缩字兜底
+        // 英文文案最长 14 字符（Following page/Site injection），18sp 在窄列上会被 ellipsize 截断，需要自适应缩字兜底
         assertTrue(adapter.contains("app:autoSizeTextType=\"uniform\""));
         assertTrue(adapter.contains("xmlns:app="));
         String java = read("app/src/leanback/java/com/fongmi/android/tv/ui/dialog/HomeMenuDialog.java");
