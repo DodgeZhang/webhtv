@@ -1,9 +1,7 @@
 package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Dialog;
-import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -27,58 +25,45 @@ import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.theme.ThemeColorPickerDialog;
 import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.theme.ThemeEditor;
-import com.fongmi.android.tv.theme.ThemeMode;
+import com.fongmi.android.tv.theme.ThemeEditorUi;
 import com.fongmi.android.tv.theme.ThemePaletteStyle;
+import com.fongmi.android.tv.theme.ThemePresets;
 import com.fongmi.android.tv.theme.ThemePreviewView;
 import com.fongmi.android.tv.theme.ThemeProfile;
+import com.fongmi.android.tv.theme.ThemeProfileCodec;
 import com.fongmi.android.tv.theme.ThemeProfileStore;
-import com.fongmi.android.tv.theme.ThemeResolver;
 import com.fongmi.android.tv.theme.ThemeTokens;
 import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
 
-/**
- * B-safe theme editor: 13 colour slots, 3 opacity slots, light/dark switching,
- * live preview, apply/cancel/reset.
- *
- * <p>All mutations go through {@link ThemeEditor}; nothing is persisted until the
- * user presses apply, and the panel is rebuilt from the draft after every change so
- * the displayed values can never drift from what would be saved.
- */
+import java.util.EnumMap;
+
+/** Locally themed editing session. Only Save publishes the draft to the rest of the app. */
 public final class ThemeDialog extends DialogFragment implements ThemePreviewView.Callbacks {
 
-    private static final int[] PRESET_LABELS = {
-            R.string.theme_editor_preset_default,
-            R.string.theme_editor_preset_wallpaper,
-            R.string.theme_editor_preset_blue,
-            R.string.theme_editor_preset_teal,
-            R.string.theme_editor_preset_green,
-            R.string.theme_editor_preset_orange,
-            R.string.theme_editor_preset_red,
-            R.string.theme_editor_preset_purple,
-    };
-    private static final String[] PRESET_SOURCES = {
-            ThemeProfile.SEED_NONE,
-            ThemeProfile.SEED_WALLPAPER,
-            ThemeProfile.SEED_CUSTOM,
-            ThemeProfile.SEED_CUSTOM,
-            ThemeProfile.SEED_CUSTOM,
-            ThemeProfile.SEED_CUSTOM,
-            ThemeProfile.SEED_CUSTOM,
-            ThemeProfile.SEED_CUSTOM,
-    };
-    private static final String[] PRESET_COLORS = {
-            null, null, "#0B57D0", "#00897B", "#146C2E", "#FB8C00", "#B3261E", "#8E24AA",
-    };
-
+    private final EnumMap<ThemePresets.Preset, PresetCard> cards = new EnumMap<>(ThemePresets.Preset.class);
+    private final EnumMap<ThemePaletteStyle, Button> styles = new EnumMap<>(ThemePaletteStyle.class);
     private ThemeEditor editor;
+    private ThemeTokens previewTokens;
     private boolean dark;
+    private int wallpaperColor;
+    private int savedScroll;
     private LinearLayout root;
-    private LinearLayout panel;
-    private LinearLayout rowPresets;
-    private LinearLayout rowPalette;
+    private ThemePreviewView panel;
+    private ScrollView scroll;
+    private TextView title;
+    private TextView note;
+    private TextView presetTitle;
+    private TextView paletteTitle;
+    private TextView modeTitle;
     private TextView status;
+    private Button lightButton;
+    private Button darkButton;
+    private Button importButton;
+    private Button resetButton;
+    private Button cancelButton;
+    private Button saveButton;
 
     public static void show(Fragment fragment) {
         new ThemeDialog().show(fragment.getChildFragmentManager(), ThemeDialog.class.getSimpleName());
@@ -88,36 +73,243 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
         editor = ThemeEditor.load();
-        dark = isDarkNow();
-        root = new LinearLayout(requireContext());
-        root.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(4);
-        root.setPadding(pad, pad, pad, pad);
+        dark = Util.isLeanback() || ThemeController.isNight(requireContext());
+        wallpaperColor = Setting.getWallColor();
+        if (savedInstanceState != null) {
+            dark = savedInstanceState.getBoolean("preview_dark", dark);
+            savedScroll = savedInstanceState.getInt("preview_scroll", 0);
+            String draft = savedInstanceState.getString("preview_draft");
+            if (draft != null) {
+                try {
+                    editor.replace(ThemeProfileCodec.parse(draft));
+                } catch (RuntimeException ignored) { /* Invalid saved UI state must not block opening settings. */ }
+            }
+        }
+        previewTokens = editor.preview(dark, wallpaperColor);
+        root = ThemeEditorUi.column(requireContext());
+        // This subtree belongs to the draft, not the builder's persisted-theme binder.
+        root.setTag("webhtv:ignore");
+        ThemeEditorUi.padding(root, 18, 16);
+        buildHeader();
 
-        root.addView(buildModeRow());
-        root.addView(buildPaletteRow());
-        root.addView(buildPresetRow());
+        scroll = new ScrollView(requireContext());
+        scroll.setClipToPadding(false);
+        LinearLayout content = ThemeEditorUi.column(requireContext());
+        content.setPadding(0, 0, 0, dp(12));
+        presetTitle = heading(R.string.theme_editor_presets);
+        content.addView(presetTitle, ThemeEditorUi.fullWidth(requireContext(), 14));
+        // Default is first in the very first configuration group, ahead of palette styles.
+        content.addView(buildPresetRow(), ThemeEditorUi.fullWidth(requireContext(), 10));
+        content.addView(buildModeRow(), ThemeEditorUi.fullWidth(requireContext(), 14));
+        paletteTitle = heading(R.string.theme_editor_palette_style);
+        content.addView(paletteTitle, ThemeEditorUi.fullWidth(requireContext(), 12));
+        content.addView(buildPaletteRow(), ThemeEditorUi.fullWidth(requireContext(), 8));
+        panel = ThemePreviewView.createPanel(requireContext(), editor, dark, previewTokens, this);
+        content.addView(panel);
+        scroll.addView(content);
+        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        buildFooter();
+        render();
+        // Custom actions avoid AlertDialog's unconditional positive-button dismissal on save failure.
+        return new WebHtvAlertDialogBuilder(requireContext()).setView(root).create();
+    }
 
-        status = new TextView(requireContext());
-        status.setPadding(dp(8), dp(6), dp(8), dp(4));
-        root.addView(status);
+    private void buildHeader() {
+        LinearLayout header = ThemeEditorUi.row(requireContext());
+        title = ThemeEditorUi.text(requireContext(), getString(R.string.setting_theme_color), 22, previewTokens.colorOnSurface());
+        ThemeEditorUi.heading(title);
+        header.addView(title, ThemeEditorUi.weighted());
+        importButton = ThemeEditorUi.button(requireContext(), R.string.theme_editor_import);
+        importButton.setOnClickListener(view -> ThemeImportDialog.show(this, profile -> {
+            ThemeEditor.Result result = editor.replace(profile);
+            if (result.success()) render();
+            else setStatus(result.error());
+        }));
+        header.addView(importButton);
+        root.addView(header);
+        note = ThemeEditorUi.text(requireContext(), getString(R.string.theme_editor_inline_hint), 12, previewTokens.colorOnSurfaceVariant());
+        root.addView(note, ThemeEditorUi.fullWidth(requireContext(), 6));
+    }
 
-        ScrollView scroll = new ScrollView(requireContext());
-        panel = new LinearLayout(requireContext());
-        panel.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(panel);
-        root.addView(scroll, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+    private View buildPresetRow() {
+        LinearLayout row = ThemeEditorUi.row(requireContext());
+        row.setPadding(dp(2), dp(2), dp(2), dp(2));
+        for (ThemePresets.Preset preset : ThemePresets.Preset.values()) {
+            PresetCard card = new PresetCard(preset);
+            cards.put(preset, card);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(128), ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.setMarginEnd(dp(10));
+            row.addView(card.view, params);
+        }
+        return horizontalScroll(row);
+    }
 
-        rebuildPanel();
+    private View buildModeRow() {
+        LinearLayout row = ThemeEditorUi.row(requireContext());
+        modeTitle = heading(R.string.theme_editor_edit_mode);
+        row.addView(modeTitle, ThemeEditorUi.weighted());
+        lightButton = ThemeEditorUi.button(requireContext(), R.string.theme_editor_light);
+        darkButton = ThemeEditorUi.button(requireContext(), R.string.theme_editor_dark);
+        lightButton.setOnClickListener(view -> { dark = false; render(); });
+        darkButton.setOnClickListener(view -> { dark = true; render(); });
+        LinearLayout.LayoutParams lightParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lightParams.setMarginEnd(dp(8));
+        row.addView(lightButton, lightParams);
+        row.addView(darkButton);
+        return row;
+    }
 
-        return new WebHtvAlertDialogBuilder(requireContext())
-                .setTitle(R.string.setting_theme_color)
-                .setView(root)
-                .setPositiveButton(R.string.theme_editor_apply, (dialog, which) -> applyDraft())
-                .setNeutralButton(R.string.theme_editor_reset, null)
-                .setNegativeButton(R.string.theme_editor_cancel, null)
-                .create();
+    private View buildPaletteRow() {
+        LinearLayout row = ThemeEditorUi.row(requireContext());
+        row.setPadding(dp(2), dp(2), dp(2), dp(2));
+        for (ThemePaletteStyle style : ThemePaletteStyle.values()) {
+            Button button = ThemeEditorUi.button(requireContext(), paletteLabel(style));
+            button.setOnClickListener(view -> {
+                editor.replace(ThemePresets.withPaletteStyle(editor.draft(), style));
+                render();
+            });
+            styles.put(style, button);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.setMarginEnd(dp(8));
+            row.addView(button, params);
+        }
+        return horizontalScroll(row);
+    }
+
+    private View horizontalScroll(View child) {
+        HorizontalScrollView scroll = new HorizontalScrollView(requireContext());
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.addView(child);
+        return scroll;
+    }
+
+    private void buildFooter() {
+        status = ThemeEditorUi.text(requireContext(), "", 12, previewTokens.colorOnSurfaceVariant());
+        status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        root.addView(status, ThemeEditorUi.fullWidth(requireContext(), 10));
+        LinearLayout actions = ThemeEditorUi.row(requireContext());
+        cancelButton = ThemeEditorUi.button(requireContext(), R.string.theme_editor_cancel);
+        resetButton = ThemeEditorUi.button(requireContext(), R.string.theme_editor_reset);
+        saveButton = ThemeEditorUi.button(requireContext(), R.string.theme_editor_apply);
+        cancelButton.setOnClickListener(view -> dismiss());
+        resetButton.setOnClickListener(view -> { editor.reset(); render(); });
+        saveButton.setOnClickListener(view -> applyDraft());
+        for (Button button : new Button[]{cancelButton, resetButton, saveButton}) {
+            LinearLayout.LayoutParams params = ThemeEditorUi.weighted();
+            if (button != saveButton) params.setMarginEnd(dp(8));
+            actions.addView(button, params);
+        }
+        root.addView(actions, ThemeEditorUi.fullWidth(requireContext(), 8));
+    }
+
+    /** One snapshot drives every real control; no view is recreated during a colour edit or drag. */
+    private void render() {
+        previewTokens = editor.preview(dark, wallpaperColor);
+        ThemeTokens tokens = previewTokens;
+        title.setTextColor(tokens.colorOnSurface());
+        note.setTextColor(tokens.colorOnSurfaceVariant());
+        for (TextView heading : new TextView[]{presetTitle, paletteTitle, modeTitle}) {
+            heading.setTextColor(tokens.colorOnSurfaceVariant());
+        }
+        ThemeEditorUi.buttonColors(importButton, tokens.colorSecondaryContainer(), tokens.colorOnSecondaryContainer(), tokens, false);
+        modeButton(lightButton, !dark);
+        modeButton(darkButton, dark);
+        ThemeProfile draft = editor.draft();
+        for (PresetCard card : cards.values()) card.render(draft);
+        for (ThemePaletteStyle style : styles.keySet()) {
+            boolean selected = style.id().equals(draft.paletteStyle);
+            modeButton(styles.get(style), selected);
+        }
+        if (panel != null) panel.render(editor, dark, tokens);
+        ThemeEditorUi.buttonColors(cancelButton, tokens.colorSurfaceContainer(), tokens.colorOnSurface(), tokens, false);
+        ThemeEditorUi.buttonColors(resetButton, tokens.colorSurfaceContainer(), tokens.colorOnSurface(), tokens, false);
+        ThemeEditorUi.buttonColors(saveButton, tokens.colorPrimary(), tokens.colorOnPrimary(), tokens, false);
+        setStatus(getString(editor.isDirty() ? R.string.theme_editor_dirty : R.string.theme_editor_saved_state));
+        Dialog dialog = getDialog();
+        if (dialog != null && dialog.getWindow() != null) {
+            Window window = dialog.getWindow();
+            window.setBackgroundDrawable(ThemeEditorUi.shape(requireContext(),
+                    ThemeEditorUi.withAlpha(tokens.colorSurface(), tokens.dialogOpacity()), 0, 0, 24));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams params = window.getAttributes();
+            params.dimAmount = ThemeEditorUi.alpha(tokens.colorScrim());
+            window.setAttributes(params);
+        }
+    }
+
+    private void modeButton(Button button, boolean selected) {
+        ThemeTokens tokens = previewTokens;
+        ThemeEditorUi.buttonColors(button, selected ? tokens.colorPrimaryContainer() : tokens.colorSurfaceContainer(),
+                selected ? tokens.colorOnPrimaryContainer() : tokens.colorOnSurface(), tokens, selected);
+    }
+
+    private final class PresetCard {
+        final ThemePresets.Preset preset;
+        final ThemeProfile profile;
+        final ThemeTokens light;
+        final ThemeTokens night;
+        final LinearLayout view;
+        final TextView name;
+        final TextView detail;
+        final View[] swatches = new View[4];
+
+        PresetCard(ThemePresets.Preset preset) {
+            this.preset = preset;
+            profile = preset.profile();
+            ThemeEditor sample = new ThemeEditor(profile);
+            light = sample.preview(false, wallpaperColor);
+            night = sample.preview(true, wallpaperColor);
+            view = ThemeEditorUi.column(requireContext());
+            ThemeEditorUi.padding(view, 12, 12);
+            view.setFocusable(true);
+            view.setTag("theme-preset:" + preset.name());
+            view.setOnClickListener(ignored -> {
+                ThemeProfile next = profile.copy();
+                if (preset != ThemePresets.Preset.DEFAULT) next.name = getString(preset.label);
+                next.mode = editor.draft().mode;
+                editor.replace(next);
+                ThemeDialog.this.render();
+            });
+            name = ThemeEditorUi.text(requireContext(), getString(preset.label), 14, light.colorOnSurface());
+            ThemeEditorUi.heading(name);
+            name.setSingleLine(true);
+            view.addView(name);
+            detail = ThemeEditorUi.text(requireContext(), "", 10, light.colorOnSurfaceVariant());
+            detail.setSingleLine(true);
+            view.addView(detail, ThemeEditorUi.fullWidth(requireContext(), 6));
+            LinearLayout row = ThemeEditorUi.row(requireContext());
+            for (int i = 0; i < swatches.length; i++) {
+                swatches[i] = new View(requireContext());
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(18), 1);
+                if (i < swatches.length - 1) params.setMarginEnd(dp(4));
+                row.addView(swatches[i], params);
+            }
+            view.addView(row, ThemeEditorUi.fullWidth(requireContext(), 10));
+        }
+
+        void render(ThemeProfile draft) {
+            ThemeTokens tokens = dark ? night : light;
+            boolean active = ThemePresets.find(draft) == preset;
+            boolean modified = false;
+            if (active) {
+                ThemeProfile comparable = draft.copy();
+                comparable.name = profile.name;
+                comparable.mode = profile.mode;
+                modified = !ThemeProfileCodec.encode(comparable).equals(ThemeProfileCodec.encode(profile));
+            }
+            name.setText((active ? "✓ " : "") + getString(preset.label));
+            name.setTextColor(tokens.colorOnSurface());
+            detail.setText(modified ? R.string.theme_editor_preset_modified
+                    : preset == ThemePresets.Preset.DEFAULT ? R.string.theme_editor_preset_original
+                    : preset == ThemePresets.Preset.WALLPAPER ? R.string.theme_editor_preset_dynamic : R.string.theme_editor_preset_pair);
+            detail.setTextColor(tokens.colorOnSurfaceVariant());
+            view.setSelected(active);
+            view.setContentDescription(getString(preset.label) + (active ? " · " + getString(R.string.theme_editor_selected) : ""));
+            view.setBackground(ThemeEditorUi.interactive(requireContext(), tokens.colorSurface(), tokens.colorOutline(),
+                    previewTokens.colorFocus(), active));
+            int[] colors = {tokens.colorPrimary(), tokens.colorSecondaryContainer(), tokens.colorSurfaceContainerHigh(), tokens.colorSuccess()};
+            for (int i = 0; i < swatches.length; i++) swatches[i].setBackground(ThemeEditorUi.shape(requireContext(), colors[i], 0, 0, 5));
+        }
     }
 
     @Override
@@ -126,42 +318,10 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
         Dialog dialog = getDialog();
         if (dialog == null) return;
         configureWindow(dialog);
-        Button reset = ((androidx.appcompat.app.AlertDialog) dialog).getButton(Dialog.BUTTON_NEUTRAL);
-        reset.setOnClickListener(view -> {
-            ThemeProfileStore.ApplyResult result = editor.reset();
-            if (!result.success()) {
-                setStatus(result.error());
-                return;
-            }
-            editor = ThemeEditor.load();
-            fillPaletteRow();
-            fillPresetRow();
-            rebuildPanel();
-            setStatus(getString(R.string.theme_editor_reset_done));
-            if (getParentFragment() instanceof AppearanceDialog appearance) appearance.onThemeProfileApplied();
-        });
+        render();
+        if (savedScroll > 0) scroll.post(() -> scroll.scrollTo(0, savedScroll));
     }
 
-    /**
-     * Enlarges the editor to the same near-full-screen footprint as the ad-block
-     * statistics dialog.
-     *
-     * <p>Only shrinking the gutter would not be enough: the editor carries a title row,
-     * a preset row, a status line and the action buttons around a weighted scroll area,
-     * so the window itself has to grow or the 13 colour slots and the live preview stay
-     * compressed into the middle of the screen. The dialog was measured on device at
-     * [405,160][1515,920] on a 1920x1080 panel - about 58% by 70% of the screen.
-     *
-     * <p>The gutter is a constant dp value, not a screen percentage, so the visible
-     * margin is identical on every panel size and never reaches the edge of an
-     * overscanning television.
-     *
-     * <p>The panel is not a view background: {@code WebHtvAlertDialogBuilder} paints it
-     * through the window background. That drawable is therefore carried over with Material's
-     * inset wrapper stripped - the wrapper is what kept the panel narrower than the window,
-     * while the panel itself has to stay because nothing inside this editor paints its own
-     * card.
-     */
     private void configureWindow(Dialog dialog) {
         Window window = dialog.getWindow();
         if (window == null) return;
@@ -172,18 +332,12 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
         params.width = width;
         params.height = height;
         params.gravity = Gravity.CENTER;
-        // Capture the themed panel before touching the window background, then reinstall it
-        // without Material's inset gutter. Handing the window a transparent fill instead
-        // erases the panel and leaves the page behind the editor showing through it.
         View decorView = window.getDecorView();
         Drawable panel = ThemeDialogLayout.panelBackground(decorView.getBackground());
         if (panel != null) window.setBackgroundDrawable(panel);
         decorView.setPadding(0, 0, 0, 0);
         window.setAttributes(params);
         window.setLayout(width, height);
-        // AlertController installs the custom view with a wrap_content height, so a tall
-        // window on its own still leaves the panel centred in a short box. Matching the
-        // parent lets the weighted scroll area absorb the freed space.
         if (root != null && root.getLayoutParams() != null) {
             ViewGroup.LayoutParams rootParams = root.getLayoutParams();
             rootParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
@@ -192,90 +346,60 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
         }
     }
 
-    private View buildModeRow() {
-        LinearLayout row = new LinearLayout(requireContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(dp(8), dp(6), dp(8), dp(2));
-
-        // Platform widgets created from the Activity context carry no Material role, so they
-        // must be coloured explicitly or they keep the framework default (Material's
-        // #49454F) and become unreadable once the user picks a dark custom surface.
-        TextView label = new TextView(requireContext());
-        label.setText(R.string.theme_editor_edit_mode);
-        label.setTextColor(ThemeController.current().colorOnSurface());
-        row.addView(label, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
-        Button toggle = new Button(requireContext());
-        toggle.setAllCaps(false);
-        toggle.setText(dark ? R.string.theme_editor_dark : R.string.theme_editor_light);
-        toggle.setTextColor(ThemeController.current().colorOnSurface());
-        toggle.setBackground(outlinedPill());
-        toggle.setOnClickListener(view -> {
-            dark = !dark;
-            toggle.setText(dark ? R.string.theme_editor_dark : R.string.theme_editor_light);
-            rebuildPanel();
-        });
-        row.addView(toggle);
-
-        Button importButton = new Button(requireContext());
-        importButton.setAllCaps(false);
-        importButton.setText(R.string.theme_editor_import);
-        importButton.setTextColor(ThemeController.current().colorPrimary());
-        importButton.setBackground(outlinedPill());
-        importButton.setOnClickListener(view -> ThemeImportDialog.show(this, profile -> {
-            editor = new ThemeEditor(profile);
-            fillPaletteRow();
-            fillPresetRow();
-            rebuildPanel();
-            setStatus(getString(R.string.theme_editor_dirty));
-        }));
-        row.addView(importButton);
-        return row;
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle state) {
+        super.onSaveInstanceState(state);
+        if (editor != null) state.putString("preview_draft", ThemeProfileCodec.encode(editor.draft()));
+        state.putBoolean("preview_dark", dark);
+        state.putInt("preview_scroll", scroll == null ? savedScroll : scroll.getScrollY());
     }
 
-    private View buildPaletteRow() {
-        HorizontalScrollView scroll = new HorizontalScrollView(requireContext());
-        rowPalette = new LinearLayout(requireContext());
-        rowPalette.setOrientation(LinearLayout.HORIZONTAL);
-        rowPalette.setPadding(dp(8), dp(2), dp(8), dp(2));
-        fillPaletteRow();
-        scroll.addView(rowPalette);
-        return scroll;
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        cards.clear();
+        styles.clear();
+        root = null;
+        panel = null;
+        scroll = null;
     }
 
-    private void fillPaletteRow() {
-        if (rowPalette == null) return;
-        rowPalette.removeAllViews();
-        String active = ThemeProfile.normalizePaletteStyle(editor.draft().paletteStyle);
-        for (ThemePaletteStyle style : ThemePaletteStyle.values()) {
-            boolean selected = active.equals(style.id());
-            int fill = paletteColor(style);
-            Button button = new Button(requireContext());
-            button.setAllCaps(false);
-            button.setText(getString(paletteLabel(style)));
-            button.setTextColor(readableOn(fill));
-            button.setBackground(presetBackground(fill, selected, true));
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            params.rightMargin = dp(8);
-            button.setLayoutParams(params);
-            button.setOnClickListener(view -> {
-                editor.setPaletteStyle(style.id());
-                fillPaletteRow();
-                rebuildPanel();
-            });
-            rowPalette.addView(button);
+    @Override
+    public void onColorSlotClicked(ThemeEditor.Slot slot, boolean slotDark) {
+        String initial = ThemeEditorUi.hex(ThemePreviewView.colorOf(previewTokens, slot));
+        ThemeColorPickerDialog.create(requireContext(), getString(ThemePreviewView.labelOf(slot)), initial, previewTokens, hex -> {
+            ThemeEditor.Result result = editor.set(slot, slotDark, hex, 0f);
+            if (result.success()) render();
+            else setStatus(result.error());
+        }).show();
+    }
+
+    @Override
+    public void onDraftChanged() {
+        render();
+    }
+
+    private void applyDraft() {
+        ThemeProfileStore.ApplyResult result = editor.apply();
+        if (!result.success()) {
+            setStatus(getString(R.string.theme_editor_save_failed, result.error()));
+            return;
         }
+        dismissAllowingStateLoss();
+        // AppearanceDialog already publishes the refresh event. Do not post a second recreation.
+        if (getParentFragment() instanceof AppearanceDialog appearance) appearance.onThemeProfileApplied();
+        else RefreshEvent.theme();
     }
 
-    private int paletteColor(ThemePaletteStyle style) {
-        ThemeEditor probe = new ThemeEditor(editor.draft());
-        probe.setPaletteStyle(style.id());
-        ThemeProfile profile = probe.draft();
-        int seed = ThemeProfileStore.legacyThemeColor(profile);
-        ThemeTokens tokens = ThemeResolver.resolve(dark ? ThemeMode.DARK : ThemeMode.LIGHT,
-                ThemePreviewView.seedOf(profile), seed, Setting.getWallColor(), profile, null, dark);
-        return tokens.colorPrimary();
+    private TextView heading(int label) {
+        TextView heading = ThemeEditorUi.text(requireContext(), getString(label), 13, previewTokens.colorOnSurfaceVariant());
+        ThemeEditorUi.heading(heading);
+        return heading;
+    }
+
+    private void setStatus(String message) {
+        status.setTextColor(previewTokens.colorOnSurfaceVariant());
+        status.setText(message == null ? "" : message);
     }
 
     private int paletteLabel(ThemePaletteStyle style) {
@@ -292,156 +416,7 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
         };
     }
 
-    private View buildPresetRow() {
-        HorizontalScrollView scroll = new HorizontalScrollView(requireContext());
-        rowPresets = new LinearLayout(requireContext());
-        rowPresets.setOrientation(LinearLayout.HORIZONTAL);
-        rowPresets.setPadding(dp(8), dp(2), dp(8), dp(2));
-        fillPresetRow();
-        scroll.addView(rowPresets);
-        return scroll;
-    }
-
-    /** Rebuilds the preset chips so the active seed always shows a visible highlight. */
-    private void fillPresetRow() {
-        if (rowPresets == null) return;
-        rowPresets.removeAllViews();
-        ThemeProfile profile = editor.draft();
-        String activeSource = ThemeProfile.normalizeSeedSource(profile.seedSource);
-        String activeColor = profile.seedColor;
-        for (int i = 0; i < PRESET_LABELS.length; i++) {
-            String source = PRESET_SOURCES[i];
-            String color = PRESET_COLORS[i];
-            boolean active = activeSource.equals(source)
-                    && (!ThemeProfile.SEED_CUSTOM.equals(source)
-                        || String.valueOf(activeColor).equalsIgnoreCase(color));
-            rowPresets.addView(createPresetButton(getString(PRESET_LABELS[i]), source, color, active));
-        }
-    }
-
-    private Button createPresetButton(String label, String seedSource, String seedColor, boolean active) {
-        boolean colorPreview = ThemeProfile.SEED_CUSTOM.equals(seedSource);
-        int fill = colorPreview ? presetColor(seedSource, seedColor) : neutralPresetBackground();
-        Button button = new Button(requireContext());
-        button.setAllCaps(false);
-        button.setText(label);
-        button.setTextColor(colorPreview ? readableOn(fill) : ThemeController.current().colorOnSurface());
-        button.setBackground(presetBackground(fill, active, colorPreview));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.rightMargin = dp(8);
-        button.setLayoutParams(params);
-        button.setOnClickListener(view -> {
-            ThemeEditor.Result result = editor.setSeed(seedSource, seedColor);
-            if (!result.success()) {
-                setStatus(result.error());
-                return;
-            }
-            fillPresetRow();
-            fillPaletteRow();
-            rebuildPanel();
-        });
-        return button;
-    }
-
-    /** Resolves the preset's own resolved primary color so the chip previews reality. */
-    private int presetColor(String seedSource, String seedColor) {
-        ThemeEditor probeEditor = new ThemeEditor(editor.draft());
-        ThemeEditor.Result seedResult = probeEditor.setSeed(seedSource, seedColor);
-        if (!seedResult.success()) return ThemeController.current().colorPrimary();
-        ThemeProfile probe = probeEditor.draft();
-        try {
-            int seedColorValue = ThemeProfileStore.legacyThemeColor(probe);
-            ThemeTokens tokens = ThemeResolver.resolve(dark ? ThemeMode.DARK : ThemeMode.LIGHT,
-                    ThemePreviewView.seedOf(probe), seedColorValue,
-                    Setting.getWallColor(), probe, null, dark);
-            return tokens.colorPrimary();
-        } catch (RuntimeException ignored) {
-            return ThemeController.current().colorPrimary();
-        }
-    }
-
-    private int neutralPresetBackground() {
-        return ThemeController.current().colorSurfaceContainerHighest();
-    }
-
-    /**
-     * A themed pill for the framework {@code Button}, which ships its own light background
-     * and would otherwise become white-on-white once its text follows the theme.
-     */
-    private GradientDrawable outlinedPill() {
-        GradientDrawable shape = new GradientDrawable();
-        shape.setShape(GradientDrawable.RECTANGLE);
-        shape.setCornerRadius(dp(18));
-        shape.setColor(ThemeController.current().colorSurfaceContainer());
-        shape.setStroke(dp(1), ThemeController.current().colorOutline());
-        return shape;
-    }
-
-    private GradientDrawable presetBackground(int fill, boolean active, boolean colorPreview) {
-        GradientDrawable shape = new GradientDrawable();
-        shape.setShape(GradientDrawable.RECTANGLE);
-        shape.setCornerRadius(dp(18));
-        shape.setColor(fill);
-        if (active) {
-            shape.setStroke(dp(3), colorPreview ? readableOn(fill) : ThemeController.current().colorPrimary());
-        } else if (colorPreview) {
-            shape.setStroke(dp(1), ThemeController.current().colorOutline());
-        }
-        return shape;
-    }
-
-    private int readableOn(int color) {
-        double luminance = (0.299 * Color.red(color) + 0.587 * Color.green(color) + 0.114 * Color.blue(color)) / 255d;
-        return luminance > 0.6d ? Color.BLACK : Color.WHITE;
-    }
-
-    private void rebuildPanel() {
-        panel.removeAllViews();
-        panel.addView(ThemePreviewView.createPanel(requireContext(), editor, dark, this));
-    }
-
-    private void setStatus(String message) {
-        status.setTextColor(ThemeController.current().colorOnSurfaceVariant());
-        status.setText(message == null ? "" : message);
-    }
-
-    @Override
-    public void onColorSlotClicked(ThemeEditor.Slot slot, boolean slotDark) {
-        String initial = editor.valueOf(slot, slotDark);
-        ThemeColorPickerDialog.create(requireContext(), labelOf(slot), initial, hex -> {
-            ThemeEditor.Result result = editor.set(slot, slotDark, hex, 0f);
-            if (!result.success()) setStatus(result.error());
-            else rebuildPanel();
-        }).show();
-    }
-
-    @Override
-    public void onDraftChanged() {
-        rebuildPanel();
-        setStatus(getString(R.string.theme_editor_dirty));
-    }
-
-    private void applyDraft() {
-        ThemeProfileStore.ApplyResult result = editor.apply();
-        if (!result.success()) {
-            setStatus(getString(R.string.theme_editor_save_failed, result.error()));
-            return;
-        }
-        if (getParentFragment() instanceof AppearanceDialog appearance) appearance.onThemeProfileApplied();
-        dismissAllowingStateLoss();
-        RefreshEvent.theme();
-    }
-
-    private boolean isDarkNow() {
-        return ThemeController.isNight(requireContext());
-    }
-
-    private String labelOf(ThemeEditor.Slot slot) {
-        return getString(ThemePreviewView.labelOf(slot));
-    }
-
     private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+        return ThemeEditorUi.dp(requireContext(), value);
     }
 }

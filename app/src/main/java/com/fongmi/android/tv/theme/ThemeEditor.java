@@ -25,7 +25,7 @@ public final class ThemeEditor {
     }
 
     private final ThemeProfile original;
-    private final ThemeProfile draft;
+    private ThemeProfile draft;
 
     public ThemeEditor(ThemeProfile source) {
         this.original = source == null ? ThemeProfile.defaultProfile() : source.copy();
@@ -82,7 +82,6 @@ public final class ThemeEditor {
     }
 
     public Result setSeed(String seedSource, String seedColor) {
-        ThemeProfile.SlotSet ignored = draft.light;
         String source = ThemeProfile.normalizeSeedSource(seedSource);
         if (ThemeProfile.SEED_CUSTOM.equals(source)) {
             String normalized = ThemeProfileValidator.normalizeColor(seedColor);
@@ -108,9 +107,25 @@ public final class ThemeEditor {
         return ThemeProfileStore.apply(validated.profile());
     }
 
-    /** Restores the frozen default profile. */
-    public ThemeProfileStore.ApplyResult reset() {
-        return ThemeProfileStore.reset();
+    /** Resolves the actual editing mode, including the live wallpaper seed, without global state. */
+    public ThemeTokens preview(boolean dark, int wallpaperColor) {
+        ThemeSeed seed = ThemeProfile.SEED_WALLPAPER.equals(draft.seedSource) ? ThemeSeed.WALLPAPER
+                : ThemeProfile.SEED_CUSTOM.equals(draft.seedSource) ? ThemeSeed.EXPLICIT : ThemeSeed.NONE;
+        return preview(dark ? ThemeMode.DARK : ThemeMode.LIGHT, seed,
+                ThemeProfileValidator.parseColor(draft.seedColor, 0), wallpaperColor, dark);
+    }
+
+    /** Replaces only the draft; imports and presets retain the original dirty-state baseline. */
+    public Result replace(ThemeProfile profile) {
+        ThemeProfileValidator.Result validated = ThemeProfileValidator.validate(profile == null ? null : profile.copy());
+        if (!validated.valid()) return Result.failure(validated.message());
+        draft = validated.profile();
+        return Result.success(draft.copy());
+    }
+
+    /** Restores the frozen default in memory. Like every edit, this still needs Apply. */
+    public Result reset() {
+        return replace(ThemeProfile.defaultProfile());
     }
 
     public String valueOf(Slot slot, boolean dark) {

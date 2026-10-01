@@ -35,57 +35,71 @@ public final class ThemeColorPickerDialog {
     }
 
     public static AlertDialog create(Context context, String title, String initial, Listener listener) {
+        return create(context, title, initial, ThemeController.current(), listener);
+    }
+
+    /** The editor passes its local snapshot; opening a picker never publishes the draft globally. */
+    public static AlertDialog create(Context context, String title, String initial, ThemeTokens tokens, Listener listener) {
         int start = ThemeProfileValidator.parseColor(initial, 0xFF000000);
         float[] hsv = new float[3];
         android.graphics.Color.colorToHSV(start, hsv);
 
         LinearLayout root = column(context);
+        root.setTag("webhtv:ignore");
         View swatch = new View(context);
         root.addView(swatch, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(context, 44)));
 
         SeekBar hue = slider(context, root, 360, Math.round(hsv[0]));
         SeekBar saturation = slider(context, root, 100, Math.round(hsv[1] * 100f));
         SeekBar brightness = slider(context, root, 100, Math.round(hsv[2] * 100f));
+        for (SeekBar bar : new SeekBar[]{hue, saturation, brightness}) {
+            bar.setProgressTintList(android.content.res.ColorStateList.valueOf(tokens.colorPrimary()));
+            bar.setThumbTintList(android.content.res.ColorStateList.valueOf(tokens.colorPrimary()));
+            bar.setMinimumHeight(dp(context, 48));
+        }
 
         // These are platform widgets created from the Activity context, so they carry no
         // Material role and would otherwise keep the framework default colour (the editor
         // rendered them as Material's #49454F on whatever surface the user picked).
         TextView hexLabel = new TextView(context);
         hexLabel.setText(R.string.theme_editor_hex_label);
-        hexLabel.setTextColor(ThemeController.current().colorOnSurface());
+        hexLabel.setTextColor(tokens.colorOnSurface());
         root.addView(hexLabel);
 
         EditText hexInput = new EditText(context);
         hexInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         hexInput.setSingleLine(true);
         hexInput.setHint(R.string.theme_editor_hex_hint);
-        hexInput.setTextColor(ThemeController.current().colorOnSurface());
-        hexInput.setHintTextColor(ThemeController.current().colorOnSurfaceVariant());
+        hexInput.setTextColor(tokens.colorOnSurface());
+        hexInput.setHintTextColor(tokens.colorOnSurfaceVariant());
+        hexInput.setBackgroundTintList(android.content.res.ColorStateList.valueOf(tokens.colorPrimary()));
         root.addView(hexInput);
 
         TextView error = new TextView(context);
-        error.setTextColor(ThemeController.current().colorError());
+        error.setTextColor(ThemeEditorUi.readable(tokens.colorError(), tokens.colorSurface()));
         root.addView(error);
 
         Button useHex = new Button(context);
         useHex.setText(R.string.theme_editor_hex_apply);
         useHex.setAllCaps(false);
-        useHex.setTextColor(ThemeController.current().colorOnSurface());
-        useHex.setBackground(outlinedPill(context));
+        useHex.setTextColor(tokens.colorOnSurface());
+        useHex.setBackground(outlinedPill(context, tokens));
         int pillPadding = dp(context, 10);
         useHex.setPadding(pillPadding, pillPadding, pillPadding, pillPadding);
         root.addView(useHex);
 
-        Runnable syncFromHsv = () -> {
-            int color = android.graphics.Color.HSVToColor(new float[]{hue.getProgress(), saturation.getProgress() / 100f, brightness.getProgress() / 100f});
-            String hex = toHex(color);
+        java.util.function.IntConsumer showColor = color -> {
             GradientDrawable shape = new GradientDrawable();
             shape.setCornerRadius(dp(context, 10));
             shape.setColor(color);
             swatch.setBackground(shape);
-            hexInput.setText(hex);
+            hexInput.setText(toHex(color));
             error.setText("");
         };
+        // Integer HSV sliders are deliberately approximate. Only an actual slider edit
+        // may quantize a color; opening or confirming an exact HEX must stay lossless.
+        Runnable syncFromHsv = () -> showColor.accept(android.graphics.Color.HSVToColor(
+                new float[]{hue.getProgress(), saturation.getProgress() / 100f, brightness.getProgress() / 100f}));
 
         SeekBar.OnSeekBarChangeListener onChange = new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -111,15 +125,16 @@ public final class ThemeColorPickerDialog {
                 error.setText(R.string.theme_editor_hex_invalid);
                 return;
             }
+            int exact = ThemeProfileValidator.parseColor(normalized, 0xFF000000);
             float[] parsed = new float[3];
-            android.graphics.Color.colorToHSV(ThemeProfileValidator.parseColor(normalized, 0xFF000000), parsed);
+            android.graphics.Color.colorToHSV(exact, parsed);
             hue.setProgress(Math.round(parsed[0]));
             saturation.setProgress(Math.round(parsed[1] * 100f));
             brightness.setProgress(Math.round(parsed[2] * 100f));
-            syncFromHsv.run();
+            showColor.accept(exact);
         });
 
-        syncFromHsv.run();
+        showColor.accept(start);
         AlertDialog dialog = new WebHtvAlertDialogBuilder(context)
                 .setTitle(title)
                 .setView(root)
@@ -127,15 +142,24 @@ public final class ThemeColorPickerDialog {
                 .setNegativeButton(R.string.theme_editor_cancel, null)
                 .create();
         // Validate before dismissing so an invalid hex never closes the picker.
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
-            String normalized = ThemeProfileValidator.normalizeColor(hexInput.getText().toString());
-            if (normalized == null) {
-                error.setText(R.string.theme_editor_hex_invalid);
-                return;
+        dialog.setOnShowListener(ignored -> {
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(ThemeEditorUi.shape(context, tokens.colorSurface(), 0, 0, 20));
             }
-            listener.onColorPicked(normalized);
-            dialog.dismiss();
-        }));
+            TextView dialogTitle = dialog.findViewById(androidx.appcompat.R.id.alertTitle);
+            if (dialogTitle != null) dialogTitle.setTextColor(tokens.colorOnSurface());
+            ThemeEditorUi.buttonColors(dialog.getButton(AlertDialog.BUTTON_POSITIVE), tokens.colorPrimary(), tokens.colorOnPrimary(), tokens, false);
+            ThemeEditorUi.buttonColors(dialog.getButton(AlertDialog.BUTTON_NEGATIVE), tokens.colorSurfaceContainer(), tokens.colorOnSurface(), tokens, false);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+                String normalized = ThemeProfileValidator.normalizeColor(hexInput.getText().toString());
+                if (normalized == null) {
+                    error.setText(R.string.theme_editor_hex_invalid);
+                    return;
+                }
+                listener.onColorPicked(normalized);
+                dialog.dismiss();
+            });
+        });
         return dialog;
     }
 
@@ -143,12 +167,12 @@ public final class ThemeColorPickerDialog {
      * A themed pill for the framework {@code Button}, which ships its own light background
      * and would otherwise stay white-on-white once the text colour follows the theme.
      */
-    private static GradientDrawable outlinedPill(Context context) {
+    private static GradientDrawable outlinedPill(Context context, ThemeTokens tokens) {
         GradientDrawable shape = new GradientDrawable();
         shape.setShape(GradientDrawable.RECTANGLE);
         shape.setCornerRadius(dp(context, 18));
-        shape.setColor(ThemeController.current().colorSurfaceContainer());
-        shape.setStroke(dp(context, 1), ThemeController.current().colorOutline());
+        shape.setColor(tokens.colorSurfaceContainer());
+        shape.setStroke(dp(context, 1), tokens.colorOutline());
         return shape;
     }
 

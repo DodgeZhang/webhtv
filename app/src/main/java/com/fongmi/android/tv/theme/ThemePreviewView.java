@@ -1,8 +1,8 @@
 package com.fongmi.android.tv.theme;
 
 import android.content.Context;
-import android.graphics.drawable.GradientDrawable;
-import android.util.TypedValue;
+import android.content.res.ColorStateList;
+import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,218 +13,276 @@ import android.widget.TextView;
 
 import com.fongmi.android.tv.R;
 
-/**
- * Live preview plus the shared 16-slot editor panel.
- *
- * <p>The panel is pure code so mobile and leanback render the same contract
- * without extra layout resources. Every mutation goes through {@link ThemeEditor},
- * so an invalid value can never reach the draft, and the panel is rebuilt from the
- * draft after each edit so the displayed state can never drift.
- */
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+
+/** The settings themselves are the preview: stable, locally themed controls, with no sample panel. */
 public final class ThemePreviewView extends LinearLayout {
 
-    /** Host callbacks; the dialog owns the picker and the apply/cancel actions. */
     public interface Callbacks {
         void onColorSlotClicked(ThemeEditor.Slot slot, boolean dark);
-
         void onDraftChanged();
     }
 
-    private static final ThemeEditor.Slot[] COLOR_SLOTS = {
-            ThemeEditor.Slot.PRIMARY,
-            ThemeEditor.Slot.PRIMARY_CONTAINER,
-            ThemeEditor.Slot.SECONDARY_CONTAINER,
-            ThemeEditor.Slot.FOCUS,
-            ThemeEditor.Slot.SURFACE,
-            ThemeEditor.Slot.SURFACE_CONTAINER,
-            ThemeEditor.Slot.SURFACE_CONTAINER_HIGH,
-            ThemeEditor.Slot.ON_SURFACE,
-            ThemeEditor.Slot.ON_SURFACE_VARIANT,
-            ThemeEditor.Slot.OUTLINE,
-            ThemeEditor.Slot.ERROR,
-            ThemeEditor.Slot.SUCCESS,
-            ThemeEditor.Slot.WARNING,
-    };
+    private final Callbacks callbacks;
+    private final EnumMap<ThemeEditor.Slot, ColorRow> colors = new EnumMap<>(ThemeEditor.Slot.class);
+    private final EnumMap<ThemeEditor.Slot, OpacityRow> opacities = new EnumMap<>(ThemeEditor.Slot.class);
+    private final List<Group> groups = new ArrayList<>();
+    private ThemeEditor editor;
+    private boolean dark;
+    private boolean binding;
 
-    private static final ThemeEditor.Slot[] OPACITY_SLOTS = {
-            ThemeEditor.Slot.SCRIM_OPACITY,
-            ThemeEditor.Slot.DIALOG_OPACITY,
-            ThemeEditor.Slot.OVERLAY_OPACITY,
-    };
-
-    private TextView title;
-    private TextView body;
-    private TextView secondary;
-    private Button filled;
-    private Button tonal;
-    private LinearLayout card;
-    private LinearLayout dialog;
-    private TextView opacity;
-
-    public ThemePreviewView(Context context) {
+    private ThemePreviewView(Context context, Callbacks callbacks) {
         super(context);
-        init(context);
-    }
-
-    private void init(Context context) {
+        this.callbacks = callbacks;
         setOrientation(VERTICAL);
-        int pad = dp(context, 14);
-        setPadding(pad, pad, pad, pad);
-        title = text(context, 17);
-        body = text(context, 15);
-        secondary = text(context, 13);
-        opacity = text(context, 12);
-        title.setText(context.getString(R.string.theme_editor_preview_title));
-        body.setText(context.getString(R.string.theme_editor_preview_body));
-        secondary.setText(context.getString(R.string.theme_editor_preview_secondary));
-        filled = button(context, context.getString(R.string.theme_editor_preview_filled));
-        tonal = button(context, context.getString(R.string.theme_editor_preview_tonal));
-        card = surface(context, title, body);
-        dialog = surface(context, title, secondary);
-        addView(title);
-        addView(body);
-        addView(secondary);
-        addView(filled, rowParams(context));
-        addView(tonal, rowParams(context));
-        addView(card, rowParams(context));
-        addView(dialog, rowParams(context));
-        addView(opacity);
-    }
-
-    /** Renders the resolved tokens; null is ignored so a partial draft still previews. */
-    public void bind(ThemeTokens tokens) {
-        if (tokens == null) return;
-        setBackgroundColor(tokens.colorSurface());
-        title.setTextColor(tokens.colorOnSurface());
-        body.setTextColor(tokens.colorOnSurface());
-        secondary.setTextColor(tokens.colorOnSurfaceVariant());
-        opacity.setTextColor(tokens.colorOnSurfaceVariant());
-        opacity.setText(String.format(java.util.Locale.US,
-                "scrim %.2f · dialog %.2f · overlay %.2f",
-                alphaOf(tokens.colorScrim()), tokens.dialogOpacity(), alphaOf(tokens.colorOverlayLight())));
-        buttonTint(filled.getContext(), filled, tokens.colorPrimary(), tokens.colorOnPrimary(), tokens.colorPrimary());
-        buttonTint(tonal.getContext(), tonal, tokens.colorSecondaryContainer(),
-                tokens.colorOnSecondaryContainer(), tokens.colorOutline());
-        shape(card, tokens.colorSurfaceContainer(), tokens.colorOutline());
-        shape(dialog, withAlpha(tokens.colorSurfaceContainerHigh(), tokens.dialogOpacity()), tokens.colorOutline());
-    }
-
-    /**
-     * Builds the full editor panel: mode and preset row, light/dark switch, the 13
-     * colour slots, the 3 opacity slots and the live preview.
-     */
-    public static View createPanel(Context context, ThemeEditor editor, boolean dark, Callbacks callbacks) {
-        LinearLayout root = new LinearLayout(context);
-        root.setOrientation(VERTICAL);
-
-        root.addView(sectionLabel(context, context.getString(dark ? R.string.theme_editor_dark : R.string.theme_editor_light)));
-        for (ThemeEditor.Slot slot : COLOR_SLOTS) {
-            root.addView(colorRow(context, editor, slot, dark, callbacks));
+        boolean wide = context.getResources().getConfiguration().screenWidthDp >= 700;
+        addGroups(wide,
+                colorGroup(R.string.theme_editor_group_accent, ThemeEditor.Slot.PRIMARY,
+                        ThemeEditor.Slot.PRIMARY_CONTAINER, ThemeEditor.Slot.SECONDARY_CONTAINER, ThemeEditor.Slot.FOCUS),
+                colorGroup(R.string.theme_editor_group_surfaces, ThemeEditor.Slot.SURFACE,
+                        ThemeEditor.Slot.SURFACE_CONTAINER, ThemeEditor.Slot.SURFACE_CONTAINER_HIGH));
+        addGroups(wide,
+                colorGroup(R.string.theme_editor_group_text, ThemeEditor.Slot.ON_SURFACE,
+                        ThemeEditor.Slot.ON_SURFACE_VARIANT, ThemeEditor.Slot.OUTLINE),
+                colorGroup(R.string.theme_editor_group_states, ThemeEditor.Slot.SUCCESS,
+                        ThemeEditor.Slot.WARNING, ThemeEditor.Slot.ERROR));
+        Group layers = group(R.string.theme_editor_group_layers);
+        for (ThemeEditor.Slot slot : new ThemeEditor.Slot[]{ThemeEditor.Slot.SCRIM_OPACITY,
+                ThemeEditor.Slot.DIALOG_OPACITY, ThemeEditor.Slot.OVERLAY_OPACITY}) {
+            OpacityRow row = new OpacityRow(slot);
+            opacities.put(slot, row);
+            layers.view.addView(row.view, ThemeEditorUi.fullWidth(context, 8));
         }
-        for (ThemeEditor.Slot slot : OPACITY_SLOTS) {
-            root.addView(opacityRow(context, editor, slot, dark, callbacks));
+        addView(layers.view, ThemeEditorUi.fullWidth(context, 12));
+    }
+
+    public static ThemePreviewView createPanel(Context context, ThemeEditor editor, boolean dark,
+                                               ThemeTokens tokens, Callbacks callbacks) {
+        ThemePreviewView panel = new ThemePreviewView(context, callbacks);
+        panel.render(editor, dark, tokens);
+        return panel;
+    }
+
+    /** Rebinds in place so dragging, accessibility focus and the scroll position cannot be lost. */
+    public void render(ThemeEditor editor, boolean dark, ThemeTokens tokens) {
+        this.editor = editor;
+        this.dark = dark;
+        binding = true;
+        for (Group group : groups) {
+            group.view.setBackground(ThemeEditorUi.shape(getContext(), tokens.colorSurfaceContainer(), 0, 0, 18));
+            group.title.setTextColor(ThemeEditorUi.readable(tokens.colorOnSurfaceVariant(), tokens.colorSurfaceContainer()));
         }
-
-        root.addView(sectionLabel(context, context.getString(R.string.theme_editor_preview)));
-        ThemePreviewView preview = new ThemePreviewView(context);
-        preview.bind(editor.preview(
-                dark ? ThemeMode.DARK : ThemeMode.LIGHT,
-                seedOf(editor.draft()),
-                ThemeProfileValidator.parseColor(editor.draft().seedColor, 0),
-                0,
-                dark));
-        root.addView(preview);
-        return root;
+        for (ColorRow row : colors.values()) row.render(tokens);
+        for (OpacityRow row : opacities.values()) row.render(tokens);
+        binding = false;
     }
 
-    /** Maps the profile seed selection onto the resolver contract. */
-    public static ThemeSeed seedOf(ThemeProfile profile) {
-        if (profile == null) return ThemeSeed.NONE;
-        if (ThemeProfile.SEED_WALLPAPER.equals(profile.seedSource)) return ThemeSeed.WALLPAPER;
-        if (ThemeProfile.SEED_CUSTOM.equals(profile.seedSource)) return ThemeSeed.EXPLICIT;
-        return ThemeSeed.NONE;
+    private Group colorGroup(int label, ThemeEditor.Slot... slots) {
+        Group group = group(label);
+        for (ThemeEditor.Slot slot : slots) {
+            ColorRow row = new ColorRow(slot);
+            colors.put(slot, row);
+            group.view.addView(row.view, ThemeEditorUi.fullWidth(getContext(), 6));
+        }
+        return group;
     }
 
-    private static View colorRow(Context context, ThemeEditor editor, ThemeEditor.Slot slot,
-                                 boolean dark, Callbacks callbacks) {
-        LinearLayout row = row(context);
-        row.setClickable(true);
-        row.setFocusable(true);
-        String value = editor.valueOf(slot, dark);
-        TextView label = text(context, 14);
-        label.setText(labelOf(slot));
-        label.setTextColor(ThemeController.current().colorOnSurface());
-        row.addView(label, weight());
+    private Group group(int label) {
+        LinearLayout view = ThemeEditorUi.column(getContext());
+        ThemeEditorUi.padding(view, 12, 12);
+        TextView title = ThemeEditorUi.text(getContext(), getContext().getString(label), 13, 0xFF44474F);
+        ThemeEditorUi.heading(title);
+        view.addView(title, ThemeEditorUi.fullWidth(getContext(), 0));
+        Group group = new Group(view, title);
+        groups.add(group);
+        return group;
+    }
 
-        TextView summary = text(context, 13);
-        summary.setText(value == null ? context.getString(R.string.theme_editor_inherit) : value);
-        summary.setGravity(Gravity.END);
-        summary.setTextColor(ThemeController.current().colorOnSurfaceVariant());
-        row.addView(summary, weight());
+    private void addGroups(boolean wide, Group first, Group second) {
+        if (!wide) {
+            addView(first.view, ThemeEditorUi.fullWidth(getContext(), 12));
+            addView(second.view, ThemeEditorUi.fullWidth(getContext(), 12));
+            return;
+        }
+        LinearLayout row = ThemeEditorUi.row(getContext());
+        row.setGravity(Gravity.TOP);
+        LinearLayout.LayoutParams left = ThemeEditorUi.weighted();
+        left.setMarginEnd(ThemeEditorUi.dp(getContext(), 12));
+        row.addView(first.view, left);
+        row.addView(second.view, ThemeEditorUi.weighted());
+        addView(row, ThemeEditorUi.fullWidth(getContext(), 12));
+    }
 
-        if (value != null) {
-            Button clear = new Button(context);
-            clear.setText(R.string.theme_editor_clear);
-            clear.setAllCaps(false);
-            clear.setOnClickListener(view -> {
+    private final class ColorRow {
+        final ThemeEditor.Slot slot;
+        final LinearLayout view;
+        final TextView swatch;
+        final TextView label;
+        final TextView value;
+        final Button clear;
+
+        ColorRow(ThemeEditor.Slot slot) {
+            this.slot = slot;
+            Context context = getContext();
+            view = ThemeEditorUi.row(context);
+            view.setTag("theme-slot:" + slot.name());
+            ThemeEditorUi.padding(view, 8, 8);
+            view.setMinimumHeight(ThemeEditorUi.dp(context, 64));
+            view.setFocusable(true);
+            view.setOnClickListener(ignored -> callbacks.onColorSlotClicked(slot, dark));
+
+            swatch = ThemeEditorUi.text(context, symbol(slot), 14, 0xFF000000);
+            swatch.setGravity(Gravity.CENTER);
+            swatch.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            int size = ThemeEditorUi.dp(context, 32);
+            LinearLayout.LayoutParams swatchParams = new LinearLayout.LayoutParams(size, size);
+            swatchParams.setMarginEnd(ThemeEditorUi.dp(context, 10));
+            view.addView(swatch, swatchParams);
+
+            LinearLayout text = ThemeEditorUi.column(context);
+            label = ThemeEditorUi.text(context, context.getString(labelOf(slot)), 14, 0xFF1A1C1E);
+            value = ThemeEditorUi.text(context, "", 11, 0xFF44474F);
+            value.setTypeface(Typeface.MONOSPACE);
+            text.addView(label);
+            text.addView(value, ThemeEditorUi.fullWidth(context, 5));
+            view.addView(text, ThemeEditorUi.weighted());
+
+            clear = ThemeEditorUi.button(context, R.string.theme_editor_clear_short);
+            clear.setContentDescription(context.getString(R.string.theme_editor_clear) + " · " + label.getText());
+            clear.setOnClickListener(ignored -> {
                 editor.clear(slot, dark);
                 callbacks.onDraftChanged();
             });
-            row.addView(clear);
+            view.addView(clear, new LinearLayout.LayoutParams(ThemeEditorUi.dp(context, 48), ViewGroup.LayoutParams.WRAP_CONTENT));
         }
-        row.setOnClickListener(view -> callbacks.onColorSlotClicked(slot, dark));
-        return row;
+
+        void render(ThemeTokens tokens) {
+            int color = colorOf(tokens, slot);
+            int fill = slot == ThemeEditor.Slot.SURFACE_CONTAINER_HIGH
+                    ? tokens.colorSurfaceContainerHigh() : tokens.colorSurfaceContainer();
+            String raw = editor.valueOf(slot, dark);
+            String actual = ThemeEditorUi.hex(color);
+            value.setText(raw == null ? getContext().getString(R.string.theme_editor_value_auto, actual)
+                    : raw.equalsIgnoreCase(actual) ? actual
+                    : getContext().getString(R.string.theme_editor_value_adjusted, raw, actual));
+            label.setTextColor(ThemeEditorUi.readable(tokens.colorOnSurface(), fill));
+            value.setTextColor(ThemeEditorUi.readable(tokens.colorOnSurfaceVariant(), fill));
+            swatch.setBackground(ThemeEditorUi.shape(getContext(), color, tokens.colorOutline(), 1, 9));
+            swatch.setTextColor(ThemeEditorUi.readable(tokens.colorOnSurface(), color));
+            view.setBackground(ThemeEditorUi.interactive(getContext(), fill, tokens.colorOutlineVariant(), tokens.colorFocus(), false));
+            clear.setEnabled(raw != null);
+            ThemeEditorUi.buttonColors(clear, fill, tokens.colorOnSurfaceVariant(), tokens, false);
+        }
     }
 
-    private static View opacityRow(Context context, ThemeEditor editor, ThemeEditor.Slot slot,
-                                   boolean dark, Callbacks callbacks) {
-        LinearLayout column = new LinearLayout(context);
-        column.setOrientation(VERTICAL);
-        int pad = dp(context, 6);
-        column.setPadding(pad, pad, pad, pad);
+    private final class OpacityRow {
+        final ThemeEditor.Slot slot;
+        final LinearLayout view;
+        final TextView label;
+        final TextView value;
+        final SeekBar bar;
+        final Button clear;
 
-        TextView label = text(context, 14);
-        String raw = editor.valueOf(slot, dark);
-        float minimum = minimumOf(slot);
-        float maximum = maximumOf(slot);
-        float current = raw == null ? minimum : Float.parseFloat(raw);
-        label.setText(context.getString(labelOf(slot)) + "  "
-                + (raw == null ? context.getString(R.string.theme_editor_inherit) : raw));
-        label.setTextColor(ThemeController.current().colorOnSurface());
-        column.addView(label);
+        OpacityRow(ThemeEditor.Slot slot) {
+            this.slot = slot;
+            Context context = getContext();
+            view = ThemeEditorUi.column(context);
+            LinearLayout header = ThemeEditorUi.row(context);
+            label = ThemeEditorUi.text(context, context.getString(labelOf(slot)), 14, 0xFF1A1C1E);
+            header.addView(label, ThemeEditorUi.weighted());
+            value = ThemeEditorUi.text(context, "", 12, 0xFF44474F);
+            header.addView(value);
+            view.addView(header);
 
-        SeekBar bar = new SeekBar(context);
-        bar.setMax(100);
-        bar.setProgress(Math.round((current - minimum) / (maximum - minimum) * 100f));
-        bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (!fromUser) return;
-                float value = minimum + (maximum - minimum) * progress / 100f;
-                ThemeEditor.Result result = editor.set(slot, dark, null, value);
-                if (result.success()) callbacks.onDraftChanged();
-            }
+            LinearLayout controls = ThemeEditorUi.row(context);
+            bar = new SeekBar(context);
+            bar.setTag("theme-opacity:" + slot.name());
+            bar.setMax(100);
+            bar.setMinimumHeight(ThemeEditorUi.dp(context, 48));
+            controls.addView(bar, ThemeEditorUi.weighted());
+            clear = ThemeEditorUi.button(context, R.string.theme_editor_clear_short);
+            clear.setContentDescription(context.getString(R.string.theme_editor_clear) + " · " + label.getText());
+            clear.setOnClickListener(ignored -> {
+                editor.clear(slot, dark);
+                callbacks.onDraftChanged();
+            });
+            controls.addView(clear, new LinearLayout.LayoutParams(ThemeEditorUi.dp(context, 48), ViewGroup.LayoutParams.WRAP_CONTENT));
+            view.addView(controls);
+            bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    if (!fromUser || binding) return;
+                    float opacity = minimumOf(slot) + (maximumOf(slot) - minimumOf(slot)) * progress / 100f;
+                    if (editor.set(slot, dark, null, opacity).success()) callbacks.onDraftChanged();
+                }
 
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                    seekBar.getParent().requestDisallowInterceptTouchEvent(true);
+                }
 
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-        column.addView(bar);
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    seekBar.getParent().requestDisallowInterceptTouchEvent(false);
+                }
+            });
+        }
 
-        Button clear = new Button(context);
-        clear.setText(R.string.theme_editor_clear);
-        clear.setEnabled(raw != null);
-        clear.setAllCaps(false);
-        clear.setOnClickListener(view -> {
-            editor.clear(slot, dark);
-            callbacks.onDraftChanged();
-        });
-        column.addView(clear);
-        return column;
+        void render(ThemeTokens tokens) {
+            String raw = editor.valueOf(slot, dark);
+            float opacity = switch (slot) {
+                case SCRIM_OPACITY -> ThemeEditorUi.alpha(tokens.colorScrim());
+                case DIALOG_OPACITY -> tokens.dialogOpacity();
+                default -> ThemeEditorUi.alpha(tokens.colorOverlayLight());
+            };
+            if (raw != null) opacity = Float.parseFloat(raw);
+            String percentage = Math.round(opacity * 100) + "%";
+            value.setText(raw == null ? getContext().getString(R.string.theme_editor_value_auto, percentage) : percentage);
+            int fill = tokens.colorSurfaceContainer();
+            label.setTextColor(ThemeEditorUi.readable(tokens.colorOnSurface(), fill));
+            value.setTextColor(ThemeEditorUi.readable(tokens.colorOnSurfaceVariant(), fill));
+            bar.setProgress(Math.round((opacity - minimumOf(slot)) / (maximumOf(slot) - minimumOf(slot)) * 100));
+            bar.setContentDescription(label.getText() + " · " + percentage);
+            bar.setProgressTintList(ColorStateList.valueOf(tokens.colorPrimary()));
+            bar.setProgressBackgroundTintList(ColorStateList.valueOf(tokens.colorOutline()));
+            bar.setThumbTintList(ColorStateList.valueOf(tokens.colorPrimary()));
+            bar.setBackground(ThemeEditorUi.interactive(getContext(), fill, fill, tokens.colorFocus(), false));
+            clear.setEnabled(raw != null);
+            ThemeEditorUi.buttonColors(clear, fill, tokens.colorOnSurfaceVariant(), tokens, false);
+        }
+    }
+
+    private record Group(LinearLayout view, TextView title) { }
+
+    private static String symbol(ThemeEditor.Slot slot) {
+        return switch (slot) {
+            case ON_SURFACE, ON_SURFACE_VARIANT -> "Aa";
+            case SUCCESS -> "✓";
+            case WARNING -> "!";
+            case ERROR -> "×";
+            default -> "";
+        };
+    }
+
+    public static int colorOf(ThemeTokens tokens, ThemeEditor.Slot slot) {
+        return switch (slot) {
+            case PRIMARY -> tokens.colorPrimary();
+            case PRIMARY_CONTAINER -> tokens.colorPrimaryContainer();
+            case SECONDARY_CONTAINER -> tokens.colorSecondaryContainer();
+            case FOCUS -> tokens.colorFocus();
+            case SURFACE -> tokens.colorSurface();
+            case SURFACE_CONTAINER -> tokens.colorSurfaceContainer();
+            case SURFACE_CONTAINER_HIGH -> tokens.colorSurfaceContainerHigh();
+            case ON_SURFACE -> tokens.colorOnSurface();
+            case ON_SURFACE_VARIANT -> tokens.colorOnSurfaceVariant();
+            case OUTLINE -> tokens.colorOutline();
+            case ERROR -> tokens.colorError();
+            case SUCCESS -> tokens.colorSuccess();
+            case WARNING -> tokens.colorWarning();
+            default -> throw new IllegalArgumentException("Not a colour slot: " + slot);
+        };
     }
 
     private static float minimumOf(ThemeEditor.Slot slot) {
@@ -262,92 +320,5 @@ public final class ThemePreviewView extends LinearLayout {
             case DIALOG_OPACITY -> R.string.theme_editor_slot_dialog_opacity;
             case OVERLAY_OPACITY -> R.string.theme_editor_slot_overlay_opacity;
         };
-    }
-
-    private static TextView sectionLabel(Context context, String value) {
-        TextView view = text(context, 13);
-        view.setText(value);
-        view.setPadding(0, dp(context, 10), 0, dp(context, 4));
-        view.setTextColor(ThemeController.current().colorOnSurfaceVariant());
-        return view;
-    }
-
-    private static LinearLayout row(Context context) {
-        LinearLayout row = new LinearLayout(context);
-        row.setOrientation(HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(context, 8), dp(context, 8), dp(context, 8), dp(context, 8));
-        return row;
-    }
-
-    private static LinearLayout surface(Context context, TextView a, TextView b) {
-        LinearLayout group = new LinearLayout(context);
-        group.setOrientation(VERTICAL);
-        int pad = dp(context, 12);
-        group.setPadding(pad, pad, pad, pad);
-        group.addView(copy(context, a));
-        group.addView(copy(context, b));
-        return group;
-    }
-
-    private static void buttonTint(Context context, Button button, int background, int foreground, int stroke) {
-        GradientDrawable shape = new GradientDrawable();
-        shape.setCornerRadius(dp(context, 20));
-        shape.setColor(background);
-        shape.setStroke(dp(context, 1), stroke);
-        button.setBackground(shape);
-        button.setTextColor(foreground);
-    }
-
-    private static void shape(View view, int background, int stroke) {
-        GradientDrawable shape = new GradientDrawable();
-        shape.setCornerRadius(dp(view.getContext(), 12));
-        shape.setColor(background);
-        shape.setStroke(dp(view.getContext(), 1), stroke);
-        view.setBackground(shape);
-    }
-
-    private static int withAlpha(int color, float opacity) {
-        int alpha = Math.max(0, Math.min(255, Math.round(opacity * 255f)));
-        return (color & 0x00FFFFFF) | (alpha << 24);
-    }
-
-    private static float alphaOf(int color) {
-        return ((color >>> 24) & 0xFF) / 255f;
-    }
-
-    private static TextView text(Context context, int sizeSp) {
-        TextView view = new TextView(context);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
-        return view;
-    }
-
-    private static Button button(Context context, String label) {
-        Button button = new Button(context);
-        button.setText(label);
-        button.setAllCaps(false);
-        button.setGravity(Gravity.CENTER);
-        return button;
-    }
-
-    private static TextView copy(Context context, TextView source) {
-        TextView view = new TextView(context);
-        view.setText(source.getText());
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        return view;
-    }
-
-    private static LayoutParams rowParams(Context context) {
-        LayoutParams params = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.topMargin = dp(context, 8);
-        return params;
-    }
-
-    private static LinearLayout.LayoutParams weight() {
-        return new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-    }
-
-    private static int dp(Context context, int value) {
-        return Math.round(value * context.getResources().getDisplayMetrics().density);
     }
 }
