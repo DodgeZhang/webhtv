@@ -199,6 +199,17 @@ public class Flag implements Parcelable, Diffable<Flag> {
 
     public Episode find(Episode target, boolean strict) {
         if (getEpisodes().isEmpty()) return null;
+        // 同一 TMDB 集可能在同一线路内存在多个版本（同名不同 URL）。定位请求带 URL 时必须先按 URL
+        // 锁定版本，否则下面“TMDB 集号相同即返回第一个”会把第二版本解析成第一版本。
+        // 但同 URL 也可能跨季/跨集复用（源站播放地址不唯一），此时按 URL 命中会定位到另一季的条目，
+        // 故 TMDB 位置冲突的条目一律不按 URL 命中，交回下面的季集号定位。
+        if (target != null && !TextUtils.isEmpty(target.getUrl())) {
+            for (Episode episode : getEpisodes()) {
+                if (!TextUtils.equals(target.getUrl(), episode.getUrl())) continue;
+                if (hasTmdbEpisodeNumber(episode) && hasTmdbEpisodeNumber(target) && !episode.matchesNumber(target)) continue;
+                return episode;
+            }
+        }
         if (getEpisodes().size() == 1) {
             Episode episode = getEpisodes().get(0);
             if (hasTmdbEpisodeNumber(target) && hasTmdbEpisodeNumber(episode) && !episode.matchesNumber(target)) return null;
