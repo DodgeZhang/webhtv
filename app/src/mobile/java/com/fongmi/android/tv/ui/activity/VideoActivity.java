@@ -1639,6 +1639,8 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         mBinding.control.action.next.setOnClickListener(view -> checkNext());
         mBinding.control.action.decode.setOnClickListener(guarded(this::onDecode));
         mBinding.control.action.playParams.setOnClickListener(guarded(this::onPlayParams));
+        mBinding.control.action.multiThreadProxy.setOnClickListener(guarded(this::onMultiThreadProxy));
+        mBinding.control.action.codecCapability.setOnClickListener(guarded(this::onCodecCapabilityPanel));
         mBinding.control.action.ending.setOnClickListener(guarded(this::onEnding));
         mBinding.control.action.repeat.setOnClickListener(guarded(this::onRepeat));
         mBinding.control.action.opening.setOnClickListener(guarded(this::onOpening));
