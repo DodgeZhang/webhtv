@@ -70,6 +70,18 @@
 - 交付边界核对：待交付净差异（`origin/beta..HEAD`）为猫源超时修复 7 文件 + `NodeService` import 整理；无 `app/build/**` 产物、无临时文件。
 - **第 2 轮结论**：通过，可交付。
 
+### 第 3 轮评审：beta 增量 PR #393（dev4 播放器按钮修复）合并与复评
+
+- 守卫首会话闭合（交付提交 1fb2b558e + tag）后，创建 PR 时发现远端 beta 又前进了（PR #393 dev4 已合并，`8e4dac760`），需增量合并才能构成「beta 有 dev1 缺失提交 → PR 可建」的状态。
+- 新增守卫会话 `C31-beta-merge-review-dev1-20261001-b`，`merge --no-commit --no-ff origin/beta` 无冲突，带入 5 文件：
+  - `PlayerButtonSetting.java`：`Item` 记录新增 `visible` 构造参数（双构造器兼容旧调用）；`MULTI_THREAD_PROXY` 默认标记不显示；`getHidden()` 首次运行一次性种子注入默认隐藏项（`HIDDEN_SEEDED` 标记防重复注入，用户后续选择优先）；`reset()` 同步清除种子标记。
+  - `VideoActivity.java`（mobile +2 行 / leanback 已有）：底部控制栏 `multiThreadProxy`/`codecCapability` 按钮接线（mobile 绑 `onCodecCapabilityPanel`、leanback 绑 `onCodecCapability`，两 flavor 方法名各自匹配，核对无错绑）。
+  - `MultiThreadProxyPlayerUiSourceTest.java`：+2 用例（按钮必须真绑定点击监听器；多线程按钮默认隐藏但用户可配置）。
+  - `docs/C31-beta-merge-review-dev4-20261001.md` / `docs/player-button-wiring.md`：dev4 任务文档与设备验证记录。
+- 增量核对：`5682f2b05` 仍非新 `origin/beta`（45d340418 与 8e4dac760）祖先；净差异仍仅猫源链路 7 文件。
+- 合并树定向单测复跑：Leanback 73 项 0 失败（含 `MultiThreadProxyPlayerUiSourceTest` 5 项完整通过、PR#393 新增 2 用例在内）。
+- **第 3 轮结论**：增量合并通过，无问题。
+
 ## 验证记录
 
 - **双 flavor Java 编译**：`:app:compileLeanbackArm64_v8aDebugJavaWithJavac :app:compileMobileArm64_v8aDebugJavaWithJavac` → BUILD SUCCESSFUL（合并前形态；合并后形态在最终提交后以单测复跑覆盖，见下）。
@@ -105,6 +117,6 @@ PR 只做创建，不执行合并。
 
 ## Recovery anchor
 
-- 目标：合并 origin/beta 最新（PR #391 + PR #392）→ 复评 → 修复 → 验证 → 提交推送 → 创建 beta PR。
-- 状态：合并完成（merge --no-commit 暂存于守卫会话内，父 2 = origin/beta 45d340418），两轮评审通过（含 PR#392 SiteDialog 焦点修复独立复评），唯一修复为 NodeService import 整理；合并树定向单测 98 项 0 失败（含 SiteDialogActionFocusTest 3 项）、Mobile 61 项 0 失败；5555 设备覆盖安装冒烟无崩溃（PR#392 内容已由 dev2 侧四轮评审覆盖）。
-- 下一步：task_guard finish 创建合并提交并打 recovery tag，推送 dev1，创建 PR 到 beta（只创建不合并）。
+- 目标：合并 origin/beta 最新（PR #391 + PR #392 + PR #393 增量）→ 复评 → 修复 → 验证 → 提交推送 → 创建 beta PR。
+- 状态：首会话已闭合（合并提交 1fb2b558e + tag 已推送）；增量会话 -b 合并 origin/beta 8e4dac760（PR #393 dev4 播放器按钮）无冲突，第 3 轮评审通过，合并树 Leanback 单测 73 项 0 失败（含 MultiThreadProxyPlayerUiSourceTest 5 项）。
+- 下一步：task_guard finish 提交增量合并并打 tag，推送 dev1，创建 PR 到 beta（只创建不合并）。
