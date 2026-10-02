@@ -69,7 +69,28 @@
 - dev4 侧 4 文件净差异两轮评审均无需要修改的问题。
 - 无遗留问题，进入收口。
 
-## 6. 收口
+## 6. 第二轮合并（beta 增量 PR#392，2026-10-02）
+
+首次收口后、PR 创建前，`origin/beta` 又前进了一个合并提交 `45d340418a6`
+（PR#392：dev2 的站点批量动作焦点修复）。按「合并 beta 最新代码」的目标要求，
+开启第二轮 guard 会话 `beta-merge-review-r2-20261002` 合并该增量：
+
+- **合并结果**：无冲突，3 个文件（`SiteDialog.java`、`SiteDialogActionFocusTest.java`、
+  dev2 的 `C31-beta-merge-review-dev2-20261001.md`）。
+- **回退内容核查**：增量窗口（`8ba23ac1449..45d340418a6`）无 revert 提交。
+- **增量评审**：`SiteDialog.setActionEnabled` 把 `select`/`cancel` 的 enabled 改为只反映
+  loading 态（不再叠加 `type > 0` 条件），可点击性交由 `setType()` 控制——保证纯切换模式下
+  D-pad 焦点链仍可达批量动作按钮。改动小而聚焦，配套 Robolectric 测试
+  `SiteDialogActionFocusTest` 覆盖加载/焦点场景，评审通过、无需修改。
+- **文档编号说明**：dev2 与本分支同日各自记录了「C31」合并评审文档（命名各自含分支名，
+  与 C28/C29 的 dev1/dev2 并存先例一致），无内容冲突。
+
+## 7. 第二轮合并验证
+
+- `:app:testLeanbackArm64_v8aDebugUnitTest`：`SiteDialogActionFocusTest` **3/3 通过**、
+  `MultiThreadProxyPlayerUiSourceTest` **5/5 通过**（合并后树）。
+
+## 8. 收口
 
 - 由 task guard finish 创建合并提交并打恢复标签。
 - 推送 `dev4` → `origin/dev4`，创建 PR `dev4` → `beta`（仅创建，不合并）。
