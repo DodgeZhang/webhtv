@@ -329,18 +329,23 @@ public class TmdbSourceDialog {
         if (config != null && (config.isApiAuto() || config.isApiRouteDefault())) return activity.getString(R.string.dialog_tmdb_api_auto);
         String value = config == null ? TmdbProxy.OFFICIAL_API : config.getApiHost();
         String display = routeDisplay(value, TmdbProxy.apiValues(), apiOptionLabels());
-        return isCustomDisplay(display) ? customLabel() : display;
+        return isCustomDisplay(display, apiOptionLabels()) ? customLabel() : display;
     }
 
     private String imageDisplayFor(TmdbConfig config) {
         if (config != null && (config.isImageAuto() || config.isImageRouteDefault())) return activity.getString(R.string.dialog_tmdb_image_auto);
         String value = config == null ? TmdbProxy.OFFICIAL_IMAGE : config.getConfiguredImageBase();
         String display = routeDisplayImage(value, imageOptionLabels());
-        return isCustomDisplay(display) ? customLabel() : display;
+        return isCustomDisplay(display, imageOptionLabels()) ? customLabel() : display;
     }
 
-    private boolean isCustomDisplay(String display) {
-        return !TextUtils.isEmpty(display) && !TextUtils.equals(display, customLabel());
+    /** display 未命中任何内置选项标签时才是真正的自定义线路。 */
+    private boolean isCustomDisplay(String display, String[] builtInLabels) {
+        if (TextUtils.isEmpty(display)) return false;
+        for (String label : builtInLabels) {
+            if (TextUtils.equals(label, display)) return false;
+        }
+        return true;
     }
 
     private String apiCustomValueFor(TmdbConfig config) {
