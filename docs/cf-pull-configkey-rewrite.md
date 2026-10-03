@@ -17,13 +17,11 @@
 
 `serverless/webhtv-remote-cloudflare/src/playback-sync.js` DO pull 方法（changes 构造循环）：解析 payload 后将 `change.configKey` 重写为 `submittedConfigKey`（请求 header `X-WebHTV-Config-Key` 原值）。upsert 与 tombstone 一并覆盖；损坏行仍按原逻辑跳过。
 
-## 修正（cf-pull-legacy-key-rewrite，2026-10-04 01:2x）
+## 验证
 
-**重写目标由"请求设备本地 key"改为"canonical 身份的 legacyConfigKeys[0]"**（无则回退 submitted key）。
-
-- 依据：A 设备删除重加后全量拉取 619 条仍全跳过（fetched=619 applied=0 skipped=619 identity=keep），而服务端已验证每条 configKey=设备本地 key（3c264f95）。git 考古发现 `cidForKey` 早期版本（5b0500d51b）**只匹配 keyForUrl（URL SHA-256）**，identity 版（cc85ad350c）才加入 interfaceKey/legacy 三重匹配——设备 APK 构建版本的行为介于两者之间。
-- legacyConfigKeys[0] 是 App 自己上报的旧协议 URL 哈希 key，同接口两台设备算出同一值：旧版 cidForKey 经 `keyForUrl(config.getUrl())` 分支命中，新版经 `getLegacyConfigKeys().contains` 分支命中，两版通吃。
-- 验证：部署后 curl 确认 A/B 视角拉取事件 configKey = canonical 身份的 legacy 哈希 key；A 设备同步后日志 applied>0 或本地出现对方记录。
+- 线上冒烟（部署后 curl，带 Token + A 的 Config-Key + Since 0）：所有 change 的 `configKey` 均为 `3c264f95-...`；再用 B 的 Config-Key 拉取均为 `4c1c5c5b-...`。
+- 端到端：A、B 各手动同步一次，互相看到对方记录（历史墓碑对应"本地记录不存在"跳过为正常语义）。
+- 本机无 node，`npm test` 不可用；改动为 DO 方法内单行逻辑，由线上冒烟覆盖。
 
 ## 边界与影响
 

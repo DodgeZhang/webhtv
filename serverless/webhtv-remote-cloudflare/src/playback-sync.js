@@ -220,25 +220,15 @@ export class WebHTVPlaybackSyncDO {
 
     const hasMore = rows.length > limit;
     const selected = hasMore ? rows.slice(0, limit) : rows;
-    // WebHTV adaptation: server-side merges migrate events that keep their
-    // original device key in configKey, which the App cannot map back to a local
-    // interface. Rewrite every pulled change to a key the requester recognizes.
-    // The canonical identity's first legacy key is the URL-hash key every device
-    // computes for the same interface, so both old (hash-only) and new (triple
-    // match) App builds accept it via cidForKey.
-    let rewriteKey = submittedConfigKey;
-    try {
-      const registry = normalizeIdentityRegistry((await this.identityStore(request).load(await identityRegistryKey(playbackToken(request), configType))).state);
-      const identity = registry.identities[configKey];
-      if (identity && Array.isArray(identity.legacyConfigKeys) && identity.legacyConfigKeys.length) rewriteKey = identity.legacyConfigKeys[0];
-    } catch {
-      // Registry read is best effort; fall back to the submitted key.
-    }
     const changes = [];
     for (const row of selected) {
       try {
         const change = JSON.parse(row.payload);
-        if (change && typeof change === 'object') change.configKey = rewriteKey;
+        // WebHTV adaptation: server-side merges migrate events that keep their
+        // original device key in configKey. The App maps configKey back to a
+        // local interface and silently skips keys it does not own, so rewrite
+        // every pulled change to the requester's own key.
+        if (change && typeof change === 'object') change.configKey = submittedConfigKey;
         changes.push(change);
       } catch {
         // Ignore an individually corrupted row without breaking all other records.
