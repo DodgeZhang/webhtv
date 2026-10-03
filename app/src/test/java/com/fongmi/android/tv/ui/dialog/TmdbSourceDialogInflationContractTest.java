@@ -84,6 +84,8 @@ public class TmdbSourceDialogInflationContractTest {
                 source.contains("apiCustomValueFor(config)"));
         assertTrue(source.contains("imageCustomValueFor(config)"));
         assertTrue(source.contains("updateRouteCustomVisibility()"));
+        assertTrue("route picker must move focus into the checked list item so TV D-pad can select options",
+                source.contains("picker.getListView().setSelection(focusIndex)"));
     }
 
     private static String buttonBlock(String layout, String id) {

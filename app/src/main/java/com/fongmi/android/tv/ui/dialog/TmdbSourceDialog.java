@@ -243,6 +243,7 @@ public class TmdbSourceDialog {
         int checked = -1;
         for (int i = 0; i < pickerLabels.length; i++) if (pickerLabels[i].equals(current)) checked = i;
         if (checked < 0 && !TextUtils.isEmpty(current)) checked = pickerLabels.length - 1;
+        final int focusIndex = Math.max(0, checked);
         EditText customInput = customInputFor(input);
         AlertDialog picker = new WebHtvAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_Dialog)
                 .setTitle(title)
@@ -258,6 +259,10 @@ public class TmdbSourceDialog {
                 })
                 .setNegativeButton(R.string.dialog_negative, null)
                 .show();
+        picker.getListView().post(() -> {
+            if (picker.isShowing()) picker.getListView().setSelection(focusIndex);
+            if (picker.isShowing()) picker.getListView().requestFocus();
+        });
         LightDialog.apply(picker);
     }
 
