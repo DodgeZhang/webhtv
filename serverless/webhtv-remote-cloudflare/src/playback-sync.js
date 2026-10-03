@@ -219,7 +219,13 @@ export class WebHTVPlaybackSyncDO {
     const changes = [];
     for (const row of selected) {
       try {
-        changes.push(JSON.parse(row.payload));
+        const change = JSON.parse(row.payload);
+        // WebHTV adaptation: server-side merges migrate events that keep their
+        // original device key in configKey. The App maps configKey back to a
+        // local interface and silently skips keys it does not own, so rewrite
+        // every pulled change to the requester's own key.
+        if (change && typeof change === 'object') change.configKey = submittedConfigKey;
+        changes.push(change);
       } catch {
         // Ignore an individually corrupted row without breaking all other records.
       }
