@@ -142,14 +142,26 @@ public class HistoryPlaybackTest {
 
     @Test
     public void playbackEpisodeMatchRejectsDifferentVariantOnlyWhenSeasonIsConfirmed() {
-        // 季号两侧都已知且相等：才允许按 URL/源站条目文本区分同集多版本。
+        // 季号两侧都已知且相等、且调用方确认同线路（历史 URL 仍能定位到本线路条目）：
+        // 才允许按 URL/源站条目文本区分同集多版本。
         Episode firstVersion = tmdbVersion("url-v1");
         Episode secondVersion = tmdbVersion("url-v2");
         Episode secondVersionAgain = tmdbVersion("url-v2");
 
-        assertFalse(secondVersion.matchesPlayback(firstVersion));
+        assertFalse(secondVersion.matchesPlayback(firstVersion, true));
         assertFalse(secondVersion.matches(firstVersion));
         assertTrue(secondVersionAgain.matchesPlayback(secondVersion));
+        assertTrue(secondVersionAgain.matchesPlayback(secondVersion, true));
+    }
+
+    @Test
+    public void playbackEpisodeMatchKeepsCrossLineToleranceForDifferentUrls() {
+        // 换线路/换源或源站刷新后 URL 必然变化：单参容错必须保留，否则跨线路续播会丢失进度。
+        Episode lineA = tmdbVersion("url-line-a");
+        Episode lineB = tmdbVersion("url-line-b");
+
+        assertTrue(lineB.matchesPlayback(lineA));
+        assertTrue(lineA.matchesPlayback(lineB));
     }
 
     @Test

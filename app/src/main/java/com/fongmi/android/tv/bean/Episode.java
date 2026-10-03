@@ -174,12 +174,31 @@ public class Episode implements Parcelable, Diffable<Episode> {
      * 播放恢复时判断是否仍是同一集。源站刷新后 URL 可能变化，
      * 因此在严格 URL 匹配失败时回退到集名和集号。
      * <p>
-     * 注意：当双方都已绑定 TMDB 季集号，且季号都已知并相等时，同一集可能存在多个版本
-     * （同一 flag 内同名但 URL 不同、或源站用同集名的不同线路条目）。此时必须先在版本层消歧，
-     * 否则“集号相同即同集”会把第二版本误认成第一版本（用户点第二个版本，回到播放页却选中/续播
-     * 第一个版本）。任一侧季号未知时无法断定是同集的不同版本，退回原有的集号容错语义。
+     * 注意：换线路/换源或源站刷新后，同一集的 URL 与集名格式都可能变化（换线路时 URL 必然不同），
+     * 该方法必须保留集号容错语义，否则跨线路/跨源续播与刷新后续播都会被误判为换集并丢失进度。
+     * 同一线路内的“同集多版本”（同名不同 URL）消歧不由本方法承担——由调用方在确认对侧 URL
+     * 仍能定位到本线路条目时，用 {@link #matchesPlayback(Episode, boolean)} 显式启用。
      */
     public boolean matchesPlayback(Episode other) {
+        if (other == null) return false;
+        if (hasTmdbEpisodeNumber() && other.hasTmdbEpisodeNumber()) return matchesNumber(other);
+        if (!isEmpty(getUrl()) && !isEmpty(other.getUrl()) && getUrl().equals(other.getUrl())) return true;
+        if (!isEmpty(getName()) && !isEmpty(other.getName()) && matchesName(other)) return true;
+        return matchesNumber(other);
+    }
+
+    /**
+     * 同一线路内的播放恢复判定。
+     * <p>
+     * {@code versionAware=true} 表示调用方已确认对侧（通常是历史记录里的那一集）与本次比较发生在
+     * 同一线路的上下文里，且对侧 URL 仍能在线路条目中定位（例如同集多版本并存）。此时启用版本消歧：
+     * 双方 TMDB 季集号确认相等后，URL/原始条目文本不同的条目视为不同版本，避免“用户点第二版本，
+     * 回到播放页却选中/续播第一个版本”。任一侧季号未知时仍退回集号容错。
+     * <p>
+     * {@code versionAware=false} 等价于 {@link #matchesPlayback(Episode)}，保留跨线路/跨源容错。
+     */
+    public boolean matchesPlayback(Episode other, boolean versionAware) {
+        if (!versionAware) return matchesPlayback(other);
         if (other == null) return false;
         if (hasTmdbEpisodeNumber() && other.hasTmdbEpisodeNumber()) {
             if (!matchesNumber(other)) return false;

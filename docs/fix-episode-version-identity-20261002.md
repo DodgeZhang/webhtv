@@ -1,5 +1,7 @@
 # fix-episode-version-identity：同一 TMDB 集多版本的版本身份消歧
 
+> **复评修订（C33，2026-10-02）**：本任务描述的「季号已知即启用 URL 消歧」在 dev2 合并 beta 复评中被判定误伤跨线路/跨源续播与源站刷新契约（换线路后 URL 必然不同，会被判换集并丢进度）。已改为：`matchesPlayback(Episode)` 恢复纯集号容错，消歧仅由调用方在确认「历史 URL 仍能定位到当前线路条目」（`Flag.containsEpisodeUrl`）时通过 `matchesPlayback(Episode, boolean versionAware)` 启用；选中定位由 leanback `getSelectedEpisodePosition` 的 URL 优先命中承担。详见 `docs/C33-beta-merge-review-dev2-20261002.md`。
+
 ## Recovery anchor
 
 - **目标 / 验收标准**：同一 TMDB 季集号下存在多个版本（同名不同 URL 的源站条目）时，用户点第二个版本必须被认出为第二个版本，不再回落到第一个版本的选中/续播；同时不得破坏既有跨源续播容错契约。

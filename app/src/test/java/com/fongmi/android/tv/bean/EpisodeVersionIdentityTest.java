@@ -25,14 +25,29 @@ public class EpisodeVersionIdentityTest {
     }
 
     @Test
-    public void sameTmdbEpisodeWithDifferentUrlsIsADifferentVersion() {
+    public void sameTmdbEpisodeWithDifferentUrlsIsADifferentVersionInOneFlag() {
+        // 同一线路内的同集多版本（历史 URL 仍能定位到本线路条目时，调用方传 versionAware=true）：
+        // URL 不同 → 不同版本，否则“点第二版本却被当作第一版本”。
         Episode first = version("正片", "url-v1", 1, 3);
         Episode second = version("正片", "url-v2", 1, 3);
 
-        assertFalse(second.matchesPlayback(first));
-        assertFalse(first.matchesPlayback(second));
+        assertFalse(second.matchesPlayback(first, true));
+        assertFalse(first.matchesPlayback(second, true));
         assertFalse(second.matches(first));
         assertFalse(first.matches(second));
+    }
+
+    @Test
+    public void crossFlagOrRefreshedUrlsKeepTolerantNumberMatch() {
+        // 换线路/换源或源站刷新后，同一集的 URL 必然变化，单参 matchesPlayback 必须保留集号容错，
+        // 否则跨线路续播会丢失进度、选中回落第一集（1fd83c6f53 跨线路续播契约）。
+        Episode lineA = version("正片", "url-line-a", 1, 3);
+        Episode lineB = version("正片", "url-line-b", 1, 3);
+
+        assertTrue(lineB.matchesPlayback(lineA));
+        assertTrue(lineA.matchesPlayback(lineB));
+        // 调用方未确认同线路上下文时，带参调用同样回落容错。
+        assertTrue(lineB.matchesPlayback(lineA, false));
     }
 
     @Test
@@ -41,6 +56,7 @@ public class EpisodeVersionIdentityTest {
         Episode again = version("正片", "url-v1", 1, 3);
 
         assertTrue(again.matchesPlayback(first));
+        assertTrue(again.matchesPlayback(first, true));
         assertTrue(again.matches(first));
     }
 
@@ -49,8 +65,8 @@ public class EpisodeVersionIdentityTest {
         Episode known = version("正片", "url-v2", 1, 3);
         Episode unknown = version("正片", "", 1, 3);
 
-        assertFalse(known.matchesPlayback(unknown));
-        assertFalse(unknown.matchesPlayback(known));
+        assertFalse(known.matchesPlayback(unknown, true));
+        assertFalse(unknown.matchesPlayback(known, true));
     }
 
     @Test
@@ -59,6 +75,7 @@ public class EpisodeVersionIdentityTest {
         Episode second = version("", "", 1, 3);
 
         assertTrue(second.matchesPlayback(first));
+        assertTrue(second.matchesPlayback(first, true));
     }
 
     @Test
@@ -68,7 +85,8 @@ public class EpisodeVersionIdentityTest {
         Episode otherName = version("[4K] 第3集", "", 1, 3);
 
         assertTrue(sameName.matchesPlayback(first));
-        assertFalse(otherName.matchesPlayback(first));
+        assertTrue(sameName.matchesPlayback(first, true));
+        assertFalse(otherName.matchesPlayback(first, true));
     }
 
     @Test
@@ -78,7 +96,7 @@ public class EpisodeVersionIdentityTest {
         Episode second = Episode.create("[720P] 第3集", "4K", "");
         second.setTmdbEpisode(new TmdbEpisode(3, "", "", "", "", 0, 0, 0, 1));
 
-        assertFalse(second.matchesPlayback(first));
+        assertFalse(second.matchesPlayback(first, true));
     }
 
     @Test
@@ -153,6 +171,7 @@ public class EpisodeVersionIdentityTest {
     public void matchesPlaybackTreatsHistoryRebuiltFromVersionAsSameVersion() {
         // 播放页把“用户点到的版本”写进 History（remarks + episodeUrl），
         // 再次比较时应认出同一版本，而不是同集的第一个版本。
+        // 调用方（同线路内，历史 URL 仍能定位到本线路条目）传 versionAware=true 启用消歧。
         Episode second = version("正片", "url-v2", 1, 3);
         History history = new History();
         history.setVodRemarks(second.getName());
@@ -161,7 +180,8 @@ public class EpisodeVersionIdentityTest {
 
         Episode rebuilt = history.getEpisode();
         assertTrue(rebuilt.matchesPlayback(second));
-        assertFalse(rebuilt.matchesPlayback(version("正片", "url-v1", 1, 3)));
+        assertTrue(rebuilt.matchesPlayback(second, true));
+        assertFalse(rebuilt.matchesPlayback(version("正片", "url-v1", 1, 3), true));
     }
 
     @Test
@@ -174,5 +194,24 @@ public class EpisodeVersionIdentityTest {
 
         Episode resolved = flag.find(version("正片", "url-v2", 1, 3), true);
         assertSame(second, resolved);
+    }
+
+    @Test
+    public void containsEpisodeUrlMarksVersionAwareOnlyWhenUrlStillResolves() {
+        Flag flag = new Flag("线路1");
+        Episode first = version("正片", "url-v1", 1, 3);
+        Episode second = version("正片", "url-v2", 1, 3);
+        flag.getEpisodes().add(first);
+        flag.getEpisodes().add(second);
+
+        // 历史 URL 仍能定位到本线路条目：同集多版本并存，可启用版本消歧。
+        assertTrue(flag.containsEpisodeUrl(version("正片", "url-v1", 1, 3)));
+        assertTrue(flag.containsEpisodeUrl(version("正片", "url-v2", 1, 3)));
+        // TMDB 位置冲突的同 URL 条目不得算命中（与 find 的 URL 优先口径一致）。
+        assertFalse(flag.containsEpisodeUrl(version("正片", "url-v1", 2, 3)));
+        // 换线路/换源/源站刷新：旧 URL 已不在本线路，必须保留集号容错。
+        assertFalse(flag.containsEpisodeUrl(version("正片", "url-gone", 1, 3)));
+        assertFalse(flag.containsEpisodeUrl(version("正片", "", 1, 3)));
+        assertFalse(flag.containsEpisodeUrl(null));
     }
 }
