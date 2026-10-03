@@ -8,53 +8,13 @@ const MAX_BATCH_ITEMS = 100;
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 const PLAYBACK_SCHEMA = 'webhtv.playback.v1';
-// Content type carried on every upsert payload so the client can distinguish
-// video / novel / comic / audio progress records sharing the same History
-// schema.  Default is 'video' for backward compatibility: legacy clients that
-// never send mediaType continue to write video records.
-const DEFAULT_MEDIA_TYPE = 'video';
-const MEDIA_TYPES = ['video', 'novel', 'comic', 'audio'];
-// movie/tv come from the Android History.mediaType field (TMDB-style) and are
-// normalized to 'video' so the server only stores a single canonical token.
-const MEDIA_TYPE_ALIASES = {
-  movie: 'video',
-  tv: 'video',
-  video: 'video',
-  novel: 'novel',
-  fiction: 'novel',
-  book: 'novel',
-  comic: 'comic',
-  manga: 'comic',
-  audio: 'audio',
-  music: 'audio'
-};
-// WebReaderActivity.EXTRA_KIND numeric values (1=novel, 2=comic) are accepted
-// as aliases too, so the App can send `kind: 1` without translating locally.
-const MEDIA_TYPE_KIND_ALIASES = { '1': 'novel', '2': 'comic' };
-
-// Per-config_key playback_meta key namespace.  A single DO serves many configKeys
-// (namespaced by Token or the shared empty-token namespace), so settings must
-// be scoped per configKey rather than global.
-const META_KEY_DEDUPE_ENABLED = (configKey) => `cfg:${configKey}:dedupe_enabled`;
-// Default: off, matching "展示层过滤不物理删除" — the dashboard user can
-// choose to enable it explicitly after reviewing the non-destructive behavior.
-const DEFAULT_DEDUPE_ENABLED = false;
 
 export function isPlaybackSyncPath(pathname) {
   const path = normalizePath(pathname);
   if (PLAYBACK_SYNC_PATHS.has(path)) return true;
-<<<<<<< HEAD
-  for (const base of PLAYBACK_SYNC_PATHS) {
-    if (path === `${base}/status`) return true;
-    if (path === `${base}/settings`) return true;
-    if (path === `${base}/configs`) return true;
-    if (path === `${base}/merge`) return true;
-  }
-  return false;
-=======
-  for (const base of PLAYBACK_SYNC_PATHS) if (path === `${base}/status`) return true;
+  // WebHTV adaptation: also route the dashboard's read-only space list.
+  for (const base of PLAYBACK_SYNC_PATHS) if (path === `${base}/status` || path === `${base}/configs`) return true;
   return IDENTITY_RESOLVE_PATHS.has(path);
->>>>>>> upstream/beta
 }
 
 export async function handlePlaybackSyncGateway(request, env) {
@@ -64,11 +24,10 @@ export async function handlePlaybackSyncGateway(request, env) {
   const token = playbackToken(request);
   if (token.length > 512) return playbackError(400, 'X-WebHTV-Token is too long');
 
-  // Token 为空时使用固定的"无 Token 模式"命名空间，与 App 端行为对齐
-  // 无 Token 模式下所有未配置 Token 的用户共享同一命名空间
-  const namespace = token
-    ? `user-${await sha256(token)}`
-    : 'user-no-token';
+  // WebHTV adaptation: keep the local no-token mode. The dashboard and legacy
+  // app setups run without a configured token and share the user-no-token
+  // namespace; upstream would reject them with 401.
+  const namespace = token ? `user-${await sha256(token)}` : 'user-no-token';
   return env.PLAYBACK_DO.getByName(namespace).fetch(request);
 }
 
@@ -87,11 +46,6 @@ export class WebHTVPlaybackSyncDO {
       this.cleanup();
       const url = new URL(request.url);
       const path = normalizePath(url.pathname);
-<<<<<<< HEAD
-      const isStatus = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/status`);
-      if (isStatus) {
-        if (request.method === 'GET') return playbackCors(this.status(request, url));
-=======
       if (IDENTITY_RESOLVE_PATHS.has(path)) {
         if (request.method !== 'POST') return playbackError(405, 'Method not allowed');
         const input = parseIdentityRequest(await readPlaybackJson(request), request.headers);
@@ -101,27 +55,13 @@ export class WebHTVPlaybackSyncDO {
       const status = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/status`);
       if (status) {
         if (request.method === 'GET') return playbackCors(await this.status(request, url));
->>>>>>> upstream/beta
         return playbackError(405, 'Method not allowed');
       }
-      const isSettings = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/settings`);
-      if (isSettings) {
-        if (request.method === 'GET') return playbackCors(this.getSettings(request));
-        if (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH') {
-          return playbackCors(await this.updateSettings(request));
-        }
-        return playbackError(405, 'Method not allowed');
-      }
-      const isConfigs = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/configs`);
-      if (isConfigs) {
+      // WebHTV adaptation: read-only space list for the dashboard login screen.
+      // No X-WebHTV-Config-Key required; aggregates across all config spaces.
+      const configs = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/configs`);
+      if (configs) {
         if (request.method === 'GET') return playbackCors(this.listConfigs());
-        return playbackError(405, 'Method not allowed');
-      }
-      // 合并接口空间：把一个 configKey 的数据并入另一个并建立永久别名。
-      // 不要求 X-WebHTV-Config-Key（target/source 在 body 中指定）。
-      const isMerge = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/merge`);
-      if (isMerge) {
-        if (request.method === 'POST') return playbackCors(await this.mergeConfigKeys(request));
         return playbackError(405, 'Method not allowed');
       }
       if (!PLAYBACK_SYNC_PATHS.has(path)) return playbackError(404, 'Not found');
@@ -137,139 +77,7 @@ export class WebHTVPlaybackSyncDO {
   }
 
   migrate() {
-    // Wrap the ENTIRE migration (base schema + v3 vod_name upgrade) in a single
-    // transaction.  Cloudflare DO's transactionSync() auto-issues BEGIN/COMMIT
-    // and rolls back on any exception, guaranteeing the DB never ends up in a
-    // half-migrated state (e.g. column added but backfill UPDATE incomplete, or
-    // backfill finished but dedup index missing).  migrate() runs inside
-    // state.blockConcurrencyWhile() so no fetch() can observe partial progress.
-    this.state.storage.transactionSync(() => {
-      this.sql.exec(`
-        CREATE TABLE IF NOT EXISTS playback_meta (
-          key TEXT PRIMARY KEY,
-          value INTEGER NOT NULL
-        );
-        INSERT OR IGNORE INTO playback_meta (key, value) VALUES ('sequence', 0);
-        INSERT OR IGNORE INTO playback_meta (key, value) VALUES ('last_cleanup', 0);
-
-        CREATE TABLE IF NOT EXISTS playback_items (
-          config_key TEXT NOT NULL,
-          item_key TEXT NOT NULL,
-          history_key TEXT NOT NULL,
-          site_key TEXT NOT NULL,
-          vod_id TEXT NOT NULL,
-          updated_at INTEGER NOT NULL,
-          seq INTEGER NOT NULL,
-          payload TEXT NOT NULL,
-          PRIMARY KEY (config_key, item_key)
-        );
-        CREATE INDEX IF NOT EXISTS idx_playback_items_config_seq
-          ON playback_items (config_key, seq);
-
-        CREATE TABLE IF NOT EXISTS playback_tombstones (
-          config_key TEXT NOT NULL,
-          marker_key TEXT NOT NULL,
-          scope TEXT NOT NULL,
-          history_key TEXT NOT NULL,
-          site_key TEXT NOT NULL,
-          vod_id TEXT NOT NULL,
-          deleted_at INTEGER NOT NULL,
-          seq INTEGER NOT NULL,
-          payload TEXT NOT NULL,
-          PRIMARY KEY (config_key, marker_key)
-        );
-        CREATE INDEX IF NOT EXISTS idx_playback_tombstones_config_seq
-          ON playback_tombstones (config_key, seq);
-        CREATE INDEX IF NOT EXISTS idx_playback_tombstones_deleted_at
-          ON playback_tombstones (deleted_at);
-
-        CREATE TABLE IF NOT EXISTS playback_events (
-          config_key TEXT NOT NULL,
-          event_id TEXT NOT NULL,
-          received_at INTEGER NOT NULL,
-          PRIMARY KEY (config_key, event_id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_playback_events_received_at
-          ON playback_events (received_at);
-      `);
-
-      // Migration v3: add vod_name column to playback_items for same-title deduplication.
-      // Existing rows are backfilled from the payload JSON.
-      this.migrateV3VodName();
-      // Migration v4: add media_type column so novel/comic/audio reading records
-      // can be distinguished from video playback records that share the same
-      // playback_items table.  Same-title dedup is scoped by media_type, so a
-      // novel and a movie with the same name no longer erase each other.
-      this.migrateV4MediaType();
-      // Migration v5: configKey alias table for merging diverged config spaces.
-      this.migrateV5Aliases();
-    });
-  }
-
-  migrateV3VodName() {
-    // NOTE: This helper is always called inside migrate()'s enclosing
-    // transactionSync() block, so individual SQL statements below are already
-    // covered by the outer atomic scope.  We deliberately do NOT open a nested
-    // transaction here because SQLite only supports savepoint-style nesting;
-    // keeping everything in one tx avoids edge cases around implicit COMMITs.
-    const colExists = this.sql.exec(
-      "SELECT 1 FROM pragma_table_info('playback_items') WHERE name = 'vod_name' LIMIT 1"
-    ).toArray().length > 0;
-    if (colExists) {
-      this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_vodname ON playback_items (config_key, vod_name)");
-      return;
-    }
-    // Three steps that MUST either all succeed or all be rolled back together:
-    //   1. ALTER TABLE  – adds the new column with a safe DEFAULT so reads work
-    //                     even mid-migration (but mid-migration reads are
-    //                     blocked anyway by blockConcurrencyWhile + transaction).
-    //   2. UPDATE       – extracts vodName from the JSON payload of existing
-    //                     rows so deduplication works on historical data.
-    //   3. CREATE INDEX – makes the same-title lookup O(log n) instead of O(n).
-    this.sql.exec('ALTER TABLE playback_items ADD COLUMN vod_name TEXT NOT NULL DEFAULT ""');
-    // Backfill existing rows: extract vodName from payload JSON.
-    this.sql.exec(`UPDATE playback_items SET vod_name = COALESCE(json_extract(payload, '$.vodName'), '') WHERE vod_name = ''`);
-    this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_vodname ON playback_items (config_key, vod_name)");
-  }
-
-  migrateV4MediaType() {
-    // Runs inside migrate()'s enclosing transactionSync(), same atomicity
-    // guarantees as migrateV3VodName — column add, backfill and index create
-    // either all succeed or all roll back, no half-migrated state observable.
-    const colExists = this.sql.exec(
-      "SELECT 1 FROM pragma_table_info('playback_items') WHERE name = 'media_type' LIMIT 1"
-    ).toArray().length > 0;
-    if (colExists) {
-      this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_mediatype ON playback_items (config_key, media_type)");
-      return;
-    }
-    // 1. ALTER TABLE — adds the new column with a safe DEFAULT so reads keep
-    //    working even mid-migration (mid-migration reads are blocked anyway
-    //    by blockConcurrencyWhile + transaction).
-    // 2. UPDATE — backfills media_type from payload JSON. Rows written by
-    //    legacy clients never had a mediaType field, so we coerce missing
-    //    values to 'video' (DEFAULT_MEDIA_TYPE) to keep history consistent
-    //    with the legacy "everything is video" behavior.
-    // 3. CREATE INDEX — supports status grouping by media_type and the
-    //    scoped same-title dedup lookup.
-    this.sql.exec('ALTER TABLE playback_items ADD COLUMN media_type TEXT NOT NULL DEFAULT ""');
-    this.sql.exec(`UPDATE playback_items SET media_type = COALESCE(NULLIF(json_extract(payload, '$.mediaType'), ''), '${DEFAULT_MEDIA_TYPE}') WHERE media_type = ''`);
-    this.sql.exec("CREATE INDEX IF NOT EXISTS idx_playback_items_config_mediatype ON playback_items (config_key, media_type)");
-  }
-
-  migrateV5Aliases() {
-    // v5: configKey 别名表。interfaceKey 是各设备本机随机生成的 UUID，同一接口
-    // 在多台设备上独立添加时会产生多个 key，记录分散在多个命名空间无法互相同步。
-    // merge 端点把旧空间物理并入主空间后在此登记 alias -> target，旧设备的后续
-    // 读写经 resolveAlias() 自动落到主空间，App 无需任何改动。
     this.sql.exec(`
-<<<<<<< HEAD
-      CREATE TABLE IF NOT EXISTS playback_aliases (
-        alias_key TEXT PRIMARY KEY,
-        target_key TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-=======
       CREATE TABLE IF NOT EXISTS playback_meta (
         key TEXT PRIMARY KEY,
         value INTEGER NOT NULL
@@ -321,24 +129,14 @@ export class WebHTVPlaybackSyncDO {
         version INTEGER NOT NULL DEFAULT 0,
         state TEXT NOT NULL
       );
->>>>>>> upstream/beta
     `);
   }
 
   async ingest(request) {
     const body = await readPlaybackJson(request);
-<<<<<<< HEAD
-    // rawConfigKey 来自请求头/体，是设备自己的 interfaceKey（可能是已合并的别名）。
-    // normalizePlaybackEvent 用它做 configKey 一致性校验（body.configKey 必须等于
-    // 请求声明的 key）；真正落库时改用别名解析后的 canonical key，使别名设备的数据
-    // 与目标空间合并。
-    const rawConfigKey = requireConfigKey(request, body);
-    const configKey = this.resolveAlias(rawConfigKey);
-=======
     const submittedConfigKey = requireConfigKey(request, body);
     const configType = normalizeConfigType(request.headers.get('x-webhtv-config-type') || body.configType || 'vod');
     const configKey = await this.resolvePlaybackConfigKey(request, submittedConfigKey, configType, requestAliases(request, body));
->>>>>>> upstream/beta
     const rawEvents = extractPlaybackEvents(body);
     if (!rawEvents.length) throw playbackHttpError(400, 'Playback event is empty');
     if (rawEvents.length > MAX_BATCH_ITEMS) throw playbackHttpError(413, `Too many playback events; maximum is ${MAX_BATCH_ITEMS}`);
@@ -349,20 +147,9 @@ export class WebHTVPlaybackSyncDO {
     const now = Date.now();
     // Validate the entire batch before applying any item so a malformed item cannot
     // leave earlier records committed while the request itself returns an error.
-<<<<<<< HEAD
-    const events = rawEvents.map((raw) => normalizePlaybackEvent(raw, rawConfigKey, now, sharedEventId));
-    // 把事件归属改写到 canonical configKey（别名目标），数据统一落到目标空间。
-    // payload.configKey 也同步改写，保持存储内一致性；pull 出口会再按需改回
-    // 请求方自己的 key。
-    for (const event of events) {
-      event.configKey = configKey;
-      if (event.payload) event.payload.configKey = configKey;
-    }
-=======
     const storageConfigKey = scopedConfigKey(configType, configKey);
     const events = rawEvents.map((raw) => normalizePlaybackEvent(raw, configKey, now, sharedEventId));
     for (const event of events) event.storageConfigKey = storageConfigKey;
->>>>>>> upstream/beta
     const results = events.map((event) => event.kind === 'delete' ? this.applyDelete(event, now) : this.applyUpsert(event, now));
     return playbackJson({
       ok: true,
@@ -373,27 +160,13 @@ export class WebHTVPlaybackSyncDO {
     });
   }
 
-<<<<<<< HEAD
-  pull(request, url) {
-    // rawConfigKey 是请求方声明的 configKey（可能是已被合并的别名）。
-    // 数据存储在别名目标空间，但返回给客户端时必须把 payload 中的 configKey
-    // 改写成客户端自己的 key——否则 APP 的 cidForKey(payload.configKey) 找不到
-    // 本机 Config，对方设备的记录会被判定为"接口不匹配"而丢弃。
-    const rawConfigKey = requireConfigKey(request);
-    const configKey = this.resolveAlias(rawConfigKey);
-=======
   async pull(request, url) {
     const submittedConfigKey = requireConfigKey(request);
     const configType = normalizeConfigType(request.headers.get('x-webhtv-config-type') || url.searchParams.get('configType'));
     const configKey = await this.resolvePlaybackConfigKey(request, submittedConfigKey, configType, requestAliases(request));
     const storageConfigKey = scopedConfigKey(configType, configKey);
->>>>>>> upstream/beta
     const since = parseCursor(request.headers.get('x-webhtv-since') || url.searchParams.get('since'));
     const limit = parseLimit(request.headers.get('x-webhtv-limit') || url.searchParams.get('limit'));
-
-    // 去重通过物理删除 + 墓碑实现（见 applyUpsert / updateSettings），不再依赖
-    // 查询层过滤。pull 返回 upsert + delete（墓碑），APP 和 dashboard 收到
-    // 完全一致的增量变更，确保两端数据同步。
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const rows = this.sql.exec(`
       SELECT seq, kind, payload FROM (
@@ -414,15 +187,7 @@ export class WebHTVPlaybackSyncDO {
     const changes = [];
     for (const row of selected) {
       try {
-        const item = JSON.parse(row.payload);
-        // 把记录归属接口改写为请求方自己的 configKey。alias 场景下，存储的
-        // config_key 是别名目标，但客户端只认自己本机的 interfaceKey。
-        // config_key / interfaceKey / sourceConfigKey 一并改写以兼容不同字段名。
-        item.configKey = rawConfigKey;
-        if (typeof item.config_key !== 'undefined') item.config_key = rawConfigKey;
-        if (typeof item.interfaceKey !== 'undefined') item.interfaceKey = rawConfigKey;
-        if (typeof item.sourceConfigKey !== 'undefined') item.sourceConfigKey = rawConfigKey;
-        changes.push(item);
+        changes.push(JSON.parse(row.payload));
       } catch {
         // Ignore an individually corrupted row without breaking all other records.
       }
@@ -431,17 +196,11 @@ export class WebHTVPlaybackSyncDO {
     return playbackJson({ changes, nextSince, hasMore });
   }
 
-<<<<<<< HEAD
-  status(request, url) {
-    const configKey = this.resolveAlias(requireConfigKey(request));
-    const dedupeEnabled = this.isDedupeEnabled(configKey);
-=======
   async status(request, url) {
     const submittedConfigKey = requireConfigKey(request);
     const configType = normalizeConfigType(request.headers.get('x-webhtv-config-type') || url.searchParams.get('configType'));
     const configKey = await this.resolvePlaybackConfigKey(request, submittedConfigKey, configType, requestAliases(request));
     const storageConfigKey = scopedConfigKey(configType, configKey);
->>>>>>> upstream/beta
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const items = this.sql.exec('SELECT COUNT(*) AS count FROM playback_items WHERE config_key = ?', storageConfigKey).one();
     const tombstones = this.sql.exec('SELECT COUNT(*) AS count FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ?', storageConfigKey, cutoff).one();
@@ -451,28 +210,7 @@ export class WebHTVPlaybackSyncDO {
         UNION ALL
         SELECT seq FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ?
       )
-<<<<<<< HEAD
-    `, configKey, configKey, cutoff).one();
-    // byType: per-media_type item counts. Rows backfilled by migrateV4MediaType
-    // already carry a canonical media_type ('video' for legacy rows), so this
-    // breakdown reflects every record in the table. The dashboard can render a
-    // separate "小说/漫画" counter from this without scanning payloads.
-    const byTypeRows = this.sql.exec(`
-      SELECT COALESCE(NULLIF(media_type, ''), ?) AS media_type, COUNT(*) AS count
-        FROM playback_items
-       WHERE config_key = ?
-       GROUP BY media_type
-    `, DEFAULT_MEDIA_TYPE, configKey).toArray();
-    const byType = {};
-    for (const row of byTypeRows) {
-      const key = String(row.media_type || DEFAULT_MEDIA_TYPE);
-      byType[key] = Number(byType[key] || 0) + Number(row.count || 0);
-    }
-    // 去重通过物理删除实现（开关开启时），因此 items 已是去重后的真实条数，
-    // APP 与 dashboard 看到的是同一份数据，无需 effectiveItems 区分。
-=======
     `, storageConfigKey, storageConfigKey, cutoff).one();
->>>>>>> upstream/beta
     return playbackJson({
       ok: true,
       configKey,
@@ -483,23 +221,16 @@ export class WebHTVPlaybackSyncDO {
       tombstones: Number(tombstones.count || 0),
       nextSince: String(latest.seq || 0),
       retentionDays: 90,
-      dedupeEnabled,
-      byType,
       endpoint: `${url.origin}${basePlaybackPath(url.pathname)}`
     });
   }
 
-<<<<<<< HEAD
-  // ---------- per-config_key settings ----------
-
-  // 列出当前 token 命名空间下已有数据的所有 configKey。新版 App 上报时
-  // X-WebHTV-Config-Key 已改为稳定 interfaceKey (UUID)，但 App 界面未展示
-  // 该值；本端点让用户从服务端直接发现 App 实际写入的 configKey。
-  // 注意：本端点故意不要求 X-WebHTV-Config-Key（这是发现机制的意义所在）。
+  // WebHTV adaptation (dashboard): list every config space in this token
+  // namespace with its record count. SQLite bare-column rule: non-aggregated
+  // columns take values from the row containing the MAX(updated_at), so `name`
+  // is the interface name from the most recent record of each configKey
+  // (the App sends configName on every push).
   listConfigs() {
-    // SQLite bare-column rule: non-aggregated columns take values from the row
-    // containing the MAX(updated_at), so `name` is the interface name from the
-    // most recent record of each configKey (App sends configName on every push).
     const rows = this.sql.exec(`
       SELECT config_key, COUNT(*) AS items, MAX(updated_at) AS latest,
              COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name
@@ -516,170 +247,6 @@ export class WebHTVPlaybackSyncDO {
     return playbackJson({ ok: true, configs });
   }
 
-  // ---------- configKey 空间合并（alias） ----------
-
-  // POST /api/playback/sync/merge — 把 source 空间并入 target 空间。
-  // 背景：新版 App 的 interfaceKey 是各设备本机随机生成的 UUID，同一接口在
-  // 电视/手机上独立添加会产生两个 key，记录分散、互不同步。合并后建立永久
-  // 别名，旧设备的后续读写经 resolveAlias() 自动落到 target，App 无需改动。
-  // 请求体：{ "target": "<保留的 configKey>", "source": "<被合并的 configKey>" }
-  async mergeConfigKeys(request) {
-    const body = await readPlaybackJson(request);
-    if (!body || typeof body !== 'object' || Array.isArray(body)) throw playbackHttpError(400, 'Request body must be a JSON object');
-    const target = validatedConfigKey(body.target || body.targetKey || body.target_key, 'Missing target configKey');
-    const source = validatedConfigKey(body.source || body.sourceKey || body.source_key, 'Missing source configKey');
-    if (!target || !source) throw playbackHttpError(400, 'target and source configKey are required');
-    if (target === source) throw playbackHttpError(400, 'target and source configKey must differ');
-    const resolvedTarget = this.resolveAlias(target);
-    if (resolvedTarget !== target) throw playbackHttpError(400, 'target is already an alias of ' + resolvedTarget + '; use that key as target instead');
-    const resolvedSource = this.resolveAlias(source);
-    if (resolvedSource === target) {
-      // 幂等重试：source 已经并入过 target，直接成功返回。
-      return playbackJson({ ok: true, target, source, alreadyMerged: true, itemsMoved: 0, tombstonesMoved: 0, eventsMoved: 0 });
-    }
-    if (resolvedSource !== source) throw playbackHttpError(400, 'source is already merged into ' + resolvedSource + '; merge that key instead');
-    const result = this.state.storage.transactionSync(() => {
-      const itemsMoved = this.absorbConfigSpace('playback_items', 'item_key', 'updated_at', target, source);
-      const tombstonesMoved = this.absorbConfigSpace('playback_tombstones', 'marker_key', 'deleted_at', target, source);
-      const eventsMoved = this.absorbEvents(target, source);
-      this.carryOverDedupeSetting(target, source);
-      this.sql.exec(
-        'INSERT INTO playback_aliases (alias_key, target_key, created_at) VALUES (?, ?, ?) ON CONFLICT(alias_key) DO UPDATE SET target_key = excluded.target_key',
-        source, target, Date.now()
-      );
-      return { itemsMoved, tombstonesMoved, eventsMoved };
-    });
-    return playbackJson({ ok: true, target, source, alreadyMerged: false, ...result, mergedAt: Date.now() });
-  }
-
-  // 沿别名链解析 configKey。链长上限为防御性限制：正常写入路径不可能成环
-  // （mergeConfigKeys 拒绝把别名键作为新 source/target），脏数据也不能挂死 DO。
-  resolveAlias(configKey) {
-    let current = normalizeConfigKey(configKey);
-    for (let hop = 0; hop < 8; hop++) {
-      if (!current) return current;
-      const row = firstRow(this.sql.exec('SELECT target_key FROM playback_aliases WHERE alias_key = ? LIMIT 1', current));
-      const next = normalizeConfigKey(row ? row.target_key : '');
-      if (!next || next === current) break;
-      current = next;
-    }
-    return current;
-  }
-
-  // 把 source 空间的行迁入 target 空间，PK 冲突时保留 winnerColumn
-  // （items 用 updated_at，tombstones 用 deleted_at）较大的一方。
-  // seq 是 DO 全局单调计数（nextSequence()），跨空间移动行不破坏游标单调性。
-  absorbConfigSpace(table, keyColumn, winnerColumn, target, source) {
-    // 1) source 中不敌 target 已有行的记录（target 更新或同刻）直接删除。
-    this.sql.exec(
-      `DELETE FROM ${table} WHERE config_key = ? AND ${keyColumn} IN (
-         SELECT s.${keyColumn} FROM ${table} s JOIN ${table} t
-           ON t.config_key = ? AND t.${keyColumn} = s.${keyColumn}
-          WHERE s.config_key = ? AND t.${winnerColumn} >= s.${winnerColumn}
-       )`, source, target, source);
-    // 2) target 中不敌 source 幸存行的记录（source 严格更新）删除，随后由 3) 迁入覆盖。
-    this.sql.exec(
-      `DELETE FROM ${table} WHERE config_key = ? AND ${keyColumn} IN (
-         SELECT s.${keyColumn} FROM ${table} s JOIN ${table} t
-           ON t.config_key = ? AND t.${keyColumn} = s.${keyColumn}
-          WHERE s.config_key = ? AND s.${winnerColumn} > t.${winnerColumn}
-       )`, target, target, source);
-    // 3) 剩余 source 行已无冲突，整体改 key 迁入；返回实际迁移行数。
-    const remaining = Number(this.sql.exec(`SELECT COUNT(*) AS c FROM ${table} WHERE config_key = ?`, source).one().c || 0);
-    this.sql.exec(`UPDATE ${table} SET config_key = ? WHERE config_key = ?`, target, source);
-    return remaining;
-  }
-
-  // 幂等记录迁移：冲突的 eventId 直接丢弃——同 eventId 重放时 applyUpsert 的
-  // updated_at 守卫仍会拦截旧进度，丢弃缓存不会造成数据回退。
-  absorbEvents(target, source) {
-    const remaining = Number(this.sql.exec(
-      'SELECT COUNT(*) AS c FROM playback_events WHERE config_key = ? AND event_id NOT IN (SELECT event_id FROM playback_events WHERE config_key = ?)',
-      source, target
-    ).one().c || 0);
-    this.sql.exec('DELETE FROM playback_events WHERE config_key = ? AND event_id IN (SELECT event_id FROM playback_events WHERE config_key = ?)', source, target);
-    this.sql.exec('UPDATE playback_events SET config_key = ? WHERE config_key = ?', target, source);
-    return remaining;
-  }
-
-  // 同名去重开关按 configKey 独立存储；target 未显式设置而 source 有设置时继承。
-  carryOverDedupeSetting(target, source) {
-    const targetRow = firstRow(this.sql.exec('SELECT value FROM playback_meta WHERE key = ? LIMIT 1', META_KEY_DEDUPE_ENABLED(target)));
-    if (targetRow) return;
-    const sourceRow = firstRow(this.sql.exec('SELECT value FROM playback_meta WHERE key = ? LIMIT 1', META_KEY_DEDUPE_ENABLED(source)));
-    if (!sourceRow) return;
-    this.sql.exec(
-      'INSERT INTO playback_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      META_KEY_DEDUPE_ENABLED(target), Number(sourceRow.value || 0)
-    );
-  }
-
-
-  isDedupeEnabled(configKey) {
-    const row = firstRow(this.sql.exec(
-      'SELECT value FROM playback_meta WHERE key = ? LIMIT 1',
-      META_KEY_DEDUPE_ENABLED(configKey)
-    ));
-    if (!row) return DEFAULT_DEDUPE_ENABLED;
-    return Number(row.value || 0) === 1;
-  }
-
-  setDedupeEnabled(configKey, enabled) {
-    const val = enabled ? 1 : 0;
-    this.sql.exec(
-      'INSERT INTO playback_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      META_KEY_DEDUPE_ENABLED(configKey),
-      val
-    );
-  }
-
-  getSettings(request) {
-    const configKey = this.resolveAlias(requireConfigKey(request));
-    return playbackJson({
-      ok: true,
-      configKey,
-      dedupeEnabled: this.isDedupeEnabled(configKey),
-      dedupePolicy: {
-        scope: 'physical-dedup',
-        scopeBy: 'media_type',
-        description: '开启时，写入新记录会物理删除同名且同 media_type 的旧记录并建墓碑；APP 通过增量同步收到 delete 事件后删除本地副本，与 dashboard 保持一致。开启瞬间会立即清理历史重复数据。同名小说与同名电影因 media_type 不同不会互相删除。',
-        tiebreaker: 'updated_at (最大者保留，空 vod_name 保留全部)'
-      }
-    });
-  }
-
-  async updateSettings(request) {
-    const body = await readPlaybackJson(request);
-    const configKey = this.resolveAlias(requireConfigKey(request, body));
-    const enabled = body && typeof body.dedupeEnabled === 'boolean'
-      ? body.dedupeEnabled
-      : (body && (body.dedupeEnabled === 1 || body.dedupeEnabled === '1' || body.dedupeEnabled === 'true'));
-    if (body && 'dedupeEnabled' in body && typeof body.dedupeEnabled !== 'boolean'
-        && !['1', '0', 'true', 'false', 1, 0].includes(body.dedupeEnabled)) {
-      throw playbackHttpError(400, 'dedupeEnabled must be a boolean (true/false)');
-    }
-    return this.state.storage.transactionSync(() => {
-      const wasEnabled = this.isDedupeEnabled(configKey);
-      this.setDedupeEnabled(configKey, Boolean(enabled));
-      const nowEnabled = this.isDedupeEnabled(configKey);
-
-      // OFF→ON：对现有历史数据执行一次性同标题去重清理。
-      // 物理删除同名旧记录 + 建墓碑，使 APP 在下次 pull 时收到 delete 事件，
-      // 删除本地副本，与 dashboard 保持一致。
-      let cleanedCount = 0;
-      if (!wasEnabled && nowEnabled) {
-        cleanedCount = this.cleanupDuplicateTitles(configKey);
-      }
-
-      return playbackJson({
-        ok: true,
-        configKey,
-        dedupeEnabled: nowEnabled,
-        cleanedCount,
-        updatedAt: Date.now()
-      });
-    });
-=======
   identityStore(request) {
     const token = playbackToken(request);
     const sql = this.sql;
@@ -747,7 +314,6 @@ export class WebHTVPlaybackSyncDO {
     const next = Number(row?.value || 0) + 1;
     this.sql.exec("UPDATE playback_meta SET value = ? WHERE key = 'sequence'", next);
     return next;
->>>>>>> upstream/beta
   }
 
   applyUpsert(event, receivedAt) {
@@ -783,143 +349,21 @@ export class WebHTVPlaybackSyncDO {
 
       const seq = this.nextSequence();
       const payload = JSON.stringify(event.payload);
-      const vodName = cleanString(event.payload?.vodName, 2048);
-      const dedupeEnabled = this.isDedupeEnabled(event.configKey);
-
-      // 同标题去重（开关开启时）：
-      // 预检查 — 若已存在更新的同名记录（不同 item_key，例如离线设备重放缓冲），
-      // 跳过插入以保留最新进度，避免旧事件覆盖新进度。
-      // 按 media_type 限定范围，使同名小说与同名电影互不影响。
-      if (vodName && dedupeEnabled) {
-        const newerSibling = firstRow(this.sql.exec(
-          'SELECT 1 AS found FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND media_type = ? AND updated_at > ? LIMIT 1',
-          event.configKey,
-          vodName,
-          event.itemKey,
-          event.mediaType,
-          event.updatedAt
-        ));
-        if (newerSibling) {
-          this.recordEvent(event.configKey, event.eventId, receivedAt);
-          return resultFor(event, 'skipped', 0, 'A newer same-title record exists');
-        }
-      }
-
       this.sql.exec(`
         INSERT INTO playback_items
-          (config_key, item_key, history_key, site_key, vod_id, vod_name, media_type, updated_at, seq, payload)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (config_key, item_key, history_key, site_key, vod_id, updated_at, seq, payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(config_key, item_key) DO UPDATE SET
           history_key = excluded.history_key,
           site_key = excluded.site_key,
           vod_id = excluded.vod_id,
-          vod_name = excluded.vod_name,
-          media_type = excluded.media_type,
           updated_at = excluded.updated_at,
           seq = excluded.seq,
           payload = excluded.payload
-<<<<<<< HEAD
-      `, event.configKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, vodName, event.mediaType, event.updatedAt, seq, payload);
-
-      // 同标题去重（开关开启时）：物理删除同 vodName 且同 media_type 的旧记录并建墓碑。
-      // 墓碑通过 pull 增量同步传播到 APP，APP 收到 delete 事件后删除本地副本，
-      // 从而与 dashboard 展示保持一致（解决 pull 查询过滤无法清除已同步数据的问题）。
-      // media_type 限定范围，避免同名小说与同名电影互相删除。
-      if (vodName && dedupeEnabled) {
-        this.dedupSameTitle(event.configKey, vodName, event.itemKey, event.updatedAt, event.mediaType);
-      }
-
-      this.recordEvent(event.configKey, event.eventId, receivedAt);
-=======
       `, storageConfigKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, event.updatedAt, seq, payload);
       this.recordEvent(storageConfigKey, event.eventId, receivedAt);
->>>>>>> upstream/beta
       return resultFor(event, current ? 'updated' : 'created', seq, '');
     });
-  }
-
-  // 物理删除同 vodName 且同 media_type 且 updated_at < newerThan 的旧记录，并为每条创建 item 级墓碑。
-  // 墓碑通过 pull 增量同步传播到 APP，确保已同步设备删除本地副本，与 dashboard 一致。
-  // media_type 限定范围，避免同名小说与同名电影互相删除。
-  // 返回删除的行数。
-  dedupSameTitle(configKey, vodName, keepItemKey, newerThan, mediaType) {
-    const effectiveMediaType = mediaType || DEFAULT_MEDIA_TYPE;
-    const duplicates = this.sql.exec(
-      'SELECT item_key, history_key, site_key, vod_id, media_type, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND item_key != ? AND media_type = ? AND updated_at < ?',
-      configKey,
-      vodName,
-      keepItemKey,
-      effectiveMediaType,
-      newerThan
-    ).toArray();
-
-    for (const dup of duplicates) {
-      const dupKey = String(dup.item_key || '');
-      if (!dupKey) continue;
-      const markerKey = `item\n${dupKey}`;
-      const existingTomb = firstRow(this.sql.exec(
-        'SELECT 1 AS found FROM playback_tombstones WHERE config_key = ? AND marker_key = ? LIMIT 1',
-        configKey,
-        markerKey
-      ));
-      if (!existingTomb) {
-        const tombSeq = this.nextSequence();
-        const tombPayload = JSON.stringify({
-          schema: PLAYBACK_SCHEMA,
-          action: 'delete',
-          event: 'playback.deleted',
-          configKey,
-          historyKey: String(dup.history_key || ''),
-          siteKey: String(dup.site_key || ''),
-          vodId: String(dup.vod_id || ''),
-          mediaType: String(dup.media_type || effectiveMediaType),
-          scope: 'item',
-          deletedAt: Number(dup.updated_at || newerThan),
-          reason: 'vod-name-dedup'
-        });
-        this.sql.exec(`
-          INSERT OR IGNORE INTO playback_tombstones
-            (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
-          VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?)
-        `, configKey, markerKey, String(dup.history_key || ''), String(dup.site_key || ''), String(dup.vod_id || ''), Number(dup.updated_at || newerThan), tombSeq, tombPayload);
-      }
-      this.sql.exec(
-        'DELETE FROM playback_items WHERE config_key = ? AND item_key = ? AND vod_name = ? AND media_type = ?',
-        configKey,
-        dupKey,
-        vodName,
-        effectiveMediaType
-      );
-    }
-    return duplicates.length;
-  }
-
-  // 一次性清理：遍历所有有重复 (vodName, media_type) 的组，保留 updated_at 最大的，物理删除其余 + 建墓碑。
-  // 在开关从 OFF→ON 时调用，确保历史重复数据也被清理并通过墓碑传播到 APP。
-  // 按 (vod_name, media_type) 分组，避免把同名小说与同名电影误判为重复。
-  cleanupDuplicateTitles(configKey) {
-    const dupGroups = this.sql.exec(`
-      SELECT vod_name, media_type FROM playback_items
-      WHERE config_key = ? AND vod_name <> ''
-      GROUP BY vod_name, media_type
-      HAVING COUNT(*) > 1
-    `, configKey).toArray();
-
-    let total = 0;
-    for (const row of dupGroups) {
-      const name = String(row.vod_name || '');
-      const mediaType = String(row.media_type || DEFAULT_MEDIA_TYPE);
-      if (!name) continue;
-      const newest = firstRow(this.sql.exec(
-        'SELECT item_key, updated_at FROM playback_items WHERE config_key = ? AND vod_name = ? AND media_type = ? ORDER BY updated_at DESC LIMIT 1',
-        configKey,
-        name,
-        mediaType
-      ));
-      if (!newest) continue;
-      total += this.dedupSameTitle(configKey, name, String(newest.item_key), Number(newest.updated_at), mediaType);
-    }
-    return total;
   }
 
   applyDelete(event, receivedAt) {
@@ -1057,12 +501,6 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     if (!deletedAt) throw playbackHttpError(400, 'deletedAt or timestamp is required for a deletion');
     const itemKey = portableItemKey(historyKey, siteKey, vodId);
     const markerKey = scope === 'all' ? 'all' : scope === 'site' ? `site\n${siteKey}` : `item\n${itemKey}`;
-    // mediaType on a deletion is informational only: the tombstone carries it
-    // so the client can render "deleted novel chapter 3" vs "deleted episode 5"
-    // when streaming the deletion feed. It does not gate the deletion scope
-    // (scope=all/site/item still controls which rows are physically deleted),
-    // so a missing mediaType on a deletion is fine and never 400s.
-    const mediaType = normalizeMediaType(raw.mediaType || raw.media_type || raw.kind);
     const payload = compactObject({
       schema: PLAYBACK_SCHEMA,
       action: 'delete',
@@ -1072,41 +510,25 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
       historyKey,
       siteKey,
       vodId,
-      mediaType,
       scope,
       deletedAt
     });
-    return { kind: 'delete', configKey, eventId, historyKey, siteKey, vodId, mediaType, scope, deletedAt, itemKey, markerKey, payload };
+    return { kind: 'delete', configKey, eventId, historyKey, siteKey, vodId, scope, deletedAt, itemKey, markerKey, payload };
   }
 
   if (!siteKey) throw playbackHttpError(400, 'siteKey is required');
   if (!vodId) throw playbackHttpError(400, 'vodId is required');
   const vodName = cleanString(raw.vodName || raw.vod_name || raw.name || raw.title, 2048);
   const episodeName = cleanString(raw.episodeName || raw.episode || raw.episodeTitle || raw.vodRemarks || raw.remarks, 2048);
-  // Reject explicitly negative values before positiveNumber() converts them to 0.
-  // Use ?? (nullish coalescing) instead of || so that 0 is not treated as falsy.
-  const rawPositionMs = Number(raw.positionMs ?? raw.position ?? raw.position_ms ?? raw.pos ?? 0);
-  const rawDurationMs = Number(raw.durationMs ?? raw.duration ?? raw.duration_ms ?? 0);
-  if (Number.isFinite(rawPositionMs) && rawPositionMs < 0) throw playbackHttpError(400, 'positionMs must not be negative');
-  if (Number.isFinite(rawDurationMs) && rawDurationMs < 0) throw playbackHttpError(400, 'durationMs must not be negative');
-  const positionMs = Math.max(0, rawPositionMs);
-  const durationMs = Math.max(0, rawDurationMs);
-  if (!vodName && !episodeName) throw playbackHttpError(400, 'vodName or episodeName is required');
-  // Allow positionMs = 0 (stream just started) and durationMs = 0 (live stream with no fixed duration).
-  // Live streams (e.g. Huya .flv) report durationMs = 0 because ExoPlayer cannot determine the end time.
-  const isLiveStream = durationMs <= 0;
+  const positionMs = positiveNumber(raw.positionMs || raw.position || raw.position_ms || raw.pos);
+  const durationMs = positiveNumber(raw.durationMs || raw.duration || raw.duration_ms);
+  if (!vodName) throw playbackHttpError(400, 'vodName is required');
+  if (!episodeName) throw playbackHttpError(400, 'episodeName is required');
+  if (positionMs <= 0) throw playbackHttpError(400, 'positionMs must be greater than 0');
+  if (durationMs <= 0) throw playbackHttpError(400, 'durationMs must be greater than 0');
   const updatedAt = positiveTimestamp(raw.updatedAt || raw.updated_at || raw.timestamp || raw.updateTime, now);
-  // A live stream never "completes" — ignore explicit completed=true when duration is unknown.
-  const completed = isLiveStream ? false : (eventName === 'playback.ended' || booleanValue(raw.completed));
+  const completed = eventName === 'playback.ended' || booleanValue(raw.completed);
   const suppliedProgress = boundedNumber(raw.progress, 0, 1);
-  // When duration is unknown (live stream), do not clamp positionMs and force progress to 0.
-  const clampedPosition = isLiveStream ? positionMs : Math.min(positionMs, durationMs);
-  const computedProgress = isLiveStream ? 0 : (suppliedProgress > 0 ? suppliedProgress : Math.min(positionMs, durationMs) / durationMs);
-  // mediaType identifies the content category (video/novel/comic/audio) so the
-  // server can scope same-title deduplication and the client can render
-  // reading history separately from video history.  Legacy clients that never
-  // send mediaType are treated as 'video', matching the pre-v4 behavior.
-  const mediaType = normalizeMediaType(raw.mediaType || raw.media_type || raw.kind);
   const payload = compactObject({
     schema: PLAYBACK_SCHEMA,
     action: 'upsert',
@@ -1119,14 +541,13 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     siteName: cleanString(raw.siteName, 2048),
     vodId,
     vodName,
-    mediaType,
     vodPic: cleanString(raw.vodPic || raw.vod_pic || raw.pic || raw.poster, 8192),
     flag: cleanString(raw.flag || raw.vodFlag || raw.line || raw.source, 2048),
     episodeName,
     episodeUrl: cleanString(raw.episodeUrl || raw.episode_url || raw.url || raw.playUrl, 8192),
-    positionMs: clampedPosition,
+    positionMs: Math.min(positionMs, durationMs),
     durationMs,
-    progress: computedProgress,
+    progress: suppliedProgress > 0 ? suppliedProgress : Math.min(positionMs, durationMs) / durationMs,
     speed: positiveNumber(raw.speed) || 1,
     completed,
     updatedAt,
@@ -1139,7 +560,6 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     historyKey,
     siteKey,
     vodId,
-    mediaType,
     itemKey: portableItemKey(historyKey, siteKey, vodId),
     updatedAt,
     payload
@@ -1251,22 +671,6 @@ function normalizeScope(value, historyKey, siteKey, vodId) {
   return '';
 }
 
-// Coerce raw mediaType/media_type/kind to a canonical token.
-// Accepts strings (novel/comic/audio/movie/tv/video, plus aliases like
-// manga/fiction/book/music) and the numeric kind values emitted by
-// WebReaderActivity (1=novel, 2=comic). Empty input → DEFAULT_MEDIA_TYPE
-// so legacy clients keep writing 'video' records without any change.
-function normalizeMediaType(value) {
-  const text = String(value == null ? '' : value).trim().toLowerCase();
-  if (!text) return DEFAULT_MEDIA_TYPE;
-  if (MEDIA_TYPE_KIND_ALIASES[text]) return MEDIA_TYPE_KIND_ALIASES[text];
-  if (MEDIA_TYPE_ALIASES[text]) return MEDIA_TYPE_ALIASES[text];
-  // Unknown strings (typo, future type) collapse to 'video' rather than 400:
-  // the server only stores 4 categories today, but we never want a client
-  // upgrade blocked from syncing by an over-strict server-side allowlist.
-  return DEFAULT_MEDIA_TYPE;
-}
-
 function portableItemKey(historyKey, siteKey, vodId) {
   if (siteKey && vodId) return `${siteKey}\n${vodId}`;
   return `history\n${historyKey}`;
@@ -1327,7 +731,6 @@ function resultFor(event, action, sequence, message) {
     historyKey: event.historyKey,
     siteKey: event.siteKey,
     vodId: event.vodId,
-    mediaType: event.mediaType,
     updatedAt: event.updatedAt,
     deletedAt: event.deletedAt
   });

@@ -1,5 +1,6 @@
 import { createRelayState, handleRelayRequest, snapshotRelayState } from './relay.js';
 import { handlePlaybackSyncGateway, isPlaybackSyncPath, WebHTVPlaybackSyncDO } from './playback-sync.js';
+// WebHTV adaptation: local management dashboard (upstream has no dashboard).
 import { getDashboardResponse } from './dashboard.js';
 
 export { WebHTVPlaybackSyncDO };
@@ -46,6 +47,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname;
+    // WebHTV adaptation: serve the management dashboard on the root paths.
     if (request.method === 'GET' && (pathname === '/' || pathname === '/dashboard' || pathname === '/index.html')) {
       return getDashboardResponse();
     }

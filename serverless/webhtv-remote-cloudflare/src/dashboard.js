@@ -1,10 +1,12 @@
 // WebHTV 观影记录同步管理控制台 — 适配 webhtv-remote-cloudflare (Durable Object + SQLite)
 // 与旧版 KV 版本的关键差异：
-//   1. 认证：X-WebHTV-Token (必填) + X-WebHTV-Config-Key (必填)，token 由用户自行生成，不写入环境变量
+//   1. 认证：X-WebHTV-Token (可选，留空 = 无 Token 公共命名空间) + X-WebHTV-Config-Key (必填)，token 由用户自行生成，不写入环境变量
 //   2. 数据接口：统一使用 /api/playback/sync，GET 拉取增量、POST 写入/删除
 //   3. 删除：通过 POST 发送 event=playback.deleted 的墓碑事件，而非 DELETE 方法
 //   4. 统计：使用 /api/playback/sync/status 而非 /api/stats
 //   5. 分页：基于单调游标 (since/nextSince)，而非简单的 maxItems 列表
+//   6. 接口空间合并：由 App 的 /api/playback/identity/resolve 身份协议自动完成
+//      （旧版手动 /merge 与 /settings 同标题去重端点已随官方脚本升级移除）
 
 const DASHBOARD_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -215,98 +217,6 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   footer a { color: var(--accent); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
 
-  /* -------- 同标题去重：设置卡片 + 开关 -------- */
-  .settings-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px 24px;
-    margin-bottom: 28px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 24px;
-    flex-wrap: wrap;
-    position: relative;
-    overflow: hidden;
-  }
-  .settings-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--accent) 0%, #22d3ee 100%);
-  }
-  .settings-left {
-    display: flex; align-items: center; gap: 16px;
-    min-width: 0; flex: 1 1 420px;
-  }
-  .settings-icon {
-    flex-shrink: 0;
-    width: 44px; height: 44px; border-radius: 12px;
-    background: rgba(108, 124, 255, 0.15);
-    color: var(--accent);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
-    box-shadow: inset 0 0 0 1px rgba(108, 124, 255, 0.25);
-  }
-  .settings-text { min-width: 0; }
-  .settings-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
-  .settings-subtitle { font-size: 12px; color: var(--text-muted); line-height: 1.6; max-width: 560px; }
-  .settings-subtitle .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--bg); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-secondary); font-size: 11px; }
-  .switch-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
-  .switch-label-state { font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
-  .switch-label-state.on  { color: var(--success); }
-  .switch-label-state.off { color: var(--text-muted); }
-
-  /* iOS 风格 switch，高对比双态视觉反馈 */
-  .switch {
-    --w: 56px;
-    --h: 30px;
-    --p: 3px;
-    --knob: calc(var(--h) - var(--p) * 2);
-    position: relative;
-    display: inline-block;
-    width: var(--w);
-    height: var(--h);
-    flex-shrink: 0;
-  }
-  .switch input { opacity: 0; width: 0; height: 0; }
-  .slider {
-    position: absolute; cursor: pointer;
-    inset: 0;
-    background: var(--border);
-    border: 1px solid rgba(255,255,255,0.04);
-    border-radius: 999px;
-    transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
-  }
-  .slider::before {
-    content: '';
-    position: absolute;
-    height: var(--knob);
-    width: var(--knob);
-    left: var(--p);
-    top: 50%;
-    transform: translateY(-50%);
-    background: white;
-    border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.06);
-    transition: transform 0.25s cubic-bezier(.4,.2,.2,1), width 0.15s ease;
-  }
-  .switch input:checked + .slider {
-    background: linear-gradient(135deg, #6c7cff 0%, #22d3ee 100%);
-    border-color: rgba(108, 124, 255, 0.45);
-    box-shadow: 0 0 0 3px rgba(108, 124, 255, 0.15), inset 0 1px 2px rgba(0,0,0,0.15);
-  }
-  .switch input:checked + .slider::before {
-    transform: translate(calc(var(--w) - var(--knob) - var(--p) * 2), -50%);
-  }
-  .switch input:focus-visible + .slider {
-    box-shadow: 0 0 0 3px rgba(108, 124, 255, 0.3), inset 0 1px 2px rgba(0,0,0,0.3);
-  }
-  .switch input:disabled + .slider { cursor: not-allowed; opacity: 0.55; }
-  .stat-effective-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-
   @media (max-width: 900px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     header { flex-direction: column; gap: 16px; align-items: flex-start; }
@@ -411,29 +321,6 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- 同标题去重：展示层开关（不物理删除） -->
-  <div class="settings-card" id="dedupeSettingsCard" aria-live="polite">
-    <div class="settings-left">
-      <div class="settings-icon" aria-hidden="true">🪞</div>
-      <div class="settings-text">
-        <div class="settings-title">
-          <span>启用同标题去重</span>
-        </div>
-        <div class="settings-subtitle">
-          按 <span class="mono">vodName</span> 去重：同片名只保留 <strong>更新时间最新</strong> 的一条，旧记录被物理删除并生成墓碑。
-          APP 通过同步收到删除通知后会同步清理本地副本，确保两端展示一致。开启瞬间会立即清理历史重复数据。
-        </div>
-      </div>
-    </div>
-    <div class="switch-wrap">
-      <label class="switch" title="启用 / 关闭 同标题去重">
-        <input type="checkbox" id="dedupeToggle" aria-label="启用同标题去重" autocomplete="off">
-        <span class="slider"></span>
-      </label>
-      <div class="switch-label-state" id="dedupeLabelState">OFF</div>
-    </div>
-  </div>
-
   <div class="section">
     <div class="section-header">
       <div class="section-title">
@@ -493,8 +380,7 @@ const state = {
   search: '',
   filtered: [],
   sortKey: 'updatedAt',
-  sortDir: 'desc',
-  dedupeEnabled: false
+  sortDir: 'desc'
 };
 
 // ============ 登录与凭证管理 ============
@@ -652,22 +538,8 @@ async function findConfigs() {
       const keyLine = document.createElement('div');
       keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin-top:3px;';
       keyLine.textContent = cfg.configKey;
-      // 合并按钮：把其他 configKey 空间并入当前行空间（解决电视/手机各自生成
-      // 不同 interfaceKey 导致的记录分叉）。必须 stopPropagation，避免触发整行的连接。
-      const actions = document.createElement('div');
-      actions.style.cssText = 'margin-top:6px;';
-      const mergeBtn = document.createElement('button');
-      mergeBtn.type = 'button';
-      mergeBtn.textContent = '🔗 合并其他接口到此空间';
-      mergeBtn.style.cssText = 'font-size:11px;padding:2px 8px;cursor:pointer;border:1px solid var(--border,#444);border-radius:5px;background:transparent;color:var(--text-secondary,#aaa);';
-      mergeBtn.onclick = (ev) => {
-        ev.stopPropagation();
-        mergeConfigSpace(baseUrl, token, cfg.configKey, configs);
-      };
-      actions.appendChild(mergeBtn);
       row.appendChild(head);
       row.appendChild(keyLine);
-      row.appendChild(actions);
       row.onclick = () => {
         document.getElementById('loginConfigKey').value = cfg.configKey;
         box.style.display = 'none';
@@ -677,49 +549,6 @@ async function findConfigs() {
     }
   } catch (e) {
     box.textContent = '查询失败: ' + e.message;
-  }
-}
-
-// 把 sourceKey 空间并入 targetKey 空间（服务端 /merge 端点：物理迁移数据并建立永久别名）。
-// 场景：新版 App 的 interfaceKey 由各设备随机生成，同一接口在电视/手机上各产生一个
-// UUID，记录互不相通。合并后旧 key 的读写自动落到主空间，两台设备无需任何改动。
-async function mergeConfigSpace(baseUrl, token, targetKey, configs) {
-  const others = (configs || []).filter((c) => c.configKey && c.configKey !== targetKey);
-  // 只有两个空间时（最常见：电视+手机）自动预填另一个 key。
-  const prefill = others.length === 1 ? others[0].configKey : '';
-  const hint = others.length
-    ? '其他已有接口：\\n' + others.map((c) => '- ' + (c.name || '未命名接口') + '  ' + c.configKey).join('\\n') + '\\n\\n'
-    : '';
-  const raw = window.prompt(
-    '把哪个 configKey 合并到当前接口空间？\\n\\n' + hint
-    + '被合并空间的数据将迁入当前空间，且永久别名到当前空间，此操作不可撤销。',
-    prefill
-  );
-  if (raw === null) return;
-  const sourceKey = raw.trim().toLowerCase();
-  if (!sourceKey) return;
-  if (sourceKey === String(targetKey).toLowerCase()) { alert('目标与来源相同，无需合并'); return; }
-  if (!window.confirm('确认把 ' + sourceKey.substring(0, 13) + '... 的数据合并到当前接口空间？此操作不可撤销。')) return;
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers['X-WebHTV-Token'] = token;
-    const res = await fetch(baseUrl + '/api/playback/sync/merge', {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({ target: targetKey, source: sourceKey })
-    });
-    const text = await res.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch (e) {}
-    if (!res.ok || !data.ok) {
-      alert('合并失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 160)));
-      return;
-    }
-    alert('合并完成：迁移 ' + (data.itemsMoved || 0) + ' 条记录、' + (data.tombstonesMoved || 0) + ' 条删除墓碑。'
-      + '\\n\\n两台设备下次播放上报或拉取时将自动使用同一空间，无需修改 App 配置。');
-    findConfigs();
-  } catch (e) {
-    alert('合并失败: ' + e.message);
   }
 }
 
@@ -753,9 +582,6 @@ async function loadData() {
       pullAllChanges()
     ]);
     state.status = statusData;
-    if (typeof statusData.dedupeEnabled === 'boolean') {
-      setDedupeToggleState(statusData.dedupeEnabled, true);
-    }
     // 只展示 action=upsert 的记录，过滤掉 delete 墓碑
     state.records = syncData.filter(c => c.action !== 'delete');
     applyFilter();
@@ -798,55 +624,6 @@ function renderStats() {
   document.getElementById('tombstoneCount').textContent = s.tombstones ?? 0;
   document.getElementById('nextSince').textContent = s.nextSince ?? '-';
   document.getElementById('retentionDays').textContent = s.retentionDays ?? '-';
-}
-
-// -------- 同标题去重：开关 UI + API --------
-
-function setDedupeToggleState(enabled, silent) {
-  state.dedupeEnabled = Boolean(enabled);
-  const toggle = document.getElementById('dedupeToggle');
-  const label  = document.getElementById('dedupeLabelState');
-  if (toggle) {
-    toggle.checked = state.dedupeEnabled;
-    toggle.setAttribute('aria-checked', state.dedupeEnabled ? 'true' : 'false');
-  }
-  if (label) {
-    label.textContent = state.dedupeEnabled ? 'ON' : 'OFF';
-    label.classList.toggle('on',  state.dedupeEnabled);
-    label.classList.toggle('off', !state.dedupeEnabled);
-  }
-  // 避免首次从 statusData 回填时再触发一次 onChange 无限递归
-  if (!silent) renderStats();
-}
-
-async function onDedupeToggleChange(evt) {
-  const desired = Boolean(evt.target.checked);
-  const toggle = document.getElementById('dedupeToggle');
-  if (toggle) toggle.disabled = true;
-  try {
-    const res = await fetchJSON('/api/playback/sync/settings', {
-      method: 'POST',
-      body: JSON.stringify({ dedupeEnabled: desired })
-    });
-    setDedupeToggleState(res.dedupeEnabled, false);
-    const cleaned = Number(res.cleanedCount || 0);
-    showToast(
-      res.dedupeEnabled
-        ? (cleaned > 0
-            ? \`已启用同标题去重，已清理 \${cleaned} 条重复记录，APP 将在下次同步时收到删除通知\`
-            : '已启用同标题去重：后续同名记录将只保留最新一条')
-        : '已关闭同标题去重：后续记录不再去重',
-      'success'
-    );
-    // 切换后立即应用：无刷新重新拉一次列表和统计
-    await loadData();
-  } catch (e) {
-    // 回滚 UI 到实际状态
-    setDedupeToggleState(state.dedupeEnabled, false);
-    showToast('切换失败: ' + e.message, 'error');
-  } finally {
-    if (toggle) toggle.disabled = false;
-  }
 }
 
 function applyFilter() {
@@ -1082,12 +859,6 @@ function relativeTime(ts) {
 document.getElementById('searchInput').addEventListener('input', (e) => {
   state.search = e.target.value; applyFilter(); renderRecords();
 });
-
-// 同标题去重开关：切换即实时生效
-(() => {
-  const toggle = document.getElementById('dedupeToggle');
-  if (toggle) toggle.addEventListener('change', onDedupeToggleChange);
-})();
 
 // 初始化
 loadCredentials();
