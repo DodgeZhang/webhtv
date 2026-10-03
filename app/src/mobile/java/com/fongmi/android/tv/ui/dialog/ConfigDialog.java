@@ -25,6 +25,8 @@ import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.databinding.DialogConfigBinding;
 import com.fongmi.android.tv.impl.ConfigListener;
+import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
+import com.fongmi.android.tv.playback.PlaybackIdentityResolver;
 import com.fongmi.android.tv.ui.custom.CustomTextListener;
 import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.Notify;
@@ -91,7 +93,7 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected MaterialAlertDialogBuilder getBuilder() {
-        return new MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_LightDialog).setView(getBinding().getRoot());
+        return new WebHtvAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_WebHTV_Dialog).setView(getBinding().getRoot());
     }
 
     @Override
@@ -207,6 +209,7 @@ public class ConfigDialog extends BaseAlertDialog {
         if (target == null && getParentFragment() instanceof ConfigListener) target = (ConfigListener) getParentFragment();
         if (target == null && requireActivity() instanceof ConfigListener) target = (ConfigListener) requireActivity();
         if (target != null) target.setConfig(config);
+        PlaybackIdentityResolver.resolveSaved(config);
         dismiss();
     }
 

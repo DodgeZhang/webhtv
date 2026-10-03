@@ -27,7 +27,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_render"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -35,7 +35,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="Surface" />
 
@@ -56,7 +56,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_button_config"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -66,7 +66,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="显示 17/19" />
 
@@ -87,7 +87,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_exo_4k_compat"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -95,7 +95,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
+<<<<<<< HEAD
                 android:textColor="@color/white"
+=======
+                android:singleLine="true"
+                android:textColor="?attr/colorOnSurface"
+>>>>>>> upstream/beta
                 android:textSize="18sp"
                 tools:text="关" />
 
@@ -116,7 +121,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_kernel"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -124,7 +129,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="EXO" />
 
@@ -146,7 +151,7 @@
                 android:layout_marginEnd="16dp"
                 android:singleLine="true"
                 android:text="@string/player_mpv_config"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -156,7 +161,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="默认" />
 
@@ -214,7 +219,7 @@
                   android:layout_marginEnd="16dp"
                   android:singleLine="true"
                   android:text="@string/player_mpv_render"
-                  android:textColor="@color/white"
+                  android:textColor="?attr/colorOnSurface"
                   android:textSize="18sp" />
 
               <com.google.android.material.textview.MaterialTextView
@@ -224,7 +229,7 @@
                   android:ellipsize="end"
                   android:gravity="end"
                   android:singleLine="true"
-                  android:textColor="@color/white"
+                  android:textColor="?attr/colorOnSurface"
                   android:textSize="18sp"
                   tools:text="OpenGL" />
 
@@ -250,7 +255,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_bluray_menu"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -258,7 +263,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="关" />
 
@@ -280,7 +285,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_scale"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -288,7 +293,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="16:9" />
 
@@ -309,7 +314,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_lut"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -319,7 +324,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="Kodak 2383 · 100%" />
 
@@ -340,7 +345,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_caption"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -348,7 +353,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="預設" />
 
@@ -369,7 +374,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_osd"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -379,7 +384,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="标题、时间、进度" />
 
@@ -400,7 +405,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_buffer"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -409,7 +414,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="1" />
 
@@ -418,7 +423,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:text="@string/times"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
@@ -438,7 +443,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_buffer_bytes"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -448,7 +453,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="128MB" />
 
@@ -469,7 +474,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_back_buffer"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -479,7 +484,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="30秒" />
 
@@ -500,7 +505,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_cache"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -510,7 +515,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="500MB" />
 
@@ -531,7 +536,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -541,7 +546,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="开启" />
 
@@ -562,7 +567,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload_threads"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -572,7 +577,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="1 条" />
 
@@ -593,7 +598,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload_size"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -603,7 +608,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="128MB" />
 
@@ -624,7 +629,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload_time"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -634,13 +639,78 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="120 秒" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 
         <androidx.appcompat.widget.LinearLayoutCompat
+<<<<<<< HEAD
+=======
+            android:id="@+id/preloadAhead"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/selector_item"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:orientation="horizontal">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="16dp"
+                android:text="@string/player_preload_ahead"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="18sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/preloadAheadText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:singleLine="true"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="18sp"
+                tools:text="5 分钟" />
+
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:id="@+id/preloadPause"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/selector_item"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:orientation="horizontal">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="16dp"
+                android:text="@string/player_preload_pause"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="18sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/preloadPauseText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:singleLine="true"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="18sp"
+                tools:text="始终" />
+
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+>>>>>>> upstream/beta
             android:id="@+id/autoPlay"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -655,7 +725,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_auto_play"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -665,7 +735,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="开启" />
 
@@ -686,7 +756,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_auto_change"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -696,7 +766,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="开启" />
 
@@ -717,7 +787,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_live_source_fallback"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -727,7 +797,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="开启" />
 
@@ -748,7 +818,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_failure_fallback"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -758,7 +828,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="软解后切核心" />
 
@@ -779,7 +849,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_speed"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -788,7 +858,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="1" />
 
@@ -797,7 +867,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:text="@string/times"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
@@ -817,7 +887,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_tunnel"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -825,7 +895,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -846,7 +916,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_music_notification"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -854,7 +924,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="On" />
 
@@ -875,7 +945,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_audio_book_notification"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -883,7 +953,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="On" />
 
@@ -904,7 +974,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_audio_decode"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -912,7 +982,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -933,7 +1003,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_audio_passthrough"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -941,7 +1011,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -962,7 +1032,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_video_decode"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -970,7 +1040,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -991,7 +1061,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_aac_track"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -999,7 +1069,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -1020,7 +1090,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_background"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -1028,7 +1098,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -1049,7 +1119,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_ua"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -1059,7 +1129,7 @@
                 android:ellipsize="middle"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="18sp"
                 tools:text="okhttp/4.11.0" />
 

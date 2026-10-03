@@ -13,8 +13,14 @@
         android:layout_width="44dp"
         android:layout_height="wrap_content"
         android:gravity="center"
+<<<<<<< HEAD
         android:textColor="#5F6368"
         android:textSize="14sp" />
+=======
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="13sp"
+        tools:text="1" />
+>>>>>>> upstream/beta
 
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="0dp"
@@ -29,6 +35,7 @@
             android:id="@+id/hosts"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+<<<<<<< HEAD
             android:imeOptions="actionNext"
             android:importantForAutofill="no"
             android:inputType="textNoSuggestions"
@@ -37,6 +44,14 @@
             android:singleLine="true"
             android:textColor="@color/black"
             android:textColorHint="#666666" />
+=======
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            tools:text="cdn.example.com, api.example.com" />
+>>>>>>> upstream/beta
 
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -60,8 +75,14 @@
             android:scrollHorizontally="true"
             android:selectAllOnFocus="false"
             android:singleLine="true"
+<<<<<<< HEAD
             android:textColor="@color/black"
             android:textColorHint="#666666" />
+=======
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12sp"
+            tools:text="默认代理 · socks5://127.0.0.1:7897" />
+>>>>>>> upstream/beta
 
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -74,7 +95,7 @@
         android:contentDescription="@string/setting_delete"
         android:padding="8dp"
         android:src="@drawable/ic_action_delete"
-        app:tint="#C5221F" />
+        app:tint="?attr/colorError" />
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/drag"
@@ -84,6 +105,6 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:padding="8dp"
         android:src="@drawable/ic_action_drag"
-        app:tint="#5F6368" />
+        app:tint="?attr/colorOnSurfaceVariant" />
 
 </androidx.appcompat.widget.LinearLayoutCompat>

@@ -26,6 +26,16 @@ public class RemoteSyncConfig {
     public int lastSkipped;
     public int lastFailed;
     public String lastError;
+<<<<<<< HEAD
+=======
+    public String identityState;
+    public String identityEpoch;
+    public boolean identitySupported;
+    public String identityCanonicalKey;
+    public String identityMatchedBy;
+    public String identityMessage;
+    public Map<String, String> cursors;
+>>>>>>> upstream/beta
 
     public RemoteSyncConfig() {
         this.id = UUID.randomUUID().toString();
@@ -38,6 +48,16 @@ public class RemoteSyncConfig {
         this.intervalMinutes = 0;
         this.maxItems = 100;
         this.lastError = "";
+<<<<<<< HEAD
+=======
+        this.identityState = "unknown";
+        this.identityEpoch = "";
+        this.identitySupported = false;
+        this.identityCanonicalKey = "";
+        this.identityMatchedBy = "";
+        this.identityMessage = "";
+        this.cursors = new HashMap<>();
+>>>>>>> upstream/beta
     }
 
     public boolean isUsable() {
@@ -65,6 +85,31 @@ public class RemoteSyncConfig {
         return "Remote sync";
     }
 
+<<<<<<< HEAD
+=======
+    public String cursor(String configKey) {
+        if (cursors == null || cursors.isEmpty()) return "";
+        String value = cursors.get(cursorKey(configKey));
+        return value == null ? "" : value;
+    }
+
+    public void cursor(String configKey, String value) {
+        if (cursors == null) cursors = new HashMap<>();
+        if (value == null || value.isEmpty()) return;
+        cursors.put(cursorKey(configKey), value);
+    }
+
+    public void resetCursor(String configKey) {
+        if (cursors == null) return;
+        cursors.remove(cursorKey(configKey));
+    }
+
+    private String cursorKey(String configKey) {
+        String value = PlaybackConfigIdentity.normalizeKey(configKey);
+        return value.isEmpty() ? "_default" : value;
+    }
+
+>>>>>>> upstream/beta
     public static String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }

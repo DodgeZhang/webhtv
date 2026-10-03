@@ -886,7 +886,106 @@
     <string name="site_name_reset_title">重置自定义站源名称？</string>
     <string name="site_name_reset_message">将清除当前接口的全部自定义名称和分组。</string>
     <string name="setting_short_drama_source">短剧源配置</string>
+    <string name="setting_theme_mode">主题模式</string>
+    <string name="setting_theme_mode_system">跟随系统</string>
+    <string name="setting_theme_mode_light">浅色</string>
+    <string name="setting_theme_mode_dark">深色</string>
     <string name="setting_theme_color">主题色彩</string>
+<<<<<<< HEAD
+=======
+    <string name="setting_theme_editor">自定义主题</string>
+    <string name="theme_editor_edit_mode">预览与编辑</string>
+    <string name="theme_editor_dark">深色</string>
+    <string name="theme_editor_light">浅色</string>
+    <string name="theme_editor_preview">实时预览</string>
+    <string name="theme_editor_inherit">继承默认</string>
+    <string name="theme_editor_clear">恢复自动</string>
+    <string name="theme_editor_dirty">仅在本页预览，尚未保存</string>
+    <string name="theme_editor_reset_done">默认配色已载入草稿，保存后生效</string>
+    <string name="theme_editor_save_failed">保存失败：%1$s</string>
+    <string name="theme_editor_apply">保存应用</string>
+    <string name="theme_editor_reset">恢复默认</string>
+    <string name="theme_editor_cancel">取消</string>
+    <string name="theme_editor_confirm">确定</string>
+    <string name="theme_editor_hex_label">精确十六进制</string>
+    <string name="theme_editor_hex_hint">#RRGGBB</string>
+    <string name="theme_editor_hex_apply">使用此颜色</string>
+    <string name="theme_editor_hex_invalid">请输入 #RRGGBB</string>
+    <string name="theme_editor_preset_default">默认配置</string>
+    <string name="theme_editor_preset_wallpaper">壁纸取色</string>
+    <string name="theme_editor_preset_blue">澄海蓝</string>
+    <string name="theme_editor_preset_teal">碧湾青</string>
+    <string name="theme_editor_preset_green">松林绿</string>
+    <string name="theme_editor_preset_orange">暖砂金</string>
+    <string name="theme_editor_preset_red">蔷薇红</string>
+    <string name="theme_editor_preset_purple">鸢尾紫</string>
+    <string name="theme_editor_preview_title">标题文字</string>
+    <string name="theme_editor_preview_body">正文文字</string>
+    <string name="theme_editor_preview_secondary">次要文字</string>
+    <string name="theme_editor_preview_filled">填充按钮</string>
+    <string name="theme_editor_preview_tonal">色调按钮</string>
+    <string name="theme_editor_slot_primary">主色</string>
+    <string name="theme_editor_slot_primary_container">主色容器</string>
+    <string name="theme_editor_slot_secondary_container">次色容器</string>
+    <string name="theme_editor_slot_focus">焦点色</string>
+    <string name="theme_editor_slot_surface">表面色</string>
+    <string name="theme_editor_slot_surface_container">卡片表面色</string>
+    <string name="theme_editor_slot_surface_container_high">对话框表面色</string>
+    <string name="theme_editor_slot_on_surface">正文颜色</string>
+    <string name="theme_editor_slot_on_surface_variant">次要文字颜色</string>
+    <string name="theme_editor_slot_outline">轮廓色</string>
+    <string name="theme_editor_slot_error">错误色</string>
+    <string name="theme_editor_slot_success">成功色</string>
+    <string name="theme_editor_slot_warning">警告色</string>
+    <string name="theme_editor_slot_scrim_opacity">遮罩透明度</string>
+    <string name="theme_editor_slot_dialog_opacity">对话框透明度</string>
+    <string name="theme_editor_slot_overlay_opacity">浮层透明度（仅 Web 主题生效）</string>
+    <string name="theme_editor_import">导入配色</string>
+    <string name="theme_editor_palette_style">配色风格 · 保留手动修改</string>
+    <string name="theme_editor_palette_tonal">柔和</string>
+    <string name="theme_editor_palette_vibrant">鲜艳</string>
+    <string name="theme_editor_palette_expressive">表现力</string>
+    <string name="theme_editor_palette_rainbow">彩虹</string>
+    <string name="theme_editor_palette_fidelity">保真</string>
+    <string name="theme_editor_palette_content">内容</string>
+    <string name="theme_editor_palette_fruit_salad">果园</string>
+    <string name="theme_editor_palette_neutral">中性</string>
+    <string name="theme_editor_palette_monochrome">单色</string>
+    <string name="theme_editor_inline_hint">调整即在本页临时生效，保存后才应用到全局。</string>
+    <string name="theme_editor_presets">内置主题 · 完整浅深配色</string>
+    <string name="theme_editor_preset_graphite">石墨灰</string>
+    <string name="theme_editor_preset_pair">浅色 + 深色</string>
+    <string name="theme_editor_preset_original">原始配色</string>
+    <string name="theme_editor_preset_dynamic">随壁纸自动更新</string>
+    <string name="theme_editor_preset_modified">已微调</string>
+    <string name="theme_editor_selected">已选择</string>
+    <string name="theme_editor_saved_state">正在编辑已保存的配色 · 修改后可直接预览</string>
+    <string name="theme_editor_clear_short">↺</string>
+    <string name="theme_editor_value_auto">%1$s · 自动</string>
+    <string name="theme_editor_value_adjusted">输入 %1$s\n显示 %2$s</string>
+    <string name="theme_editor_group_accent">强调与交互</string>
+    <string name="theme_editor_group_surfaces">背景与表面</string>
+    <string name="theme_editor_group_text">文字与轮廓</string>
+    <string name="theme_editor_group_states">状态提示</string>
+    <string name="theme_editor_group_layers">透明度与浮层</string>
+    <string name="theme_import_title">导入配色</string>
+    <string name="theme_import_input_hint">粘贴 TweakCN JSON 或 HTTPS JSON 链接</string>
+    <string name="theme_import_file">打开 JSON</string>
+    <string name="theme_import_community">TweakCN 配色站</string>
+    <string name="theme_import_preview_action">预览导入</string>
+    <string name="theme_import_cancel">取消</string>
+    <string name="theme_import_use">用于编辑器</string>
+    <string name="theme_import_empty">请先粘贴 JSON 或 HTTPS JSON 链接。</string>
+    <string name="theme_import_failed">配色导入失败。</string>
+    <string name="theme_import_browser_unavailable">没有可用的浏览器。</string>
+    <string name="theme_import_source_paste">粘贴的 JSON</string>
+    <string name="theme_import_source_file">本地 JSON</string>
+    <string name="theme_import_preview">已就绪：%1$s</string>
+    <string name="theme_import_no_warnings">只会导入支持的颜色角色。</string>
+    <string name="theme_import_warnings">导入提示：\n%1$s</string>
+    <string name="setting_appearance">外观与语言</string>
+    <string name="setting_appearance_summary">5 项</string>
+>>>>>>> upstream/beta
     <string name="setting_auto">自动</string>
     <string name="setting_custom">自定义</string>
     <string name="setting_language">语言</string>
@@ -966,7 +1065,6 @@
     <string name="sync_item_webhome">WebHome 主页数据</string>
     <string name="sync_item_search">搜索记录</string>
     <string name="sync_item_history">观看记录</string>
-    <string name="history_watched_time">已看 %1$s</string>
     <string name="sync_item_keep">收藏数据</string>
     <string name="sync_item_settings">应用设置</string>
     <string name="sync_item_remote_relay">中转服务配置</string>
@@ -1665,6 +1763,8 @@
         <item>投屏页面</item>
         <item>收藏页面</item>
         <item>设置页面</item>
+        <item>追更页面</item>
+        <item>站点注入</item>
     </string-array>
 
     <string-array name="select_search_ui">
@@ -1902,6 +2002,9 @@
     <string name="dialog_tmdb_api_auto">自动（低延迟优先，失败切换）</string>
     <string name="dialog_tmdb_image_auto">自动（低延迟优先，失败切换）</string>
     <string name="dialog_tmdb_image_wsrv">wsrv.nl 图片代理</string>
+    <string name="dialog_tmdb_route_custom">自定义</string>
+    <string name="dialog_tmdb_api_custom_hint">自定义 API 地址，例如 https://api.tmdb.org</string>
+    <string name="dialog_tmdb_image_custom_hint">自定义图片地址，例如 https://images.tmdb.org</string>
     <string name="dialog_tmdb_api_host_hint">默认 https://api.tmdb.org，可选择内置代理或输入自定义地址</string>
     <string name="dialog_tmdb_proxy_host_help">API 和图片线路可以分别选择。自动模式会按已验证线路的延迟排序，失败时切换；已加入 itv666 和 wsrv.nl，也支持输入自定义地址。</string>
     <string name="dialog_tmdb_image_host_label">TMDB 图片线路</string>
@@ -2002,6 +2105,10 @@
     <string name="detail_image_save_success">已保存至：%1$s</string>
     <string name="detail_image_save_failed">图片保存失败</string>
     <string name="detail_external_open_failed">无法打开外部链接</string>
+    <string name="detail_external_opening">正在打开外部页面</string>
+    <string name="detail_external_open_title">打开外部链接</string>
+    <string name="detail_external_open_builtin">内置浏览器</string>
+    <string name="detail_external_open_external">系统或外部浏览器</string>
     <string name="detail_image_permission_denied">存储权限被拒绝</string>
 
     <string name="detail_tmdb_photos">剧照</string>
@@ -2627,7 +2734,7 @@
     <string name="ad_audio_skipped_title">已跳过广告</string>
     <string name="ad_audio_skipped_message">可在 %1$d 秒内撤销。</string>
     <string name="ad_audio_undo">撤销</string>
-    <string name="setting_ad_audio_title">音频指纹去广告（实验）</string>
+    <string name="setting_ad_audio_title">音频指纹去广告（实验性：开启后可能导致播放失败或掉帧）</string>
     <string name="setting_ad_audio_no_rules">无规则</string>
     <string name="setting_ad_audio_rule_error">规则错误</string>
     <string name="setting_ad_audio_rule_count">规则 %1$d · %2$s</string>
@@ -2637,7 +2744,7 @@
     <string name="setting_ad_audio_imported">已导入 %1$d 条规则 · %2$s</string>
     <string name="setting_ad_audio_import_failed">规则导入失败，已保留原规则。</string>
     <string name="setting_ad_audio_clear_done">已清除音频指纹规则</string>
-    <string name="speech_ad_enabled">语音广告识别</string>
+    <string name="speech_ad_enabled">语音广告识别（实验性：开启后可能导致播放失败或掉帧）</string>
     <string name="speech_ad_keywords">广告关键词</string>
     <string name="speech_ad_keyword_count">%1$d 个关键词</string>
     <string name="speech_ad_rules">语音规则</string>
@@ -2733,6 +2840,7 @@
     <string name="following_summary">追更 %1$d 部 · 未读 %2$d 部</string>
     <string name="following_continue">继续看</string>
     <string name="following_read">标记已读</string>
+    <string name="following_read_all">全部已读</string>
     <string name="following_notify_on">提醒开</string>
     <string name="following_notify_off">提醒关</string>
     <string name="following_change_source">换源</string>
@@ -2740,6 +2848,9 @@
     <string name="following_delete_title">取消追更？</string>
     <string name="following_delete_message">观看历史和 TMDB 进度会继续保留。</string>
     <string name="following_official">官方已更新至第 %1$d 集</string>
+    <string name="following_season_total">本季共 %1$d 集</string>
+    <string name="following_series_total">全剧共 %1$d 集</string>
+    <string name="following_weekday">每周%1$s更新</string>
     <string name="following_official_unknown">官方状态未知</string>
     <string name="following_source">当前源可播至第 %1$d 集</string>
     <string name="following_source_unknown">当前源尚未检查</string>
@@ -2766,4 +2877,13 @@
     <string name="following_filter_failed">检查失败</string>
     <string name="setting_following">追更更新</string>
     <string name="following_next_season">追新季 S%1$d</string>
+    <string-array name="following_weekdays">
+        <item>日</item>
+        <item>一</item>
+        <item>二</item>
+        <item>三</item>
+        <item>四</item>
+        <item>五</item>
+        <item>六</item>
+    </string-array>
 </resources>

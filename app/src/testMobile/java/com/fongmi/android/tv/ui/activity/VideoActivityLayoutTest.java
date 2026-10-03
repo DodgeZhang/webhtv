@@ -1444,20 +1444,28 @@ public class VideoActivityLayoutTest {
         int arrayKey = source.indexOf("private boolean onArrayKey(KeyEvent event)");
         int arrayKeyEnd = source.indexOf("private boolean onEpisodeKey(KeyEvent event)", arrayKey);
         String arrayKeyBody = arrayKey >= 0 && arrayKeyEnd > arrayKey ? source.substring(arrayKey, arrayKeyEnd) : "";
-        assertTrue("segment DPAD down must explicitly focus the current episode", eventBody.contains("mArrayAdapter.setOnKeyListener((view, keyCode, event) -> onArrayKey(event));")
+        assertTrue("segment DPAD down must explicitly hand focus to the declared lower target", eventBody.contains("mArrayAdapter.setOnKeyListener((view, keyCode, event) -> onArrayKey(event));")
                 && eventBody.contains("mBinding.array.setOnKeyListener((view, keyCode, event) -> onArrayKey(event));")
                 && arrayKeyBody.contains("!KeyUtil.isActionDown(event) || !KeyUtil.isDownKey(event)")
-                && arrayKeyBody.contains("selectEpisodeSegment(position, true);"));
+                // 分段行向下必须先落到集数表头（“选集 · 第 N 季”），不能直接跳进选集列表；
+                // 装载分段不抢焦点，否则遥控会跳过季度按钮（用户报告的问题）。
+                && arrayKeyBody.contains("selectEpisodeSegment(position, false);")
+                && arrayKeyBody.indexOf("focusEpisodeHeaderTool(View.FOCUS_DOWN)")
+                < arrayKeyBody.indexOf("scrollToEpisode(getSelectedEpisodePosition(mEpisodeAdapter.getItems()), true)"));
         assertTrue("segment focus handoff must preserve history fallback when no episode is marked selected", source.contains("if (requestEpisodeFocus) scrollToEpisode(getSelectedEpisodePosition(mEpisodeAdapter.getItems()), true);"));
 
         Path arrayAdapterPath = findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "adapter", "ArrayAdapter.java"));
         String arrayAdapter = new String(Files.readAllBytes(arrayAdapterPath), StandardCharsets.UTF_8);
         Path segmentSelectorPath = findLeanbackResPath().resolve(Path.of("drawable", "selector_video_item.xml"));
         String segmentSelector = new String(Files.readAllBytes(segmentSelectorPath), StandardCharsets.UTF_8);
-        assertTrue("original detail modes must keep the active episode range highlighted after focus moves to an episode", source.contains("mArrayAdapter.setSelectedPosition(position);")
+        assertTrue("original detail modes must keep the active episode range highlighted after focus moves to an episode", source.contains("selectEpisodeSegmentPosition(position);")
+                && source.contains("private void selectEpisodeSegmentPosition(int position)")
+                && source.contains("mArrayAdapter.setSelectedPosition(position);")
                 && arrayAdapter.contains("setActivated(position == selectedPosition)")
                 && segmentSelector.contains("android:state_activated=\"true\"")
-                && segmentSelector.contains("#2CC56F"));
+                // 当前生效态的颜色已从主题 colorPrimary 收敛到统一语义 token，
+                // 取值集中在 app/src/main/res/values/colors.xml。
+                && segmentSelector.contains("android:color=\"?attr/tvCurrentRing\""));
     }
 
     @Test
@@ -3331,13 +3339,15 @@ public class VideoActivityLayoutTest {
             assertTrue(sourcePath + " must share canonical episode progress when TMDB history aggregation is enabled",
                     selection.replaceAll("\\s+", " ").contains("boolean shareEpisodeProgress = crossSource || isResumeFromHistory() || Setting.isHistoryAggregationEffective();"));
             assertTrue(sourcePath + " must keep the original episode identity when aggregation and history resume are disabled",
-                    selection.replaceAll("\\s+", " ").contains("shareEpisodeProgress ? historyEpisode.matchesPlayback(mHistory.getEpisode()) : episode.matches(mHistory.getEpisode())"));
+                    selection.replaceAll("\\s+", " ").contains("shareEpisodeProgress ? historyEpisode.matchesPlayback(mHistory.getEpisode(), versionAware) : episode.matches(mHistory.getEpisode())"));
             assertTrue(sourcePath + " must ignore source-line differences when shared progress is enabled",
                     selection.contains("boolean compatibleFlag = shareEpisodeProgress || TextUtils.equals(mHistory.getVodFlag(), flag.getFlag());"));
             assertTrue(sourcePath + " must preserve progress when a history source refresh changes only the episode URL",
-                    selection.contains("historyEpisode.matchesPlayback(mHistory.getEpisode())"));
+                    selection.contains("boolean versionAware = flag.containsEpisodeUrl(mHistory.getEpisode());")
+                            && selection.contains("historyEpisode.matchesPlayback(mHistory.getEpisode(), versionAware)"));
             assertTrue(sourcePath + " must use the same tolerant episode identity when playback updates history",
-                    update.contains("historyEpisode.matchesPlayback(mHistory.getEpisode())"));
+                    update.contains("boolean versionAware = getFlag().containsEpisodeUrl(mHistory.getEpisode());")
+                            && update.contains("historyEpisode.matchesPlayback(mHistory.getEpisode(), versionAware)"));
             if (source.contains("private void updateFastTmdbPlaybackHistory(Flag flag, Episode episode)")) {
                 String fast = methodBody(source, "private void updateFastTmdbPlaybackHistory(Flag flag, Episode episode)", "private void resetDetailForNewIntent()");
                 assertTrue(sourcePath + " fast TMDB playback must honor the aggregation progress-sharing switch",

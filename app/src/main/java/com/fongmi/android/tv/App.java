@@ -27,6 +27,7 @@ import com.fongmi.android.tv.remote.RemoteAgent;
 import com.fongmi.android.tv.setting.AppBranding;
 import com.fongmi.android.tv.setting.ProxySetting;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.utils.DanmakuSearchListFocusFixer;
 import com.fongmi.android.tv.utils.NsdDeviceDiscovery;
 import com.fongmi.android.tv.utils.Notify;
@@ -49,6 +50,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
     private final Runnable backgroundServicesStarter = this::startBackgroundServicesNow;
 
     private volatile Activity activity;
+    private volatile int foregroundActivities;
     private Hook hook;
 
     private Resources resources;
@@ -75,6 +77,11 @@ public class App extends Application implements Application.ActivityLifecycleCal
 
     public static Activity activity() {
         return get().activity;
+    }
+
+    public static boolean isForeground() {
+        App app = get();
+        return app != null && app.foregroundActivities > 0;
     }
 
     public static void post(Runnable runnable) {
@@ -116,6 +123,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
         PlaybackSystemConditionMonitor.process().initialize(this);
 >>>>>>> upstream/beta
         Setting.applyLanguage();
+        ThemeController.applyNightModeToApp();
         AppBranding.applyLauncherIcon(this);
         DebugLogStore.restoreEnabled();
         if (DebugLogStore.isEnabled()) {
@@ -254,9 +262,11 @@ public class App extends Application implements Application.ActivityLifecycleCal
 
     @Override
     public void onActivityStarted(@NonNull Activity activity) {
+        foregroundActivities++;
     }
 
     @Override
     public void onActivityStopped(@NonNull Activity activity) {
+        foregroundActivities = Math.max(0, foregroundActivities - 1);
     }
 }

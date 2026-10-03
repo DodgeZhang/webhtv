@@ -78,7 +78,7 @@ public class TmdbDetailActivityLayoutTest {
         String refresh = javaBlockAt(source, "private void bindTmdbSection()");
 
         assertTrue("direct-play clear theme must compact every populated TMDB rail gap while other themes retain the standard spacing",
-                refresh.contains("int sectionGapDp = isPlayerMode() && !isCinemaMode() ? 12 : 20;")
+                refresh.contains("int sectionGapDp = modeController.isPlayerMode() && !modeController.isCinemaStyle() ? 12 : 20;")
                         && refresh.contains("binding.posterTitle, hasPhotos ? sectionGapDp : 0")
                         && refresh.contains("binding.relatedVideoTitle, hasPhotos || hasPosters ? sectionGapDp : 0")
                         && refresh.contains("binding.castTitle, hasPhotos || hasPosters || hasRelatedVideos ? sectionGapDp : 0")
@@ -229,8 +229,7 @@ public class TmdbDetailActivityLayoutTest {
         assertTrue("title normalization must prefer detail name/title over cached item title",
                 normalize > loadBundle && detailTitle > normalize
                         && source.indexOf("tmdbDetailTitle(item, detail)", normalize) > normalize
-                        && source.indexOf("string(detail, \"name\")", detailTitle) > detailTitle
-                        && source.indexOf("string(detail, \"title\")", detailTitle) > detailTitle);
+                        && source.indexOf("return tmdbService.preferredTitle(item, detail, tmdbConfig);", detailTitle) > detailTitle);
         assertTrue("native enhanced playback history name must use normalized TMDB title",
                 playbackName >= 0 && source.indexOf("coalesce(matchedTmdbTitle()", playbackName) > playbackName);
         assertTrue("detail page vod title must use normalized TMDB title",
@@ -1082,6 +1081,41 @@ public class TmdbDetailActivityLayoutTest {
     }
 
     @Test
+    public void profileBackdropKeepsHistoricalTransparencyOverPosterArt() throws Exception {
+        Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        int method = source.indexOf("private float backdropSlideAlpha()");
+
+        assertTrue(sourcePath + " is missing backdropSlideAlpha", method >= 0);
+        int methodEnd = source.indexOf("\n    }", method);
+        String body = source.substring(method, methodEnd);
+
+        assertTrue("Profile light detail must show the original backdrop without a transparency wash",
+                body.contains("return lightTheme ? 1f : 0.5f;"));
+        assertTrue("Cinema dark detail must retain its historical backdrop opacity",
+                body.contains("return lightTheme ? 1f : 0.9f;"));
+        int cinemaShade = source.indexOf("private Drawable cinemaBackdropShade()");
+        int cinemaShadeEnd = source.indexOf("\n    }", cinemaShade);
+        String cinemaShadeBody = source.substring(cinemaShade, cinemaShadeEnd);
+        assertTrue("Light cinema backdrop must show original artwork without a light gradient wash",
+                cinemaShadeBody.contains("return TmdbDetailLayoutUtils.colorDrawable(Color.TRANSPARENT);"));
+        assertTrue("Light cinema gradient wash must not remain",
+                source.indexOf("private Drawable cinemaLightBackdropShade()") < 0);
+        assertTrue("Light cinema copy must use a local feathered plate instead of covering the poster",
+                source.contains("private void applyLightCinemaCopyPlate()")
+                        && source.contains("binding.detailInfo.setBackground(new LightCinemaCopyPlateDrawable(feather, ResUtil.dp2px(18)));")
+                        && source.contains("if (!(lightTheme && isCinemaStyle()))"));
+        assertTrue("Light cinema copy plate must stay a light white mist instead of the heavier warm beige slab",
+                source.contains("private static final int PLATE = 0xC8FFFFFF;")
+                        && !source.contains("0xE6F6F1EA"));
+        assertTrue("Backdrop opacity must remain theme-aware instead of one global opaque value",
+                !body.contains("return modeController.isCinemaStyle() && !lightTheme ? 0.9f : 1f;"));
+        int initPage = source.indexOf("private void initPage()");
+        assertTrue("Profile detail must reapply its translucent chrome after the global Material theme pass",
+                source.indexOf("binding.root.post(this::applyDetailTheme);", initPage) > initPage);
+    }
+
+    @Test
     public void detailLoadsPersonalAiCacheBeforeSlowMediaBlocksFinish() throws Exception {
         Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
         String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
@@ -1788,9 +1822,10 @@ public class TmdbDetailActivityLayoutTest {
         assertTrue("episode title must use the shared episode-tool focus chrome when it is actionable",
                 activity.contains("setEpisodeTitleButton(binding.episodeTitle, colors);")
                         && activity.contains("private void applyEpisodeTitleButtonFocus(MaterialButton button, ThemeColors colors)"));
-        assertTrue("unfocused season action must blend into the episode heading without a persistent chip surface",
-                activity.contains("button.setBackgroundTintList(ColorStateList.valueOf(focused ? colors.control : Color.TRANSPARENT));")
-                        && activity.contains("button.setStrokeWidth(focused ? ResUtil.dp2px(FOCUS_STROKE_DP) : 0);"));
+        assertTrue("unfocused season action keeps a light-cinema chip and stays transparent in other themes",
+                activity.contains("boolean lightCinemaPlate = lightTheme && isCinemaStyle();")
+                        && activity.contains("return lightCinemaPlate ? colors.chip : Color.TRANSPARENT;")
+                        && activity.contains("button.setStrokeWidth(focused ? ResUtil.dp2px(FOCUS_STROKE_DP) : (lightCinemaPlate ? ResUtil.dp2px(CHIP_STROKE_DP) : 0));"));
         assertTrue("season action must show only a short season label instead of combining it with the episode heading",
                 activity.contains("binding.episodeTitle.setText(detailSeasonButtonLabel());")
                         && activity.contains("private String detailSeasonButtonLabel()")
@@ -2217,9 +2252,9 @@ public class TmdbDetailActivityLayoutTest {
 
         assertTrue("photo card root should own both clipping and focus stroke so rounded corners line up",
                 layout.contains("<com.google.android.material.card.MaterialCardView")
-                        && layout.contains("app:cardCornerRadius=\"8dp\"")
+                        && layout.contains("app:cardCornerRadius=\"@dimen/webhtv_card_radius_default\"")
                         && layout.contains("app:strokeWidth=\"1dp\"")
-                        && layout.contains("app:strokeColor=\"#33FFFFFF\""));
+                        && layout.contains("app:strokeColor=\"?attr/colorOutlineVariant\""));
         assertTrue("photo cards should not stack the old selector or platform focus highlight over the card radius",
                 layout.contains("android:defaultFocusHighlightEnabled=\"false\"")
                         && layout.contains("android:stateListAnimator=\"@null\"")
@@ -2929,11 +2964,11 @@ public class TmdbDetailActivityLayoutTest {
                         && !backFromFullscreenBody.contains("if (isPlayerMode())")
                         && backFromFullscreenBody.indexOf("exitInlineFullscreen();") < backFromFullscreenBody.indexOf("modeController.onExitFullscreen()")
                         && backFromFullscreenBody.contains("return;")
-                        && !backFromFullscreenBody.contains("Util.isLeanback() && isPlayerMode()")
+                        && !backFromFullscreenBody.contains("Util.isLeanback() && modeController.isPlayerMode()")
                         && !backFromFullscreenBody.contains("finishPlaybackToHome();")
                         && !backFromFullscreenBody.contains("Setting.isPlayBackToDetail()")
                         && focusBody.contains("if (!isInlinePlayerMode()) return;")
-                        && !focusBody.contains("if (!isFusionMode()) return;"));
+                        && !focusBody.contains("if (!modeController.isFusionMode()) return;"));
         assertTrue("leanback fullscreen Back should hide visible controls before exiting fullscreen",
                 keyBody.indexOf("KeyUtil.isBackKey(event) && Util.isLeanback() && inlineFullscreen") >= 0
                         && keyBody.indexOf("KeyUtil.isBackKey(event) && isInlineControlsVisible()") < keyBody.indexOf("KeyUtil.isBackKey(event) && Util.isLeanback() && inlineFullscreen")
@@ -3112,8 +3147,64 @@ public class TmdbDetailActivityLayoutTest {
                         && adapter.indexOf("scaleX(", method) < 0
                         && adapter.indexOf("scaleY(", method) < 0);
         assertTrue("legacy episode foreground selector must also keep focus yellow and playing green",
-                selector.contains("android:color=\"#FFD166\"")
-                        && selector.contains("android:color=\"#2CC56F\""));
+                selector.contains("android:color=\"?attr/tvFocusRing\"")
+                        && selector.contains("android:color=\"?attr/tvCurrentRing\""));
+    }
+
+    @Test
+    public void inlineEpisodeSwitchDoesNotCarryPreviousEpisodePosition() throws Exception {
+        String source = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String updateHistory = javaBlockAt(source, "private void updateInlineHistory(Episode item)");
+        String startPlayer = javaBlockAt(source, "private void startInlinePlayer(Result result, long resumePosition)");
+        String onTime = javaBlockAt(source, "public void onTimeChanged(long time)");
+        String saveHistory = javaBlockAt(source, "private void saveInlineHistory()");
+        String progress = javaBlockAt(source, "private void updateInlineHistoryProgress(long time, long position, long duration)");
+        String stopForReload = javaBlockAt(source, "private void stopInlinePlayerForReload()");
+        String onReplay = javaBlockAt(source, "public void onReplay()");
+        String refresh = javaBlockAt(source, "private void refreshInlinePlayback()");
+
+        assertTrue("field must exist: inline playback settled guard",
+                source.contains("private boolean inlinePlaybackSettled = true;"));
+        // 窗口期开启：history 重指向新集时，播放器仍停留在旧集。
+        assertTrue("switching episodes must open the stale-progress window before touching history fields",
+                updateHistory.contains("inlinePlaybackSettled = false;"));
+        // 窗口期关闭：解析结果接管播放器时恢复写入；且必须在 NovelRouter 拦截之前。
+        assertTrue("startInlinePlayer must close the window before the NovelRouter guard",
+                startPlayer.indexOf("inlinePlaybackSettled = true;") >= 0
+                        && startPlayer.indexOf("inlinePlaybackSettled = true;") < startPlayer.indexOf("NovelRouter.guardInlinePlay"));
+        // 每秒进度写入必须被守卫拦截。
+        assertTrue("per-second progress must be blocked while the player still carries the previous episode",
+                onTime.contains("canUpdateProgress = isInlinePlayerSettledOnSelection();"));
+        assertTrue("saveInlineHistory must not poison the episode position cache during the switch window",
+                saveHistory.contains("if (!isInlinePlayerSettledOnSelection())"));
+        // 单点汇入的进度写入同样必须被守卫拦下，覆盖 syncInlineHistory 等其它调用方；
+        // 双条件：解析归属 settled + 播放器就绪 mediaReady。
+        assertTrue("updateInlineHistoryProgress(long,...) must keep the stale window guard",
+                progress.contains("if (!inlinePlaybackSettled || !isInlinePlayerCurrentMediaReady())")
+                        && progress.indexOf("if (!inlinePlaybackSettled || !isInlinePlayerCurrentMediaReady())") < progress.indexOf("history.setPosition(position)"));
+        // 播放器被清空时窗口态必须回到安全默认，避免泄漏的 false 永久禁用进度。
+        assertTrue("stopInlinePlayerForReload must restore the safe default",
+                stopForReload.contains("inlinePlaybackSettled = true;"));
+        // 同集重播也必须开窗，否则「从头重播」退化为「续播」。
+        assertTrue("same-episode replay must also open the stale-progress window",
+                onReplay.contains("inlinePlaybackSettled = false;")
+                        && refresh.contains("inlinePlaybackSettled = false;"));
+        // 加载期守卫：stop 后到新集 READY 前，播放器 getPosition() 仍是旧集残留位置，
+        // 这段窗口的每秒 tick 同样不得写回（红果短剧快切实测复现点）。
+        assertTrue("media-ready guard field must exist",
+                source.contains("private boolean inlinePlayerMediaReady = true;"));
+        assertTrue("startInlinePlayer must invalidate media readiness before stopping the old episode",
+                startPlayer.indexOf("inlinePlayerMediaReady = false;") >= 0
+                        && startPlayer.indexOf("inlinePlayerMediaReady = false;") < startPlayer.indexOf("player().stop();"));
+        String onStateChanged = javaBlockAt(source, "protected void onStateChanged(int state)");
+        assertTrue("STATE_READY must restore media readiness before applying the resume seek",
+                onStateChanged.indexOf("inlinePlayerMediaReady = true;") >= 0
+                        && onStateChanged.indexOf("inlinePlayerMediaReady = true;") < onStateChanged.indexOf("applyInlineStartPosition();"));
+        assertTrue("cache writes must also require ready media",
+                saveHistory.contains("if (!isInlinePlayerSettledOnSelection())")
+                        && source.contains("return inlinePlaybackSettled && isInlinePlayerCurrentMediaReady();"));
+        assertTrue("stopInlinePlayerForReload must restore the media-ready default too",
+                stopForReload.contains("inlinePlayerMediaReady = true;"));
     }
 
     @Test

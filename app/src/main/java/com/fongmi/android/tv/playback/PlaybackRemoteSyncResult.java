@@ -8,8 +8,30 @@ public class PlaybackRemoteSyncResult {
     public int skipped;
     public int failed;
     public String message;
+<<<<<<< HEAD
 
     public static PlaybackRemoteSyncResult success(PlaybackProgressBatchResult batch) {
+=======
+    public String configKey;
+    public String nextSince;
+    public java.util.Map<String, String> cursors;
+    public String identityState;
+    public String identityEpoch;
+    public boolean identitySupported;
+    public String identityCanonicalKey;
+    public String identityMatchedBy;
+    public String identityMessage;
+
+    public static PlaybackRemoteSyncResult success(PlaybackProgressBatchResult batch) {
+        return success(batch, "", "");
+    }
+
+    public static PlaybackRemoteSyncResult success(PlaybackProgressBatchResult batch, String configKey, String nextSince) {
+        return success(batch, configKey, nextSince, null);
+    }
+
+    public static PlaybackRemoteSyncResult success(PlaybackProgressBatchResult batch, String configKey, String nextSince, java.util.Map<String, String> cursors) {
+>>>>>>> upstream/beta
         PlaybackRemoteSyncResult result = new PlaybackRemoteSyncResult();
         result.success = true;
         result.fetched = batch == null ? 0 : batch.total;
@@ -17,6 +39,18 @@ public class PlaybackRemoteSyncResult {
         result.skipped = batch == null ? 0 : batch.skipped;
         result.failed = batch == null ? 0 : batch.failed;
         result.message = "";
+<<<<<<< HEAD
+=======
+        result.configKey = configKey == null ? "" : configKey;
+        result.nextSince = nextSince == null ? "" : nextSince;
+        result.cursors = cursors;
+        result.identityState = "unknown";
+        result.identityEpoch = "";
+        result.identitySupported = false;
+        result.identityCanonicalKey = "";
+        result.identityMatchedBy = "";
+        result.identityMessage = "";
+>>>>>>> upstream/beta
         return result;
     }
 
@@ -24,6 +58,18 @@ public class PlaybackRemoteSyncResult {
         PlaybackRemoteSyncResult result = new PlaybackRemoteSyncResult();
         result.success = false;
         result.message = message == null ? "" : message;
+<<<<<<< HEAD
+=======
+        result.configKey = "";
+        result.nextSince = "";
+        result.cursors = null;
+        result.identityState = "unknown";
+        result.identityEpoch = "";
+        result.identitySupported = false;
+        result.identityCanonicalKey = "";
+        result.identityMatchedBy = "";
+        result.identityMessage = "";
+>>>>>>> upstream/beta
         return result;
     }
 }

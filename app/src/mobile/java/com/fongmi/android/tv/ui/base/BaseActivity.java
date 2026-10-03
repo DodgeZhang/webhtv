@@ -20,6 +20,7 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.Updater;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.ui.audio.AudioMiniPlayer;
 import com.fongmi.android.tv.ui.custom.CustomWallView;
 import com.fongmi.android.tv.utils.ResUtil;
@@ -46,10 +47,16 @@ public abstract class BaseActivity extends AppCompatActivity {
         enableEdgeToEdge();
         enableDynamicColor();
         super.onCreate(savedInstanceState);
-        setContentView(getBinding().getRoot());
+        ThemeController.applyFromPreferences(this);
+        // getBinding() inflates on every call, so resolve it once: the root that is set as
+        // content must be the same instance that initView()/initEvent() configure.
+        View content = getBinding().getRoot();
+        setContentView(content);
+        ThemeController.bindTheme(content);
         audioMiniPlayer = new AudioMiniPlayer(this);
         EventBus.getDefault().register(this);
         initView(savedInstanceState);
+        ThemeController.bindTheme(content);
         setBackCallback();
         initEvent();
     }

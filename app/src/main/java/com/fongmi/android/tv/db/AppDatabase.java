@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 @Database(entities = {Keep.class, Site.class, Live.class, Track.class, Config.class, Device.class, History.class}, version = AppDatabase.VERSION)
 public abstract class AppDatabase extends RoomDatabase {
 
@@ -53,6 +54,13 @@ public abstract class AppDatabase extends RoomDatabase {
 >>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 =======
     public static final int VERSION = 47;
+>>>>>>> upstream/beta
+=======
+@Database(entities = {Keep.class, Site.class, Live.class, Track.class, Config.class, Device.class, History.class, PlaybackDeleteTombstone.class, TmdbSeasonProgress.class}, version = AppDatabase.VERSION, exportSchema = true)
+public abstract class AppDatabase extends RoomDatabase {
+
+    // VERSION = 47 was the pre-identity-alias schema; 48 adds migration clues.
+    public static final int VERSION = 48;
 >>>>>>> upstream/beta
     public static final String NAME = "tv";
     public static final String SYMBOL = "@@@";
@@ -202,6 +210,10 @@ public abstract class AppDatabase extends RoomDatabase {
 =======
                 .addMigrations(Migrations.MIGRATION_45_46)
                 .addMigrations(Migrations.MIGRATION_46_47)
+<<<<<<< HEAD
+>>>>>>> upstream/beta
+=======
+                .addMigrations(Migrations.MIGRATION_47_48)
 >>>>>>> upstream/beta
                 .fallbackToDestructiveMigration(true)
                 .allowMainThreadQueries().build();

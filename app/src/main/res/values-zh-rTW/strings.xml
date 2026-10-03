@@ -841,7 +841,106 @@
     <string name="site_name_reset_title">重設自訂站源名稱？</string>
     <string name="site_name_reset_message">將清除目前介面的全部自訂名稱和分組。</string>
     <string name="setting_short_drama_source">短劇源配置</string>
+    <string name="setting_theme_mode">主題模式</string>
+    <string name="setting_theme_mode_system">跟隨系統</string>
+    <string name="setting_theme_mode_light">淺色</string>
+    <string name="setting_theme_mode_dark">深色</string>
     <string name="setting_theme_color">主題色彩</string>
+<<<<<<< HEAD
+=======
+    <string name="setting_theme_editor">自訂主題</string>
+    <string name="theme_editor_edit_mode">預覽與編輯</string>
+    <string name="theme_editor_dark">深色</string>
+    <string name="theme_editor_light">淺色</string>
+    <string name="theme_editor_preview">即時預覽</string>
+    <string name="theme_editor_inherit">繼承預設</string>
+    <string name="theme_editor_clear">恢復自動</string>
+    <string name="theme_editor_dirty">僅在本頁預覽，尚未儲存</string>
+    <string name="theme_editor_reset_done">預設配色已載入草稿，儲存後生效</string>
+    <string name="theme_editor_save_failed">儲存失敗：%1$s</string>
+    <string name="theme_editor_apply">儲存套用</string>
+    <string name="theme_editor_reset">恢復預設</string>
+    <string name="theme_editor_cancel">取消</string>
+    <string name="theme_editor_confirm">確定</string>
+    <string name="theme_editor_hex_label">精確十六進位</string>
+    <string name="theme_editor_hex_hint">#RRGGBB</string>
+    <string name="theme_editor_hex_apply">使用此顏色</string>
+    <string name="theme_editor_hex_invalid">請輸入 #RRGGBB</string>
+    <string name="theme_editor_preset_default">預設配置</string>
+    <string name="theme_editor_preset_wallpaper">桌布取色</string>
+    <string name="theme_editor_preset_blue">澄海藍</string>
+    <string name="theme_editor_preset_teal">碧灣青</string>
+    <string name="theme_editor_preset_green">松林綠</string>
+    <string name="theme_editor_preset_orange">暖砂金</string>
+    <string name="theme_editor_preset_red">薔薇紅</string>
+    <string name="theme_editor_preset_purple">鳶尾紫</string>
+    <string name="theme_editor_preview_title">標題文字</string>
+    <string name="theme_editor_preview_body">內文文字</string>
+    <string name="theme_editor_preview_secondary">次要文字</string>
+    <string name="theme_editor_preview_filled">填充按鈕</string>
+    <string name="theme_editor_preview_tonal">色調按鈕</string>
+    <string name="theme_editor_slot_primary">主色</string>
+    <string name="theme_editor_slot_primary_container">主色容器</string>
+    <string name="theme_editor_slot_secondary_container">次色容器</string>
+    <string name="theme_editor_slot_focus">焦點色</string>
+    <string name="theme_editor_slot_surface">表面色</string>
+    <string name="theme_editor_slot_surface_container">卡片表面色</string>
+    <string name="theme_editor_slot_surface_container_high">對話框表面色</string>
+    <string name="theme_editor_slot_on_surface">內文顏色</string>
+    <string name="theme_editor_slot_on_surface_variant">次要文字顏色</string>
+    <string name="theme_editor_slot_outline">輪廓色</string>
+    <string name="theme_editor_slot_error">錯誤色</string>
+    <string name="theme_editor_slot_success">成功色</string>
+    <string name="theme_editor_slot_warning">警告色</string>
+    <string name="theme_editor_slot_scrim_opacity">遮罩透明度</string>
+    <string name="theme_editor_slot_dialog_opacity">對話框透明度</string>
+    <string name="theme_editor_slot_overlay_opacity">浮層透明度（僅 Web 主題生效）</string>
+    <string name="theme_editor_import">匯入配色</string>
+    <string name="theme_editor_palette_style">配色風格 · 保留手動修改</string>
+    <string name="theme_editor_palette_tonal">柔和</string>
+    <string name="theme_editor_palette_vibrant">鮮豔</string>
+    <string name="theme_editor_palette_expressive">表現力</string>
+    <string name="theme_editor_palette_rainbow">彩虹</string>
+    <string name="theme_editor_palette_fidelity">保真</string>
+    <string name="theme_editor_palette_content">內容</string>
+    <string name="theme_editor_palette_fruit_salad">果園</string>
+    <string name="theme_editor_palette_neutral">中性</string>
+    <string name="theme_editor_palette_monochrome">單色</string>
+    <string name="theme_editor_inline_hint">調整即在本頁暫時生效，儲存後才套用至全域。</string>
+    <string name="theme_editor_presets">內建主題 · 完整淺深配色</string>
+    <string name="theme_editor_preset_graphite">石墨灰</string>
+    <string name="theme_editor_preset_pair">淺色 + 深色</string>
+    <string name="theme_editor_preset_original">原始配色</string>
+    <string name="theme_editor_preset_dynamic">隨桌布自動更新</string>
+    <string name="theme_editor_preset_modified">已微調</string>
+    <string name="theme_editor_selected">已選擇</string>
+    <string name="theme_editor_saved_state">正在編輯已儲存的配色 · 修改後可直接預覽</string>
+    <string name="theme_editor_clear_short">↺</string>
+    <string name="theme_editor_value_auto">%1$s · 自動</string>
+    <string name="theme_editor_value_adjusted">輸入 %1$s\n顯示 %2$s</string>
+    <string name="theme_editor_group_accent">強調與互動</string>
+    <string name="theme_editor_group_surfaces">背景與表面</string>
+    <string name="theme_editor_group_text">文字與輪廓</string>
+    <string name="theme_editor_group_states">狀態提示</string>
+    <string name="theme_editor_group_layers">透明度與浮層</string>
+    <string name="theme_import_title">匯入配色</string>
+    <string name="theme_import_input_hint">貼上 TweakCN JSON 或 HTTPS JSON 連結</string>
+    <string name="theme_import_file">開啟 JSON</string>
+    <string name="theme_import_community">TweakCN 配色站</string>
+    <string name="theme_import_preview_action">預覽匯入</string>
+    <string name="theme_import_cancel">取消</string>
+    <string name="theme_import_use">套用至編輯器</string>
+    <string name="theme_import_empty">請先貼上 JSON 或 HTTPS JSON 連結。</string>
+    <string name="theme_import_failed">配色匯入失敗。</string>
+    <string name="theme_import_browser_unavailable">沒有可用的瀏覽器。</string>
+    <string name="theme_import_source_paste">貼上的 JSON</string>
+    <string name="theme_import_source_file">本機 JSON</string>
+    <string name="theme_import_preview">已就緒：%1$s</string>
+    <string name="theme_import_no_warnings">只會匯入支援的顏色角色。</string>
+    <string name="theme_import_warnings">匯入提示：\n%1$s</string>
+    <string name="setting_appearance">外觀與語言</string>
+    <string name="setting_appearance_summary">5 項</string>
+>>>>>>> upstream/beta
     <string name="setting_auto">自動</string>
     <string name="setting_custom">自訂</string>
     <string name="setting_language">語言</string>
@@ -921,7 +1020,6 @@
     <string name="sync_item_webhome">WebHome 主頁資料</string>
     <string name="sync_item_search">搜尋記錄</string>
     <string name="sync_item_history">觀看記錄</string>
-    <string name="history_watched_time">已看 %1$s</string>
     <string name="sync_item_keep">收藏資料</string>
     <string name="sync_item_settings">應用設定</string>
     <string name="sync_item_remote_relay">中轉服務配置</string>
@@ -1765,6 +1863,9 @@
     <string name="dialog_tmdb_api_auto">自動（低延遲優先，失敗切換）</string>
     <string name="dialog_tmdb_image_auto">自動（低延遲優先，失敗切換）</string>
     <string name="dialog_tmdb_image_wsrv">wsrv.nl 圖片代理</string>
+    <string name="dialog_tmdb_route_custom">自訂</string>
+    <string name="dialog_tmdb_api_custom_hint">自訂 API 位址，例如 https://api.tmdb.org</string>
+    <string name="dialog_tmdb_image_custom_hint">自訂圖片位址，例如 https://images.tmdb.org</string>
     <string name="dialog_tmdb_api_host_hint">預設 https://api.tmdb.org，可選擇內建代理或輸入自訂位址</string>
     <string name="dialog_tmdb_proxy_host_help">API 和圖片線路可以分別選擇。自動模式會按已驗證線路的延遲排序，失敗時切換；已加入 itv666 和 wsrv.nl，也支援輸入自訂位址。</string>
     <string name="dialog_tmdb_image_host_label">TMDB 圖片線路</string>
@@ -1843,6 +1944,10 @@
     <string name="detail_image_save_success">已儲存至：%1$s</string>
     <string name="detail_image_save_failed">圖片儲存失敗</string>
     <string name="detail_external_open_failed">無法開啟外部連結</string>
+    <string name="detail_external_opening">正在開啟外部頁面</string>
+    <string name="detail_external_open_title">開啟外部連結</string>
+    <string name="detail_external_open_builtin">內置瀏覽器</string>
+    <string name="detail_external_open_external">系統或外部瀏覽器</string>
     <string name="detail_image_permission_denied">儲存權限被拒絕</string>
 
     <string name="detail_tmdb_photos">劇照</string>
@@ -2560,6 +2665,8 @@
         <item>投屏頁面</item>
         <item>收藏頁面</item>
         <item>設置頁面</item>
+        <item>追更頁面</item>
+        <item>站點注入</item>
     </string-array>
     <string name="ad_audio_candidate_title">疑似廣告</string>
     <string name="ad_audio_match_title">已匹配音訊廣告</string>
@@ -2569,7 +2676,7 @@
     <string name="ad_audio_skipped_title">已略過廣告</string>
     <string name="ad_audio_skipped_message">可在 %1$d 秒內復原。</string>
     <string name="ad_audio_undo">復原</string>
-    <string name="setting_ad_audio_title">音訊指紋去廣告（實驗）</string>
+    <string name="setting_ad_audio_title">音訊指紋去廣告（實驗性：開啟後可能導致播放失敗或掉幀）</string>
     <string name="setting_ad_audio_no_rules">無規則</string>
     <string name="setting_ad_audio_rule_error">規則錯誤</string>
     <string name="setting_ad_audio_rule_count">規則 %1$d · %2$s</string>
@@ -2579,7 +2686,7 @@
     <string name="setting_ad_audio_imported">已匯入 %1$d 條規則 · %2$s</string>
     <string name="setting_ad_audio_import_failed">規則匯入失敗，已保留原規則。</string>
     <string name="setting_ad_audio_clear_done">已清除音訊指紋規則</string>
-    <string name="speech_ad_enabled">語音廣告識別</string>
+    <string name="speech_ad_enabled">語音廣告識別（實驗性：開啟後可能導致播放失敗或掉幀）</string>
     <string name="speech_ad_keywords">廣告關鍵詞</string>
     <string name="speech_ad_keyword_count">%1$d 個關鍵詞</string>
     <string name="speech_ad_rules">語音規則</string>
@@ -2682,6 +2789,9 @@
     <string name="following_delete_title">取消追更？</string>
     <string name="following_delete_message">觀看歷史和 TMDB 進度會繼續保留。</string>
     <string name="following_official">官方已更新至第 %1$d 集</string>
+    <string name="following_season_total">本季共 %1$d 集</string>
+    <string name="following_series_total">全劇共 %1$d 集</string>
+    <string name="following_weekday">每週%1$s更新</string>
     <string name="following_official_unknown">官方狀態未知</string>
     <string name="following_source">目前來源可播至第 %1$d 集</string>
     <string name="following_source_unknown">目前來源尚未檢查</string>
@@ -2708,4 +2818,13 @@
     <string name="following_filter_failed">檢查失敗</string>
     <string name="setting_following">追更更新</string>
     <string name="following_next_season">追新季 S%1$d</string>
+    <string-array name="following_weekdays">
+        <item>日</item>
+        <item>一</item>
+        <item>二</item>
+        <item>三</item>
+        <item>四</item>
+        <item>五</item>
+        <item>六</item>
+    </string-array>
 </resources>

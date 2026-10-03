@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.ui.fragment;
 
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -19,6 +20,7 @@ import com.fongmi.android.tv.setting.AutoBackupPolicy;
 import com.fongmi.android.tv.setting.GroupRuleConfig;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
 import com.fongmi.android.tv.ui.activity.AppBrandingActivity;
 import com.fongmi.android.tv.ui.base.BaseFragment;
 import com.fongmi.android.tv.ui.dialog.GroupRuleDialog;
@@ -27,7 +29,6 @@ import com.fongmi.android.tv.ui.dialog.SliderNumberDialog;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
 import com.fongmi.android.tv.utils.Util;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.Locale;
 
@@ -40,6 +41,7 @@ public class SettingPersonalFragment extends BaseFragment {
     private String[] globalHistoryMode;
     private String[] interfaceFailoverMode;
     private String[] searchResultSort;
+    private boolean globalHistoryTouchStarted;
 
     public static SettingPersonalFragment newInstance() {
         return new SettingPersonalFragment();
@@ -67,7 +69,18 @@ public class SettingPersonalFragment extends BaseFragment {
         mBinding.playbackOverlay.setOnClickListener(this::setPlaybackOverlay);
         mBinding.playBackToDetail.setOnClickListener(this::setPlayBackToDetail);
         mBinding.episodeHistory.setOnClickListener(this::setEpisodeHistory);
-        mBinding.globalHistory.setOnClickListener(this::setGlobalHistory);
+        // Require a touch sequence which starts on this row. Keep the marker through
+        // ACTION_UP so the following real click can change the persisted mode.
+        mBinding.globalHistory.setOnTouchListener((view, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) globalHistoryTouchStarted = true;
+            else if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) globalHistoryTouchStarted = false;
+            return false;
+        });
+        mBinding.globalHistory.setOnClickListener(view -> {
+            if (!globalHistoryTouchStarted) return;
+            globalHistoryTouchStarted = false;
+            setGlobalHistory(view);
+        });
         mBinding.interfaceFailover.setOnClickListener(this::setInterfaceFailover);
         mBinding.playSpeed.setOnClickListener(this::setPlaySpeed);
         mBinding.groupRule.setOnClickListener(this::setGroupRule);
@@ -211,7 +224,7 @@ public class SettingPersonalFragment extends BaseFragment {
     }
 
     private void showResetAppDialog(View view) {
-        new MaterialAlertDialogBuilder(requireActivity())
+        new WebHtvAlertDialogBuilder(requireActivity())
                 .setTitle(R.string.dialog_reset_app)
                 .setMessage(R.string.dialog_reset_app_data)
                 .setNegativeButton(R.string.dialog_negative, null)

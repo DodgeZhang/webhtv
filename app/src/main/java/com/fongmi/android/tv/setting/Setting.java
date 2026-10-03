@@ -890,12 +890,29 @@ public class Setting {
         Prefers.put("zhuyin", zhuyin);
     }
 
+    /** Appearance mode: -1 follows system, 0 forces light, 1 forces dark. */
+    public static int getThemeMode() {
+        return Prefers.getInt("theme_mode", -1);
+    }
+
+    public static void putThemeMode(int mode) {
+        Prefers.put("theme_mode", mode < 0 ? -1 : Math.min(mode, 1));
+    }
+
     public static int getThemeColor() {
         return Prefers.getInt("theme_color", -1);
     }
 
     public static void putThemeColor(int color) {
         Prefers.put("theme_color", color);
+    }
+
+    public static boolean isThemeColorEnabled() {
+        return Prefers.getBoolean("theme_color_enabled");
+    }
+
+    public static void putThemeColorEnabled(boolean enabled) {
+        Prefers.put("theme_color_enabled", enabled);
     }
 
     public static int getWallColor() {
@@ -1330,11 +1347,17 @@ public class Setting {
     }
 
     public static int getGlobalHistoryMode() {
-        return clampGlobalHistoryMode(Prefers.getInt("global_history_mode", GLOBAL_HISTORY_OFF));
+        // Read the raw value so a legacy Boolean can be migrated without
+        // mistaking an Integer 0 for Boolean false during app startup.
+        Object value = Prefers.getPrefers().getAll().get("global_history_mode");
+        if (value instanceof Boolean legacy) return legacy ? GLOBAL_HISTORY_AUTO : GLOBAL_HISTORY_OFF;
+        if (value instanceof Number number) return clampGlobalHistoryMode(number.intValue());
+        return GLOBAL_HISTORY_OFF;
     }
 
     public static void putGlobalHistoryMode(int mode) {
-        Prefers.put("global_history_mode", clampGlobalHistoryMode(mode));
+        mode = clampGlobalHistoryMode(mode);
+        Prefers.put("global_history_mode", mode == GLOBAL_HISTORY_OFF ? -1 : mode);
     }
 
     public static int getInterfaceFailoverMode() {
@@ -1409,7 +1432,7 @@ public class Setting {
 
     public static int getHomeMenuKey() {
         int menuKey = Prefers.getInt("home_menu_key", 0);
-        return menuKey < 0 || menuKey > 9 ? 0 : menuKey;
+        return menuKey < 0 || menuKey > 11 ? 0 : menuKey;
     }
 
     public static void putHomeMenuKey(int menuKey) {

@@ -24,6 +24,7 @@ import com.fongmi.android.tv.Updater;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.server.process.ApkUrlPush;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.ui.custom.CustomWallView;
 import com.fongmi.android.tv.ui.helper.TouchOptimizationHelper;
 import com.fongmi.android.tv.utils.Util;
@@ -50,10 +51,16 @@ public abstract class BaseActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeController.applyFromPreferences(this);
         registerFragmentLifecycleCallbacks();
-        setContentView(getBinding().getRoot());
+        // getBinding() inflates on every call, so resolve it once: the root that is set as
+        // content must be the same instance that initView()/initEvent() configure.
+        View content = getBinding().getRoot();
+        setContentView(content);
+        ThemeController.bindTheme(content);
         EventBus.getDefault().register(this);
         initView(savedInstanceState);
+        ThemeController.bindTheme(content);
         Util.hideSystemUI(this);
         setBackCallback();
         initEvent();

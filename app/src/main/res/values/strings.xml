@@ -889,7 +889,106 @@
     <string name="site_name_reset_title">Reset custom site names?</string>
     <string name="site_name_reset_message">All custom names and groups for the current interface will be removed.</string>
     <string name="setting_short_drama_source">Short drama source config</string>
+    <string name="setting_theme_mode">Theme mode</string>
+    <string name="setting_theme_mode_system">Follow system</string>
+    <string name="setting_theme_mode_light">Light</string>
+    <string name="setting_theme_mode_dark">Dark</string>
     <string name="setting_theme_color">Theme color</string>
+<<<<<<< HEAD
+=======
+    <string name="setting_theme_editor">Customize theme</string>
+    <string name="theme_editor_edit_mode">Preview &amp; edit</string>
+    <string name="theme_editor_dark">Dark</string>
+    <string name="theme_editor_light">Light</string>
+    <string name="theme_editor_preview">Live preview</string>
+    <string name="theme_editor_inherit">Inherit default</string>
+    <string name="theme_editor_clear">Use automatic color</string>
+    <string name="theme_editor_dirty">Previewing unsaved changes on this page only</string>
+    <string name="theme_editor_reset_done">Default loaded into draft. Save to apply.</string>
+    <string name="theme_editor_save_failed">Unable to save: %1$s</string>
+    <string name="theme_editor_apply">Save &amp; apply</string>
+    <string name="theme_editor_reset">Reset to default</string>
+    <string name="theme_editor_cancel">Cancel</string>
+    <string name="theme_editor_confirm">OK</string>
+    <string name="theme_editor_hex_label">Exact hex</string>
+    <string name="theme_editor_hex_hint">#RRGGBB</string>
+    <string name="theme_editor_hex_apply">Use this hex</string>
+    <string name="theme_editor_hex_invalid">Enter #RRGGBB</string>
+    <string name="theme_editor_preset_default">Default</string>
+    <string name="theme_editor_preset_wallpaper">Wallpaper</string>
+    <string name="theme_editor_preset_blue">Ocean</string>
+    <string name="theme_editor_preset_teal">Lagoon</string>
+    <string name="theme_editor_preset_green">Forest</string>
+    <string name="theme_editor_preset_orange">Amber</string>
+    <string name="theme_editor_preset_red">Rose</string>
+    <string name="theme_editor_preset_purple">Iris</string>
+    <string name="theme_editor_preview_title">Aa Title</string>
+    <string name="theme_editor_preview_body">Body text</string>
+    <string name="theme_editor_preview_secondary">Secondary text</string>
+    <string name="theme_editor_preview_filled">Filled button</string>
+    <string name="theme_editor_preview_tonal">Tonal button</string>
+    <string name="theme_editor_slot_primary">Primary</string>
+    <string name="theme_editor_slot_primary_container">Primary container</string>
+    <string name="theme_editor_slot_secondary_container">Secondary container</string>
+    <string name="theme_editor_slot_focus">Focus</string>
+    <string name="theme_editor_slot_surface">Surface</string>
+    <string name="theme_editor_slot_surface_container">Card surface</string>
+    <string name="theme_editor_slot_surface_container_high">Dialog surface</string>
+    <string name="theme_editor_slot_on_surface">Body text colour</string>
+    <string name="theme_editor_slot_on_surface_variant">Secondary text colour</string>
+    <string name="theme_editor_slot_outline">Outline</string>
+    <string name="theme_editor_slot_error">Error</string>
+    <string name="theme_editor_slot_success">Success</string>
+    <string name="theme_editor_slot_warning">Warning</string>
+    <string name="theme_editor_slot_scrim_opacity">Scrim opacity</string>
+    <string name="theme_editor_slot_dialog_opacity">Dialog opacity</string>
+    <string name="theme_editor_slot_overlay_opacity">Overlay opacity (web theme only)</string>
+    <string name="theme_editor_import">Import palette</string>
+    <string name="theme_editor_palette_style">Palette style · keeps manual edits</string>
+    <string name="theme_editor_palette_tonal">Tonal</string>
+    <string name="theme_editor_palette_vibrant">Vibrant</string>
+    <string name="theme_editor_palette_expressive">Expressive</string>
+    <string name="theme_editor_palette_rainbow">Rainbow</string>
+    <string name="theme_editor_palette_fidelity">Fidelity</string>
+    <string name="theme_editor_palette_content">Content</string>
+    <string name="theme_editor_palette_fruit_salad">Fruit salad</string>
+    <string name="theme_editor_palette_neutral">Neutral</string>
+    <string name="theme_editor_palette_monochrome">Monochrome</string>
+    <string name="theme_editor_inline_hint">Changes preview only here. Save to apply to the app.</string>
+    <string name="theme_editor_presets">Built-in themes · complete light and dark palettes</string>
+    <string name="theme_editor_preset_graphite">Graphite</string>
+    <string name="theme_editor_preset_pair">Light + dark</string>
+    <string name="theme_editor_preset_original">Original palette</string>
+    <string name="theme_editor_preset_dynamic">Follows wallpaper</string>
+    <string name="theme_editor_preset_modified">Customized</string>
+    <string name="theme_editor_selected">Selected</string>
+    <string name="theme_editor_saved_state">Editing saved colors · changes stay here until saved</string>
+    <string name="theme_editor_clear_short">↺</string>
+    <string name="theme_editor_value_auto">%1$s · Auto</string>
+    <string name="theme_editor_value_adjusted">Input %1$s\nDisplay %2$s</string>
+    <string name="theme_editor_group_accent">Accent &amp; interaction</string>
+    <string name="theme_editor_group_surfaces">Backgrounds &amp; surfaces</string>
+    <string name="theme_editor_group_text">Text &amp; outlines</string>
+    <string name="theme_editor_group_states">Status colors</string>
+    <string name="theme_editor_group_layers">Opacity &amp; overlays</string>
+    <string name="theme_import_title">Import palette</string>
+    <string name="theme_import_input_hint">Paste TweakCN JSON or an HTTPS JSON link</string>
+    <string name="theme_import_file">Open JSON</string>
+    <string name="theme_import_community">TweakCN community</string>
+    <string name="theme_import_preview_action">Preview import</string>
+    <string name="theme_import_cancel">Cancel</string>
+    <string name="theme_import_use">Use in editor</string>
+    <string name="theme_import_empty">Paste JSON or an HTTPS JSON link first.</string>
+    <string name="theme_import_failed">Palette import failed.</string>
+    <string name="theme_import_browser_unavailable">No browser is available.</string>
+    <string name="theme_import_source_paste">Pasted JSON</string>
+    <string name="theme_import_source_file">Local JSON</string>
+    <string name="theme_import_preview">Ready: %1$s</string>
+    <string name="theme_import_no_warnings">Only supported color roles will be imported.</string>
+    <string name="theme_import_warnings">Import warnings:\n%1$s</string>
+    <string name="setting_appearance">Appearance &amp; language</string>
+    <string name="setting_appearance_summary">5 options</string>
+>>>>>>> upstream/beta
     <string name="setting_auto">Auto</string>
     <string name="setting_custom">Custom</string>
     <string name="setting_language">Language</string>
@@ -969,7 +1068,6 @@
     <string name="sync_item_webhome">WebHome saved data</string>
     <string name="sync_item_search">Search records</string>
     <string name="sync_item_history">Watch history</string>
-    <string name="history_watched_time">Watched %1$s</string>
     <string name="sync_item_keep">Favorites</string>
     <string name="sync_item_settings">App settings</string>
     <string name="sync_item_remote_relay">Relay server config</string>
@@ -1701,6 +1799,8 @@
         <item>Cast page</item>
         <item>Keep page</item>
         <item>Setting page</item>
+        <item>Following page</item>
+        <item>Site injection</item>
     </string-array>
 
     <string-array name="select_search_ui">
@@ -1938,6 +2038,9 @@
     <string name="dialog_tmdb_api_auto">Auto (latency priority, failover)</string>
     <string name="dialog_tmdb_image_auto">Auto (latency priority, failover)</string>
     <string name="dialog_tmdb_image_wsrv">wsrv.nl image proxy</string>
+    <string name="dialog_tmdb_route_custom">Custom</string>
+    <string name="dialog_tmdb_api_custom_hint">Custom API base URL, e.g. https://api.tmdb.org</string>
+    <string name="dialog_tmdb_image_custom_hint">Custom image base URL, e.g. https://images.tmdb.org</string>
     <string name="dialog_tmdb_api_host_hint">https://api.tmdb.org or choose a built-in mirror</string>
     <string name="dialog_tmdb_proxy_host_help">API and image routes can be selected independently. Auto ranks the verified routes by latency and switches after failure; itv666 and wsrv.nl are included, and custom endpoints are supported.</string>
     <string name="dialog_tmdb_image_host_label">TMDB image route</string>
@@ -2038,6 +2141,10 @@
     <string name="detail_image_save_success">Saved to: %1$s</string>
     <string name="detail_image_save_failed">Image save failed</string>
     <string name="detail_external_open_failed">Unable to open external link</string>
+    <string name="detail_external_opening">Opening external page</string>
+    <string name="detail_external_open_title">Open external link</string>
+    <string name="detail_external_open_builtin">Built-in browser</string>
+    <string name="detail_external_open_external">System or external browser</string>
     <string name="detail_image_permission_denied">Storage permission denied</string>
 
     <string name="detail_tmdb_photos">Stills</string>
@@ -2632,7 +2739,7 @@
     <string name="ad_audio_skipped_title">Advertisement skipped</string>
     <string name="ad_audio_skipped_message">You can undo within %1$d seconds.</string>
     <string name="ad_audio_undo">Undo</string>
-    <string name="setting_ad_audio_title">Audio fingerprint ad skipping (experimental)</string>
+    <string name="setting_ad_audio_title">Audio fingerprint ad skipping (experimental; may cause playback failure or frame drops)</string>
     <string name="setting_ad_audio_no_rules">No rules</string>
     <string name="setting_ad_audio_rule_error">Rule error</string>
     <string name="setting_ad_audio_rule_count">Rules %1$d · %2$s</string>
@@ -2642,7 +2749,7 @@
     <string name="setting_ad_audio_imported">Imported %1$d rules · %2$s</string>
     <string name="setting_ad_audio_import_failed">Rule import failed; the previous rules were kept.</string>
     <string name="setting_ad_audio_clear_done">Audio fingerprint rules cleared</string>
-    <string name="speech_ad_enabled">Speech ad recognition</string>
+    <string name="speech_ad_enabled">Speech ad recognition (experimental; may cause playback failure or frame drops)</string>
     <string name="speech_ad_keywords">Ad keywords</string>
     <string name="speech_ad_keyword_count">%1$d keywords</string>
     <string name="speech_ad_rules">Speech rules</string>
@@ -2738,6 +2845,7 @@
     <string name="following_summary">%1$d followed · %2$d unread</string>
     <string name="following_continue">Continue</string>
     <string name="following_read">Mark read</string>
+    <string name="following_read_all">Mark all read</string>
     <string name="following_notify_on">Notify on</string>
     <string name="following_notify_off">Notify off</string>
     <string name="following_change_source">Source</string>
@@ -2745,6 +2853,9 @@
     <string name="following_delete_title">Unfollow this show?</string>
     <string name="following_delete_message">The viewing history and TMDB progress will be kept.</string>
     <string name="following_official">Official: episode %1$d</string>
+    <string name="following_season_total">Season: %1$d episodes</string>
+    <string name="following_series_total">Series: %1$d episodes</string>
+    <string name="following_weekday">Updates every %1$s</string>
     <string name="following_official_unknown">Official status unknown</string>
     <string name="following_source">Current source: episode %1$d</string>
     <string name="following_source_unknown">Current source not checked</string>
@@ -2771,4 +2882,13 @@
     <string name="following_filter_failed">Check failed</string>
     <string name="setting_following">Following updates</string>
     <string name="following_next_season">Follow new season S%1$d</string>
+    <string-array name="following_weekdays">
+        <item>Sunday</item>
+        <item>Monday</item>
+        <item>Tuesday</item>
+        <item>Wednesday</item>
+        <item>Thursday</item>
+        <item>Friday</item>
+        <item>Saturday</item>
+    </string-array>
 </resources>
