@@ -492,8 +492,12 @@ async function doLogin() {
   }
 }
 
-// 查询当前 Token 命名空间下已有数据的所有 configKey（含新版 App 的 interfaceKey）。
-// App 界面未展示 interfaceKey，但它每次上报都会携带，服务端可以直接列出来。
+// 查询当前 Token 命名空间下所有记录空间（含身份注册状态与同名接口分组）。
+// /identity/spaces 在旧 /configs 基础上附带 identity（canonical / alias /
+// unregistered）、canonicalKey 与 group（强线索分组，host 线索不参与，
+// 避免误合并同一代理主机上的不同接口）。同名接口可一键归一。
+let lastSpaces = [];
+let lastGroups = [];
 async function findConfigs() {
   const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\\/+$/, '');
   const token = document.getElementById('loginToken').value.trim();
@@ -502,7 +506,7 @@ async function findConfigs() {
   box.style.display = 'block';
   box.textContent = '查询中...';
   try {
-    const res = await fetch(baseUrl + '/api/playback/sync/configs', {
+    const res = await fetch(baseUrl + '/api/playback/sync/identity/spaces', {
       headers: token ? { 'X-WebHTV-Token': token } : {}
     });
     const text = await res.text();
@@ -514,41 +518,232 @@ async function findConfigs() {
         : '查询失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 120));
       return;
     }
-    const configs = data.configs || [];
-    if (!configs.length) {
+    const spaces = data.spaces || [];
+    const groups = data.groups || [];
+    if (!spaces.length) {
       box.textContent = '该 Token 命名空间下暂无记录。请先在 App 播放/阅读一次并开启 Webhook 上报，再回来查询。';
       return;
     }
+    lastSpaces = spaces;
+    lastGroups = groups;
     box.innerHTML = '';
     const title = document.createElement('div');
-    title.textContent = '点击下方任意一项自动填入并连接：';
+    title.textContent = '点击任意空间自动填入并连接；同名接口（地址线索匹配）可一键合并：';
     title.style.marginBottom = '6px';
     box.appendChild(title);
-    for (const cfg of configs) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(cfg.configKey);
-      const row = document.createElement('div');
-      row.style.cssText = 'cursor:pointer;padding:8px 10px;margin:6px 0;border:1px solid var(--border,#333);border-radius:6px;';
-      // 两行布局：第一行 = 接口名 + 类型标签 + 记录数；第二行 = configKey 本身。
-      // configName 来自用户数据，必须用 textContent 而非 innerHTML 注入。
-      const head = document.createElement('div');
-      head.style.cssText = 'font-size:13px;font-weight:600;';
-      head.textContent = (cfg.name || (isUuid ? '未命名接口' : '旧版接口'))
-        + '  ' + (isUuid ? '(新版 interfaceKey)' : '(旧版 sha256)')
-        + '  · ' + cfg.items + ' 条';
-      const keyLine = document.createElement('div');
-      keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin-top:3px;';
-      keyLine.textContent = cfg.configKey;
-      row.appendChild(head);
-      row.appendChild(keyLine);
-      row.onclick = () => {
-        document.getElementById('loginConfigKey').value = cfg.configKey;
-        box.style.display = 'none';
-        doLogin();
-      };
-      box.appendChild(row);
+    const inGroup = new Set();
+    for (const g of groups) {
+      const members = spaces.filter((s) => s.group === g.id);
+      if (!members.length) continue;
+      members.forEach((s) => inGroup.add(s.configKey));
+      box.appendChild(renderGroupHeader(g, members));
+      for (const cfg of members) box.appendChild(renderSpaceRow(cfg));
+    }
+    for (const cfg of spaces) {
+      if (inGroup.has(cfg.configKey)) continue;
+      box.appendChild(renderSpaceRow(cfg));
     }
   } catch (e) {
     box.textContent = '查询失败: ' + e.message;
+  }
+}
+
+function shortKey(key) {
+  const text = String(key || '');
+  return text.length > 13 ? text.substring(0, 13) + '…' : text;
+}
+
+// 组头：显示"疑似同一接口"，提供一键合并。目标优先选身份主空间（canonical），
+// 其次选记录数最多的空间；已并入（alias）的空间不再是合并对象。
+function renderGroupHeader(group, members) {
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 2px;padding:6px 10px;border:1px solid var(--border,#333);border-radius:6px;font-size:12px;background:rgba(15,220,120,.08);';
+  const label = document.createElement('div');
+  label.textContent = '🔗 疑似同一接口 · ' + members.length + ' 个空间';
+  head.appendChild(label);
+  const target = pickGroupTarget(members);
+  const mergeable = members.filter((s) => s.identity !== 'alias' && s.configKey !== target);
+  if (mergeable.length >= 1) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm';
+    btn.textContent = '一键合并该组';
+    btn.onclick = () => mergeSpacesConfirm(target, mergeable.map((s) => s.configKey), members[0].configType);
+    head.appendChild(btn);
+  }
+  return head;
+}
+
+function pickGroupTarget(members) {
+  const canonicals = members.filter((s) => s.identity === 'canonical');
+  const pool = canonicals.length ? canonicals : members.filter((s) => s.identity !== 'alias');
+  const sorted = (pool.length ? pool : members).slice().sort((a, b) => (b.items - a.items) || (b.latest - a.latest));
+  return sorted[0].configKey;
+}
+
+function identityBadge(cfg) {
+  if (cfg.identity === 'alias') {
+    return { text: '已并入 ' + shortKey(cfg.canonicalKey), color: 'var(--text-muted,#888)', title: '已并入 ' + cfg.canonicalKey + '（源数据保留，可反向合并回滚）' };
+  }
+  if (cfg.identity === 'canonical') {
+    return { text: '身份主空间', color: 'var(--success,#1dc981)', title: '此 key 是注册身份，设备同步时会直接命中' };
+  }
+  return { text: '未注册', color: 'var(--warning,#efaa17)', title: '此空间未注册身份（可能是旧协议或历史遗留），设备无法自动归一到它' };
+}
+
+function renderSpaceRow(cfg) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(cfg.configKey);
+  const badge = identityBadge(cfg);
+  const row = document.createElement('div');
+  row.style.cssText = 'cursor:pointer;padding:8px 10px;margin:6px 0;border:1px solid var(--border,#333);border-radius:6px;' + (cfg.identity === 'alias' ? 'opacity:.65;' : '');
+  // 两行布局：第一行 = 接口名 + 类型标签 + 记录数 + 身份徽章 + 合并按钮；
+  // 第二行 = configKey 本身。configName 来自用户数据，必须用 textContent 注入。
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+  const name = document.createElement('div');
+  name.style.cssText = 'font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  name.textContent = (cfg.name || (isUuid ? '未命名接口' : '旧版接口'))
+    + '  ' + (isUuid ? '(新版 interfaceKey)' : '(旧版 sha256)')
+    + '  · ' + cfg.items + ' 条'
+    + (cfg.configType && cfg.configType !== 'vod' ? ' · ' + cfg.configType : '');
+  const badgeEl = document.createElement('span');
+  badgeEl.textContent = badge.text;
+  badgeEl.title = badge.title || '';
+  badgeEl.style.cssText = 'font-size:11px;color:' + badge.color + ';border:1px solid currentColor;border-radius:999px;padding:1px 8px;white-space:nowrap;';
+  head.appendChild(name);
+  head.appendChild(badgeEl);
+  // 已并入的空间不需要再合并；其余提供"并入…"手动选择目标（兜底老空间）。
+  if (cfg.identity !== 'alias') {
+    const mergeBtn = document.createElement('button');
+    mergeBtn.type = 'button';
+    mergeBtn.className = 'btn btn-sm';
+    mergeBtn.textContent = '并入…';
+    mergeBtn.onclick = (e) => { e.stopPropagation(); pickMergeTarget(cfg.configKey); };
+    head.appendChild(mergeBtn);
+  }
+  const keyLine = document.createElement('div');
+  keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin-top:3px;';
+  keyLine.textContent = cfg.configKey;
+  row.appendChild(head);
+  row.appendChild(keyLine);
+  row.onclick = () => {
+    document.getElementById('loginConfigKey').value = cfg.configKey;
+    document.getElementById('configListResult').style.display = 'none';
+    doLogin();
+  };
+  return row;
+}
+
+// 手动合并：从其余空间中选择一个作为合并目标（仅同 configType，排除已并入的）。
+function pickMergeTarget(sourceKey) {
+  const source = (lastSpaces || []).find((s) => s.configKey === sourceKey);
+  if (!source) { showToast('空间信息已过期，请重新查询', 'error'); return; }
+  const candidates = (lastSpaces || []).filter((s) => s.configType === source.configType
+    && s.configKey !== sourceKey
+    && s.configKey !== source.canonicalKey
+    && s.identity !== 'alias');
+  if (!candidates.length) { showToast('没有可并入的目标空间', 'info'); return; }
+  const node = document.createElement('div');
+  const h3 = document.createElement('h3');
+  h3.textContent = '并入哪个空间？';
+  node.appendChild(h3);
+  const p = document.createElement('p');
+  const strong = document.createElement('strong');
+  strong.textContent = shortKey(sourceKey) + '（' + source.items + ' 条）';
+  p.appendChild(strong);
+  p.appendChild(document.createTextNode(' 并入：'));
+  node.appendChild(p);
+  const list = document.createElement('div');
+  list.style.cssText = 'max-height:40vh;overflow-y:auto;';
+  for (const s of candidates) {
+    const item = document.createElement('div');
+    item.style.cssText = 'cursor:pointer;padding:8px 10px;margin:6px 0;border:1px solid var(--border,#333);border-radius:6px;';
+    item.textContent = shortKey(s.configKey) + ' · ' + s.items + ' 条'
+      + (s.name ? ' · ' + s.name : '')
+      + (s.identity === 'canonical' ? ' · 身份主空间' : '');
+    item.onclick = () => mergeSpacesConfirm(s.configKey, [sourceKey], s.configType);
+    list.appendChild(item);
+  }
+  node.appendChild(list);
+  node.appendChild(modalCancelActions());
+  showModalNode(node);
+}
+
+function mergeSpacesConfirm(targetKey, sourceKeys, configType) {
+  const target = (lastSpaces || []).find((s) => s.configKey === targetKey);
+  const sourcesText = sourceKeys.map((key) => {
+    const s = (lastSpaces || []).find((item) => item.configKey === key);
+    return shortKey(key) + '（' + (s ? s.items : '?') + ' 条）';
+  }).join('、');
+  const node = document.createElement('div');
+  const h3 = document.createElement('h3');
+  h3.textContent = '合并记录空间';
+  node.appendChild(h3);
+  const p1 = document.createElement('p');
+  p1.appendChild(document.createTextNode('把 '));
+  const sourceStrong = document.createElement('strong');
+  sourceStrong.textContent = sourcesText;
+  p1.appendChild(sourceStrong);
+  p1.appendChild(document.createTextNode(' 并入 '));
+  const targetStrong = document.createElement('strong');
+  targetStrong.textContent = shortKey(targetKey) + '（' + (target ? target.items : '?') + ' 条）';
+  p1.appendChild(targetStrong);
+  p1.appendChild(document.createTextNode('。'));
+  node.appendChild(p1);
+  const p2 = document.createElement('p');
+  p2.textContent = '规则：两边都有的影片按较新进度保留；删除记录一并迁移；源 key 之后自动路由到目标空间。完成后请在每台设备上各同步一次即可互通。此操作可回滚（反向合并）。';
+  node.appendChild(p2);
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = '取消';
+  cancel.onclick = hideModal;
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-danger';
+  ok.textContent = '确认合并';
+  ok.onclick = () => doMerge(targetKey, sourceKeys, configType);
+  actions.appendChild(cancel);
+  actions.appendChild(ok);
+  node.appendChild(actions);
+  showModalNode(node);
+}
+
+function modalCancelActions() {
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = '取消';
+  cancel.onclick = hideModal;
+  actions.appendChild(cancel);
+  return actions;
+}
+
+async function doMerge(targetKey, sourceKeys, configType) {
+  const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\\/+$/, '');
+  const token = document.getElementById('loginToken').value.trim();
+  hideModal();
+  try {
+    const res = await fetch(baseUrl + '/api/playback/sync/identity/merge', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'X-WebHTV-Token': token } : {}),
+      body: JSON.stringify({ configType: configType || 'vod', targetKey: targetKey, sourceKeys: sourceKeys })
+    });
+    const text = await res.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (e) {}
+    if (!res.ok || !data.ok) {
+      showToast('合并失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 120)), 'error');
+      return;
+    }
+    const mergedCount = (data.merged || []).length;
+    showToast(mergedCount
+      ? '已合并 ' + mergedCount + ' 个空间 → ' + shortKey(data.canonical) + '。请在每台设备上各同步一次完成互通。'
+      : '所选空间已在同一身份下，无需合并', mergedCount ? 'success' : 'info');
+    findConfigs();
+  } catch (e) {
+    showToast('合并失败: ' + e.message, 'error');
   }
 }
 
@@ -808,6 +1003,14 @@ async function clearAll() {
 function showModal(html) {
   const modal = document.getElementById('modal');
   modal.innerHTML = '<div class="modal-overlay"><div class="modal">' + html + '</div></div>';
+  modal.style.display = 'block';
+}
+// 合并确认框用 DOM API 构建（闭包传参，避免内联 onclick 的引号转义问题）。
+function showModalNode(node) {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = '<div class="modal-overlay"><div class="modal"></div></div>';
+  const body = modal.querySelector('.modal');
+  if (body) body.appendChild(node);
   modal.style.display = 'block';
 }
 function hideModal() { document.getElementById('modal').style.display = 'none'; }

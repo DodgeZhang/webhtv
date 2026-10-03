@@ -1,4 +1,14 @@
-import { parseIdentityRequest, resolveIdentity, resolveConfigKey, normalizeConfigType, identityCapabilities } from '../../playback-identity-fixtures/identity.js';
+import {
+  parseIdentityRequest,
+  resolveIdentity,
+  resolveConfigKey,
+  normalizeConfigType,
+  identityCapabilities,
+  identityRegistryKey,
+  normalizeIdentityRegistry,
+  normalizeIdentityKey,
+  normalizeOptionalKey
+} from '../../playback-identity-fixtures/identity.js';
 const PLAYBACK_SYNC_PATHS = new Set(['/api/playback/sync', '/playback/sync']);
 const IDENTITY_RESOLVE_PATHS = new Set(['/api/playback/identity/resolve', '/playback/identity/resolve']);
 const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -12,8 +22,12 @@ const PLAYBACK_SCHEMA = 'webhtv.playback.v1';
 export function isPlaybackSyncPath(pathname) {
   const path = normalizePath(pathname);
   if (PLAYBACK_SYNC_PATHS.has(path)) return true;
-  // WebHTV adaptation: also route the dashboard's read-only space list.
-  for (const base of PLAYBACK_SYNC_PATHS) if (path === `${base}/status` || path === `${base}/configs`) return true;
+  // WebHTV adaptation: also route the dashboard's read-only space list and the
+  // dashboard-only identity space listing / manual merge endpoints.
+  for (const base of PLAYBACK_SYNC_PATHS) {
+    if (path === `${base}/status` || path === `${base}/configs`) return true;
+    if (path === `${base}/identity/spaces` || path === `${base}/identity/merge`) return true;
+  }
   return IDENTITY_RESOLVE_PATHS.has(path);
 }
 
@@ -62,6 +76,19 @@ export class WebHTVPlaybackSyncDO {
       const configs = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/configs`);
       if (configs) {
         if (request.method === 'GET') return playbackCors(this.listConfigs());
+        return playbackError(405, 'Method not allowed');
+      }
+      // WebHTV adaptation (dashboard): identity-aware space listing with
+      // same-interface grouping, and the manual merge operation that resolves
+      // the confirm_required deadlock the App cannot answer.
+      const identitySpaces = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/identity/spaces`);
+      if (identitySpaces) {
+        if (request.method === 'GET') return playbackCors(await this.listIdentitySpaces(request));
+        return playbackError(405, 'Method not allowed');
+      }
+      const identityMerge = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/identity/merge`);
+      if (identityMerge) {
+        if (request.method === 'POST') return playbackCors(await this.handleIdentityMerge(request));
         return playbackError(405, 'Method not allowed');
       }
       if (!PLAYBACK_SYNC_PATHS.has(path)) return playbackError(404, 'Not found');
@@ -245,6 +272,100 @@ export class WebHTVPlaybackSyncDO {
       latest: Number(row.latest || 0)
     }));
     return playbackJson({ ok: true, configs });
+  }
+
+  // WebHTV adaptation (dashboard): identity-aware space list. Extends the
+  // listConfigs aggregation with the identity registry state (canonical /
+  // alias / unregistered) and groups registered identities that share any
+  // strong address clue (strict / endpoint / legacy — never host-only, which
+  // would fuse unrelated interfaces on the same proxy host). Registered
+  // canonical identities without any stored record are listed with items=0 so
+  // a merge target always has a visible row.
+  async listIdentitySpaces(request) {
+    const token = playbackToken(request);
+    const store = this.identityStore(request);
+    const rows = this.sql.exec(`
+      SELECT config_key, COUNT(*) AS items, MAX(updated_at) AS latest,
+             COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name
+        FROM playback_items
+       GROUP BY config_key
+       ORDER BY latest DESC
+    `).toArray();
+    const spaces = [];
+    const groups = [];
+    const seen = new Set();
+    const registries = new Map();
+    const loadRegistry = async (configType) => {
+      if (!registries.has(configType)) {
+        const key = await identityRegistryKey(token, configType);
+        const snapshot = await store.load(key);
+        const registry = normalizeIdentityRegistry(snapshot.state);
+        registries.set(configType, { registry, ...groupRegisteredIdentities(registry) });
+      }
+      return registries.get(configType);
+    };
+    const pushSpace = (configKey, configType, entry) => {
+      seen.add(`${configType}:${configKey}`);
+      spaces.push({
+        configKey,
+        configType,
+        name: entry.name || '',
+        items: Number(entry.items || 0),
+        latest: Number(entry.latest || 0),
+        identity: entry.identity,
+        canonicalKey: entry.canonicalKey || '',
+        group: entry.group || ''
+      });
+    };
+    for (const row of rows) {
+      const storageKey = String(row.config_key || '');
+      let configType = 'vod';
+      let configKey = storageKey;
+      if (storageKey.startsWith('live:')) { configType = 'live'; configKey = storageKey.slice('live:'.length); }
+      else if (storageKey.startsWith('wall:')) { configType = 'wall'; configKey = storageKey.slice('wall:'.length); }
+      const context = await loadRegistry(configType);
+      const identity = context.registry.identities[configKey];
+      const alias = identity ? null : context.registry.aliases[configKey];
+      const canonicalKey = identity ? configKey : alias ? alias.canonicalInterfaceKey : '';
+      const group = canonicalKey ? (context.groupIdOf.get(canonicalKey) || '') : '';
+      pushSpace(configKey, configType, {
+        name: row.name,
+        items: row.items,
+        latest: row.latest,
+        identity: identity ? 'canonical' : alias ? 'alias' : 'unregistered',
+        canonicalKey,
+        group
+      });
+    }
+    // List registered canonical identities that hold no rows yet so they can
+    // still be picked as a merge target.
+    for (const [configType, context] of registries) {
+      for (const key of Object.keys(context.registry.identities)) {
+        if (seen.has(`${configType}:${key}`)) continue;
+        pushSpace(key, configType, { identity: 'canonical', canonicalKey: key, group: context.groupIdOf.get(key) || '' });
+      }
+    }
+    for (const [configType, context] of registries) {
+      for (const group of context.groups) {
+        if (group.members.length > 1) groups.push({ configType, id: group.id, members: group.members });
+      }
+    }
+    return playbackJson({ ok: true, spaces, groups });
+  }
+
+  // WebHTV adaptation (dashboard): manual merge entry point. See the
+  // mergeIdentityRegistry export below for the protocol rationale.
+  async handleIdentityMerge(request) {
+    const body = await readPlaybackJson(request);
+    const configType = normalizeConfigType(body.configType || request.headers.get('x-webhtv-config-type') || 'vod');
+    const result = await mergeIdentityRegistry(
+      this.identityStore(request),
+      playbackToken(request),
+      configType,
+      body.targetKey,
+      Array.isArray(body.sourceKeys) ? body.sourceKeys : (body.sourceKey ? [body.sourceKey] : [])
+    );
+    return playbackJson({ ok: true, ...result });
   }
 
   identityStore(request) {
@@ -800,6 +921,126 @@ function playbackCors(response) {
   headers.set('access-control-expose-headers', '*');
   headers.set('access-control-max-age', '86400');
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+// WebHTV adaptation (dashboard): group registered identities of one registry
+// that share any strong address clue. Host-only clues are deliberately
+// excluded: cnb.cool or gh-proxy.org host hashes would fuse unrelated
+// interfaces that merely ride the same proxy. Returns { groups, groupIdOf }.
+export function groupRegisteredIdentities(registry) {
+  const identities = registry && registry.identities ? registry.identities : {};
+  const keys = Object.keys(identities);
+  const parent = new Map(keys.map((key) => [key, key]));
+  const find = (key) => {
+    let root = key;
+    while (parent.get(root) !== root) root = parent.get(root);
+    while (parent.get(key) !== root) {
+      const next = parent.get(key);
+      parent.set(key, root);
+      key = next;
+    }
+    return root;
+  };
+  const clueOwner = new Map();
+  for (const [key, identity] of Object.entries(identities)) {
+    for (const clue of [
+      ...(identity.strictAddressKeys || []),
+      ...(identity.endpointMatchKeys || []),
+      ...(identity.legacyConfigKeys || [])
+    ]) {
+      const owner = clueOwner.get(clue);
+      if (!owner) clueOwner.set(clue, key);
+      else if (owner !== key) parent.set(find(owner), find(key));
+    }
+  }
+  const membersByRoot = new Map();
+  for (const key of keys) {
+    const root = find(key);
+    if (!membersByRoot.has(root)) membersByRoot.set(root, []);
+    membersByRoot.get(root).push(key);
+  }
+  const groups = [];
+  const groupIdOf = new Map();
+  for (const [root, members] of membersByRoot) {
+    members.sort();
+    groups.push({ id: root, members });
+    for (const member of members) groupIdOf.set(member, root);
+  }
+  return { groups, groupIdOf };
+}
+
+// WebHTV adaptation: manual identity merge for the dashboard. The official App
+// never sends confirm:true, and a key that is already a registered identity
+// always short-circuits to keep/conflict in chooseIdentity, so same-interface
+// spaces deadlock forever with confirm_required. This performs the official
+// merge steps directly: create the target identity when needed, union every
+// source identity's address clues into it, demote each source to an alias, and
+// move the source spaces' items/tombstones/events into the target space
+// (newest wins). Source rows are kept in place for rollback, matching the
+// official migrateIdentitySpaces behaviour. Re-running the same merge is a
+// no-op because every source then resolves to the target.
+export async function mergeIdentityRegistry(store, token, configType, targetKey, sourceKeys) {
+  const canonical = normalizeIdentityKey(targetKey, 'targetKey');
+  const requested = [...new Set((Array.isArray(sourceKeys) ? sourceKeys : [])
+    .map((item) => normalizeOptionalKey(item, 'sourceKeys'))
+    .filter(Boolean))];
+  if (!requested.length) throw playbackHttpError(400, 'sourceKeys is required');
+  const registryKey = await identityRegistryKey(token, configType);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const snapshot = await store.load(registryKey);
+    const registry = normalizeIdentityRegistry(snapshot.state);
+    const resolvedTarget = registry.aliases[canonical]?.canonicalInterfaceKey || canonical;
+    const sources = [];
+    const skipped = [];
+    for (const key of requested) {
+      const resolved = registry.aliases[key]?.canonicalInterfaceKey || key;
+      if (resolved === resolvedTarget) {
+        skipped.push(key);
+        continue;
+      }
+      if (!sources.includes(resolved)) sources.push(resolved);
+    }
+    if (!sources.length) {
+      return { canonical: resolvedTarget, merged: [], skipped, migration: { migrated: false, resetSince: false }, alreadyMerged: true };
+    }
+    if (!registry.identities[resolvedTarget]) {
+      registry.identities[resolvedTarget] = {
+        canonicalInterfaceKey: resolvedTarget,
+        strictAddressKeys: [],
+        endpointMatchKeys: [],
+        hostMatchKeys: [],
+        legacyConfigKeys: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+    }
+    const target = registry.identities[resolvedTarget];
+    for (const source of sources) {
+      const identity = registry.identities[source];
+      if (identity) {
+        mergeKeyList(target.strictAddressKeys, identity.strictAddressKeys);
+        mergeKeyList(target.endpointMatchKeys, identity.endpointMatchKeys);
+        mergeKeyList(target.hostMatchKeys, identity.hostMatchKeys);
+        mergeKeyList(target.legacyConfigKeys, identity.legacyConfigKeys);
+        delete registry.identities[source];
+      }
+      registry.aliases[source] = { canonicalInterfaceKey: resolvedTarget, kind: 'manual-merge' };
+    }
+    target.updatedAt = Date.now();
+    registry.epoch = Number(registry.epoch || 0) + 1;
+    registry.updatedAt = Date.now();
+    if (await store.compareAndSet(registryKey, snapshot.version, registry)) {
+      const migration = await store.migrateIdentitySpaces(token, configType, resolvedTarget, sources);
+      return { canonical: resolvedTarget, merged: sources, skipped, migration, alreadyMerged: false };
+    }
+  }
+  throw playbackHttpError(503, 'Identity registry changed concurrently; retry the merge');
+}
+
+function mergeKeyList(targetList, sourceList) {
+  for (const item of Array.isArray(sourceList) ? sourceList : []) {
+    if (!targetList.includes(item) && targetList.length < 32) targetList.push(item);
+  }
 }
 
 function playbackHttpError(status, message) {
