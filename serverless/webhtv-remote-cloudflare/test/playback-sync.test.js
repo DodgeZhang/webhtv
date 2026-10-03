@@ -7,9 +7,11 @@ import {
   parseCursor,
   parseLimit,
   groupRegisteredIdentities,
-  mergeIdentityRegistry
+  mergeIdentityRegistry,
+  planAutoMergeGroups,
+  resolveWithAutoMerge
 } from '../src/playback-sync.js';
-import { identityRegistryKey, normalizeIdentityRegistry } from '../../playback-identity-fixtures/identity.js';
+import { IDENTITY_SCHEMA, identityRegistryKey, normalizeIdentityRegistry } from '../../playback-identity-fixtures/identity.js';
 
 const NOW = Date.now() + 1000;
 const CONFIG_KEY = 'abcdef0123456789';
@@ -257,4 +259,89 @@ test('mergeIdentityRegistry rejects invalid keys and empty sources', async () =>
     () => mergeIdentityRegistry(store, 'token', 'vod', 'target-key', ['   ']),
     /sourceKeys is required/
   );
+});
+
+test('planAutoMergeGroups picks the member with the most records as the target', () => {
+  const registry = normalizeIdentityRegistry({
+    identities: {
+      'key-a': { strictAddressKeys: ['strict-shared'], endpointMatchKeys: [], hostMatchKeys: [], legacyConfigKeys: [] },
+      'key-b': { strictAddressKeys: [], endpointMatchKeys: ['strict-shared'], hostMatchKeys: [], legacyConfigKeys: [] },
+      'solo-key': { strictAddressKeys: ['strict-solo'], endpointMatchKeys: [], hostMatchKeys: [], legacyConfigKeys: [] }
+    },
+    aliases: {}
+  });
+  const counts = new Map([['key-a', 3], ['key-b', 9], ['solo-key', 5]]);
+  const plans = planAutoMergeGroups(registry, (key) => counts.get(key) || 0);
+  assert.deepEqual(plans, [{ target: 'key-b', sources: ['key-a'] }]);
+});
+
+test('resolveWithAutoMerge re-submits confirm_required with confirm automatically', async () => {
+  const token = 'auto-merge-token';
+  const registryKey = await identityRegistryKey(token, 'vod');
+  const store = createFakeStore({
+    [registryKey]: {
+      schema: 1, epoch: 1, updatedAt: 1, requests: {},
+      identities: {
+        'target-key': { canonicalInterfaceKey: 'target-key', strictAddressKeys: ['strict-shared'], endpointMatchKeys: [], hostMatchKeys: [], legacyConfigKeys: [], createdAt: 1, updatedAt: 1 }
+      },
+      aliases: {}
+    }
+  });
+  const input = {
+    schema: IDENTITY_SCHEMA,
+    operation: 'resolve',
+    configType: 'vod',
+    interfaceKey: 'source-key',
+    sourceDataState: 'has_data',
+    requestId: 'req-1',
+    strictAddressKeys: ['strict-shared'],
+    endpointMatchKeys: [],
+    hostMatchKeys: [],
+    legacyConfigKeys: []
+  };
+
+  const result = await resolveWithAutoMerge(store, token, input, { autoMergeGroups: async () => {} });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.action, 'merge');
+  assert.equal(result.body.canonicalInterfaceKey, 'target-key');
+
+  const registry = normalizeIdentityRegistry((await store.load(registryKey)).state);
+  assert.ok(!registry.identities['source-key'], 'source identity must not be registered');
+  assert.equal(registry.aliases['source-key'].canonicalInterfaceKey, 'target-key');
+  assert.ok(registry.requests['req-1-auto'], 'the confirm retry must use its own idempotency cache entry');
+  assert.equal(registry.requests['req-1'].body.action, 'confirm_required');
+});
+
+test('resolveWithAutoMerge keeps confirm_required when auto-merge is disabled', async () => {
+  const token = 'auto-merge-off-token';
+  const registryKey = await identityRegistryKey(token, 'vod');
+  const store = createFakeStore({
+    [registryKey]: {
+      schema: 1, epoch: 1, updatedAt: 1, requests: {},
+      identities: {
+        'target-key': { canonicalInterfaceKey: 'target-key', strictAddressKeys: ['strict-shared'], endpointMatchKeys: [], hostMatchKeys: [], legacyConfigKeys: [], createdAt: 1, updatedAt: 1 }
+      },
+      aliases: {}
+    }
+  });
+  const input = {
+    schema: IDENTITY_SCHEMA,
+    operation: 'resolve',
+    configType: 'vod',
+    interfaceKey: 'source-key',
+    sourceDataState: 'has_data',
+    requestId: 'req-1',
+    strictAddressKeys: ['strict-shared'],
+    endpointMatchKeys: [],
+    hostMatchKeys: [],
+    legacyConfigKeys: []
+  };
+
+  const result = await resolveWithAutoMerge(store, token, input);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.action, 'confirm_required');
+
+  const registry = normalizeIdentityRegistry((await store.load(registryKey)).state);
+  assert.ok(!registry.aliases['source-key'], 'no merge must happen without the hook');
+  assert.ok(!registry.requests['req-1-auto'], 'no confirm retry must be recorded');
 });

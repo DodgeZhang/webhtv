@@ -18,6 +18,11 @@ const MAX_BATCH_ITEMS = 100;
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 const PLAYBACK_SCHEMA = 'webhtv.playback.v1';
+// WebHTV adaptation: lazily collapse same-interface identity groups on every
+// identity resolve and auto-confirm the official merge path (the App never
+// sends confirm:true). Set to false to restore the official resolver
+// behaviour unchanged; the dashboard merge panel keeps working either way.
+const AUTO_MERGE_IDENTITIES = true;
 
 export function isPlaybackSyncPath(pathname) {
   const path = normalizePath(pathname);
@@ -63,7 +68,7 @@ export class WebHTVPlaybackSyncDO {
       if (IDENTITY_RESOLVE_PATHS.has(path)) {
         if (request.method !== 'POST') return playbackError(405, 'Method not allowed');
         const input = parseIdentityRequest(await readPlaybackJson(request), request.headers);
-        const result = await resolveIdentity(this.identityStore(request), playbackToken(request), input);
+        const result = await this.resolveIdentityWithAutoMerge(request, input);
         return playbackCors(playbackJson(result.body, result.status));
       }
       const status = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/status`);
@@ -366,6 +371,42 @@ export class WebHTVPlaybackSyncDO {
       Array.isArray(body.sourceKeys) ? body.sourceKeys : (body.sourceKey ? [body.sourceKey] : [])
     );
     return playbackJson({ ok: true, ...result });
+  }
+
+  // WebHTV adaptation: identity resolution with lazy auto-merge. Pass 1
+  // collapses any same-interface identity group before the official resolver
+  // sees the registry; pass 2 auto-answers confirm_required (the App cannot).
+  // Both passes are best effort: a failure never blocks the App's sync — the
+  // next resolve simply retries.
+  async resolveIdentityWithAutoMerge(request, input) {
+    const token = playbackToken(request);
+    const store = this.identityStore(request);
+    return resolveWithAutoMerge(store, token, input, {
+      autoMergeGroups: AUTO_MERGE_IDENTITIES ? () => this.autoMergeIdentityGroups(store, token, input.configType) : null
+    });
+  }
+
+  async autoMergeIdentityGroups(store, token, configType) {
+    const registryKey = await identityRegistryKey(token, configType);
+    const snapshot = await store.load(registryKey);
+    const registry = normalizeIdentityRegistry(snapshot.state);
+    const counts = this.spaceCounts(Object.keys(registry.identities), configType);
+    const plans = planAutoMergeGroups(registry, (key) => counts.get(scopedConfigKey(configType, key)) || 0);
+    for (const plan of plans) {
+      await mergeIdentityRegistry(store, token, configType, plan.target, plan.sources);
+    }
+  }
+
+  // Record counts for identity members, keyed by storage config key
+  // (bare key for vod, type-prefixed otherwise).
+  spaceCounts(keys, configType) {
+    const storageKeys = [...new Set((Array.isArray(keys) ? keys : []).map((key) => scopedConfigKey(configType, key)))];
+    const counts = new Map();
+    if (!storageKeys.length) return counts;
+    const placeholders = storageKeys.map(() => '?').join(',');
+    const rows = this.sql.exec(`SELECT config_key, COUNT(*) AS items FROM playback_items WHERE config_key IN (${placeholders}) GROUP BY config_key`, ...storageKeys).toArray();
+    for (const row of rows) counts.set(String(row.config_key || ''), Number(row.items || 0));
+    return counts;
   }
 
   identityStore(request) {
@@ -1035,6 +1076,54 @@ export async function mergeIdentityRegistry(store, token, configType, targetKey,
     }
   }
   throw playbackHttpError(503, 'Identity registry changed concurrently; retry the merge');
+}
+
+// WebHTV adaptation: decide which registered identity groups need collapsing
+// and pick the merge target the same way the dashboard does — the member with
+// the most stored records, ties broken by key order for stability. Group
+// members are always registered identities (canonicals), so no alias handling
+// is needed here. countOf receives a bare interface key and returns the
+// record count of its space.
+export function planAutoMergeGroups(registry, countOf) {
+  const { groups } = groupRegisteredIdentities(registry);
+  const plans = [];
+  for (const group of groups) {
+    if (group.members.length < 2) continue;
+    const sorted = group.members.slice().sort((a, b) => (countOf(b) - countOf(a)) || (a < b ? -1 : 1));
+    plans.push({ target: sorted[0], sources: sorted.slice(1) });
+  }
+  return plans;
+}
+
+// WebHTV adaptation: the official resolver with lazy auto-merge. When
+// hooks.autoMergeGroups is provided it runs before the official resolution
+// (collapsing registered same-interface groups), and a confirm_required
+// answer — which the official App can never act on because it never sends
+// confirm:true — is re-submitted once with confirm to run the official merge
+// path. The retry uses a derived requestId so it cannot hit the resolver's
+// idempotency cache, which would otherwise return the confirm_required body
+// again.
+export async function resolveWithAutoMerge(store, token, input, hooks = {}) {
+  const autoMerge = typeof hooks.autoMergeGroups === 'function' ? hooks.autoMergeGroups : null;
+  if (autoMerge) {
+    try {
+      await autoMerge();
+    } catch {
+      // Best effort: a failed auto-merge must never block the App's sync. The
+      // next resolve retries the collapse.
+    }
+  }
+  const result = await resolveIdentity(store, token, input);
+  if (autoMerge && result.status === 200 && result.body && result.body.action === 'confirm_required') {
+    const retryInput = { ...input, confirm: true };
+    if (input.requestId) retryInput.requestId = `${input.requestId}-auto`.slice(0, 160);
+    try {
+      return await resolveIdentity(store, token, retryInput);
+    } catch {
+      return result;
+    }
+  }
+  return result;
 }
 
 function mergeKeyList(targetList, sourceList) {
