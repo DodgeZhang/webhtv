@@ -39,19 +39,22 @@ public class TmdbSourceDialogInflationContractTest {
         assertTrue(source.contains("setupRouteDropdown(apiHostInput, apiOptionLabels(), activity.getString(R.string.dialog_tmdb_api_host_label))"));
         assertTrue(source.contains("setupRouteDropdown(imageHostInput, imageOptionLabels(), activity.getString(R.string.dialog_tmdb_image_host_label))"));
         assertTrue(source.contains("wireRouteDpadFocus(apiHostInput, apiOptionLabels(),\n"
-                + "                activity.getString(R.string.dialog_tmdb_api_host_label), languageInput, imageHostInput)"));
+                + "                activity.getString(R.string.dialog_tmdb_api_host_label), languageInput,\n"
+                + "                isCustomVisible(apiCustomInput) ? apiCustomInput : imageHostInput)"));
         assertTrue(source.contains("wireRouteDpadFocus(imageHostInput, imageOptionLabels(),\n"
-                + "                activity.getString(R.string.dialog_tmdb_image_host_label), apiHostInput, omdbApiKeyInput)"));
+                + "                activity.getString(R.string.dialog_tmdb_image_host_label),\n"
+                + "                isCustomVisible(apiCustomInput) ? apiCustomInput : apiHostInput,\n"
+                + "                isCustomVisible(imageCustomInput) ? imageCustomInput : omdbApiKeyInput)"));
         assertTrue("route focus wiring must preserve the route activation key handler",
                 source.indexOf("wireRouteDpadFocus(apiHostInput", source.indexOf("private void wireConfigDialogFocus")) > 0);
         assertTrue(source.contains("showRoutePicker(input, labels, title)"));
-        assertTrue(source.contains(".setSingleChoiceItems(labels, checked"));
+        assertTrue(source.contains(".setSingleChoiceItems(pickerLabels, checked"));
         int show = source.indexOf("private void showRoutePicker");
         assertTrue("route picker should clear focus callbacks before showing",
                 source.indexOf("clearRouteFocusPickers();", show) > show
                         && source.indexOf("String current = inputText(input);", show)
                         > source.indexOf("clearRouteFocusPickers();", show));
-        assertTrue(source.contains("input.setText(labels[which], false)"));
+        assertTrue(source.contains("input.setText(pickerLabels[which], false)"));
         assertTrue(source.contains("input.setKeyListener(null)"));
         assertTrue(source.contains("input.setAdapter(null)"));
         assertTrue(source.contains("input.post(routeFocusPicker)"));
@@ -60,6 +63,31 @@ public class TmdbSourceDialogInflationContractTest {
         assertTrue(source.contains("keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER"));
         assertTrue(source.contains("apiDisplayFor(config)"));
         assertTrue(source.contains("imageDisplayFor(config)"));
+    }
+
+    @Test
+    public void routeDropdownsSupportCustomOption() throws Exception {
+        String layout = read(sourcePath().resolve(Path.of("..", "..", "main", "res", "layout", "dialog_tmdb_source.xml")));
+        String source = read(sourcePath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "dialog", "TmdbSourceDialog.java")));
+        assertTrue(layout.contains("@+id/apiCustomInput"));
+        assertTrue(layout.contains("@+id/imageCustomInput"));
+        assertTrue(source.contains("private String[] withCustomLabel(String[] labels)"));
+        assertTrue(source.contains("activity.getString(R.string.dialog_tmdb_route_custom)"));
+        assertTrue("selecting custom in the picker must reveal the custom input and move focus for TV users",
+                source.contains("showCustomInput(input, customInput)"));
+        assertTrue("leaving custom must hide the custom input and restore focus",
+                source.contains("hideCustomInput(input, customInput)"));
+        assertTrue(source.contains("customInput.post(() -> {"));
+        assertTrue("custom inputs must join the D-pad focus chain",
+                source.contains("wireTextDpadFocus(apiCustomInput, apiHostInput, imageHostInput, null, null)"));
+        assertTrue(source.contains("wireTextDpadFocus(imageCustomInput, imageHostInput, omdbApiKeyInput, null, null)"));
+        assertTrue("saved custom route must be normalized through TmdbProxy",
+                source.contains("isApiCustomMode()"));
+        assertTrue(source.contains("isImageCustomMode()"));
+        assertTrue("existing custom route from old config must reopen in custom mode with its value",
+                source.contains("apiCustomValueFor(config)"));
+        assertTrue(source.contains("imageCustomValueFor(config)"));
+        assertTrue(source.contains("updateRouteCustomVisibility()"));
     }
 
     private static String buttonBlock(String layout, String id) {

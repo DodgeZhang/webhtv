@@ -51,7 +51,16 @@ public class TmdbSourceDialog {
     private EditText languageInput;
     private MaterialAutoCompleteTextView apiHostInput;
     private MaterialAutoCompleteTextView imageHostInput;
+    private EditText apiCustomInput;
+    private EditText imageCustomInput;
     private EditText omdbApiKeyInput;
+    private EditText ruleInputField;
+    private EditText disabledRuleInputField;
+    private View addBtnField;
+    private View addDisabledBtnField;
+    private View manageBtnField;
+    private View testBtnField;
+    private View resetBtnField;
     private Runnable onDismiss;
 
     private List<String> tempEnabledRules;
@@ -85,6 +94,8 @@ public class TmdbSourceDialog {
         setupRouteDropdown(apiHostInput, apiOptionLabels(), activity.getString(R.string.dialog_tmdb_api_host_label));
         imageHostInput = view.findViewById(R.id.imageHostInput);
         setupRouteDropdown(imageHostInput, imageOptionLabels(), activity.getString(R.string.dialog_tmdb_image_host_label));
+        apiCustomInput = view.findViewById(R.id.apiCustomInput);
+        imageCustomInput = view.findViewById(R.id.imageCustomInput);
         omdbApiKeyInput = view.findViewById(R.id.omdbApiKeyInput);
         EditText ruleInput = view.findViewById(R.id.ruleInput);
         EditText disabledRuleInput = view.findViewById(R.id.disabledRuleInput);
@@ -93,6 +104,13 @@ public class TmdbSourceDialog {
         TextView manageBtn = view.findViewById(R.id.manage);
         TextView testBtn = view.findViewById(R.id.testConfig);
         TextView resetBtn = view.findViewById(R.id.resetDefault);
+        ruleInputField = ruleInput;
+        disabledRuleInputField = disabledRuleInput;
+        addBtnField = addBtn;
+        addDisabledBtnField = addDisabledBtn;
+        manageBtnField = manageBtn;
+        testBtnField = testBtn;
+        resetBtnField = resetBtn;
         addBtn.setText(R.string.dialog_tmdb_add);
         addDisabledBtn.setText(R.string.dialog_tmdb_add);
         manageBtn.setText(R.string.dialog_tmdb_site_manage);
@@ -112,8 +130,11 @@ public class TmdbSourceDialog {
         languageInput.setText(config.getLanguage());
         apiHostInput.setText(apiDisplayFor(config), false);
         imageHostInput.setText(imageDisplayFor(config), false);
+        apiCustomInput.setText(apiCustomValueFor(config));
+        imageCustomInput.setText(imageCustomValueFor(config));
         omdbApiKeyInput.setText(config.getOmdbApiKey());
         updateChipsDisplay();
+        updateRouteCustomVisibility();
 
         addBtn.setOnClickListener(v -> addRule(ruleInput));
         addDisabledBtn.setOnClickListener(v -> addDisabledRule(disabledRuleInput));
@@ -150,6 +171,11 @@ public class TmdbSourceDialog {
         LightDialog.apply(dialog);
     }
 
+    private void rewiringFocusAfterVisibilityChange() {
+        if (dialog == null) return;
+        wireConfigDialogFocus(dialog, ruleInputField, addBtnField, disabledRuleInputField, addDisabledBtnField, manageBtnField, resetBtnField);
+    }
+
     private void clearRouteFocusPickers() {
         clearRouteFocusPicker(apiHostInput);
         clearRouteFocusPicker(imageHostInput);
@@ -162,9 +188,10 @@ public class TmdbSourceDialog {
 
     private void testConfig(View testButton) {
         String credential = inputText(apiKeyInput);
-        String apiHost = apiValueFor(inputText(apiHostInput));
-        String imageHost = imageValueFor(inputText(imageHostInput));
         String omdbApiKey = inputText(omdbApiKeyInput);
+        updateRouteCustomVisibility();
+        final String apiHost = apiValueFor(inputText(apiHostInput));
+        final String imageHost = imageValueFor(inputText(imageHostInput));
         AlertDialog sourceDialog = dialog;
         testButton.setEnabled(false);
         Task.execute(() -> {
@@ -236,18 +263,74 @@ public class TmdbSourceDialog {
 
     private void showRoutePicker(MaterialAutoCompleteTextView input, String[] labels, String title) {
         clearRouteFocusPickers();
+        String[] pickerLabels = withCustomLabel(labels);
         String current = inputText(input);
         int checked = -1;
-        for (int i = 0; i < labels.length; i++) if (labels[i].equals(current)) checked = i;
+        for (int i = 0; i < pickerLabels.length; i++) if (pickerLabels[i].equals(current)) checked = i;
+        if (checked < 0 && !TextUtils.isEmpty(current)) checked = pickerLabels.length - 1;
+        EditText customInput = customInputFor(input);
         AlertDialog picker = new WebHtvAlertDialogBuilder(dialogContext, R.style.Theme_WebHTV_Dialog)
                 .setTitle(title)
-                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
-                    input.setText(labels[which], false);
+                .setSingleChoiceItems(pickerLabels, checked, (dialog, which) -> {
+                    if (which == pickerLabels.length - 1) {
+                        input.setText(pickerLabels[which], false);
+                        showCustomInput(input, customInput);
+                    } else {
+                        hideCustomInput(input, customInput);
+                        input.setText(pickerLabels[which], false);
+                    }
                     dialog.dismiss();
                 })
                 .setNegativeButton(R.string.dialog_negative, null)
                 .show();
         LightDialog.apply(picker);
+    }
+
+    private String[] withCustomLabel(String[] labels) {
+        String[] result = new String[labels.length + 1];
+        System.arraycopy(labels, 0, result, 0, labels.length);
+        result[labels.length] = activity.getString(R.string.dialog_tmdb_route_custom);
+        return result;
+    }
+
+    private EditText customInputFor(MaterialAutoCompleteTextView input) {
+        return input == apiHostInput ? apiCustomInput : imageCustomInput;
+    }
+
+    private String customLabel() {
+        return activity.getString(R.string.dialog_tmdb_route_custom);
+    }
+
+    private void showCustomInput(MaterialAutoCompleteTextView input, EditText customInput) {
+        if (customInput == null) return;
+        customInput.setVisibility(View.VISIBLE);
+        rewiringFocusAfterVisibilityChange();
+        customInput.post(() -> {
+            if (customInput.getVisibility() == View.VISIBLE && !activity.isFinishing() && !activity.isDestroyed()) {
+                requestFocus(customInput);
+            }
+        });
+    }
+
+    private void hideCustomInput(MaterialAutoCompleteTextView input, EditText customInput) {
+        if (customInput == null) return;
+        if (customInput.hasFocus() && input != null) requestFocus(input);
+        customInput.setVisibility(View.GONE);
+        rewiringFocusAfterVisibilityChange();
+    }
+
+    private void updateRouteCustomVisibility() {
+        updateCustomVisibility(apiHostInput, apiCustomInput);
+        updateCustomVisibility(imageHostInput, imageCustomInput);
+    }
+
+    private void updateCustomVisibility(MaterialAutoCompleteTextView input, EditText customInput) {
+        if (input == null || customInput == null) return;
+        boolean visible = customLabel().equals(inputText(input));
+        if (visible != isCustomVisible(customInput)) {
+            customInput.setVisibility(visible ? View.VISIBLE : View.GONE);
+            rewiringFocusAfterVisibilityChange();
+        }
     }
 
     private String[] apiOptionLabels() {
@@ -270,20 +353,66 @@ public class TmdbSourceDialog {
     private String apiDisplayFor(TmdbConfig config) {
         if (config != null && (config.isApiAuto() || config.isApiRouteDefault())) return activity.getString(R.string.dialog_tmdb_api_auto);
         String value = config == null ? TmdbProxy.OFFICIAL_API : config.getApiHost();
-        return routeDisplay(value, TmdbProxy.apiValues(), apiOptionLabels());
+        String display = routeDisplay(value, TmdbProxy.apiValues(), apiOptionLabels());
+        return isCustomDisplay(display) ? customLabel() : display;
     }
 
     private String imageDisplayFor(TmdbConfig config) {
         if (config != null && (config.isImageAuto() || config.isImageRouteDefault())) return activity.getString(R.string.dialog_tmdb_image_auto);
         String value = config == null ? TmdbProxy.OFFICIAL_IMAGE : config.getConfiguredImageBase();
-        return routeDisplayImage(value, imageOptionLabels());
+        String display = routeDisplayImage(value, imageOptionLabels());
+        return isCustomDisplay(display) ? customLabel() : display;
+    }
+
+    private boolean isCustomDisplay(String display) {
+        return !TextUtils.isEmpty(display) && !TextUtils.equals(display, customLabel());
+    }
+
+    private String apiCustomValueFor(TmdbConfig config) {
+        if (config == null || config.isApiAuto() || config.isApiRouteDefault()) return "";
+        String value = TmdbProxy.normalizeConfig(config.getApiHost());
+        return isBuiltInApiValue(value) ? "" : value;
+    }
+
+    private String imageCustomValueFor(TmdbConfig config) {
+        if (config == null || config.isImageAuto() || config.isImageRouteDefault()) return "";
+        String value = TmdbProxy.normalizeImageConfig(config.getConfiguredImageBase());
+        return isBuiltInImageValue(value) ? "" : value;
+    }
+
+    private boolean isBuiltInApiValue(String value) {
+        List<String> values = TmdbProxy.apiValues();
+        for (String item : values) if (TextUtils.equals(item, value)) return true;
+        return TmdbProxy.isOfficialApiHost(value);
+    }
+
+    private boolean isBuiltInImageValue(String value) {
+        List<String> values = TmdbProxy.imageValues();
+        for (String item : values) if (TextUtils.equals(item, value)) return true;
+        return TmdbProxy.isOfficialImageHost(value);
+    }
+
+    private boolean isApiCustomMode() {
+        return apiCustomInput != null && apiCustomInput.getVisibility() == View.VISIBLE;
+    }
+
+    private boolean isImageCustomMode() {
+        return imageCustomInput != null && imageCustomInput.getVisibility() == View.VISIBLE;
     }
 
     private String apiValueFor(String value) {
+        if (isApiCustomMode()) {
+            String normalized = TmdbProxy.normalizeConfig(text(apiCustomInput));
+            return TextUtils.isEmpty(normalized) ? TmdbProxy.OFFICIAL_API : normalized;
+        }
         return routeValue(value, TmdbProxy.apiValues(), apiOptionLabels(), TmdbProxy.OFFICIAL_API);
     }
 
     private String imageValueFor(String value) {
+        if (isImageCustomMode()) {
+            String normalized = TmdbProxy.normalizeImageConfig(text(imageCustomInput));
+            return TextUtils.isEmpty(normalized) ? TmdbProxy.OFFICIAL_IMAGE : normalized;
+        }
         String text = value == null ? "" : value.trim();
         String[] labels = imageOptionLabels();
         if (labels[0].equals(text)) return TmdbProxy.AUTO;
@@ -320,6 +449,10 @@ public class TmdbSourceDialog {
         return TextUtils.isEmpty(normalized) ? fallback : normalized;
     }
 
+    private static boolean isCustomVisible(EditText customInput) {
+        return customInput != null && customInput.getVisibility() == View.VISIBLE;
+    }
+
     private MaterialAlertDialogBuilder builder() {
         return new WebHtvAlertDialogBuilder(activity, R.style.Theme_WebHTV_Dialog);
     }
@@ -334,10 +467,19 @@ public class TmdbSourceDialog {
         wireTextDpadFocus(apiKeyInput, null, languageInput, null, null);
         wireTextDpadFocus(languageInput, apiKeyInput, apiHostInput, null, null);
         wireRouteDpadFocus(apiHostInput, apiOptionLabels(),
-                activity.getString(R.string.dialog_tmdb_api_host_label), languageInput, imageHostInput);
+                activity.getString(R.string.dialog_tmdb_api_host_label), languageInput,
+                isCustomVisible(apiCustomInput) ? apiCustomInput : imageHostInput);
+        if (isCustomVisible(apiCustomInput)) {
+            wireTextDpadFocus(apiCustomInput, apiHostInput, imageHostInput, null, null);
+        }
         wireRouteDpadFocus(imageHostInput, imageOptionLabels(),
-                activity.getString(R.string.dialog_tmdb_image_host_label), apiHostInput, omdbApiKeyInput);
-        wireTextDpadFocus(omdbApiKeyInput, imageHostInput, ruleInput, null, null);
+                activity.getString(R.string.dialog_tmdb_image_host_label),
+                isCustomVisible(apiCustomInput) ? apiCustomInput : apiHostInput,
+                isCustomVisible(imageCustomInput) ? imageCustomInput : omdbApiKeyInput);
+        if (isCustomVisible(imageCustomInput)) {
+            wireTextDpadFocus(imageCustomInput, imageHostInput, omdbApiKeyInput, null, null);
+        }
+        wireTextDpadFocus(omdbApiKeyInput, isCustomVisible(imageCustomInput) ? imageCustomInput : imageHostInput, ruleInput, null, null);
         wireTextDpadFocus(ruleInput, omdbApiKeyInput, disabledRuleInput, null, addBtn);
         wireDpadFocus(addBtn, omdbApiKeyInput, addDisabledBtn, ruleInput, null);
         wireTextDpadFocus(disabledRuleInput, ruleInput, manageBtn, null, addDisabledBtn);
@@ -392,6 +534,7 @@ public class TmdbSourceDialog {
     }
 
     private void onSave() {
+        updateRouteCustomVisibility();
         String apiKey = text(apiKeyInput);
         String language = text(languageInput);
         String apiHost = apiValueFor(text(apiHostInput));
