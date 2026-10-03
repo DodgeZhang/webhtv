@@ -180,7 +180,11 @@ export class WebHTVPlaybackSyncDO {
     // Validate the entire batch before applying any item so a malformed item cannot
     // leave earlier records committed while the request itself returns an error.
     const storageConfigKey = scopedConfigKey(configType, configKey);
-    const events = rawEvents.map((raw) => normalizePlaybackEvent(raw, configKey, now, sharedEventId));
+    // WebHTV adaptation: validate against the requester's submitted key. The App
+    // signs webhook events with its own device key (keyForCid); once a server-side
+    // merge turns that key into an alias, resolving first would demand the
+    // canonical key here and reject every webhook with 400.
+    const events = rawEvents.map((raw) => normalizePlaybackEvent(raw, submittedConfigKey, now, sharedEventId));
     for (const event of events) event.storageConfigKey = storageConfigKey;
     const results = events.map((event) => event.kind === 'delete' ? this.applyDelete(event, now) : this.applyUpsert(event, now));
     return playbackJson({
