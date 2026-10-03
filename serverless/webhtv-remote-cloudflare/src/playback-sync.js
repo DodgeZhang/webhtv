@@ -457,28 +457,78 @@ export class WebHTVPlaybackSyncDO {
     let migrated = false;
     this.state.storage.transactionSync(() => {
       for (const source of sources) {
-        const items = this.sql.exec('SELECT item_key, history_key, site_key, vod_id, updated_at, payload FROM playback_items WHERE config_key = ?', source).toArray();
-        for (const item of items) {
-          const current = firstRow(this.sql.exec('SELECT updated_at FROM playback_items WHERE config_key = ? AND item_key = ?', canonicalStorageKey, item.item_key));
-          if (current && Number(current.updated_at || 0) >= Number(item.updated_at || 0)) continue;
-          const seq = this.nextSequence();
-          this.sql.exec('INSERT INTO playback_items (config_key, item_key, history_key, site_key, vod_id, updated_at, seq, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(config_key, item_key) DO UPDATE SET history_key = excluded.history_key, site_key = excluded.site_key, vod_id = excluded.vod_id, updated_at = excluded.updated_at, seq = excluded.seq, payload = excluded.payload', canonicalStorageKey, item.item_key, item.history_key, item.site_key, item.vod_id, item.updated_at, seq, item.payload);
-          migrated = true;
+        // WebHTV adaptation: set-based bulk copy. The previous row-by-row loop
+        // burned ~2 rows written per stored row plus one DELETE per tombstone on
+        // every merge, which exhausted the Durable Objects free-tier daily
+        // rows-written quota once 610 historical tombstones made every replay
+        // expensive. Each statement only writes rows strictly newer than the
+        // canonical copy, so replaying a completed migration writes nothing.
+        const base = this.sequenceValue();
+        const items = this.sql.exec(`
+          INSERT INTO playback_items
+            (config_key, item_key, history_key, site_key, vod_id, updated_at, seq, payload)
+          SELECT ?, item_key, history_key, site_key, vod_id, updated_at,
+                 ? + ROW_NUMBER() OVER (ORDER BY updated_at, item_key), payload
+            FROM playback_items WHERE config_key = ?
+          ON CONFLICT(config_key, item_key) DO UPDATE SET
+            history_key = excluded.history_key,
+            site_key = excluded.site_key,
+            vod_id = excluded.vod_id,
+            updated_at = excluded.updated_at,
+            seq = excluded.seq,
+            payload = excluded.payload
+          WHERE excluded.updated_at > playback_items.updated_at
+        `, canonicalStorageKey, base, source);
+        // Sequence values consumed by the scan (ROW_NUMBER covers every scanned
+        // row, written or not), so the next stage starts past them.
+        const itemScan = Number(items.rowsRead || 0);
+        const tombstoneBase = base + itemScan;
+        const tombstones = this.sql.exec(`
+          INSERT INTO playback_tombstones
+            (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
+          SELECT ?, marker_key, scope, history_key, site_key, vod_id, deleted_at,
+                 ? + ROW_NUMBER() OVER (ORDER BY deleted_at, marker_key), payload
+            FROM playback_tombstones WHERE config_key = ?
+          ON CONFLICT(config_key, marker_key) DO UPDATE SET
+            scope = excluded.scope,
+            history_key = excluded.history_key,
+            site_key = excluded.site_key,
+            vod_id = excluded.vod_id,
+            deleted_at = excluded.deleted_at,
+            seq = excluded.seq,
+            payload = excluded.payload
+          WHERE excluded.deleted_at > playback_tombstones.deleted_at
+        `, canonicalStorageKey, tombstoneBase, source);
+        const tombstoneScan = Number(tombstones.rowsRead || 0);
+        if (itemScan + tombstoneScan > 0) {
+          this.sql.exec("UPDATE playback_meta SET value = ? WHERE key = 'sequence'", tombstoneBase + tombstoneScan);
         }
-        const tombstones = this.sql.exec('SELECT marker_key, scope, history_key, site_key, vod_id, deleted_at, payload FROM playback_tombstones WHERE config_key = ?', source).toArray();
-        for (const item of tombstones) {
-          const current = firstRow(this.sql.exec('SELECT deleted_at FROM playback_tombstones WHERE config_key = ? AND marker_key = ?', canonicalStorageKey, item.marker_key));
-          if (current && Number(current.deleted_at || 0) >= Number(item.deleted_at || 0)) continue;
-          const seq = this.nextSequence();
-          this.sql.exec('INSERT INTO playback_tombstones (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(config_key, marker_key) DO UPDATE SET scope = excluded.scope, history_key = excluded.history_key, site_key = excluded.site_key, vod_id = excluded.vod_id, deleted_at = excluded.deleted_at, seq = excluded.seq, payload = excluded.payload', canonicalStorageKey, item.marker_key, item.scope, item.history_key, item.site_key, item.vod_id, item.deleted_at, seq, item.payload);
-          this.sql.exec('DELETE FROM playback_items WHERE config_key = ? AND updated_at <= ?', canonicalStorageKey, item.deleted_at);
-          migrated = true;
-        }
-        const events = this.sql.exec('SELECT event_id, received_at FROM playback_events WHERE config_key = ?', source).toArray();
-        for (const event of events) this.sql.exec('INSERT OR IGNORE INTO playback_events (config_key, event_id, received_at) VALUES (?, ?, ?)', canonicalStorageKey, event.event_id, event.received_at);
+        // One set-based sweep replaces the old per-tombstone DELETE; it only
+        // removes rows a tombstone actually covers, so replays write nothing.
+        const sweep = this.sql.exec(`
+          DELETE FROM playback_items WHERE config_key = ? AND EXISTS (
+            SELECT 1 FROM playback_tombstones t
+             WHERE t.config_key = playback_items.config_key
+               AND t.deleted_at >= playback_items.updated_at
+               AND (t.scope = 'all'
+                 OR (t.scope = 'site' AND t.site_key = playback_items.site_key)
+                 OR (t.scope = 'item' AND ((t.site_key = playback_items.site_key AND t.vod_id = playback_items.vod_id)
+                                        OR (t.history_key <> '' AND t.history_key = playback_items.history_key))))
+          )
+        `, canonicalStorageKey);
+        this.sql.exec(`
+          INSERT OR IGNORE INTO playback_events (config_key, event_id, received_at)
+          SELECT ?, event_id, received_at FROM playback_events WHERE config_key = ?
+        `, canonicalStorageKey, source);
+        migrated = migrated || Number(items.rowsWritten || 0) > 0
+          || Number(tombstones.rowsWritten || 0) > 0 || Number(sweep.rowsWritten || 0) > 0;
       }
     });
     return { migrated, pending: false, resetSince: migrated };
+  }
+
+  sequenceValue() {
+    return Number(this.sql.exec("SELECT value FROM playback_meta WHERE key = 'sequence'").one().value || 0);
   }
 
   nextSequence() {
