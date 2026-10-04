@@ -141,6 +141,13 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private boolean rotate;
     private int count;
     private boolean mFailedThisSession;
+    /**
+     * 本轮播放失败自动换线的起点线路下标，配合 {@link #mLineFallbackExhausted} 使用。
+     * -1 表示当前没有进行中的失败回退轮换；自动换线绕回该下标即本频道所有线路都已试过，
+     * 置位 exhausted 阻止 onError 立即开启新一轮死循环；手动换线/换台/换源或播放成功后重置。
+     */
+    private int mLineFallbackAnchor = -1;
+    private boolean mLineFallbackExhausted;
     private PiP mPiP;
     private boolean mKeepPlaybackAfterPipExit;
     private OneShotPreDrawListener pipEntryListener;
@@ -501,7 +508,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void renderLive(Live live) {
         if (live == null || live.getGroups().isEmpty()) {
-            if (LiveSetting.isSourceFallback()) startFlow();
+            if (LiveSetting.isSourceFallback()) startSourceFallback();
             return;
         }
         if (liveMenuRendered) return;
@@ -1101,6 +1108,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         } else if (mGroup != null) {
             mGroup.setPosition(mChannelAdapter.setSelected(item.group(mGroup)));
             mChannel = item;
+            resetLineFallback();
             setArtwork();
             showInfo();
             hideUI(syncPosition);
@@ -1327,7 +1335,9 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void handleSameReloadUrl(String msg) {
         if (mChannel != null && !mChannel.isOnly()) {
-            nextLine(true);
+            // 同 URL 重载失败等价于该线路播放失败：走带绕圈保护的自动换线，
+            // 不重置本轮回退状态，避免 reload 路径重新开启死循环。
+            advanceLineForFallback();
         } else {
             onError(msg);
         }
@@ -1470,7 +1480,8 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     @Override
     protected boolean onSourceHttpError(int statusCode, String msg) {
-        if (!LiveSetting.isSourceFallback()) return false;
+        // HTTP 播放错误优先交给直播回退流程：开启自动换线或接口回退任一时短路播放器重试链。
+        if (!LiveSetting.isChange() && !LiveSetting.isSourceFallback()) return false;
         onError(msg);
         return true;
     }
@@ -1482,7 +1493,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         player().resetTrack();
         player().reset();
         player().stop();
-        if (!mFailedThisSession) {
+        if (!mFailedThisSession && !isLineFallbackExhausted()) {
             mFailedThisSession = true;
             showError(msg);
             startFlow();
@@ -1521,6 +1532,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
                 checkControl();
                 player().reset();
                 mFailedThisSession = false;
+                resetLineFallback();
                 break;
             case Player.STATE_ENDED:
                 checkEnded();
@@ -1594,6 +1606,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         player().reset();
         player().clear();
         player().stop();
+        resetLineFallback();
         resetAdapter();
         hideControl();
         getLive();
@@ -1655,16 +1668,54 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void startFlow() {
-        Live next = LiveSetting.isSourceFallback() ? LiveConfig.getNextHome() : null;
-        LiveSourceFallbackPolicy.Action action = LiveSourceFallbackPolicy.decide(
+        LiveSourceFallbackPolicy.Action action = LiveSourceFallbackPolicy.decideLineFailure(
                 LiveSetting.isChange(),
-                LiveSetting.isSourceFallback(),
                 mChannel != null,
-                mChannel == null || mChannel.isLast(),
-                mChannel == null || mChannel.isOnly(),
+                mChannel != null && !mChannel.isOnly());
+        if (action == LiveSourceFallbackPolicy.Action.NEXT_LINE) advanceLineForFallback();
+    }
+
+    /**
+     * 直播接口节目列表拉取失败（renderLive 空结果）时的回退：只有此时才直接
+     * 跳转到配置里的下一个直播接口。
+     */
+    private void startSourceFallback() {
+        Live next = LiveConfig.getNextHome();
+        LiveSourceFallbackPolicy.Action action = LiveSourceFallbackPolicy.decideSourceFailure(
+                LiveSetting.isSourceFallback(),
                 next != null);
-        if (action == LiveSourceFallbackPolicy.Action.NEXT_LINE) nextLine(true);
-        else if (action == LiveSourceFallbackPolicy.Action.NEXT_SOURCE) setLive(next);
+        if (action == LiveSourceFallbackPolicy.Action.NEXT_SOURCE) setLive(next);
+    }
+
+    /**
+     * 播放失败自动换线：从失败起点开始轮换，绕回起点即本轮所有线路都已试过，置位
+     * exhausted 停止后续回退；否则刷新线路信息并重新拉流。
+     */
+    private void advanceLineForFallback() {
+        if (mChannel == null || mChannel.isOnly()) return;
+        if (mLineFallbackAnchor < 0) mLineFallbackAnchor = mChannel.getIndex();
+        mChannel.switchLine(true);
+        if (mChannel.getIndex() == mLineFallbackAnchor) {
+            mLineFallbackExhausted = true;
+            return;
+        }
+        showInfo();
+        fetch();
+    }
+
+    /**
+     * 播放失败回退已耗尽（本轮所有线路都试过且都失败）时不再自动换线，避免死循环。
+     */
+    private boolean isLineFallbackExhausted() {
+        return mLineFallbackExhausted;
+    }
+
+    /**
+     * 手动换线、换台、换直播接口或播放成功后，重置失败回退轮换状态。
+     */
+    private void resetLineFallback() {
+        mLineFallbackAnchor = -1;
+        mLineFallbackExhausted = false;
     }
 
     private boolean prevGroup() {
@@ -1720,6 +1771,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void nextLine(boolean show) {
         if (mChannel == null || mChannel.isOnly()) return;
+        resetLineFallback();
         mChannel.switchLine(true);
         if (show) showInfo();
         else setInfo();
@@ -1729,6 +1781,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private void setLine(int position) {
         if (mChannel == null || position < 0 || position >= mChannel.getUrls().size()) return;
         if (mChannel.getIndex() == position) return;
+        resetLineFallback();
         mChannel.setIndex(position);
         setInfo();
         fetch();

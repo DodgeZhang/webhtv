@@ -215,11 +215,11 @@ public class LiveActivityLayoutTest {
         String renderLiveBody = section(source, "private void renderLive(Live live)", "private void setGroup(Live live)");
 
         assertFalse(sourcePath + " is missing renderLive", renderLiveBody.isEmpty());
-        assertTrue("an empty parsed live source must enter fallback when source fallback is enabled",
+        assertTrue("an empty parsed live source must enter the source-level fallback when source fallback is enabled",
                 renderLiveBody.contains("if (live == null || live.getGroups().isEmpty())")
-                        && renderLiveBody.contains("if (LiveSetting.isSourceFallback()) startFlow();"));
+                        && renderLiveBody.contains("if (LiveSetting.isSourceFallback()) startSourceFallback();"));
         assertTrue("an empty parsed live source must stop before rendering groups",
-                renderLiveBody.indexOf("startFlow();") < renderLiveBody.indexOf("return;"));
+                renderLiveBody.indexOf("startSourceFallback();") < renderLiveBody.indexOf("return;"));
         assertTrue("a valid parsed live source must still render its groups",
                 renderLiveBody.contains("mViewModel.parseXml(live);")
                         && renderLiveBody.contains("setGroup(live);")
@@ -239,9 +239,9 @@ public class LiveActivityLayoutTest {
         String method = section(source, "protected boolean onSourceHttpError(int statusCode, String msg)", "protected void onError(String msg)");
 
         assertFalse(sourcePath + " is missing onSourceHttpError", method.isEmpty());
-        assertTrue("disabled source fallback must preserve the normal player retry chain",
-                method.contains("if (!LiveSetting.isSourceFallback()) return false;"));
-        assertTrue("enabled source fallback must route the HTTP failure into the live fallback flow",
+        assertTrue("disabled line change and source fallback must preserve the normal player retry chain",
+                method.contains("if (!LiveSetting.isChange() && !LiveSetting.isSourceFallback()) return false;"));
+        assertTrue("enabled line change or source fallback must route the HTTP failure into the live fallback flow",
                 method.contains("onError(msg);") && method.contains("return true;"));
         assertTrue("the failure must be handled before returning true",
                 method.indexOf("onError(msg);") < method.indexOf("return true;"));
