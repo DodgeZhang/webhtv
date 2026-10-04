@@ -177,10 +177,23 @@ export class WebHTVPlaybackSyncDO {
     const body = await readPlaybackJson(request);
     const submittedConfigKey = requireConfigKey(request, body);
     const configType = normalizeConfigType(request.headers.get('x-webhtv-config-type') || body.configType || 'vod');
-    const configKey = await this.resolvePlaybackConfigKey(request, submittedConfigKey, configType, requestAliases(request, body));
+    const submittedAliases = requestAliases(request, body);
     const rawEvents = extractPlaybackEvents(body);
     if (!rawEvents.length) throw playbackHttpError(400, 'Playback event is empty');
     if (rawEvents.length > MAX_BATCH_ITEMS) throw playbackHttpError(413, `Too many playback events; maximum is ${MAX_BATCH_ITEMS}`);
+
+    // WebHTV adaptation: unify diverged device spaces at WRITE time. A device
+    // that only pushes webhooks (or runs an older App without the identity
+    // resolver, or whose resolve failed/timed out) never calls
+    // /identity/resolve, so its random interfaceKey would otherwise stay an
+    // isolated space forever. Every write therefore (1) adopts the submitted
+    // key via strong address fingerprints and (2) collapses same-name spaces
+    // as a reversible fallback (migration copies rows; dropping the alias
+    // splits them again).
+    const hintName = firstEventConfigName(rawEvents);
+    await this.autoUnifyIdentity(request, { configType, submittedConfigKey, aliases: submittedAliases, hintName });
+
+    const configKey = await this.resolvePlaybackConfigKey(request, submittedConfigKey, configType, submittedAliases);
 
     const sharedEventId = rawEvents.length === 1
       ? cleanString(request.headers.get('x-webhtv-webhook-id') || request.headers.get('idempotency-key'), 160)
@@ -208,7 +221,12 @@ export class WebHTVPlaybackSyncDO {
   async pull(request, url) {
     const submittedConfigKey = requireConfigKey(request);
     const configType = normalizeConfigType(request.headers.get('x-webhtv-config-type') || url.searchParams.get('configType'));
-    const configKey = await this.resolvePlaybackConfigKey(request, submittedConfigKey, configType, requestAliases(request));
+    const submittedAliases = requestAliases(request);
+    // WebHTV adaptation: collapse diverged device spaces on read too, so a
+    // pull-only device (or the first sync after a new device pushed webhooks)
+    // sees the unified space immediately.
+    await this.autoUnifyIdentity(request, { configType, submittedConfigKey, aliases: submittedAliases, hintName: '' });
+    const configKey = await this.resolvePlaybackConfigKey(request, submittedConfigKey, configType, submittedAliases);
     const storageConfigKey = scopedConfigKey(configType, configKey);
     const since = parseCursor(request.headers.get('x-webhtv-since') || url.searchParams.get('since'));
     const limit = parseLimit(request.headers.get('x-webhtv-limit') || url.searchParams.get('limit'));
@@ -475,6 +493,134 @@ export class WebHTVPlaybackSyncDO {
     for (const plan of plans) {
       await mergeIdentityRegistry(store, token, configType, plan.target, plan.sources);
     }
+  }
+
+  // WebHTV adaptation: write/read-time identity bootstrap. The official
+  // protocol only unifies spaces when a device POSTs /identity/resolve;
+  // webhook-only devices, older App builds, and failed/timed-out resolves
+  // never do that, so their random interfaceKeys stay isolated forever. This
+  // runs on every ingest/pull and is best effort — any failure must never
+  // block the actual sync request.
+  //
+  // Pass 1 (strong): address fingerprints carried in X-WebHTV-Config-Aliases
+  // that resolve to exactly one registered canonical identity adopt the
+  // submitted key immediately, no confirmation needed (address hashes are the
+  // same strong signal the official resolver adopts on empty sources).
+  //
+  // Pass 2 (weak, reversible): unregistered spaces whose latest records carry
+  // the same exact configName are collapsed. Same-name match against multiple
+  // different canonical identities is ambiguous and left alone for the
+  // dashboard. Migration copies rows without deleting the source, so a wrong
+  // guess can be undone by removing the alias.
+  async autoUnifyIdentity(request, { configType, submittedConfigKey, aliases, hintName }) {
+    try {
+      const token = playbackToken(request);
+      const store = this.identityStore(request);
+      const submitted = normalizeIdentityKey(submittedConfigKey, 'configKey');
+      if (!submitted) return;
+      const registryKey = await identityRegistryKey(token, configType);
+      const snapshot = await store.load(registryKey);
+      const registry = normalizeIdentityRegistry(snapshot.state);
+      const bound = boundCanonicalKey(registry, submitted);
+
+      // Pass 1: fingerprint adoption for an unbound submitted key.
+      if (!bound) {
+        const fingerprints = (Array.isArray(aliases) ? aliases : [])
+          .map((item) => normalizeOptionalKey(item, 'config alias'))
+          .filter(Boolean);
+        const candidates = new Set();
+        for (const fp of fingerprints) {
+          if (registry.identities[fp]) candidates.add(fp);
+          const alias = registry.aliases[fp];
+          if (alias) candidates.add(alias.canonicalInterfaceKey);
+        }
+        if (candidates.size === 1) {
+          const target = [...candidates][0];
+          const result = await mergeIdentityRegistry(store, token, configType, target, [submitted]);
+          await this.tagAutoAliases(request, registryKey, target, [submitted], 'auto-fingerprint', fingerprints);
+          if (Array.isArray(result.merged) && result.merged.includes(submitted)) return;
+          if (result.alreadyMerged) return;
+        }
+      }
+
+      // Pass 2: name-based collapse across all stored spaces of this type.
+      // Cheap short-circuit: need at least one non-empty unregistered name.
+      const spaces = this.spaceSnapshot(configType);
+      const plans = planNameUnifyGroups(
+        normalizeIdentityRegistry((await store.load(registryKey)).state),
+        spaces,
+        submitted,
+        cleanString(hintName, 2048)
+      );
+      for (const plan of plans) {
+        const result = await mergeIdentityRegistry(store, token, configType, plan.target, plan.sources);
+        await this.tagAutoAliases(request, registryKey, plan.target, plan.sources, 'auto-name', []);
+        if (!result.alreadyMerged && Array.isArray(result.merged)) {
+          // Migration runs inside mergeIdentityRegistry; nothing else to do.
+        }
+      }
+    } catch (error) {
+      // Never break sync because of auto-unification; the next request retries.
+      console.error('playback identity auto-unify failed', error && error.stack ? error.stack : error);
+    }
+  }
+
+  // Best-effort relabel of auto-created aliases so the dashboard can show why
+  // a merge happened and a future "split" can target them. Also attaches the
+  // adopting device's own fingerprints so pullRewriteKey prefers a hash that
+  // exact device build recognizes.
+  async tagAutoAliases(request, registryKey, target, sources, kind, fingerprints) {
+    try {
+      const store = this.identityStore(request);
+      const ownFingerprints = (Array.isArray(fingerprints) ? fingerprints : [])
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter((item) => /^[0-9a-f]{64}$/.test(item)).slice(-8);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const snapshot = await store.load(registryKey);
+        const registry = normalizeIdentityRegistry(snapshot.state);
+        let changed = false;
+        for (const source of sources) {
+          const alias = registry.aliases[source];
+          if (!alias || alias.canonicalInterfaceKey !== target) continue;
+          if (kind && alias.kind !== kind) { alias.kind = kind; changed = true; }
+          if (ownFingerprints.length && !alias.legacyConfigKeys?.length) {
+            alias.legacyConfigKeys = ownFingerprints;
+            changed = true;
+          }
+        }
+        if (!changed) return;
+        if (await store.compareAndSet(registryKey, snapshot.version, registry)) return;
+      }
+    } catch {
+      // Best effort.
+    }
+  }
+
+  // One aggregated scan of every stored space of a config type: bare key,
+  // record count, earliest/latest timestamp and the latest record's
+  // configName. Read-only; callers decide whether any write is needed.
+  spaceSnapshot(configType) {
+    const where = configType === 'vod'
+      ? "config_key NOT LIKE 'live:%' AND config_key NOT LIKE 'wall:%'"
+      : 'config_key LIKE ?';
+    const args = configType === 'vod' ? [] : [`${configType}:%`];
+    const prefix = configType === 'vod' ? '' : `${configType}:`;
+    const rows = this.sql.exec(`
+      SELECT config_key, COUNT(*) AS items,
+             MIN(updated_at) AS first_at, MAX(updated_at) AS latest,
+             COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name
+        FROM playback_items
+       WHERE ${where}
+       GROUP BY config_key
+    `, ...args).toArray();
+    return rows.map((row) => ({
+      storageKey: String(row.config_key || ''),
+      key: String(row.config_key || '').slice(prefix.length),
+      items: Number(row.items || 0),
+      firstAt: Number(row.first_at || 0),
+      latest: Number(row.latest || 0),
+      name: String(row.name || '')
+    }));
   }
 
   // Record counts for identity members, keyed by storage config key
@@ -1231,6 +1377,103 @@ export function planAutoMergeGroups(registry, countOf) {
     plans.push({ target: sorted[0], sources: sorted.slice(1) });
   }
   return plans;
+}
+
+// WebHTV adaptation: plan merges for UNREGISTERED spaces (no identity record,
+// i.e. devices that never called /identity/resolve) based on the exact
+// configName carried by their latest stored record. Pure function — no I/O.
+//
+// Rules (conservative, reversible):
+//   - exact, trimmed, case-sensitive name match; empty names never merge;
+//   - a name owned by 2+ different canonical identities is ambiguous → skip;
+//   - a name owned by exactly one canonical identity → all unregistered
+//     spaces of that name (plus the current submitter via hintName) join it;
+//   - unregistered-only groups of 2+ spaces elect their own canonical
+//     (most records, then earliest record, then key order);
+//   - each key participates in at most one plan, and the submitter's own
+//     hintName group is processed first so a renamed interface cannot be
+//     dragged into its stale-name group.
+export function planNameUnifyGroups(registry, spaces, submitted, hintName) {
+  const canonicalNames = new Map(); // canonicalKey -> name
+  const unregistered = new Map();   // name -> [space]
+  for (const space of Array.isArray(spaces) ? spaces : []) {
+    const key = String(space && space.key || '');
+    const name = String(space && space.name || '').trim();
+    if (!key) continue;
+    if (registry.identities[key]) {
+      if (name) canonicalNames.set(key, name);
+    } else if (!registry.aliases[key] && name) {
+      if (!unregistered.has(name)) unregistered.set(name, []);
+      unregistered.get(name).push(space);
+    }
+  }
+  const nameToCanonicals = new Map();
+  for (const [key, name] of canonicalNames) {
+    if (!nameToCanonicals.has(name)) nameToCanonicals.set(name, []);
+    nameToCanonicals.get(name).push(key);
+  }
+
+  const elect = (members) => members.slice().sort((a, b) =>
+    (Number(b.items) - Number(a.items))
+    || (Number(a.firstAt) - Number(b.firstAt))
+    || (String(a.key) < String(b.key) ? -1 : 1))[0].key;
+
+  const plans = [];
+  const used = new Set();
+  const buildPlan = (name, extraKey) => {
+    const members = (unregistered.get(name) || []).filter((m) => !used.has(m.key));
+    if (extraKey && !members.some((m) => m.key === extraKey)
+        && !registry.identities[extraKey] && !registry.aliases[extraKey]) {
+      members.push({ key: extraKey, name, items: 0, firstAt: 0 });
+    }
+    if (!members.length) return;
+    const canonicals = nameToCanonicals.get(name) || [];
+    let target;
+    let sources;
+    if (canonicals.length === 1) {
+      target = canonicals[0];
+      sources = members.map((m) => m.key).filter((k) => k !== target);
+    } else if (canonicals.length === 0 && members.length >= 2) {
+      target = elect(members);
+      sources = members.map((m) => m.key).filter((k) => k !== target);
+    } else {
+      return; // ambiguous (multiple canonicals) or singleton with no canonical
+    }
+    sources = [...new Set(sources)].filter((k) => k && k !== target && !used.has(k));
+    if (!sources.length) return;
+    used.add(target);
+    for (const key of sources) used.add(key);
+    plans.push({ target, sources });
+  };
+
+  // The current submitter's freshest name wins over its stored (possibly
+  // stale) name, so evaluate the hintName group first.
+  const hint = String(hintName || '').trim();
+  if (submitted && hint && !registry.identities[submitted] && !registry.aliases[submitted]) {
+    buildPlan(hint, submitted);
+  }
+  for (const name of [...unregistered.keys()].sort()) {
+    if (name === hint) continue; // already evaluated
+    buildPlan(name, '');
+  }
+  return plans;
+}
+
+function boundCanonicalKey(registry, key) {
+  if (registry.identities[key]) return key;
+  return registry.aliases[key]?.canonicalInterfaceKey || '';
+}
+
+// Pull the interface name from the first usable raw webhook event. Only the
+// explicit configName fields qualify — raw.name/raw.title are vodName aliases
+// and must never be mistaken for the interface name.
+function firstEventConfigName(rawEvents) {
+  for (const raw of Array.isArray(rawEvents) ? rawEvents : []) {
+    if (!raw || typeof raw !== 'object') continue;
+    const name = cleanString(raw.configName || raw.config_name, 2048);
+    if (name) return name;
+  }
+  return '';
 }
 
 // WebHTV adaptation: the official resolver with lazy auto-merge. When
