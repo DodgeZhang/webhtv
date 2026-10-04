@@ -229,15 +229,18 @@ export class WebHTVPlaybackSyncDO {
 
     const hasMore = rows.length > limit;
     const selected = hasMore ? rows.slice(0, limit) : rows;
+    // WebHTV adaptation: rewrite every pulled change's configKey to a key the
+    // requester's App can map back to its local interface. The device random
+    // interfaceKey (UUID) is only recognized by newer App builds; the URL
+    // SHA-256 fingerprint is recognized by every build (old hash-only and new
+    // triple-match cidForKey), so prefer a 64-hex legacy key registered on the
+    // canonical identity and fall back to the requester's own submitted key.
+    const rewriteKey = await this.pullRewriteKey(request, configType, configKey, submittedConfigKey);
     const changes = [];
     for (const row of selected) {
       try {
         const change = JSON.parse(row.payload);
-        // WebHTV adaptation: server-side merges migrate events that keep their
-        // original device key in configKey. The App maps configKey back to a
-        // local interface and silently skips keys it does not own, so rewrite
-        // every pulled change to the requester's own key.
-        if (change && typeof change === 'object') change.configKey = submittedConfigKey;
+        if (change && typeof change === 'object') change.configKey = rewriteKey;
         changes.push(change);
       } catch {
         // Ignore an individually corrupted row without breaking all other records.
@@ -245,6 +248,25 @@ export class WebHTVPlaybackSyncDO {
     }
     const nextSince = selected.length ? String(selected[selected.length - 1].seq) : String(since);
     return playbackJson({ changes, nextSince, hasMore });
+  }
+
+  // Pick the configKey stamped onto pulled changes. Prefers a URL SHA-256
+  // fingerprint (64 hex) registered on the canonical identity because every
+  // App build maps that back to the local interface; the random interfaceKey
+  // UUID is only understood by newer builds. Best effort — any failure falls
+  // back to the requester's own submitted key so pulls never break.
+  async pullRewriteKey(request, configType, canonicalConfigKey, submittedConfigKey) {
+    try {
+      const registry = normalizeIdentityRegistry((await this.identityStore(request)
+        .load(await identityRegistryKey(playbackToken(request), configType))).state);
+      const identity = registry.identities[canonicalConfigKey];
+      const legacy = Array.isArray(identity && identity.legacyConfigKeys) ? identity.legacyConfigKeys : [];
+      const fingerprint = legacy.find((key) => typeof key === 'string' && /^[0-9a-f]{64}$/.test(key));
+      if (fingerprint) return fingerprint;
+    } catch {
+      // Fall through to the submitted key.
+    }
+    return submittedConfigKey;
   }
 
   async status(request, url) {
