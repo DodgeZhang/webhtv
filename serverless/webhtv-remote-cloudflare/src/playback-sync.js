@@ -32,6 +32,7 @@ export function isPlaybackSyncPath(pathname) {
   for (const base of PLAYBACK_SYNC_PATHS) {
     if (path === `${base}/status` || path === `${base}/configs`) return true;
     if (path === `${base}/identity/spaces` || path === `${base}/identity/merge`) return true;
+    if (path === `${base}/maintenance`) return true;
   }
   return IDENTITY_RESOLVE_PATHS.has(path);
 }
@@ -94,6 +95,14 @@ export class WebHTVPlaybackSyncDO {
       const identityMerge = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/identity/merge`);
       if (identityMerge) {
         if (request.method === 'POST') return playbackCors(await this.handleIdentityMerge(request));
+        return playbackError(405, 'Method not allowed');
+      }
+      // WebHTV adaptation: token-gated maintenance entry point. The DO is already
+      // scoped to the caller's token namespace, so only the token owner can purge
+      // their own history tombstones.
+      const maintenance = [...PLAYBACK_SYNC_PATHS].some((base) => path === `${base}/maintenance`);
+      if (maintenance) {
+        if (request.method === 'POST') return playbackCors(await this.runMaintenance(request));
         return playbackError(405, 'Method not allowed');
       }
       if (!PLAYBACK_SYNC_PATHS.has(path)) return playbackError(404, 'Not found');
@@ -381,6 +390,34 @@ export class WebHTVPlaybackSyncDO {
       Array.isArray(body.sourceKeys) ? body.sourceKeys : (body.sourceKey ? [body.sourceKey] : [])
     );
     return playbackJson({ ok: true, ...result });
+  }
+
+  // WebHTV adaptation: purge historical deletion tombstones older than
+  // beforeDeletedAt. Thousands of experiment-era tombstones occupy every pull
+  // page (the App applies at most 100 per sync and counts "no local row"
+  // deletes as skipped), hiding the few real progress rows behind them. Items
+  // are never touched. configType vod has no storage prefix; live/wall do.
+  async runMaintenance(request) {
+    const body = await readPlaybackJson(request);
+    const op = cleanString(body.op, 32);
+    if (op !== 'purgeTombstones') throw playbackHttpError(400, 'Unknown maintenance op');
+    const configType = normalizeConfigType(body.configType || request.headers.get('x-webhtv-config-type') || 'vod');
+    const before = Number(body.beforeDeletedAt);
+    if (!Number.isFinite(before) || before <= 0) throw playbackHttpError(400, 'beforeDeletedAt must be a positive ms timestamp');
+    const deleted = this.state.storage.transactionSync(() => {
+      const result = configType === 'vod'
+        ? this.sql.exec(
+            "DELETE FROM playback_tombstones WHERE deleted_at < ? AND config_key NOT LIKE 'live:%' AND config_key NOT LIKE 'wall:%'",
+            before
+          )
+        : this.sql.exec(
+            'DELETE FROM playback_tombstones WHERE deleted_at < ? AND config_key LIKE ?',
+            before,
+            `${configType}:%`
+          );
+      return Number(result.rowsWritten || 0);
+    });
+    return playbackJson({ ok: true, op, configType, purged: deleted });
   }
 
   // WebHTV adaptation: identity resolution with lazy auto-merge. Pass 1
