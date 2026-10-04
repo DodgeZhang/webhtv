@@ -130,6 +130,36 @@ public class TvFocusRingContractTest {
 
     // ------------------------------------------------------------ R2 统一机制与宽度
 
+    /**
+     * 焦点环色只允许有两个来源：XML 的 {@code ?attr/tvFocusRing} 和 Java 的
+     * {@code ThemeController.focusRingColor(...)}。任何一处再写死字面量都会让同一个 TV
+     * 应用里出现两种环色（详情页永远黄色、播放页/追更页跟主题），且写死的浅色环
+     * 在浅色底板上只有 1.1–1.4:1。本测试把该不变量钉死。
+     */
+    @Test
+    public void noTvFocusRingColourIsHardCodedOutsideTheThemeSlot() throws Exception {
+        String[] sources = {
+                "app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbDetailActivity.java",
+                "app/src/main/java/com/fongmi/android/tv/ui/activity/TmdbPersonActivity.java",
+                "app/src/main/java/com/fongmi/android/tv/ui/adapter/TmdbCardFocusHelper.java",
+                "app/src/main/java/com/fongmi/android/tv/ui/adapter/TmdbEpisodeAdapter.java",
+                "app/src/main/java/com/fongmi/android/tv/ui/adapter/TmdbVideoAdapter.java",
+                "app/src/main/res/drawable/shape_episode_photo_focused.xml",
+        };
+        for (String source : sources) {
+            assertFalse(source + " 不允许再写死焦点环色，必须走主题 FOCUS 槽（?attr/tvFocusRing 或 ThemeController.focusRingColor）",
+                    read(source).contains("FFD166"));
+        }
+        // 代码路径必须真的接到 ThemeController，而不是换一个写死的近似色。
+        for (String source : new String[]{sources[0], sources[1], sources[2], sources[3], sources[4]}) {
+            assertTrue(source + " 的焦点环必须取自 ThemeController.focusRingColor",
+                    read(source).contains("ThemeController.focusRingColor"));
+        }
+        // 播放器视频层焦点与普通焦点隔离，不受本规范约束（见 docs 阶段 M 的非目标）。
+        assertTrue("KaraokeStatusView 属于视频层，明确不在本规范范围内",
+                read("app/src/main/java/com/fongmi/android/tv/ui/custom/KaraokeStatusView.java").contains("0xCCFFD166"));
+    }
+
     @Test
     public void thereIsExactlyOneFocusRingWidthInTheTvUi() throws Exception {
         assertTrue("必须声明唯一的焦点环宽度 token",
