@@ -1186,11 +1186,18 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
   const completed = eventName === 'playback.ended' || booleanValue(raw.completed);
   const suppliedProgress = boundedNumber(raw.progress, 0, 1);
   // WebHTV adaptation: preserve the TV season identity so season-scoped
-  // tombstones can block or sweep episode progress rows.
+  // tombstones can block or sweep episode progress rows. The episode number
+  // is mandatory too: the App only stamps TMDB identity onto a synced row
+  // when hasTmdbEpisodeIdentity() is true (mediaType=tv + tmdbId + season +
+  // EPISODE). Without it the receiving device stores the episode without any
+  // TMDB identity, so a later season-scoped delete finds no local row and is
+  // skipped — deletions then never propagate to the other device.
   const upsertMediaType = cleanString(raw.mediaType || raw.media_type, 16).toLowerCase();
   const upsertTmdbId = Math.trunc(positiveNumber(raw.tmdbId || raw.tmdb_id));
   const upsertSeasonRaw = raw.seasonNumber ?? raw.season_number;
   const upsertSeason = Number.isFinite(Number(upsertSeasonRaw)) ? Math.trunc(Number(upsertSeasonRaw)) : null;
+  const upsertEpisodeRaw = raw.tmdbEpisodeNumber ?? raw.episodeNumber ?? raw.episode_number ?? raw.tmdb_episode_number;
+  const upsertEpisode = Number.isFinite(Number(upsertEpisodeRaw)) ? Math.trunc(Number(upsertEpisodeRaw)) : null;
   const payload = compactObject({
     schema: PLAYBACK_SCHEMA,
     action: 'upsert',
@@ -1215,6 +1222,7 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     mediaType: upsertMediaType || undefined,
     tmdbId: upsertTmdbId > 0 ? upsertTmdbId : undefined,
     seasonNumber: upsertSeason !== null && upsertSeason >= 0 ? upsertSeason : undefined,
+    tmdbEpisodeNumber: upsertEpisode !== null && upsertEpisode > 0 ? upsertEpisode : undefined,
     updatedAt,
     clientKey: cleanString(raw.clientKey, 256)
   });
