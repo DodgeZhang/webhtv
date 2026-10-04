@@ -11677,12 +11677,39 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         resolveFollowing(tmdb, identityKey, siteKey, vodId, season, existing -> {
             if (isFinishing() || isDestroyed()) return;
             if (existing != null) {
+                // 内联播放中（本页就是播放页）：保持播放不被打断，再次点击即刻取消追更。
+                if (isInlineFollowingPlaybackSurface()) {
+                    cancelFollowing(identityKey);
+                    return;
+                }
                 followingActionPending = false;
                 setFollowingButtonsEnabled(true);
                 FollowingActivity.start(this, existing.identityKey);
                 return;
             }
             addFollowing(tmdb, siteKey, vodId, season, identityKey);
+        });
+    }
+
+    /** 本页当前已经是播放页（内联/全屏播放已真正开始），追更按钮必须就地开关而不是跳页。 */
+    private boolean isInlineFollowingPlaybackSurface() {
+        return inlineStarted || detailPlayerActive;
+    }
+
+    /** 内联播放中的取消追更：写墓碑后立即刷新按钮状态，不离开当前页。 */
+    private void cancelFollowing(String identityKey) {
+        FollowingScheduler.cancelNext(this, identityKey);
+        FollowingPlaybackBridge.deleteAsync(identityKey, error -> {
+            followingActionPending = false;
+            if (isFinishing() || isDestroyed()) return;
+            if (error != null) {
+                setFollowingButtonsEnabled(true);
+                Notify.show(error.getMessage());
+                return;
+            }
+            updateFollowingState();
+            FollowingPlaybackBridge.refreshUnreadCountAsync(null);
+            Notify.show(R.string.following_canceled);
         });
     }
 

@@ -621,6 +621,16 @@ History.save()
 
 按钮状态使用 `FollowingStore.find(identityKey)`，不能仅凭运行时内存标记。
 
+### 8.3.1 播放页的追更按钮是就地开关（与详情页不同）
+
+播放页（mobile/leanback `VideoActivity`，含其内嵌的 TMDB 头部追更按钮）必须保持播放不被打断：
+
+- 已追更：显示“已追更”，再次点击**立即取消追更**（写墓碑 + 取消该条 one-shot 检查），按钮立刻回到“加入追更”，只弹轻提示，**绝不跳转追更页**。
+- 未追更：显示“加入追更”，点击保存当前季和当前来源。
+- 取消失败：按钮恢复可用并显示错误，不静默吞掉。
+
+`TmdbDetailActivity` 本身也是播放页：当内联播放已真正开始（`inlineStarted` 或 `detailPlayerActive`）时，同一按钮同样就地取消，不跳页；只有未播放时才保持“已追更→进入追更详情”的既有约定。详情页是低频、带确认意图的入口，播放页/播放中的页面是高频、易误触的开关场景，跳页会直接打断播放，因此分开处理。
+
 ### 8.4 播放页集成
 
 播放页不负责检查网络更新，只负责：
@@ -1730,6 +1740,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - 追更 instrumentation 测试新增真实数据库快照/恢复规则；所有会清表或删除数据库文件的测试结束前恢复原有 `following` 和 `following_source`，`FollowingDatabaseTest` 改用内存数据库，避免设备测试再次清空用户追更数据。
 - `following_enabled` 默认关闭；新安装或从未设置过该开关的用户不会显示追更入口，用户显式开启后才注册后台检查并展示追更功能。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
+- 播放页的追更按钮改为就地开关：`mobile`/`leanback` `VideoActivity` 和内联播放中的 `TmdbDetailActivity` 在“已追更”时再次点击会立即写墓碑、取消该条 one-shot 检查、刷新按钮为“加入追更”并提示“已取消追更”，不再跳转追更页打断播放；未播放的详情页仍保持“已追更→打开追更详情”。设备实测：`192.168.50.3:5559` 上点“已追更”后仍停留在 `VideoActivity`，`deleted_at` 已写入且按钮回到“加入追更”。
 
 ### 25.3 P5 同步与 alist 导入
 
@@ -1797,7 +1808,7 @@ a6978e6ba4818eab6e1407657deb49c5692e24b5  fix(following): schedule returning sho
 ```text
 objective:         FOLLOW-1 P0–P5 代码、备份/同步、双端入口和手动 alist 导入已实施
 authority:         用户已要求按设计实施；当前已提交多个可回滚原子单元
-status:            implementation + all simulator-available targeted/device verification complete; badge unread queries are off-main-thread as of FOLLOW-1-BADGE-CRASH; design completion item 6 (API 33+/TV/Doze/multi-device) not available
+status:            implementation + all simulator-available targeted/device verification complete; badge unread queries are off-main-thread as of FOLLOW-1-BADGE-CRASH; playback-page unfollow is now an in-place toggle (FOLLOW-PLAYBACK-CANCEL) verified on 192.168.50.3:5559; design completion item 6 (API 33+/TV/Doze/multi-device) not available
                           Release/package-size build intentionally excluded by explicit user constraint
 next_action:       如需完成正式发布验收，由具备 API 33+ 手机和 TV 真机的环境执行完成定义第 6 条；当前 5561 上没有剩余可执行的代码级验证
 rollback_anchor:   following_enabled=false + FollowingScheduler.cancelAll；不修改 AppDatabase v45

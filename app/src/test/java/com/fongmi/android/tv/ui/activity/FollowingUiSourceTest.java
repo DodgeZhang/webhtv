@@ -302,6 +302,23 @@ public class FollowingUiSourceTest {
         assertTrue(followingInitiallyGone(read("app/src/main/res/layout/view_tmdb_header.xml")));
         assertTrue(mobileActivity.contains("onFollowing()"));
         assertTrue(leanbackActivity.contains("onFollowing()"));
+        // 播放页的追更按钮是就地开关：已追更时再次点击必须立刻取消，绝不跳转追更页打断播放。
+        for (String playback : List.of(mobileActivity, leanbackActivity)) {
+            assertTrue(playback.contains("private void cancelFollowing(String identityKey)"));
+            assertTrue(playback.contains("FollowingPlaybackBridge.deleteAsync(identityKey"));
+            assertTrue(playback.contains("FollowingScheduler.cancelNext(this, identityKey)"));
+            assertTrue(playback.contains("Notify.show(R.string.following_canceled)"));
+            assertFalse(playback.contains("FollowingActivity.start(this, existing.identityKey)"));
+        }
+        assertTrue(strings.contains("<string name=\"following_canceled\">已取消追更</string>"));
+        // 详情页内联播放中同样不能跳页：只有未播放时才保持“已追更→打开追更详情”。
+        assertTrue(detail.contains("private boolean isInlineFollowingPlaybackSurface()"));
+        assertTrue(detail.contains("return inlineStarted || detailPlayerActive;"));
+        assertTrue(detail.contains("if (isInlineFollowingPlaybackSurface()) {\n                    cancelFollowing(identityKey);"));
+        assertTrue(detail.contains("private void cancelFollowing(String identityKey)"));
+        assertTrue(detail.contains("Notify.show(R.string.following_canceled)"));
+        // 未播放的详情页保留原约定，仍然打开追更详情。
+        assertTrue(detail.contains("FollowingActivity.start(this, existing.identityKey)"));
         assertTrue(followingActivity.contains("FollowingPlaybackBridge.deleteAsync"));
         assertFalse(followingActivity.contains("FollowingStore.delete(item.identityKey)"));
         assertTrue(followingActivity.contains("Task.execute(() -> {\n            List<Following> items = FollowingStore.list();"));
