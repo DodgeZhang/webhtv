@@ -450,8 +450,14 @@ export class WebHTVPlaybackSyncDO {
   async runMaintenance(request) {
     const body = await readPlaybackJson(request);
     const op = cleanString(body.op, 32);
-    if (op !== 'purgeTombstones') throw playbackHttpError(400, 'Unknown maintenance op');
     const configType = normalizeConfigType(body.configType || request.headers.get('x-webhtv-config-type') || 'vod');
+    if (op === 'purgeTombstones') return this.runPurgeTombstones(body, configType);
+    if (op === 'adminDeleteItem') return this.runAdminDeleteItem(request, body, configType);
+    if (op === 'adminClearAll') return this.runAdminClearAll(request, body, configType);
+    throw playbackHttpError(400, 'Unknown maintenance op');
+  }
+
+  runPurgeTombstones(body, configType) {
     const before = Number(body.beforeDeletedAt);
     if (!Number.isFinite(before) || before <= 0) throw playbackHttpError(400, 'beforeDeletedAt must be a positive ms timestamp');
     const deleted = this.state.storage.transactionSync(() => {
@@ -467,7 +473,77 @@ export class WebHTVPlaybackSyncDO {
           );
       return Number(result.rowsWritten || 0);
     });
-    return playbackJson({ ok: true, op, configType, purged: deleted });
+    return playbackJson({ ok: true, op: 'purgeTombstones', configType, purged: deleted });
+  }
+
+  // Dashboard management delete. Unlike a device delete event this uses the
+  // SERVER clock and physically removes rows with no updatedAt guard, so a
+  // skewed device clock or a row whose payload identity drifted can never
+  // make the dashboard button look like a no-op. A tombstone is written in
+  // the same transaction so other devices still receive the deletion.
+  async runAdminDeleteItem(request, body, configType) {
+    const submittedConfigKey = requireConfigKey(request, body);
+    const configKey = await this.resolvePlaybackConfigKey(
+      request, submittedConfigKey, configType, requestAliases(request, body)
+    );
+    const storageConfigKey = scopedConfigKey(configType, configKey);
+    const siteKey = cleanString(body.siteKey ?? body.site, 1024);
+    const vodId = cleanString(body.vodId ?? body.vod_id, 8192);
+    const historyKey = cleanString(body.historyKey ?? body.history_key, 4096);
+    if (!((siteKey && vodId) || historyKey)) {
+      throw playbackHttpError(400, 'adminDeleteItem requires siteKey+vodId or historyKey');
+    }
+    const itemKey = portableItemKey(historyKey, siteKey, vodId);
+    const deletedAt = Date.now();
+    const payload = JSON.stringify(compactObject({
+      scope: 'item', siteKey, vodId, historyKey, deletedAt, origin: 'dashboard'
+    }));
+    const deletedRows = this.state.storage.transactionSync(() => {
+      this.upsertAdminTombstone(storageConfigKey, `item\n${itemKey}`, 'item',
+        historyKey, siteKey, vodId, deletedAt, payload);
+      return Number(this.sql.exec(`
+        DELETE FROM playback_items
+         WHERE config_key = ?
+           AND (item_key = ? OR (? <> '' AND history_key = ?))
+      `, storageConfigKey, itemKey, historyKey, historyKey).rowsWritten || 0);
+    });
+    return playbackJson({ ok: true, op: 'adminDeleteItem', deletedRows });
+  }
+
+  async runAdminClearAll(request, body, configType) {
+    const submittedConfigKey = requireConfigKey(request, body);
+    const configKey = await this.resolvePlaybackConfigKey(
+      request, submittedConfigKey, configType, requestAliases(request, body)
+    );
+    const storageConfigKey = scopedConfigKey(configType, configKey);
+    const deletedAt = Date.now();
+    const payload = JSON.stringify({ scope: 'all', deletedAt, origin: 'dashboard' });
+    const deletedRows = this.state.storage.transactionSync(() => {
+      this.upsertAdminTombstone(storageConfigKey, 'all', 'all', '', '', '', deletedAt, payload);
+      return Number(this.sql.exec(
+        'DELETE FROM playback_items WHERE config_key = ?', storageConfigKey
+      ).rowsWritten || 0);
+    });
+    return playbackJson({ ok: true, op: 'adminClearAll', deletedRows });
+  }
+
+  upsertAdminTombstone(storageConfigKey, markerKey, scope, historyKey, siteKey, vodId, deletedAt, payload) {
+    const seq = this.nextSequence();
+    this.sql.exec(`
+      INSERT INTO playback_tombstones
+        (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload,
+         media_type, tmdb_id, season_number)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(config_key, marker_key) DO UPDATE SET
+        scope = excluded.scope,
+        history_key = excluded.history_key,
+        site_key = excluded.site_key,
+        vod_id = excluded.vod_id,
+        deleted_at = excluded.deleted_at,
+        seq = excluded.seq,
+        payload = excluded.payload
+    `, storageConfigKey, markerKey, scope, historyKey, siteKey, vodId, deletedAt, seq, payload,
+      '', 0, -1);
   }
 
   // WebHTV adaptation: identity resolution with lazy auto-merge. Pass 1

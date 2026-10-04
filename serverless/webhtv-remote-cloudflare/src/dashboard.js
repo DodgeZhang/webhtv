@@ -954,22 +954,17 @@ function renderPagination(totalPages) {
 
 function goPage(n) { state.page = n; renderRecords(); }
 
-// 删除单条记录 — 发送 playback.deleted 墓碑事件（scope=item）
+// 删除单条记录 — 管理端点按权威身份物理删行（服务器时间），并写墓碑同步给设备
 async function deleteRecord(historyKey, siteKey, vodId) {
   if (!historyKey && (!siteKey || !vodId)) { showToast('无法删除：缺少唯一标识', 'error'); return; }
   if (!confirm('确定要删除这条记录吗？')) return;
-  const payload = {
-    event: 'playback.deleted',
-    scope: 'item',
-    deletedAt: Date.now(),
-    configKey: state.configKey
-  };
+  const payload = { op: 'adminDeleteItem', configKey: state.configKey };
   if (historyKey) payload.historyKey = historyKey;
   if (siteKey) payload.siteKey = siteKey;
   if (vodId) payload.vodId = vodId;
   try {
-    await fetchJSON('/api/playback/sync', { method: 'POST', body: JSON.stringify(payload) });
-    showToast('删除成功', 'success');
+    const res = await fetchJSON('/api/playback/sync/maintenance', { method: 'POST', body: JSON.stringify(payload) });
+    showToast(res.deletedRows > 0 ? '删除成功（已同步删除指令到设备）' : '服务端未找到该记录，已刷新', 'success');
     loadData();
   } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
 }
@@ -991,11 +986,11 @@ async function confirmClearAll() {
 async function clearAll() {
   hideModal();
   try {
-    await fetchJSON('/api/playback/sync', {
+    const res = await fetchJSON('/api/playback/sync/maintenance', {
       method: 'POST',
-      body: JSON.stringify({ event: 'playback.deleted', scope: 'all', deletedAt: Date.now(), configKey: state.configKey })
+      body: JSON.stringify({ op: 'adminClearAll', configKey: state.configKey })
     });
-    showToast('已发送清空指令', 'success');
+    showToast('已清空 ' + (res.deletedRows || 0) + ' 条记录（删除指令将同步到设备）', 'success');
     loadData();
   } catch (e) { showToast('清空失败: ' + e.message, 'error'); }
 }
