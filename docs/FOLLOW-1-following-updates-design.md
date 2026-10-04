@@ -631,6 +631,16 @@ History.save()
 
 `TmdbDetailActivity` 本身也是播放页：当内联播放已真正开始（`inlineStarted` 或 `detailPlayerActive`）时，同一按钮同样就地取消，不跳页；只有未播放时才保持“已追更→进入追更详情”的既有约定。详情页是低频、带确认意图的入口，播放页/播放中的页面是高频、易误触的开关场景，跳页会直接打断播放，因此分开处理。
 
+#### 8.3.2 “已追更”判定必须排除墓碑行（与 C9 墓碑语义的接口约定）
+
+`FollowingStore.resolveTmdb`（TMDB 身份迁移）为防复活，遇到目标已是墓碑时会**故意返回该墓碑行而不是 `null`**（见 C9）。因此所有“是否已追更”的判定都不能写成 `item != null`，必须用 `item != null && !item.isDeleted()`：
+
+- `TmdbDetailActivity` 统一走 `isFollowed(item)`（`onFollowing` 的分支 + `updateFollowingState` 的按钮态）。
+- 若写成 `item != null`，TV 剧集在详情页取消追更后会表现为：按钮仍显示“已追更”；内联播放中再点只重复写墓碑，**永远无法重新追更**（复活路径永远进不去）。
+- 墓碑行在点击“加入追更”时交由 `addFollowing` → `FollowingPlaybackBridge.addAsync` → `FollowingStore.saveNew` 的复活分支处理（`deletedAt=0`、`enabled=true`、`createdAt` 刷新）。
+
+该约定由 `FollowingUiSourceTest`（源码级）与 `FollowingMigrationDeviceTest#tombstonedTargetIsReturnedAsTombstoneNotAsNull`（设备级）双向锁定。
+
 ### 8.4 播放页集成
 
 播放页不负责检查网络更新，只负责：
@@ -1741,6 +1751,7 @@ rollback_anchor:   关闭 following_enabled 并取消 WorkManager 唯一任务�
 - `following_enabled` 默认关闭；新安装或从未设置过该开关的用户不会显示追更入口，用户显式开启后才注册后台检查并展示追更功能。
 - schema 导出为 `app/schemas/com.fongmi.android.tv.following.FollowingDatabase/1.json`。
 - 播放页的追更按钮改为就地开关：`mobile`/`leanback` `VideoActivity` 和内联播放中的 `TmdbDetailActivity` 在“已追更”时再次点击会立即写墓碑、取消该条 one-shot 检查、刷新按钮为“加入追更”并提示“已取消追更”，不再跳转追更页打断播放；未播放的详情页仍保持“已追更→打开追更详情”。设备实测：`192.168.50.3:5559` 上点“已追更”后仍停留在 `VideoActivity`，`deleted_at` 已写入且按钮回到“加入追更”。
+- “已追更”判定统一排除墓碑行（`isFollowed`）：`resolveTmdb` 对墓碑目标故意返回墓碑行，若用 `!= null` 判定会导致取消后按钮仍显示“已追更”且永远无法重新追更。
 
 ### 25.3 P5 同步与 alist 导入
 

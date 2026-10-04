@@ -319,6 +319,13 @@ public class FollowingUiSourceTest {
         assertTrue(detail.contains("Notify.show(R.string.following_canceled)"));
         // 未播放的详情页保留原约定，仍然打开追更详情。
         assertTrue(detail.contains("FollowingActivity.start(this, existing.identityKey)"));
+        // 详情页走 TMDB 身份迁移时 resolveTmdb 会为防复活故意返回墓碑行（C9 语义），
+        // 因此“已追更”判定必须排除墓碑，否则取消后按钮仍显示“已追更”且永远无法重新追更。
+        assertTrue(detail.contains("private boolean isFollowed(Following item)"));
+        assertTrue(detail.contains("return item != null && !item.isDeleted();"));
+        assertTrue(detail.contains("if (isFollowed(existing)) {"));
+        assertTrue(detail.contains("applyFollowingButtonState(true, isFollowed(item));"));
+        assertFalse(detail.contains("applyFollowingButtonState(true, item != null);"));
         assertTrue(followingActivity.contains("FollowingPlaybackBridge.deleteAsync"));
         assertFalse(followingActivity.contains("FollowingStore.delete(item.identityKey)"));
         assertTrue(followingActivity.contains("Task.execute(() -> {\n            List<Following> items = FollowingStore.list();"));
