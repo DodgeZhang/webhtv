@@ -249,13 +249,12 @@ export class WebHTVPlaybackSyncDO {
 
     const hasMore = rows.length > limit;
     const selected = hasMore ? rows.slice(0, limit) : rows;
-    // WebHTV adaptation: rewrite every pulled change's configKey to a key the
-    // requester's App can map back to its local interface. The device random
-    // interfaceKey (UUID) is only recognized by newer App builds; the URL
-    // SHA-256 fingerprint is recognized by every build (old hash-only and new
-    // triple-match cidForKey), so prefer a 64-hex legacy key registered on the
-    // canonical identity and fall back to the requester's own submitted key.
-    const rewriteKey = await this.pullRewriteKey(request, configType, configKey, submittedConfigKey);
+    // WebHTV adaptation: stamp every pulled change's configKey with a key the
+    // REQUESTER itself reported, so its App can always map it back to the
+    // local interface. Registry fingerprints are deliberately not consulted:
+    // they may belong to another device's mirror address, and a device that
+    // does not recognize the stamped key skips the whole batch (接口不匹配).
+    const rewriteKey = this.pullRewriteKey(request, submittedConfigKey);
     const changes = [];
     for (const row of selected) {
       try {
@@ -270,34 +269,13 @@ export class WebHTVPlaybackSyncDO {
     return playbackJson({ changes, nextSince, hasMore });
   }
 
-  // Pick the configKey stamped onto pulled changes. Only a URL SHA-256
-  // fingerprint (64 hex) is mapped back to the local interface by every App
-  // build (old hash-only builds do not know the random interfaceKey UUID).
-  // Selection order:
-  //   1. the primary fingerprint THIS requester reported on its latest resolve
-  //      (the device recognizes every hash it reports; the first is its primary
-  //      address — a brand-new device that joined after an interface URL
-  //      migration reports only the new address and gets that hash);
-  //   2. the primary fingerprint accumulated on the canonical identity;
-  //   3. the requester's own submitted key (newer App builds accept the UUID).
-  // Best effort — any registry failure falls through so pulls never break.
-  async pullRewriteKey(request, configType, canonicalConfigKey, submittedConfigKey) {
-    try {
-      const registry = normalizeIdentityRegistry((await this.identityStore(request)
-        .load(await identityRegistryKey(playbackToken(request), configType))).state);
-      const isFingerprint = (key) => typeof key === 'string' && /^[0-9a-f]{64}$/.test(key);
-      const firstFingerprint = (keys) => (Array.isArray(keys) ? keys.find(isFingerprint) || '' : '');
-      const own = submittedConfigKey === canonicalConfigKey
-        ? registry.identities[canonicalConfigKey]?.selfLegacyConfigKeys || []
-        : registry.aliases[submittedConfigKey]?.legacyConfigKeys || [];
-      const ownFingerprint = firstFingerprint(own);
-      if (ownFingerprint) return ownFingerprint;
-      const canonicalFingerprint = firstFingerprint(registry.identities[canonicalConfigKey]?.legacyConfigKeys || []);
-      if (canonicalFingerprint) return canonicalFingerprint;
-    } catch {
-      // Fall through to the submitted key.
-    }
-    return submittedConfigKey;
+  // Pick the configKey stamped onto pulled changes: only keys the requester
+  // itself reported on THIS request. Old builds submit the URL SHA-256 hash
+  // directly; new builds submit their UUID plus their legacy hashes in the
+  // alias header — a 64-hex fingerprint is preferred because every build
+  // maps it back to the local interface.
+  pullRewriteKey(request, submittedConfigKey) {
+    return selectPullRewriteKey(submittedConfigKey, requestAliases(request));
   }
 
   async status(request, url) {
@@ -900,6 +878,18 @@ export class WebHTVPlaybackSyncDO {
       this.sql.exec("UPDATE playback_meta SET value = ? WHERE key = 'last_cleanup'", now);
     });
   }
+}
+
+// WebHTV adaptation: choose the configKey stamped onto pulled changes from
+// keys the REQUESTER itself reported (submitted key first, then the alias
+// header). The first URL SHA-256 fingerprint wins because every App build
+// maps a 64-hex hash back to the local interface; otherwise the submitted
+// key is returned unchanged (a UUID only a current build can have sent, and
+// a current build recognizes its own UUID). Pure function for testability.
+export function selectPullRewriteKey(submittedConfigKey, aliasKeys) {
+  const isFingerprint = (key) => typeof key === 'string' && /^[0-9a-f]{64}$/.test(key);
+  const candidates = [submittedConfigKey, ...(Array.isArray(aliasKeys) ? aliasKeys : [])];
+  return candidates.find(isFingerprint) || submittedConfigKey;
 }
 
 // WebHTV adaptation: overlay authoritative column values onto a pulled
