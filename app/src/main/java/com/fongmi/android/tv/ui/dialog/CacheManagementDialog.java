@@ -514,7 +514,8 @@ public class CacheManagementDialog extends DialogFragment {
         if (!restricted) {
             button.setTag(new ModuleFocusTag(id, false));
             button.setOnClickListener(view -> confirmModule(id, view));
-        }        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+        }
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMarginStart(8);
         button.setLayoutParams(params);

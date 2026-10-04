@@ -58,7 +58,16 @@ public class CachePathSafetyTest {
                 Assume.assumeTrue("symbolic links unavailable", false);
             }
 
-            assertTrue(CachePathSafety.isSymbolicLink(root.resolve("link.bin").toFile()));
+            // The production check compares the canonical path with the parent-canonical + name
+            // composition. That comparison only sees a link when File.getCanonicalFile() resolves
+            // it, which is the documented behaviour on Linux/Android but not on every host JVM
+            // (Windows keeps the link path). Skip on hosts whose canonicalization does not follow
+            // links, otherwise this test would fail for platform reasons instead of code reasons.
+            File link = root.resolve("link.bin").toFile();
+            Assume.assumeTrue("File.getCanonicalFile() does not follow symbolic links on this host",
+                    !link.getCanonicalFile().equals(link.getAbsoluteFile()));
+
+            assertTrue(CachePathSafety.isSymbolicLink(link));
 
             CacheMeasurement result = CacheInventory.measureRoots(
                     CacheModuleId.LYRICS, List.of(CacheRoot.tree(root.toFile())));
