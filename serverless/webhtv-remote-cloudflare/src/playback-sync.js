@@ -171,6 +171,22 @@ export class WebHTVPlaybackSyncDO {
         state TEXT NOT NULL
       );
     `);
+    // WebHTV adaptation: season-scoped deletions (TV shows matched by TMDB
+    // identity). The App webhook sends scope="season"; without these columns
+    // the server only accepted item/site/all and answered HTTP 400, so the
+    // server kept the record until a later item-scoped delete arrived — the
+    // "delete locally, server keeps it until the record syncs back and I
+    // delete a second time" failure.
+    const tombstoneColumns = new Set(
+      this.sql.exec('PRAGMA table_info(playback_tombstones)').toArray().map((column) => column.name)
+    );
+    if (!tombstoneColumns.has('media_type')) {
+      this.sql.exec(`
+        ALTER TABLE playback_tombstones ADD COLUMN media_type TEXT NOT NULL DEFAULT '';
+        ALTER TABLE playback_tombstones ADD COLUMN tmdb_id INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE playback_tombstones ADD COLUMN season_number INTEGER NOT NULL DEFAULT -1;
+      `);
+    }
   }
 
   async ingest(request) {
@@ -232,14 +248,17 @@ export class WebHTVPlaybackSyncDO {
     const limit = parseLimit(request.headers.get('x-webhtv-limit') || url.searchParams.get('limit'));
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const rows = this.sql.exec(`
-      SELECT seq, kind, history_key, site_key, vod_id, updated_at, scope, deleted_at, payload FROM (
+      SELECT seq, kind, history_key, site_key, vod_id, updated_at, scope, deleted_at,
+             media_type, tmdb_id, season_number, payload FROM (
         SELECT seq, 'upsert' AS kind, history_key, site_key, vod_id, updated_at,
-               NULL AS scope, NULL AS deleted_at, payload
+               NULL AS scope, NULL AS deleted_at,
+               NULL AS media_type, NULL AS tmdb_id, NULL AS season_number, payload
           FROM playback_items
          WHERE config_key = ? AND seq > ?
         UNION ALL
         SELECT seq, 'delete' AS kind, history_key, site_key, vod_id,
-               NULL AS updated_at, scope, deleted_at, payload
+               NULL AS updated_at, scope, deleted_at,
+               media_type, tmdb_id, season_number, payload
           FROM playback_tombstones
          WHERE config_key = ? AND deleted_at >= ? AND seq > ?
       )
@@ -681,9 +700,11 @@ export class WebHTVPlaybackSyncDO {
         const tombstoneBase = base + itemScan;
         const tombstones = this.sql.exec(`
           INSERT INTO playback_tombstones
-            (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
+            (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload,
+             media_type, tmdb_id, season_number)
           SELECT ?, marker_key, scope, history_key, site_key, vod_id, deleted_at,
-                 ? + ROW_NUMBER() OVER (ORDER BY deleted_at, marker_key), payload
+                 ? + ROW_NUMBER() OVER (ORDER BY deleted_at, marker_key), payload,
+                 media_type, tmdb_id, season_number
             FROM playback_tombstones WHERE config_key = ?
           ON CONFLICT(config_key, marker_key) DO UPDATE SET
             scope = excluded.scope,
@@ -692,7 +713,10 @@ export class WebHTVPlaybackSyncDO {
             vod_id = excluded.vod_id,
             deleted_at = excluded.deleted_at,
             seq = excluded.seq,
-            payload = excluded.payload
+            payload = excluded.payload,
+            media_type = excluded.media_type,
+            tmdb_id = excluded.tmdb_id,
+            season_number = excluded.season_number
           WHERE excluded.deleted_at > playback_tombstones.deleted_at
         `, canonicalStorageKey, tombstoneBase, source);
         const tombstoneScan = Number(tombstones.rowsRead || 0);
@@ -708,6 +732,11 @@ export class WebHTVPlaybackSyncDO {
                AND t.deleted_at >= playback_items.updated_at
                AND (t.scope = 'all'
                  OR (t.scope = 'site' AND t.site_key = playback_items.site_key)
+                 OR (t.scope = 'season'
+                     AND json_extract(playback_items.payload, '$.mediaType') = t.media_type
+                     AND json_extract(playback_items.payload, '$.tmdbId') = t.tmdb_id
+                     AND json_extract(playback_items.payload, '$.seasonNumber') = t.season_number
+                     AND (t.site_key = '' OR t.site_key = playback_items.site_key))
                  OR (t.scope = 'item' AND ((t.site_key = playback_items.site_key AND t.vod_id = playback_items.vod_id)
                                         OR (t.history_key <> '' AND t.history_key = playback_items.history_key))))
           )
@@ -753,8 +782,13 @@ export class WebHTVPlaybackSyncDO {
            scope = 'all'
            OR (scope = 'site' AND site_key = ?)
            OR (scope = 'item' AND ((site_key = ? AND vod_id = ?) OR (history_key <> '' AND history_key = ?)))
+           OR (scope = 'season' AND media_type = ? AND tmdb_id = ? AND season_number = ?
+               AND (site_key = '' OR site_key = ?))
          )
-      `, storageConfigKey, event.siteKey, event.siteKey, event.vodId, event.historyKey));
+      `, storageConfigKey, event.siteKey, event.siteKey, event.vodId, event.historyKey,
+        String(event.payload.mediaType || '').toLowerCase(),
+        Number(event.payload.tmdbId || 0), Number(event.payload.seasonNumber ?? -1),
+        event.siteKey));
       const deletedAt = Number(tombstone?.deleted_at || 0);
       if (deletedAt > 0 && event.updatedAt <= deletedAt) {
         this.recordEvent(storageConfigKey, event.eventId, receivedAt);
@@ -805,8 +839,9 @@ export class WebHTVPlaybackSyncDO {
       const payload = JSON.stringify(event.payload);
       this.sql.exec(`
         INSERT INTO playback_tombstones
-          (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (config_key, marker_key, scope, history_key, site_key, vod_id, deleted_at, seq, payload,
+           media_type, tmdb_id, season_number)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(config_key, marker_key) DO UPDATE SET
           scope = excluded.scope,
           history_key = excluded.history_key,
@@ -814,8 +849,13 @@ export class WebHTVPlaybackSyncDO {
           vod_id = excluded.vod_id,
           deleted_at = excluded.deleted_at,
           seq = excluded.seq,
-          payload = excluded.payload
-      `, storageConfigKey, event.markerKey, event.scope, event.historyKey, event.siteKey, event.vodId, event.deletedAt, seq, payload);
+          payload = excluded.payload,
+          media_type = excluded.media_type,
+          tmdb_id = excluded.tmdb_id,
+          season_number = excluded.season_number
+      `, storageConfigKey, event.markerKey, event.scope, event.historyKey, event.siteKey, event.vodId,
+        event.deletedAt, seq, payload, event.mediaType || '', event.tmdbId || 0,
+        Number.isInteger(event.seasonNumber) ? event.seasonNumber : -1);
 
       let deletedRows = 0;
       if (event.scope === 'all') {
@@ -831,6 +871,23 @@ export class WebHTVPlaybackSyncDO {
           event.siteKey,
           event.deletedAt
         ).rowsWritten;
+      } else if (event.scope === 'season') {
+        // Delete every episode snapshot of the season (TMDB identity), plus
+        // the concrete row the webhook identified portably. The optional
+        // siteKey narrows the TMDB match the same way the App does.
+        deletedRows = this.sql.exec(`
+          DELETE FROM playback_items
+           WHERE config_key = ? AND updated_at <= ?
+             AND (
+               (json_extract(payload, '$.mediaType') = ?
+                AND json_extract(payload, '$.tmdbId') = ?
+                AND json_extract(payload, '$.seasonNumber') = ?
+                AND (? = '' OR site_key = ?))
+               OR item_key = ?
+               OR (history_key <> '' AND history_key = ?)
+             )
+        `, storageConfigKey, event.deletedAt, event.mediaType, event.tmdbId, event.seasonNumber,
+          event.siteKey || '', event.siteKey || '', event.itemKey, event.historyKey).rowsWritten;
       } else {
         deletedRows = this.sql.exec(`
           DELETE FROM playback_items
@@ -925,6 +982,12 @@ export function hydratePullChange(kind, change, row) {
       if (text(row.site_key)) change.siteKey = text(row.site_key);
       change.vodId = '';
       change.historyKey = '';
+      const mediaType = text(row.media_type).trim().toLowerCase();
+      const tmdbId = positive(row.tmdb_id);
+      const seasonNumber = Number(row.season_number);
+      if (mediaType) change.mediaType = mediaType;
+      if (tmdbId > 0) change.tmdbId = tmdbId;
+      if (Number.isInteger(seasonNumber) && seasonNumber >= 0) change.seasonNumber = seasonNumber;
     } else {
       if (text(row.site_key)) change.siteKey = text(row.site_key);
       if (text(row.vod_id)) change.vodId = text(row.vod_id);
@@ -972,10 +1035,22 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
 
   if (deletion) {
     const requestedScope = cleanString(raw.scope, 16).toLowerCase();
-    if (requestedScope && !['all', 'site', 'item'].includes(requestedScope)) {
-      throw playbackHttpError(400, 'scope must be item, site, or all');
+    if (requestedScope && !['all', 'site', 'item', 'season'].includes(requestedScope)) {
+      throw playbackHttpError(400, 'scope must be item, site, season, or all');
     }
-    const scope = normalizeScope(raw.scope, historyKey, siteKey, vodId);
+    // WebHTV adaptation: TV season deletions are matched by TMDB identity
+    // (the App deletes every episode snapshot of one season at once).
+    const mediaType = cleanString(raw.mediaType || raw.media_type, 16).toLowerCase();
+    const tmdbId = Math.trunc(positiveNumber(raw.tmdbId || raw.tmdb_id));
+    const seasonNumberRaw = raw.seasonNumber ?? raw.season_number;
+    const seasonNumber = Number.isFinite(Number(seasonNumberRaw)) ? Math.trunc(Number(seasonNumberRaw)) : -1;
+    const hasSeasonIdentity = mediaType === 'tv' && tmdbId > 0 && seasonNumber >= 0;
+    if (requestedScope === 'season' && !hasSeasonIdentity) {
+      throw playbackHttpError(400, 'scope=season requires mediaType=tv, a positive tmdbId and seasonNumber >= 0');
+    }
+    const scope = requestedScope === 'season'
+      ? 'season'
+      : normalizeScope(raw.scope, historyKey, siteKey, vodId);
     if (!scope) throw playbackHttpError(400, 'scope=all must be explicit when no item or site identity is provided');
     if (scope === 'site' && !siteKey) throw playbackHttpError(400, 'siteKey is required for a site deletion');
     if (scope === 'item' && !historyKey && (!siteKey || !vodId)) throw playbackHttpError(400, 'historyKey or siteKey + vodId is required for an item deletion');
@@ -990,7 +1065,13 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     const deletedAt = positiveTimestamp(raw.deletedAt || raw.deleted_at || raw.timestamp || raw.updatedAt, 0);
     if (!deletedAt) throw playbackHttpError(400, 'deletedAt or timestamp is required for a deletion');
     const itemKey = portableItemKey(historyKey, siteKey, vodId);
-    const markerKey = scope === 'all' ? 'all' : scope === 'site' ? `site\n${siteKey}` : `item\n${itemKey}`;
+    const markerKey = scope === 'all'
+      ? 'all'
+      : scope === 'site'
+        ? `site\n${siteKey}`
+        : scope === 'season'
+          ? `season\n${mediaType}\n${tmdbId}\n${seasonNumber}`
+          : `item\n${itemKey}`;
     const payload = compactObject({
       schema: PLAYBACK_SCHEMA,
       action: 'delete',
@@ -1001,9 +1082,18 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
       siteKey,
       vodId,
       scope,
+      mediaType: scope === 'season' ? mediaType : undefined,
+      tmdbId: scope === 'season' ? tmdbId : undefined,
+      seasonNumber: scope === 'season' ? seasonNumber : undefined,
       deletedAt
     });
-    return { kind: 'delete', configKey, eventId, historyKey, siteKey, vodId, scope, deletedAt, itemKey, markerKey, payload };
+    return {
+      kind: 'delete', configKey, eventId, historyKey, siteKey, vodId, scope,
+      mediaType: scope === 'season' ? mediaType : '',
+      tmdbId: scope === 'season' ? tmdbId : 0,
+      seasonNumber: scope === 'season' ? seasonNumber : -1,
+      deletedAt, itemKey, markerKey, payload
+    };
   }
 
   if (!siteKey) throw playbackHttpError(400, 'siteKey is required');
@@ -1019,6 +1109,12 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
   const updatedAt = positiveTimestamp(raw.updatedAt || raw.updated_at || raw.timestamp || raw.updateTime, now);
   const completed = eventName === 'playback.ended' || booleanValue(raw.completed);
   const suppliedProgress = boundedNumber(raw.progress, 0, 1);
+  // WebHTV adaptation: preserve the TV season identity so season-scoped
+  // tombstones can block or sweep episode progress rows.
+  const upsertMediaType = cleanString(raw.mediaType || raw.media_type, 16).toLowerCase();
+  const upsertTmdbId = Math.trunc(positiveNumber(raw.tmdbId || raw.tmdb_id));
+  const upsertSeasonRaw = raw.seasonNumber ?? raw.season_number;
+  const upsertSeason = Number.isFinite(Number(upsertSeasonRaw)) ? Math.trunc(Number(upsertSeasonRaw)) : null;
   const payload = compactObject({
     schema: PLAYBACK_SCHEMA,
     action: 'upsert',
@@ -1040,6 +1136,9 @@ export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallb
     progress: suppliedProgress > 0 ? suppliedProgress : Math.min(positionMs, durationMs) / durationMs,
     speed: positiveNumber(raw.speed) || 1,
     completed,
+    mediaType: upsertMediaType || undefined,
+    tmdbId: upsertTmdbId > 0 ? upsertTmdbId : undefined,
+    seasonNumber: upsertSeason !== null && upsertSeason >= 0 ? upsertSeason : undefined,
     updatedAt,
     clientKey: cleanString(raw.clientKey, 256)
   });
