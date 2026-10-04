@@ -36,7 +36,7 @@
 ## 被回退/剔除内容核对（用户核心关注点）
 
 1. **第一波 beta 前进零内容变化**：`git diff 08d6cca51 e72239063` 为空，且在该 tip 上执行 `git merge --no-commit --no-ff` 后 `git write-tree` = `84b0a782f…` = 当时 `HEAD^{tree}` —— 零字节变化，不存在"带回复退内容"的通道。
-2. **净差异只含本分支改动**：合并后 `git diff --name-status origin/beta` 恰好 **9 个路径**，全部为 `aa5345c83` 与本任务修复的文件，**不含任何 beta 回退内容**。
+2. **净差异只含本分支改动**：提交后 `git diff --name-status origin/beta` 恰好 **11 个路径**（9 个修改 + 2 个本任务新增：`TmdbDetailFollowingTombstoneDeviceTest.java`、本文档），全部为 `aa5345c83` 与本任务修复的文件，**不含任何 beta 回退内容**。
 3. **`fd29d76ee`（撤销把电视版暗色配色搬到手机版的两个提交）产物零复活**：对该提交涉及的 **21 个路径**逐一与 `origin/beta` 比对，**0 个存在差异**（`differing=0`）。即回退效果原样保留。
 4. **`webhtv_tokens.xml`（mobile 暗色表）在 `HEAD` 与 `origin/beta` 中均不存在** —— 回退删除状态保持，未被合并带回。
 5. **PR #353 剔除内容零复活**：`ThemeCatalog`/`ThemeCatalogStore`/`assets/themes/*` 在合并树中计数为 **0**（`5682f2b05` 的剔除效果保持）。注：`5682f2b05` 位于独立分支 `remove-pr353-theme-changes`，本就不在 `origin/beta` 祖先链中，因此不可能被合并带入。
@@ -73,7 +73,7 @@
 
 ### 第 3 轮：复评"第 1/2 轮结论 + 合并后最终状态"
 
-- **合并零冲突、净差异精确**：两波 beta 增量均 0 冲突（第一波零内容变化，第二波 24 文件）；净差异 **9 个路径**全部为本分支改动；
+- **合并零冲突、净差异精确**：两波 beta 增量均 0 冲突（第一波零内容变化，第二波 24 文件）；净差异 **11 个路径**全部为本分支改动；
 - **修复完整且无同类遗漏**：全仓检索 `resolveFollowing(` / `resolveTmdbAsync(` 的消费者，只有 `TmdbDetailActivity` 两处（`onFollowing`、`updateFollowingState`），均已修复；`FollowingActivity:431` 用的是**活跃-only** 的 `FollowingStore.find()`，语义正确无需改；
 - **守卫非空断言**：源码级断言对修复前文件（`git show aa5345c83:...`）逐条比对，4 条 `assertTrue` 全部为 NO（即修复前必然失败）；设备级用例已用反向编译实测证伪；
 - **UI token 检查失败项判定为既有**：`scripts/check_ui_tokens.sh --strict` 报 2 项。证据：① `item_following.xml` 与 `origin/beta` **及**任务前 `HEAD` 均逐字节一致且不在本次改动内；② `focus_ring_error.xml` 为 beta PR#404 新增文件，与 `origin/beta` **逐字节一致**，违规内容是其 **XML 注释里的 `#93000A`/`#FFDAD6`**（非真实色值）。以 `git archive origin/beta` 独立检出**纯 beta 树**运行同一脚本，输出与合并树**完全一致**（`violations=2`、`hex_colors=1`、`min=4.28`、`pairs=38`）→ 合并与本次改动零新增违规。
@@ -89,7 +89,7 @@
 | 第二波（PR#404）合入 | 24 文件（+1116 / -65），`git stash` 保护修复后重新合并并 `pop`，修复完整保留 |
 | `fd29d76ee` 回退产物复活核对 | 21 个路径逐一比对，**0 个差异** |
 | PR #353 剔除内容复活核对 | 关键符号计数 **0** |
-| dev3 净差异（vs `origin/beta`） | 恰好 9 个路径，全部为本分支改动 |
+| dev3 净差异（vs `origin/beta`） | 恰好 11 个路径（9 改 + 2 新增），全部为本分支改动；与 PR #406 文件集程序化比对 MATCH |
 | `git diff --check` | 退出码 0 |
 | `FollowingUiSourceTest`（mobile / leanback） | 各 15 用例，0 失败 |
 | 定向 JVM 套件（mobile：Following*/TmdbDetail*） | 全部 0 失败（含 `TmdbDetailActivityLayoutTest` 129 用例） |
