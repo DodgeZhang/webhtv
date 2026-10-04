@@ -34,6 +34,32 @@ f9f7e434c6（legacyConfigKeys[0] 盲取）部署后全局 1101，事后查明 11
 - 部署环境已健康（配额 08:00 重置、health 200）；
 - 部署后先只读 curl 确认指纹再让设备同步。
 
+## 增强（cf-pull-requester-fingerprint，2026-10-04）：接口整体换地址后新设备也能同步
+
+### 缺口
+
+首版 pullRewriteKey 取 canonical 身份并集里第一个（最老）URL 指纹。接口从 U1 整体迁移到 U2 后，第三台设备 C 全新安装、只配置 U2：C 本地没有 U1 的历史哈希，下发 U1 哈希 → 三重匹配全不中 → 全跳过。
+
+### 设计
+
+设备每次 resolve 上报的 legacyConfigKeys 是它本地"主 URL + 备用 URL + 历史 URL"的哈希集合——**其中每一个该设备自己都认识**（snapshot 由 getUrls()/getLegacyConfigKeys() 构造），且第一个即主地址指纹。因此按请求设备个性化选取：
+
+1. identity.js resolveIdentity 成功分支（create/keep/adopt/merge/auto-merge 补发均经过）记录该次请求的 64hex 指纹：
+   - canonical 设备 → identity.selfLegacyConfigKeys；
+   - alias 设备 → aliases[uuid].legacyConfigKeys（alias 结构扩展可选字段，normalizeIdentityRegistry 只保留 64hex、限 8 个，旧数据缺省兼容）。
+2. 手动合并（mergeIdentityRegistry）把被并入 identity 的 selfLegacyConfigKeys 转存到其新 alias 条目，不丢设备指纹。
+3. pullRewriteKey 选取顺序：请求者自己的主指纹 → canonical 并集主指纹 → submittedConfigKey（UUID 回落）。
+
+### 为什么取"第一个"而不是"最新一个"
+
+上报列表顺序为 [主地址, 备用地址…]，replaceUrl 换址后历史累积顺序并不保证新地址在末尾；取末尾可能把备用代理（gh-proxy）地址哈希发给只配了主地址的设备。取第一个 = 主地址：老设备拿到 U1（它自己上报的，必认识，与已验证线上行为一致），新装 C 的列表只有 U2 → 拿到 U2。
+
+### 影响面
+
+- registry 仅在设备 resolve 时多写一个已有 JSON 行的字段（compareAndSet 本就发生），无额外行写入、无配额风险。
+- A/B 当前行为不变：部署后各自再 resolve 一次即写入 self 字段；主指纹仍是 de872298…。
+- 纯服务端，App 无改动。
+
 ## 验证
 
 1. `curl pull?limit=2`（A key 头）：changes[].configKey 为 64hex，非 UUID。

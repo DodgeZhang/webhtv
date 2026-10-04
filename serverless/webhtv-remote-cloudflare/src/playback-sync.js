@@ -250,19 +250,30 @@ export class WebHTVPlaybackSyncDO {
     return playbackJson({ changes, nextSince, hasMore });
   }
 
-  // Pick the configKey stamped onto pulled changes. Prefers a URL SHA-256
-  // fingerprint (64 hex) registered on the canonical identity because every
-  // App build maps that back to the local interface; the random interfaceKey
-  // UUID is only understood by newer builds. Best effort — any failure falls
-  // back to the requester's own submitted key so pulls never break.
+  // Pick the configKey stamped onto pulled changes. Only a URL SHA-256
+  // fingerprint (64 hex) is mapped back to the local interface by every App
+  // build (old hash-only builds do not know the random interfaceKey UUID).
+  // Selection order:
+  //   1. the primary fingerprint THIS requester reported on its latest resolve
+  //      (the device recognizes every hash it reports; the first is its primary
+  //      address — a brand-new device that joined after an interface URL
+  //      migration reports only the new address and gets that hash);
+  //   2. the primary fingerprint accumulated on the canonical identity;
+  //   3. the requester's own submitted key (newer App builds accept the UUID).
+  // Best effort — any registry failure falls through so pulls never break.
   async pullRewriteKey(request, configType, canonicalConfigKey, submittedConfigKey) {
     try {
       const registry = normalizeIdentityRegistry((await this.identityStore(request)
         .load(await identityRegistryKey(playbackToken(request), configType))).state);
-      const identity = registry.identities[canonicalConfigKey];
-      const legacy = Array.isArray(identity && identity.legacyConfigKeys) ? identity.legacyConfigKeys : [];
-      const fingerprint = legacy.find((key) => typeof key === 'string' && /^[0-9a-f]{64}$/.test(key));
-      if (fingerprint) return fingerprint;
+      const isFingerprint = (key) => typeof key === 'string' && /^[0-9a-f]{64}$/.test(key);
+      const firstFingerprint = (keys) => (Array.isArray(keys) ? keys.find(isFingerprint) || '' : '');
+      const own = submittedConfigKey === canonicalConfigKey
+        ? registry.identities[canonicalConfigKey]?.selfLegacyConfigKeys || []
+        : registry.aliases[submittedConfigKey]?.legacyConfigKeys || [];
+      const ownFingerprint = firstFingerprint(own);
+      if (ownFingerprint) return ownFingerprint;
+      const canonicalFingerprint = firstFingerprint(registry.identities[canonicalConfigKey]?.legacyConfigKeys || []);
+      if (canonicalFingerprint) return canonicalFingerprint;
     } catch {
       // Fall through to the submitted key.
     }
@@ -1177,6 +1188,12 @@ export async function mergeIdentityRegistry(store, token, configType, targetKey,
     const target = registry.identities[resolvedTarget];
     for (const source of sources) {
       const identity = registry.identities[source];
+      // Preserve the merged device's own URL fingerprints when demoting it to
+      // an alias, so pull keeps stamping its changes with a key it recognizes.
+      const previousAlias = registry.aliases[source];
+      const ownFingerprints = identity && Array.isArray(identity.selfLegacyConfigKeys) && identity.selfLegacyConfigKeys.length
+        ? identity.selfLegacyConfigKeys
+        : (previousAlias && Array.isArray(previousAlias.legacyConfigKeys) ? previousAlias.legacyConfigKeys : []);
       if (identity) {
         mergeKeyList(target.strictAddressKeys, identity.strictAddressKeys);
         mergeKeyList(target.endpointMatchKeys, identity.endpointMatchKeys);
@@ -1184,7 +1201,9 @@ export async function mergeIdentityRegistry(store, token, configType, targetKey,
         mergeKeyList(target.legacyConfigKeys, identity.legacyConfigKeys);
         delete registry.identities[source];
       }
-      registry.aliases[source] = { canonicalInterfaceKey: resolvedTarget, kind: 'manual-merge' };
+      const aliasEntry = { canonicalInterfaceKey: resolvedTarget, kind: 'manual-merge' };
+      if (ownFingerprints.length) aliasEntry.legacyConfigKeys = ownFingerprints.slice(-8);
+      registry.aliases[source] = aliasEntry;
     }
     target.updatedAt = Date.now();
     registry.epoch = Number(registry.epoch || 0) + 1;

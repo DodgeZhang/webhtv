@@ -215,8 +215,16 @@ export function normalizeIdentityRegistry(value) {
   }
   for (const [key, alias] of Object.entries(registry.aliases)) {
     const canonical = normalizeOptionalKey(alias && alias.canonicalInterfaceKey);
-    if (!canonical || !registry.identities[canonical]) delete registry.aliases[key];
-    else registry.aliases[key] = { canonicalInterfaceKey: canonical, kind: cleanText(alias.kind, 24) || 'alias' };
+    if (!canonical || !registry.identities[canonical]) {
+      delete registry.aliases[key];
+      continue;
+    }
+    // WebHTV adaptation: persist the aliased device's own latest URL
+    // fingerprints so pull can stamp changes with a key that device recognizes.
+    const entry = { canonicalInterfaceKey: canonical, kind: cleanText(alias.kind, 24) || 'alias' };
+    const ownFingerprints = fingerprintKeys(alias && alias.legacyConfigKeys);
+    if (ownFingerprints.length) entry.legacyConfigKeys = ownFingerprints;
+    registry.aliases[key] = entry;
   }
   for (const [key, entry] of Object.entries(registry.requests)) {
     if (!KEY_PATTERN.test(key) && !/^[a-zA-Z0-9._:-]{1,160}$/.test(key)) delete registry.requests[key];
@@ -261,6 +269,16 @@ export async function resolveIdentity(store, token, input) {
     }
     for (const key of [...identity.strictAddressKeys, ...identity.endpointMatchKeys, ...identity.hostMatchKeys, ...identity.legacyConfigKeys]) {
       addAlias(next, key, resolution.canonicalInterfaceKey, keyKind(identity, key));
+    }
+    // WebHTV adaptation: remember this requester's own current URL fingerprints
+    // so pull can stamp changes with the newest hash this exact device knows —
+    // required when a brand-new device joins after an interface URL migration
+    // and only carries the new address hash.
+    const selfFingerprints = fingerprintKeys(input.legacyConfigKeys);
+    if (input.interfaceKey === resolution.canonicalInterfaceKey) {
+      identity.selfLegacyConfigKeys = selfFingerprints;
+    } else if (next.aliases[input.interfaceKey]) {
+      next.aliases[input.interfaceKey].legacyConfigKeys = selfFingerprints;
     }
     if (await store.compareAndSet(registryKey, snapshot.version, next)) {
       let migration = { migrated: false, pending: false, resetSince: false };
@@ -546,9 +564,21 @@ function normalizeIdentity(value, canonicalInterfaceKey) {
     endpointMatchKeys: uniqueKeys(source.endpointMatchKeys),
     hostMatchKeys: uniqueKeys(source.hostMatchKeys),
     legacyConfigKeys: uniqueKeys(source.legacyConfigKeys),
+    // WebHTV adaptation: URL SHA-256 fingerprints reported by the canonical
+    // device itself on its latest resolve; pull uses them to stamp changes with
+    // a key that exact device build can map (old builds only know URL hashes).
+    selfLegacyConfigKeys: fingerprintKeys(source.selfLegacyConfigKeys),
     createdAt: Number.isSafeInteger(source.createdAt) ? source.createdAt : 0,
     updatedAt: Number.isSafeInteger(source.updatedAt) ? source.updatedAt : 0
   };
+}
+
+// Only 64-hex URL SHA-256 fingerprints are device-portable configKeys; cap the
+// remembered list so a long-lived identity cannot grow without bound.
+function fingerprintKeys(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((item) => String(item || '').trim().toLowerCase())
+    .filter((item) => /^[0-9a-f]{64}$/.test(item)))].slice(-8);
 }
 
 function uniqueKeys(value) {
