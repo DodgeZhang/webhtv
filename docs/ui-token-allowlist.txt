@@ -199,3 +199,4 @@ app/src/mobile/res/drawable/shape_quick_search_item.xml|Legacy drawable shape re
 app/src/mobile/res/drawable/shape_quick_search_panel.xml|Legacy drawable shape retained pending dedicated component cleanup
 app/src/mobile/res/drawable/shape_toolbar_popup.xml|Legacy drawable shape retained pending dedicated component cleanup
 app/src/mobile/res/drawable/shape_video_context_scrim_light.xml|Player/immersive overlay uses fixed translucent colors over video content
+app/src/mobile/res/drawable/selector_tmdb_flag_item_dark.xml|Player/immersive overlay uses fixed translucent colors over video content
