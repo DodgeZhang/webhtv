@@ -3,7 +3,7 @@
 ## Recovery anchor
 
 - **目标**：把 `origin/beta` 最新代码合入 `dev3`（远端已移除/回退的提交不得顺带带回）；复评 dev3 全部已修改代码（含已提交未推送的 `ef8bed60b`/`c39e5748a` 主题对比度修复）；发现问题即修复并验证，循环评审直至通过；通过后提交、推送 `dev3`、创建 `dev3 -> beta` 中文 PR（只创建，不合并）。
-- **验收标准**：① 合并结果包含 `origin/beta` tip `faac13dd64b`；② 远端被回退/剔除内容零复活；③ dev3 相对 beta 净差异仅含本分支自身改动（22 个路径）；④ 目标 JVM 测试、双 flavor 编译、UI token 检查、实机安装冷启动全部通过；⑤ 中文 PR 已创建且描述排版清楚。
+- **验收标准**：① 合并结果包含 `origin/beta` tip `faac13dd64b`；② 远端被回退/剔除内容零复活；③ dev3 相对 beta 净差异仅含本分支自身改动（23 个路径，含本文档）；④ 目标 JVM 测试、双 flavor 编译、UI token 检查、实机安装冷启动全部通过；⑤ 中文 PR 已创建且描述排版清楚。
 - **当前状态**：合并 + 两轮评审 + 全部验证完成；第 1 轮 1 项、第 2 轮 2 项均判定为既有问题（证据见下），本任务净差异内零缺陷。
 - **下一动作**：`task_guard.sh finish`（合并提交 + recovery tag）→ 推送 dev3 → 创建 PR（只创建不合并）。
 
@@ -19,7 +19,7 @@
 | 合并结果 | 32 文件合入，**0 冲突** |
 | 合并树哈希 | `abc7eae3cb8e081f59e289030c0c0bf6978eeb1e` |
 
-beta 侧增量（`884770508..faac13dd6`，9 个提交）：
+beta 侧增量（`884770508..faac13dd6`，**11 个提交**）：
 
 - `faac13dd6` Merge PR #402（dev4）、`3400cd7b0` + `255059d48`（dev4 侧 TV 横幅按密度输出）、`62527bec4`（dev4 侧 beta 增量合并）
 - `13f07c8cb` Merge PR #401（dev3）、`e224f1b8c` Merge PR #400（dev1）、`490218a66` Merge PR #399（dev4）
@@ -56,8 +56,8 @@ beta 侧增量（`884770508..faac13dd6`，9 个提交）：
 
 第 1 轮修复后不存在新增改动，本轮针对**合并后的最终工作树**再评一次：
 
-- **合并零冲突、净差异精确**：合并树相对 `origin/beta` 的差异**恰好 22 个路径**，与 dev3 侧两提交的自身文件集完全一致（主题改动 19 个 + 测试 2 个 + 文档 2 个，其中 `docs/ui-token-allowlist.txt` 双向抵消计入）；
-- **beta 增量与 dev3 改动的主题面隔离**：beta 侧增量触及的资源仅 `leanback/res/drawable/ic_banner*.png/xml`（横幅移除），**未触及任何 token 表、`theme/` 包、`/layout/`、`/drawable/` 主题资产或 `webhtv_styles`**，与 dev3 的主题对比度修复零交集，不存在相互覆盖；
+- **合并零冲突、净差异精确**：合并树相对 `origin/beta` 的差异**恰好 23 个路径**，全部为 dev3 自身改动，**不含任何 beta 回退内容**。逐项构成：主题改动 19 个（3 个 Java 对话框 + `shape_mpv_action_menu.xml` + `selector_tmdb_flag_item_dark.xml` + 12 个手机版 `dialog_*` 布局 + `docs/ui-token-allowlist.txt`）+ 测试 2 个（`DialogForegroundTokenTest`、`ThemeBaseWiringTest`）+ 文档 3 个（本文档、`dialog-foreground-semantic-tokens-20261004.md`、`mobile-dark-surface-text-contrast-20261004.md`）。程序化校验：`gh pr view 403 --json files` 的文件集与 `git diff --name-only origin/beta HEAD` **完全一致（MATCH）**；
+- **beta 增量与 dev3 改动的主题面隔离**：beta 侧增量触及的资源仅为 `leanback` 横幅资产（`drawable/ic_banner.png`、`drawable/ic_banner_foreground.xml`、`mipmap-anydpi-v26/ic_banner.xml` 的移除，以及 5 档 `mipmap-*/ic_banner.png` 的新增），**未触及任何 token 表、`theme/` 包、`/layout/`、`/drawable/` 主题资产或 `webhtv_styles`**（程序化路径过滤实测：该过滤器下 beta 增量仅命中上述 2 个 `drawable` 路径），与 dev3 的主题对比度修复零交集，不存在相互覆盖；
 - **既有问题二次确认（2 项，均为既有）**：
   1. `MultiThreadProxyRouteTest`（同上，与合并、与主题改动均无交集）；
   2. `scripts/check_ui_tokens.sh --strict` 报 `item_following.xml` 违规 —— 以 `git archive` 独立检出**纯 `origin/beta`** 与**合并前 `c39e5748a`** 两棵树分别运行，**三棵树输出完全一致**（`violations=1`、`min=4.28`、`pairs=38`），证明为 beta 既有问题，合并与本次改动零新增违规；
@@ -72,7 +72,7 @@ beta 侧增量（`884770508..faac13dd6`，9 个提交）：
 | 合并冲突 | 0 冲突，32 文件自动合入 |
 | 合并树重放一致性 | `git write-tree` = `abc7eae3c…`，与合并提交树哈希逐字节一致 |
 | 合并引入差异空白校验（`git diff --check c39e5748a origin/beta`） | 退出码 0 |
-| dev3 净差异（vs `origin/beta`） | 恰好 22 个路径，与自身提交文件集一致 |
+| dev3 净差异（vs `origin/beta`） | 恰好 23 个路径，与自身提交文件集一致（PR#403 files 程序化比对 MATCH） |
 | dev3 未推送提交 vs beta 增量路径交集 | 0 |
 | 12 个深色面板布局前景属性扫描 | 0 遗漏，全部为与调色板无关角色 |
 | 最不利合成底色对比度 | 纯白 6.34:1、`#CCFFFFFF` 4.76:1（均 ≥ 4.5:1） |
