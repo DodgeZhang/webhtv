@@ -64,3 +64,15 @@
 ## 实施记录
 
 - 2026-10-04：实施完成，进入验证。
+
+## 后续复评修复（C37 dev4 合并 beta 复评轮）
+
+复评 `96531595dc6` 时发现 3 个真实缺陷，已在 leanback 与 mobile 两变体同步修复并验证：
+
+1. **缓冲超时被 `mFailedThisSession` 静默吞掉**：仅把超时改走 `onError` 会导致"上一轮已换线后新线路一直缓冲"时不再换线、进度条常驻。改为独立入口 `onBufferingTimeout()`（不受该标志限制），`if (!startFlow()) showError(error_play_url)`，`mBufferingTimeout = this::onBufferingTimeout;`。
+2. **回退耗尽保护被 reload 路径绕过**：`handleSameReloadUrl` 直接调用 `advanceLineForFallback()`，而 exhausted 短路原在 `startFlow()` 内，导致本轮耗尽后一次 reload 即可重开 A→B→A 循环。改为把短路下移到唯一改动线路下标的 `advanceLineForFallback()` 入口。
+3. **reload 换不动时无可见反馈**：单线路/已耗尽时进度条常驻、无错误文案。改为 `if (advanceLineForFallback()) return; App.removeCallbacks(mBufferingTimeout); showError(msg);`。
+
+契约约束：既有 `LiveActivitySourceFallbackSourceTest` 断言 `assertFalse(source.contains("if (mFailedThisSession) return;"))`，故采用"保留守卫块 + 独立超时入口"形式，两个契约同时成立。
+
+验证：`LiveActivityLayoutTest` 10/10（新增 `lineFallbackExhaustionKeepsErrorFeedbackForMobileAndLeanback`，覆盖上述 5 项契约）、`LiveSourceFallbackPolicyTest` 9/9、`LiveActivitySourceFallbackSourceTest` 5/5（测试侧补 CRLF 归一化，同 C35 先例）、leanback 变体 9/9，两 flavor 编译成功。详见 `docs/C37-beta-merge-review-dev4-20261004.md`。

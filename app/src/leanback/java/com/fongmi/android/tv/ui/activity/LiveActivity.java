@@ -199,7 +199,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mR0 = this::setSelected;
         mR1 = this::hideControl;
         mR2 = this::setTraffic;
-        mBufferingTimeout = this::startFlow;
+        mBufferingTimeout = this::onBufferingTimeout;
         mR3 = this::hideInfo;
         mR4 = this::hideUI;
         mEndRetry = this::checkNext;
@@ -599,11 +599,22 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         player().resetTrack();
         player().reset();
         player().stop();
-        if (!mFailedThisSession && !isLineFallbackExhausted()) {
+        if (!mFailedThisSession) {
             mFailedThisSession = true;
             showError(msg);
             startFlow();
         }
+    }
+
+    /**
+     * 缓冲超时（既没出画面也没报错）：等价于本条线路播放失败。
+     * <p>
+     * 与 onError 不同，本路径不受 mFailedThisSession 限制：上一轮换线后新线路若一直卡在
+     * 解析/缓冲阶段，mFailedThisSession 仍为 true，但此时必须仍能继续换线；
+     * 确实无线路可换（单线路或本轮已绕回起点）时给出可见的失败提示，避免进度条一直转。
+     */
+    private void onBufferingTimeout() {
+        if (!startFlow()) showError(ResUtil.getString(R.string.error_play_url));
     }
 
     @Override
@@ -940,13 +951,14 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void handleSameReloadUrl(String msg) {
-        if (mChannel != null && !mChannel.isOnly()) {
-            // 同 URL 重载失败等价于该线路播放失败：走带绕圈保护的自动换线，
-            // 不重置本轮回退状态，避免 reload 路径重新开启死循环。
-            advanceLineForFallback();
-        } else {
-            onError(msg);
-        }
+        // 同 URL 重载失败等价于该线路播放失败：走带绕圈/耗尽保护的自动换线，
+        // 不重置本轮回退状态，避免 reload 路径重新开启死循环。
+        // 沿用重载路径既有语义（不校验用户的自动换线开关），只补齐保护：
+        // 换不动（单线路或本轮已绕回起点）时必须给出可见失败反馈，
+        // 否则 fetch() 刚 showProgress() 的进度条会一直转、错误文案永远不出现。
+        if (advanceLineForFallback()) return;
+        App.removeCallbacks(mBufferingTimeout);
+        showError(msg);
     }
 
     private void resetAdapter() {
@@ -1061,14 +1073,19 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     /**
      * 线路播放失败的自动回退：只在当前频道的线路间轮换（含最后一条绕回），
      * 试完一圈即停，绝不因播放失败直接跳到配置里的下一个直播接口。
-     * 调用点：onError、缓冲超时（mBufferingTimeout）。
+     * 调用点：onError、缓冲超时（mBufferingTimeout -> onBufferingTimeout）。
+     * <p>
+     * 本方法只负责「还能不能再换一条线路」，换不动时返回 false，
+     * 失败文案由调用方负责显示。
+     *
+     * @return true 表示已换到另一条线路并重新拉流
      */
-    private void startFlow() {
+    private boolean startFlow() {
         LiveSourceFallbackPolicy.Action action = LiveSourceFallbackPolicy.decideLineFailure(
                 LiveSetting.isChange(),
                 mChannel != null,
                 mChannel != null && !mChannel.isOnly());
-        if (action == LiveSourceFallbackPolicy.Action.NEXT_LINE) advanceLineForFallback();
+        return action == LiveSourceFallbackPolicy.Action.NEXT_LINE && advanceLineForFallback();
     }
 
     /**
@@ -1086,17 +1103,26 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     /**
      * 播放失败自动换线：从失败起点开始轮换，绕回起点即本轮所有线路都已试过，置位
      * exhausted 停止后续回退；否则刷新线路信息并重新拉流。
+     * <p>
+     * 本方法是唯一改动 mChannel 线路下标的地方，因此 exhausted 短路必须放在这里：
+     * 无论从 onError、缓冲超时还是同 URL 重载进来，都不可能再开启新一轮
+     * A→B→A 死循环（否则 anchor 未清时换线会重新绕回起点并重新拉流）。
+     *
+     * @return true 表示已换到另一条线路并重新拉流；false 表示没有可换的线路
+     * （单线路）或本轮线路已绕回起点（回退耗尽），调用方需要自行给出失败反馈。
      */
-    private void advanceLineForFallback() {
-        if (mChannel == null || mChannel.isOnly()) return;
+    private boolean advanceLineForFallback() {
+        if (isLineFallbackExhausted()) return false;
+        if (mChannel == null || mChannel.isOnly()) return false;
         if (mLineFallbackAnchor < 0) mLineFallbackAnchor = mChannel.getIndex();
         mChannel.switchLine(true);
         if (mChannel.getIndex() == mLineFallbackAnchor) {
             mLineFallbackExhausted = true;
-            return;
+            return false;
         }
         showInfo();
         fetch();
+        return true;
     }
 
     /**

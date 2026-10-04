@@ -267,11 +267,58 @@ public class LiveActivityLayoutTest {
     }
 
     @Test
+    public void lineFallbackExhaustionKeepsErrorFeedbackForMobileAndLeanback() throws Exception {
+        assertLineFallbackExhaustionKeepsErrorFeedback(findMobileJavaPath());
+        assertLineFallbackExhaustionKeepsErrorFeedback(findLeanbackJavaPath());
+    }
+
+    private static void assertLineFallbackExhaustionKeepsErrorFeedback(Path javaRoot) throws Exception {
+        Path sourcePath = javaRoot.resolve(Path.of(
+                "com", "fongmi", "android", "tv", "ui", "activity", "LiveActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+
+        String advanceBody = section(source, "private boolean advanceLineForFallback()", "private boolean isLineFallbackExhausted()");
+        assertFalse(sourcePath + " is missing advanceLineForFallback", advanceBody.isEmpty());
+        assertTrue("the only line-switching site must itself refuse to rotate once the round is exhausted",
+                advanceBody.contains("if (isLineFallbackExhausted()) return false;"));
+        assertTrue("an exhausted rotation must report that no line was switched",
+                advanceBody.contains("mLineFallbackExhausted = true;")
+                        && advanceBody.contains("return false;"));
+        assertTrue("a real line switch must report success after reloading the stream",
+                advanceBody.indexOf("fetch();") < advanceBody.lastIndexOf("return true;"));
+
+        String startFlowBody = section(source, "private boolean startFlow()", "private void startSourceFallback()");
+        assertFalse(sourcePath + " is missing startFlow", startFlowBody.isEmpty());
+        assertTrue("startFlow must report whether it actually switched lines",
+                startFlowBody.contains("return action == LiveSourceFallbackPolicy.Action.NEXT_LINE && advanceLineForFallback();"));
+
+        String onErrorBody = section(source, "protected void onError(String msg)", "protected void onReload(String msg)");
+        assertFalse(sourcePath + " is missing onError", onErrorBody.isEmpty());
+        assertTrue("a playback failure must surface its reason before any fallback decision",
+                onErrorBody.indexOf("showError(msg);") < onErrorBody.indexOf("startFlow();"));
+
+        String timeoutBody = section(source, "private void onBufferingTimeout()", "protected void onReload(String msg)");
+        assertFalse(sourcePath + " is missing onBufferingTimeout", timeoutBody.isEmpty());
+        assertTrue("the buffering timeout must not be muted by the previous attempt's failure flag",
+                source.contains("mBufferingTimeout = this::onBufferingTimeout;")
+                        && !timeoutBody.contains("mFailedThisSession"));
+        assertTrue("a stall that cannot switch lines must still show a visible failure",
+                timeoutBody.contains("if (!startFlow()) showError("));
+
+        String reloadBody = section(source, "private void handleSameReloadUrl(String msg)", "private void resetAdapter()");
+        assertFalse(sourcePath + " is missing handleSameReloadUrl", reloadBody.isEmpty());
+        assertTrue("a reload that cannot switch lines must still show a visible failure",
+                reloadBody.contains("if (advanceLineForFallback()) return;")
+                        && reloadBody.contains("showError(msg);"));
+        assertFalse("the reload path must not re-implement the switch preconditions and bypass the exhaustion guard",
+                reloadBody.contains("mChannel != null && !mChannel.isOnly() && advanceLineForFallback()"));
+    }
+
+    @Test
     public void playbackEndStaysOnCurrentChannelForMobileAndLeanback() throws Exception {
         assertPlaybackEndStaysOnCurrentChannel(findMobileJavaPath());
         assertPlaybackEndStaysOnCurrentChannel(findLeanbackJavaPath());
     }
-
     private static void assertPlaybackEndStaysOnCurrentChannel(Path javaRoot) throws Exception {
         Path sourcePath = javaRoot.resolve(Path.of(
                 "com", "fongmi", "android", "tv", "ui", "activity", "LiveActivity.java"));
