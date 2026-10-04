@@ -232,12 +232,14 @@ export class WebHTVPlaybackSyncDO {
     const limit = parseLimit(request.headers.get('x-webhtv-limit') || url.searchParams.get('limit'));
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const rows = this.sql.exec(`
-      SELECT seq, kind, payload FROM (
-        SELECT seq, 'upsert' AS kind, payload
+      SELECT seq, kind, history_key, site_key, vod_id, updated_at, scope, deleted_at, payload FROM (
+        SELECT seq, 'upsert' AS kind, history_key, site_key, vod_id, updated_at,
+               NULL AS scope, NULL AS deleted_at, payload
           FROM playback_items
          WHERE config_key = ? AND seq > ?
         UNION ALL
-        SELECT seq, 'delete' AS kind, payload
+        SELECT seq, 'delete' AS kind, history_key, site_key, vod_id,
+               NULL AS updated_at, scope, deleted_at, payload
           FROM playback_tombstones
          WHERE config_key = ? AND deleted_at >= ? AND seq > ?
       )
@@ -257,7 +259,7 @@ export class WebHTVPlaybackSyncDO {
     const changes = [];
     for (const row of selected) {
       try {
-        const change = JSON.parse(row.payload);
+        const change = hydratePullChange(row.kind, JSON.parse(row.payload), row);
         if (change && typeof change === 'object') change.configKey = rewriteKey;
         changes.push(change);
       } catch {
@@ -898,6 +900,66 @@ export class WebHTVPlaybackSyncDO {
       this.sql.exec("UPDATE playback_meta SET value = ? WHERE key = 'last_cleanup'", now);
     });
   }
+}
+
+// WebHTV adaptation: overlay authoritative column values onto a pulled
+// change's stored payload. Rows written by older server builds (and merged in
+// by identity migrations) can carry payload JSON that lacks deletedAt or
+// carries drifted identity fields even though the canonical columns are
+// correct. The App treats a remote deletion without deletedAt as
+// deletedAt=now and records a local tombstone, which then blocks every
+// younger upsert of the same site/item — the "fetched 38, applied 2,
+// skipped 36" failure. Re-hydration makes every emitted change agree with
+// the materialised snapshot. Pure function for testability.
+export function hydratePullChange(kind, change, row) {
+  if (!change || typeof change !== 'object') return change;
+  const positive = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) && num > 0 ? num : 0;
+  };
+  const text = (value) => (value == null ? '' : String(value));
+  if (kind === 'delete') {
+    const deletedAt = positive(row.deleted_at);
+    if (deletedAt > 0) change.deletedAt = deletedAt;
+    const scope = text(row.scope).trim();
+    if (scope) change.scope = scope;
+    if (scope === 'all') {
+      change.siteKey = '';
+      change.vodId = '';
+      change.historyKey = '';
+    } else if (scope === 'site') {
+      if (text(row.site_key)) change.siteKey = text(row.site_key);
+      change.vodId = '';
+      change.historyKey = '';
+    } else if (scope === 'season') {
+      if (text(row.site_key)) change.siteKey = text(row.site_key);
+      change.vodId = '';
+      change.historyKey = '';
+    } else {
+      if (text(row.site_key)) change.siteKey = text(row.site_key);
+      if (text(row.vod_id)) change.vodId = text(row.vod_id);
+      // The stored history_key carries the ORIGIN device's local cid suffix;
+      // only fall back to it when the portable site+vod identity is missing
+      // (the App strips historyKey itself whenever site+vod exist).
+      const portable = cleanString(change.siteKey, 1024) && cleanString(change.vodId, 8192);
+      if (!portable && !cleanString(change.historyKey, 4096) && text(row.history_key)) {
+        change.historyKey = text(row.history_key);
+      }
+    }
+    change.action = 'delete';
+    change.event = 'playback.deleted';
+    change.deleted = true;
+  } else {
+    const updatedAt = positive(row.updated_at);
+    if (updatedAt > 0) change.updatedAt = updatedAt;
+    if (text(row.site_key)) change.siteKey = text(row.site_key);
+    if (text(row.vod_id)) change.vodId = text(row.vod_id);
+    const portable = cleanString(change.siteKey, 1024) && cleanString(change.vodId, 8192);
+    if (!portable && !cleanString(change.historyKey, 4096) && text(row.history_key)) {
+      change.historyKey = text(row.history_key);
+    }
+  }
+  return change;
 }
 
 export function normalizePlaybackEvent(input, configKey, now = Date.now(), fallbackEventId = '') {
