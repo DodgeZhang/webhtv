@@ -295,13 +295,13 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="stat-value" id="totalCount">-</div>
       <div class="stat-sub">当前 configKey 下的进度记录</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" id="tombstoneCard" title="点击清理当前接口的删除墓碑" onclick="confirmPurgeTombstones()" style="cursor:pointer">
       <div class="stat-label">
         <span class="stat-icon" style="background: var(--danger-bg); color: var(--danger);">🗑️</span>
         删除墓碑
       </div>
       <div class="stat-value" id="tombstoneCount">-</div>
-      <div class="stat-sub">90 天内的删除记录</div>
+      <div class="stat-sub">90 天内的删除记录 · 点击清理</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">
@@ -993,6 +993,38 @@ async function clearAll() {
     showToast('已清空 ' + (res.deletedRows || 0) + ' 条记录（删除指令将同步到设备）', 'success');
     loadData();
   } catch (e) { showToast('清空失败: ' + e.message, 'error'); }
+}
+
+// 清理当前接口的删除墓碑 — 仅清当前 configKey，与卡片计数口径一致。
+// beforeDeletedAt 取当前时间 +1 分钟，覆盖设备时钟略快产生的未来墓碑。
+async function confirmPurgeTombstones() {
+  const count = parseInt(document.getElementById('tombstoneCount').textContent, 10) || 0;
+  if (!count) { showToast('当前接口没有可清理的删除墓碑', 'info'); return; }
+  showModal(\`
+    <h3>⚠️ 清理删除墓碑</h3>
+    <p>即将清理当前接口 <strong>\${count}</strong> 条删除墓碑（服务端的删除同步历史），此操作不可恢复。</p>
+    <p style="color: var(--warning);">请确保所有设备近期已点过「同步」：未同步的设备将收不到这些删除指令，其本地残留记录之后可能重新同步回服务端。</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideModal()">取消</button>
+      <button class="btn btn-danger" onclick="purgeTombstones()">确认清理</button>
+    </div>
+  \`);
+}
+
+async function purgeTombstones() {
+  hideModal();
+  try {
+    const res = await fetchJSON('/api/playback/sync/maintenance', {
+      method: 'POST',
+      body: JSON.stringify({
+        op: 'purgeTombstones',
+        configKey: state.configKey,
+        beforeDeletedAt: Date.now() + 60000
+      })
+    });
+    showToast('已清理 ' + (res.purged || 0) + ' 条删除墓碑', 'success');
+    loadData();
+  } catch (e) { showToast('清理失败: ' + e.message, 'error'); }
 }
 
 function showModal(html) {

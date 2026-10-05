@@ -451,15 +451,31 @@ export class WebHTVPlaybackSyncDO {
     const body = await readPlaybackJson(request);
     const op = cleanString(body.op, 32);
     const configType = normalizeConfigType(body.configType || request.headers.get('x-webhtv-config-type') || 'vod');
-    if (op === 'purgeTombstones') return this.runPurgeTombstones(body, configType);
+    if (op === 'purgeTombstones') return this.runPurgeTombstones(request, body, configType);
     if (op === 'adminDeleteItem') return this.runAdminDeleteItem(request, body, configType);
     if (op === 'adminClearAll') return this.runAdminClearAll(request, body, configType);
     throw playbackHttpError(400, 'Unknown maintenance op');
   }
 
-  runPurgeTombstones(body, configType) {
+  async runPurgeTombstones(request, body, configType) {
     const before = Number(body.beforeDeletedAt);
     if (!Number.isFinite(before) || before <= 0) throw playbackHttpError(400, 'beforeDeletedAt must be a positive ms timestamp');
+    // Dashboard card purge: scope to the resolved interface so the cleared
+    // count matches the per-configKey tombstone stat instead of every space.
+    if (body.configKey) {
+      const submittedConfigKey = requireConfigKey(request, body);
+      const configKey = await this.resolvePlaybackConfigKey(
+        request, submittedConfigKey, configType, requestAliases(request, body)
+      );
+      const storageConfigKey = scopedConfigKey(configType, configKey);
+      const deleted = this.state.storage.transactionSync(() =>
+        Number(this.sql.exec(
+          'DELETE FROM playback_tombstones WHERE config_key = ? AND deleted_at < ?',
+          storageConfigKey, before
+        ).rowsWritten || 0)
+      );
+      return playbackJson({ ok: true, op: 'purgeTombstones', configType, configKey, purged: deleted });
+    }
     const deleted = this.state.storage.transactionSync(() => {
       const result = configType === 'vod'
         ? this.sql.exec(
