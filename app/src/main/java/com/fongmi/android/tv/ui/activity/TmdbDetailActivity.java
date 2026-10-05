@@ -11681,13 +11681,52 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         setFollowingButtonsEnabled(false);
         resolveFollowing(tmdb, identityKey, siteKey, vodId, season, existing -> {
             if (isFinishing() || isDestroyed()) return;
-            if (existing != null) {
+            if (isFollowed(existing)) {
+                // 内联播放中（本页就是播放页）：保持播放不被打断，再次点击即刻取消追更。
+                if (isInlineFollowingPlaybackSurface()) {
+                    cancelFollowing(identityKey);
+                    return;
+                }
                 followingActionPending = false;
                 setFollowingButtonsEnabled(true);
                 FollowingActivity.start(this, existing.identityKey);
                 return;
             }
             addFollowing(tmdb, siteKey, vodId, season, identityKey);
+        });
+    }
+
+    /**
+     * 是否处于「已追更」状态。
+     * <p>
+     * `resolveFollowing` 走 TMDB 身份迁移路径时，为防复活会**故意返回墓碑行**
+     * （`FollowingStore.resolveTmdb` 的墓碑守卫，C9 语义），因此这里不能只用 `!= null`
+     * 判断：否则取消追更后按钮仍显示「已追更」，内联播放中再点只会重复写墓碑、
+     * 永远无法重新追更。墓碑行必须视为未追更，交给 `addFollowing` 走复活路径。
+     */
+    private boolean isFollowed(Following item) {
+        return item != null && !item.isDeleted();
+    }
+
+    /** 本页当前已经是播放页（内联/全屏播放已真正开始），追更按钮必须就地开关而不是跳页。 */
+    private boolean isInlineFollowingPlaybackSurface() {
+        return inlineStarted || detailPlayerActive;
+    }
+
+    /** 内联播放中的取消追更：写墓碑后立即刷新按钮状态，不离开当前页。 */
+    private void cancelFollowing(String identityKey) {
+        FollowingScheduler.cancelNext(this, identityKey);
+        FollowingPlaybackBridge.deleteAsync(identityKey, error -> {
+            followingActionPending = false;
+            if (isFinishing() || isDestroyed()) return;
+            if (error != null) {
+                setFollowingButtonsEnabled(true);
+                Notify.show(error.getMessage());
+                return;
+            }
+            updateFollowingState();
+            FollowingPlaybackBridge.refreshUnreadCountAsync(null);
+            Notify.show(R.string.following_canceled);
         });
     }
 
@@ -11810,7 +11849,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         applyFollowingButtonState(true, false);
         resolveFollowing(tmdb, identityKey, getKeyText(), getIdText(), season, item -> {
             if (generation != followingUiGeneration || isFinishing() || isDestroyed()) return;
-            applyFollowingButtonState(true, item != null);
+            applyFollowingButtonState(true, isFollowed(item));
         });
     }
 
