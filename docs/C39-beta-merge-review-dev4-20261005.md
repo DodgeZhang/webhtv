@@ -77,7 +77,9 @@ deleted-but-present files: 0
 
 **dev4 侧零丢失**：dev4 未推送提交的 4 个路径逐字节等于 `a455e5a6cce` 的 blob；beta 增量 76 个路径**逐字节等于** `origin/beta`（CRLF 归一化后比对，76/76 一致）。双方改动路径**零交集**（dev4-only 4 路径、beta-only 76 路径、both 0），因此合并对两侧均为纯叠加。
 
-**合并结果净差异**：`git diff --name-status origin/beta` = 恰好 **4 个路径**，全部为 dev4 自身改动（0 个 beta 内容被 dev4 单方面改写）。
+**合并结果净差异**：合并刚完成、尚未叠加本轮修复与本文档时，`git diff --name-status origin/beta` = 恰好 **4 个路径**（dev4 侧 4 个路径），全部为 dev4 自身改动，0 个 beta 内容被 dev4 单方面改写。
+
+**提交后 PR 净差异（最终）**：`git diff --name-status origin/beta dev4` = **6 个路径**（4 个 dev4 原有路径 + 本轮新增的 `CacheManagementDialog.java` 修复 + 本文档），全部为本分支改动，**零 beta 内容被改写**。
 
 ## 评审循环记录
 
@@ -140,7 +142,8 @@ java.lang.AssertionError: build these through WebHtvAlertDialogBuilder instead:
 | beta 增量零丢失 | 76 路径逐行存在性 | 0 缺失 |
 | beta 路径逐字节 | 76/76 与 `origin/beta` 一致（CRLF 归一化） | 一致 |
 | dev4 路径逐字节 | 4/4 与 `a455e5a6cce` 一致 | 一致 |
-| 合并结果 vs beta 净差异 | `git diff --name-status origin/beta` | 恰好 4 路径，全部为 dev4 自身改动 |
+| 合并结果 vs beta 净差异（合并刚完成时） | `git diff --name-status origin/beta` | 恰好 4 路径，全部为 dev4 自身改动 |
+| PR 净差异（提交后最终） | `git diff --name-status origin/beta dev4` | 6 路径 = 4 dev4 原有 + 修复 + 本文档，零 beta 内容被改写 |
 | 双 flavor Java 编译 | `:app:compile{Mobile,Leanback}Arm64_v8aDebugJavaWithJavac` | BUILD SUCCESSFUL |
 | 双 flavor androidTest 编译 | `:app:compile{Mobile,Leanback}Arm64_v8aDebugAndroidTestJavaWithJavac` | BUILD SUCCESSFUL |
 | 全量 JVM（mobile） | `:app:testMobileArm64_v8aDebugUnitTest` | 5185 用例 / 6 失败，**相对基线零新增** |
