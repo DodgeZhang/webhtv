@@ -287,13 +287,13 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   </header>
 
   <div class="stats-grid">
-    <div class="stat-card">
+    <div class="stat-card" title="点击查看记录列表" onclick="scrollToRecords()" style="cursor:pointer">
       <div class="stat-label">
         <span class="stat-icon" style="background: var(--accent-glow); color: var(--accent);">📺</span>
         活跃记录
       </div>
       <div class="stat-value" id="totalCount">-</div>
-      <div class="stat-sub">当前 configKey 下的进度记录</div>
+      <div class="stat-sub">当前 configKey 下的进度记录 · 点击查看</div>
     </div>
     <div class="stat-card" id="tombstoneCard" title="点击清理当前接口的删除墓碑" onclick="confirmPurgeTombstones()" style="cursor:pointer">
       <div class="stat-label">
@@ -303,25 +303,25 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="stat-value" id="tombstoneCount">-</div>
       <div class="stat-sub">90 天内的删除记录 · 点击清理</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" title="什么是同步游标" onclick="showCursorInfo()" style="cursor:pointer">
       <div class="stat-label">
         <span class="stat-icon" style="background: var(--success-bg); color: var(--success);">📊</span>
         同步游标
       </div>
       <div class="stat-value" id="nextSince">-</div>
-      <div class="stat-sub">最新序列号 (nextSince)</div>
+      <div class="stat-sub">最新序列号 (nextSince) · 点击说明</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" title="立即清理超期数据" onclick="confirmCleanupExpired()" style="cursor:pointer">
       <div class="stat-label">
         <span class="stat-icon" style="background: var(--warning-bg); color: var(--warning);">⏱️</span>
         数据保留
       </div>
       <div class="stat-value" id="retentionDays">-</div>
-      <div class="stat-sub">天 · 超期自动清理</div>
+      <div class="stat-sub">天 · 超期自动清理 · 点击立即清理</div>
     </div>
   </div>
 
-  <div class="section">
+  <div class="section" id="recordsSection">
     <div class="section-header">
       <div class="section-title">
         <span class="icon">📋</span>
@@ -1023,6 +1023,52 @@ async function purgeTombstones() {
       })
     });
     showToast('已清理 ' + (res.purged || 0) + ' 条删除墓碑', 'success');
+    loadData();
+  } catch (e) { showToast('清理失败: ' + e.message, 'error'); }
+}
+
+// 活跃记录卡片 — 滚动到记录列表并聚焦搜索框
+function scrollToRecords() {
+  const section = document.getElementById('recordsSection');
+  if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const search = document.getElementById('searchInput');
+  if (search) setTimeout(() => search.focus({ preventScroll: true }), 350);
+}
+
+// 同步游标卡片 — 纯说明弹窗（游标不可在服务端重置，见文案）
+function showCursorInfo() {
+  const value = document.getElementById('nextSince').textContent || '0';
+  showModal(\`
+    <h3>📊 同步游标说明</h3>
+    <p>当前值：<strong>\${escape(value)}</strong></p>
+    <p>这是服务端的全局变更序号：每新增一条进度或删除墓碑就加一。每台设备本地各自记住自己拉取到的位置，下次同步只取比自己记住的序号更大的变更，因此数字大小只反映历史变更总量，不影响性能。</p>
+    <p style="color: var(--warning);">它不能在服务端重置：清零后新变更会从小序号重新编号，而设备仍在等待更大的序号，将永远收不到新同步且没有任何报错。只有所有设备重新添加同步配置、或更换 Token 时才会安全归零。</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideModal()">我知道了</button>
+    </div>
+  \`);
+}
+
+// 数据保留卡片 — 强制执行一次与自动清理相同口径的超期清理
+async function confirmCleanupExpired() {
+  showModal(\`
+    <h3>⏱️ 立即清理超期数据</h3>
+    <p>将立即清除超过 <strong>90</strong> 天的删除墓碑与同步事件去重记录（与自动清理完全相同的口径），不影响任何活跃观影记录。</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideModal()">取消</button>
+      <button class="btn btn-danger" onclick="cleanupExpired()">立即清理</button>
+    </div>
+  \`);
+}
+
+async function cleanupExpired() {
+  hideModal();
+  try {
+    const res = await fetchJSON('/api/playback/sync/maintenance', {
+      method: 'POST',
+      body: JSON.stringify({ op: 'adminCleanupExpired' })
+    });
+    showToast('已清理 ' + (res.tombstones || 0) + ' 条过期墓碑、' + (res.events || 0) + ' 条过期事件记录', 'success');
     loadData();
   } catch (e) { showToast('清理失败: ' + e.message, 'error'); }
 }

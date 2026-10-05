@@ -452,6 +452,7 @@ export class WebHTVPlaybackSyncDO {
     const op = cleanString(body.op, 32);
     const configType = normalizeConfigType(body.configType || request.headers.get('x-webhtv-config-type') || 'vod');
     if (op === 'purgeTombstones') return this.runPurgeTombstones(request, body, configType);
+    if (op === 'adminCleanupExpired') return this.runAdminCleanupExpired();
     if (op === 'adminDeleteItem') return this.runAdminDeleteItem(request, body, configType);
     if (op === 'adminClearAll') return this.runAdminClearAll(request, body, configType);
     throw playbackHttpError(400, 'Unknown maintenance op');
@@ -490,6 +491,26 @@ export class WebHTVPlaybackSyncDO {
       return Number(result.rowsWritten || 0);
     });
     return playbackJson({ ok: true, op: 'purgeTombstones', configType, purged: deleted });
+  }
+
+  // Dashboard "clean up now": the same retention sweep as the periodic
+  // cleanup() but forced past its interval gate, so the operator can reclaim
+  // expired tombstones and event-dedup rows immediately. Active playback
+  // rows are never touched.
+  runAdminCleanupExpired() {
+    const now = Date.now();
+    const cutoff = now - TOMBSTONE_RETENTION_MS;
+    const deleted = this.state.storage.transactionSync(() => {
+      const tombstones = Number(this.sql.exec(
+        'DELETE FROM playback_tombstones WHERE deleted_at < ?', cutoff
+      ).rowsWritten || 0);
+      const events = Number(this.sql.exec(
+        'DELETE FROM playback_events WHERE received_at < ?', cutoff
+      ).rowsWritten || 0);
+      this.sql.exec("UPDATE playback_meta SET value = ? WHERE key = 'last_cleanup'", now);
+      return { tombstones, events };
+    });
+    return playbackJson({ ok: true, op: 'adminCleanupExpired', retentionDays: 90, ...deleted });
   }
 
   // Dashboard management delete. Unlike a device delete event this uses the
