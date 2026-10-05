@@ -98,6 +98,24 @@ public class ThemeDialogLayoutTest {
         assertEquals(1920, clamped.height());
     }
 
+    /**
+     * A floating dialog window on API 28 reports {@code systemBars()} as {@code [0,0,0,0]} even
+     * while a navigation bar is on screen (measured: window insets {@code [0,0][0,0]} against a
+     * display stable area of {@code [0,42][1080,1830]}). An all-zero report therefore means
+     * "unknown", not "no bars", and must not override the host-content fallback - otherwise the
+     * editor keeps growing past the navigation bar and the footer buttons are clipped.
+     */
+    @Test
+    public void anAllZeroInsetReportIsTreatedAsUnknown() {
+        assertTrue("an all-zero report must be reported as empty/unknown",
+                ThemeDialogLayout.Insets.none().isEmpty());
+        assertTrue(new ThemeDialogLayout.Insets(0, 0, 0, 0).isEmpty());
+        assertFalse(new ThemeDialogLayout.Insets(0, 42, 0, 90).isEmpty());
+        assertFalse(new ThemeDialogLayout.Insets(60, 0, 0, 0).isEmpty());
+        // The value a real navigation bar produces must never be mistaken for "no bars".
+        assertFalse(new ThemeDialogLayout.Insets(0, 0, 0, 132).isEmpty());
+    }
+
     @Test
     public void safeAreaIsNeverSmallerThanOnePixel() {
         ThemeDialogLayout.Area area = ThemeDialogLayout.safeArea(0, 0, ThemeDialogLayout.Insets.none());
@@ -149,6 +167,12 @@ public class ThemeDialogLayoutTest {
                     dialog.contains("ViewCompat.requestApplyInsets("));
             assertTrue(flavour + " must fall back to the host content view while insets are unknown",
                     dialog.contains("findViewById(android.R.id.content)"));
+            // A floating dialog window on API 28 keeps reporting systemBars() = [0,0,0,0] while a
+            // navigation bar is on screen; accepting that as "no bars" re-clips the footer.
+            assertTrue(flavour + " must treat an all-zero inset report as unknown",
+                    dialog.contains("!windowInsets.isEmpty()"));
+            assertTrue(flavour + " must also read the host activity's root window insets",
+                    dialog.contains("ViewCompat.getRootWindowInsets(requireActivity().getWindow().getDecorView())"));
             assertFalse(flavour + " must not offset the window; Gravity.CENTER inside the inset-safe area already centres it",
                     dialog.contains("params.x = ") || dialog.contains("params.y = "));
             assertTrue(flavour + " must keep the full-height scroll area inside the safe height",

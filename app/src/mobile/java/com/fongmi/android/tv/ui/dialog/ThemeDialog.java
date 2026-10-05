@@ -391,8 +391,37 @@ public final class ThemeDialog extends DialogFragment implements ThemePreviewVie
      * display is used until the listener re-sizes the window.
      */
     private ThemeDialogLayout.Insets systemBarInsets(int screenWidth, int screenHeight) {
-        if (windowInsets != null) return windowInsets;
-        return ThemeDialogLayout.Insets.ofContent(screenWidth, screenHeight, contentWidth(), contentHeight());
+        // 1) The dialog window's own report, which is the exact value whenever the platform
+        //    actually fills it in.
+        if (windowInsets != null && !windowInsets.isEmpty()) return windowInsets;
+        // 2) The host activity's root window insets. This is the same source Util.isFullscreen
+        //    already trusts, and it stays correct while a floating dialog window keeps reporting
+        //    systemBars() = [0,0,0,0] on API 28.
+        ThemeDialogLayout.Insets host = hostWindowInsets();
+        if (!host.isEmpty()) return host;
+        // 3) The space the host content view has already given up to the bars.
+        ThemeDialogLayout.Insets fallback =
+                ThemeDialogLayout.Insets.ofContent(screenWidth, screenHeight, contentWidth(), contentHeight());
+        return fallback.isEmpty() ? ThemeDialogLayout.Insets.none() : fallback;
+    }
+
+    /**
+     * The system bars the host activity has to keep clear.
+     *
+     * <p>Used because a floating dialog window is not guaranteed to report its own insets: on
+     * API 28 the editor's window reports {@code systemBars() = [0,0,0,0]} while the navigation bar
+     * is on screen, and accepting that as "no bars" is what pushed the footer row under it.</p>
+     */
+    private ThemeDialogLayout.Insets hostWindowInsets() {
+        try {
+            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(requireActivity().getWindow().getDecorView());
+            if (insets == null) return ThemeDialogLayout.Insets.none();
+            androidx.core.graphics.Insets bars = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            return new ThemeDialogLayout.Insets(bars.left, bars.top, bars.right, bars.bottom);
+        } catch (RuntimeException error) {
+            return ThemeDialogLayout.Insets.none();
+        }
     }
 
     /**

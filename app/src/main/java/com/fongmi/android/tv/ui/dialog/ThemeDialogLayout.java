@@ -55,6 +55,20 @@ final class ThemeDialogLayout {
         }
 
         /**
+         * True when every edge is zero, i.e. the source carried no usable information.
+         *
+         * <p>A floating dialog window on API 28 reports {@code systemBars()} as all zeros even
+         * while a navigation bar is on screen (measured: the window's own insets are
+         * {@code [0,0][0,0]} while the display's stable area is {@code [0,42][1080,1830]}).
+         * Treating that as "no bars" is what let the editor grow past the navigation bar, so an
+         * all-zero report must stay indistinguishable from "unknown" and leave the host-content
+         * fallback in charge.</p>
+         */
+        boolean isEmpty() {
+            return left <= 0 && top <= 0 && right <= 0 && bottom <= 0;
+        }
+
+        /**
          * Insets implied by the display bounds minus the host content view.
          *
          * <p>The host already gave up that space to the status bar, the navigation bar, a
