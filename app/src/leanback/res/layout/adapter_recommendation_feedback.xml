@@ -19,7 +19,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:singleLine="true"
-        android:textColor="?attr/colorOnSurface"
+        android:textColor="?attr/webhtvColorOnWallpaper"
         android:textSize="16sp"
         android:textStyle="bold"
         tools:text="芸汐传" />
@@ -31,7 +31,7 @@
         android:layout_marginTop="2dp"
         android:ellipsize="end"
         android:singleLine="true"
-        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textColor="@color/webhtv_color_player_control_muted"
         android:textSize="12sp"
         tools:text="剧集 · 2018 · 智能推荐 · 剩余约 89 天 · 点击恢复" />
 
