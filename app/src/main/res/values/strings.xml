@@ -2983,6 +2983,7 @@
     <string name="following_cancel">Unfollow</string>
     <string name="following_delete_title">Unfollow this show?</string>
     <string name="following_delete_message">The viewing history and TMDB progress will be kept.</string>
+    <string name="following_canceled">Unfollowed</string>
     <string name="following_official">Official: episode %1$d</string>
     <string name="following_season_total">Season: %1$d episodes</string>
     <string name="following_series_total">Series: %1$d episodes</string>

@@ -2919,6 +2919,7 @@
     <string name="following_cancel">取消追更</string>
     <string name="following_delete_title">取消追更？</string>
     <string name="following_delete_message">觀看歷史和 TMDB 進度會繼續保留。</string>
+    <string name="following_canceled">已取消追更</string>
     <string name="following_official">官方已更新至第 %1$d 集</string>
     <string name="following_season_total">本季共 %1$d 集</string>
     <string name="following_series_total">全劇共 %1$d 集</string>
