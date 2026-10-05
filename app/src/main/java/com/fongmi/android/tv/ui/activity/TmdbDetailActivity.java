@@ -11682,14 +11682,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         resolveFollowing(tmdb, identityKey, siteKey, vodId, season, existing -> {
             if (isFinishing() || isDestroyed()) return;
             if (isFollowed(existing)) {
-                // 内联播放中（本页就是播放页）：保持播放不被打断，再次点击即刻取消追更。
-                if (isInlineFollowingPlaybackSurface()) {
-                    cancelFollowing(identityKey);
-                    return;
-                }
-                followingActionPending = false;
-                setFollowingButtonsEnabled(true);
-                FollowingActivity.start(this, existing.identityKey);
+                // 详情页与播放页统一为就地开关：再次点击「已追更」立即取消，绝不跳转追更页。
+                cancelFollowing(identityKey);
                 return;
             }
             addFollowing(tmdb, siteKey, vodId, season, identityKey);
@@ -11708,12 +11702,13 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         return item != null && !item.isDeleted();
     }
 
-    /** 本页当前已经是播放页（内联/全屏播放已真正开始），追更按钮必须就地开关而不是跳页。 */
-    private boolean isInlineFollowingPlaybackSurface() {
-        return inlineStarted || detailPlayerActive;
-    }
-
-    /** 内联播放中的取消追更：写墓碑后立即刷新按钮状态，不离开当前页。 */
+    /**
+     * 详情页取消追更：写墓碑、取消该条 one-shot 检查，然后立即刷新按钮状态。
+     * <p>
+     * 无论是否处于内联播放，本页都必须就地生效而不是跳转追更页：跳页既会打断播放，
+     * 也会把「取消」这种一步操作变成两步，与播放页（mobile/leanback `VideoActivity`）的
+     * 就地开关语义保持一致（见 `docs/FOLLOW-1-following-updates-design.md` 8.3.1）。
+     */
     private void cancelFollowing(String identityKey) {
         FollowingScheduler.cancelNext(this, identityKey);
         FollowingPlaybackBridge.deleteAsync(identityKey, error -> {
