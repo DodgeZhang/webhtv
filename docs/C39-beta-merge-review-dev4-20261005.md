@@ -4,8 +4,8 @@
 
 - **目标**：把 `origin/beta` 最新代码合入 `dev4`（**远端已移除/回退的提交不得顺带带回**）；复评 dev4 全部已修改代码（含已提交未推送的 `a455e5a6cce`）；发现问题修复并验证通过；循环评审直至通过；然后提交、推送 `dev4`、创建 `dev4 -> beta` 中文 PR（**只创建，不合并**）。
 - **验收标准**：① 合并结果第二父为 `origin/beta` tip；② 远端被回退/剔除内容**零复活**；③ beta 增量**零丢失**、dev4 既有改动**零丢失**；④ 双 flavor Java 与 androidTest 编译通过；⑤ 全量 JVM 套件相对合并前基线**零新增回归**；⑥ UI token 门禁相对基线**零新增违规**；⑦ 净差异只含本分支自身改动；⑧ 提交 + recovery tag；⑨ `dev4` 已推送、PR 已创建且**未合并**。
-- **当前状态**：合并完成（0 冲突）；第 1 轮评审发现并修复 1 个真实回归（详见下）；第 2 轮复评通过；编译、全量单测对照、门禁、设备实测全部完成。
-- **下一动作**：`task_guard.sh finish` → 推送 `dev4` → `gh pr create`（base `beta`，只创建不合并）。
+- **当前状态**：**两轮合并**已完成——第 1 轮合入 `origin/beta` @ `03c239e32e1`（0 冲突），评审发现并修复 1 个真实回归（缓存确认框未走主题化构造器）；推送后 PR #409 报 `CONFLICTING`，因为 beta 又前进了 PR #408，故第 2 轮合入 `origin/beta` @ `c94e5548be1`（1 个文件冲突，已解）。两轮均为零复活、零丢失，编译/全量单测/门禁/设备实测全部通过。
+- **下一动作**：`task_guard.sh finish` → 推送 `dev4` → 刷新 PR #409 描述（base `beta`，只创建不合并）。
 
 ## 合并台账
 
@@ -13,10 +13,12 @@
 | --- | --- |
 | 本地分支 | `dev4` |
 | 任务开始时 HEAD | `a455e5a6cce2ee8bbee8c5683142cf5bfc8068b8`（`fix(following): 详情页追更按钮统一为就地取消并立即生效`，领先 `origin/dev4` 9 个提交） |
-| `origin/beta` tip | `03c239e32e1f4501d44adb65b762af104f5b8724`（Merge PR #407 from dev2） |
+| `origin/beta` tip（第 1 轮） | `03c239e32e1f4501d44adb65b762af104f5b8724`（Merge PR #407 from dev2） |
+| `origin/beta` tip（第 2 轮，最终） | `c94e5548be162e90b793ec5446d2f1d7231de480`（Merge PR #408 from dev3） |
 | 合并基点 | `79244f274d15ae1b624bacc6a9f68bae8eafc3e3`（Merge PR #405 from dev4） |
 | 合并方式 | `git merge --no-commit --no-ff origin/beta`，由 task_guard `finish` 创建合并提交 |
-| 合并结果 | 76 路径自动合入，**0 冲突、0 冲突标记** |
+| 合并结果（第 1 轮） | 76 路径自动合入，**0 冲突、0 冲突标记** |
+| 合并结果（第 2 轮） | 8 路径自动合入 + 1 路径冲突（`CacheManagementDialog.java`，双方做了**同一处**修复，取 beta 版），**0 冲突标记** |
 | 回滚锚点 | `a455e5a6cce2ee8bbee8c5683142cf5bfc8068b8`（另打本地 tag `recovery/pre-c39-dev4-202610051417-a455e5a6cce`） |
 
 ### beta 增量 ledger（9 个提交，全部纳入）
@@ -132,24 +134,74 @@ java.lang.AssertionError: build these through WebHtvAlertDialogBuilder instead:
 
 **结论：第 3 轮通过，无新问题。**
 
+### 第 4 轮：beta 前进后的第二次合并与复评（PR #409 报 CONFLICTING）
+
+第 1 轮合并推送后创建 PR #409，GitHub 报告 `mergeable=CONFLICTING`。`git fetch origin` 显示 `origin/beta` 已从 `03c239e32e1` 前进到 `c94e5548be1`（Merge PR #408 from dev3，3 个新提交），因此冲突是 **base 前进** 造成的，与第 1 轮合入内容无关。
+
+**beta 第二轮增量**（`03c239e32e1..origin/beta`，8 路径）：
+
+| 完整 commit ID | 内容 |
+| --- | --- |
+| `c94e5548be162e90b793ec5446d2f1d7231de480` | Merge PR #408 from dev3 |
+| `bbaf19b97208655b618047f2395af6f4cd67a3a9` | merge：合并 origin/beta（PR#407 缓存管理上游同步）并复评修复主题契约与安全区 insets 缺陷 |
+| `3e4e49331a4d72879e8df341c1c79275c9d25a7f` | fix(theme)：fit editor dialog inside system bar safe area |
+
+**唯一冲突及解决**：`app/src/main/java/com/fongmi/android/tv/ui/dialog/CacheManagementDialog.java`。
+
+- **冲突原因**：dev3 在本轮（`3e4e49331a4` 所属的 PR #408）**独立做出了与第 1 轮完全相同的修复**——把三处确认框从裸 `MaterialAlertDialogBuilder` 换成 `WebHtvAlertDialogBuilder`。双方改的是同一处、结果等价，只有我额外加的两行中文注释不同，于是产生文本冲突。
+- **解决方式**：取 **beta 版**（`git checkout --theirs`）。理由：两份修复功能等价，取 beta 版可让该文件与 `origin/beta` **逐字节一致**，不把纯注释差异带进 PR，减少 review 噪声与后续冲突面。
+- **证据**：解决后 `git diff origin/beta -- .../CacheManagementDialog.java` **为空**；`ThemeBinderContractTest` 在本轮全量套件中 **26/26 通过**（`failures=0`）——门禁目标依然达成，只是修复来源变成了 beta 自身。
+- **对本 PR 的影响**：第 1 轮的 `CacheManagementDialog` 修复**已被 beta 的超集覆盖**，不再出现在最终净差异里；本 PR 的净差异回到**纯 dev4 自身改动**。
+
+**第二轮零复活 / 零丢失复核**（合并后重跑，全部程序化）：
+
+```text
+beta delta (03c239e32e1..origin/beta): added=1 modified=7 deleted=0
+  missing added files=0 / missing lines=0 / deleted-but-present=0
+reverts=28 file-versions=194 removed-lines=1773
+  resurrected lines=0 files=0
+PR direction: would re-add removed lines=0 files=0
+beta-side paths byte-identical to origin/beta: 8/8
+```
+
+**第二轮全量回归对照**（与前一轮合并树及任务前基线比对）：
+
+| flavor | 任务前基线 `a455e5a6cce` | 第 1 轮合并 | 第 2 轮合并（最终） | 新增回归 |
+| --- | --- | --- | --- | --- |
+| mobile | 5122 / 6 失败 | 5185 / 6 失败 | **5191 / 6 失败** | **0** |
+| leanback | 4277 / 7 失败 | 4340 / 7 失败 | **4346 / 7 失败** | **0** |
+
+失败集合与任务前基线**逐条相同**（`NEW=[]`、`gone=[]`）；用例数增长来自 beta 新增的 `ThemeDialogLayoutTest` 等。
+
+**复评 beta 第二轮带入的改动**（dev3 的 C39 任务，已有 `docs/C39-beta-merge-review-dev3-20261005.md` 记录）：
+
+- `ThemeDialogLayout` 新增 `safeArea`/`Insets`（含 `ofContent` 回退），`ThemeDialog` 两 flavor 改为按系统栏安全区定尺寸，并安装 `OnApplyWindowInsetsListener` 在真实 insets 到达后**重新定尺寸**——修的是「浮动对话框窗口在 API 28 上报 `systemBars()=[0,0,0,0]`，导致页脚行被导航栏遮住」。回退链为「对话框窗口报告 → 宿主窗口 insets → 宿主内容区已让出的空间」，三级都只可能**多留**空间、不会裁切，逻辑保守正确。
+- 与 dev4 侧追更就地取消**零文件交集**，无交互风险。
+- 双 flavor Java + androidTest 编译 BUILD SUCCESSFUL；UI token 门禁 `violations=1`（既有 `item_following.xml`），与基线相比零新增。
+
+**结论：第 4 轮通过。** 冲突由 base 前进引起且已按「取 beta 等价版本」最小化解决；零复活、零丢失、零新增回归均成立。
+
 ## 验证记录
 
 | 验证项 | 命令/方法 | 结果 |
 | --- | --- | --- |
-| 合并冲突 | `git diff --name-only --diff-filter=U` + 冲突标记检索 | 0 / 0 |
-| 回退内容零复活 | 28 revert × 194 文件版本 × 1773 行，行级程序化比对 | **0 复活行 / 0 复活文件** |
+| 合并冲突（第 1 轮） | `git diff --name-only --diff-filter=U` + 冲突标记检索 | 0 / 0 |
+| 合并冲突（第 2 轮，base 前进后） | 同上 | 1 路径（`CacheManagementDialog.java`，双方同一处修复）→ 取 beta 版解决，0 冲突标记 |
+| 回退内容零复活（两轮均重跑） | 28 revert × 194 文件版本 × 1773 行，行级程序化比对 | **0 复活行 / 0 复活文件** |
 | PR 反向（会不会把已删内容带回 beta） | 同上，方向取「合并结果有、beta 没有」 | **0 行 / 0 文件** |
-| beta 增量零丢失 | 76 路径逐行存在性 | 0 缺失 |
-| beta 路径逐字节 | 76/76 与 `origin/beta` 一致（CRLF 归一化） | 一致 |
+| beta 增量零丢失（第 1 轮） | 76 路径逐行存在性 | 0 缺失 |
+| beta 增量零丢失（第 2 轮） | 8 路径逐行存在性 | 0 缺失 |
+| beta 路径逐字节（第 2 轮） | 8/8 与 `origin/beta` 一致（CRLF 归一化） | 一致 |
 | dev4 路径逐字节 | 4/4 与 `a455e5a6cce` 一致 | 一致 |
-| 合并结果 vs beta 净差异（合并刚完成时） | `git diff --name-status origin/beta` | 恰好 4 路径，全部为 dev4 自身改动 |
-| PR 净差异（提交后最终） | `git diff --name-status origin/beta dev4` | 6 路径 = 4 dev4 原有 + 修复 + 本文档，零 beta 内容被改写 |
+| 净差异（第 1 轮合并刚完成时） | `git diff --name-status origin/beta` | 恰好 4 路径，全部为 dev4 自身改动 |
+| PR 净差异（第 1 轮提交后） | `git diff --name-status origin/beta dev4` | 6 路径（含第 1 轮修复） |
+| PR 净差异（第 2 轮合并后，最终） | `git diff --name-status origin/beta` | dev4 自身 4 路径 + 本文档；`CacheManagementDialog` 修复已被 beta 超集覆盖 |
 | 双 flavor Java 编译 | `:app:compile{Mobile,Leanback}Arm64_v8aDebugJavaWithJavac` | BUILD SUCCESSFUL |
 | 双 flavor androidTest 编译 | `:app:compile{Mobile,Leanback}Arm64_v8aDebugAndroidTestJavaWithJavac` | BUILD SUCCESSFUL |
-| 全量 JVM（mobile） | `:app:testMobileArm64_v8aDebugUnitTest` | 5185 用例 / 6 失败，**相对基线零新增** |
-| 全量 JVM（leanback） | `:app:testLeanbackArm64_v8aDebugUnitTest` | 4340 用例 / 7 失败，**相对基线零新增** |
+| 全量 JVM（mobile） | `:app:testMobileArm64_v8aDebugUnitTest` | 第 2 轮合并后 **5191 用例 / 6 失败**，**相对基线零新增** |
+| 全量 JVM（leanback） | `:app:testLeanbackArm64_v8aDebugUnitTest` | 第 2 轮合并后 **4346 用例 / 7 失败**，**相对基线零新增** |
 | 合并前基线对照 | 真实 worktree `F:/temp/c39/base` @ `a455e5a6cce` | mobile 5122/6、leanback 4277/7 |
-| 门禁回归修复 | `ThemeBinderContractTest` | 修复前 26/1 → **修复后 26/0** |
+| 门禁回归修复 | `ThemeBinderContractTest` | 第 1 轮修复前 26/1 → 修复后 26/0；第 2 轮 beta 带入 dev3 等价修复后仍 **26/0** |
 | UI token 门禁 | `scripts/check_ui_tokens.sh --strict` | `violations=1`（既有 `item_following.xml`）；基线为 `violations=2` → **零新增，且少 1 项** |
 | 空白校验 | `git diff --check` / `git diff --cached --check` | 退出码 0 |
 | 设备覆盖安装 | `adb -s 127.0.0.1:5561 install -r -t`（mobile arm64 debug，签名一致 `95e4b2e7…7e4d`，未卸载） | `Success` |
@@ -168,14 +220,14 @@ java.lang.AssertionError: build these through WebHtvAlertDialogBuilder instead:
 ## 回滚
 
 - 任务前回滚锚点：`a455e5a6cce2ee8bbee8c5683142cf5bfc8068b8`（本地 tag `recovery/pre-c39-dev4-202610051417-a455e5a6cce`）。
-- 本次为单个 merge commit；回滚方式为 `git revert -m 1 <merge-commit>` 或重置到锚点。
-- 唯一的代码改动是 `CacheManagementDialog` 的 3 处构造器替换（默认主题下零行为差异）。
+- 本任务共 2 个 merge commit（第 1 轮 `b19ccde8791`、第 2 轮为最终合并提交）；回滚方式为 `git revert -m 1 <merge-commit>` 或重置到锚点。
+- 第 1 轮的 `CacheManagementDialog` 修复已因 beta 带入 dev3 等价修复而在第 2 轮被取 beta 版覆盖（该文件与 `origin/beta` 逐字节一致）；最终 PR 净差异**只含 dev4 自身改动 + 本文档**，无额外代码变更。
 
 ## 提交与推送
 
-- 本任务产物：merge commit（含本文档 + 第 1 轮门禁回归修复）+ recovery tag。
-- PR：`dev4` → `beta`，中文描述，**只创建不合并**。
+- 本任务产物：2 个 merge commit（第 2 个含本文档）+ 各自 recovery tag。
+- PR：#409 `dev4` → `beta`，中文描述，**只创建不合并**。
 
 ## Next action
 
-`task_guard.sh finish` → 推送 `dev4` → `gh pr create`（base `beta`，只创建不合并）。
+`task_guard.sh finish` → 推送 `dev4` → 刷新 PR #409（base `beta`，只创建不合并）。

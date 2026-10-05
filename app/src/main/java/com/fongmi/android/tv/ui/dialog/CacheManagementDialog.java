@@ -205,8 +205,6 @@ public class CacheManagementDialog extends DialogFragment {
             case STANDARD -> R.string.cache_cleanup_confirm_standard;
             default -> R.string.cache_cleanup_confirm_deep;
         };
-        // 走主题化构造器：create() 会把对话框窗口绑到当前主题 token，裸 MaterialAlertDialogBuilder
-        // 的窗口不会经过 ThemeController.bindDialog，换主题后面板与文字仍停留在编译期调色板。
         AlertDialog dialog = new WebHtvAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(message)
