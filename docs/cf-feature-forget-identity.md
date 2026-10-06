@@ -105,11 +105,54 @@ tokenOnly: OK
 
 `tokenOnly` 另做精确复核：`doForgetIdentity` 函数体内含 `X-WebHTV-Token`、不含 `X-WebHTV-Config-Key`。
 
-### 5.2 线上验收（待执行）
+### 5.2 线上验收（已执行，全部通过）
 
-1. push `main`，轮询 `adminForgetIdentity` 就绪（部署前应为 `Unknown maintenance op` 400，部署后应 200）。
-2. 对 `69d526ce` 执行一次真实注销，复核 `/api/playback/sync/identity/spaces` 中该条目消失。
-3. 浏览器验证：按钮只出现在 canonical 行；点开弹窗、点「取消」关闭且列表不变；控制台无报错。
+提交 `a0b40badbba242a2c4f15183958595e33f1a45e3`，tag `recovery/cf-feature-forget-identity/20261006125804-a0b40badbba2`，已推送 `origin/main`。
+
+**（1）op 就绪探测**——无 `targets` 调用，不产生任何写入：
+
+- 部署中就绪：`HTTP 400 {"ok":false,"error":"adminForgetIdentity requires targets"}`
+  （若未部署会返回 `Unknown maintenance op`，故该响应即证明新 op 已上线）
+
+**（2）真实注销**——对用户指定的三个 0 条身份执行：
+
+```
+POST /api/playback/sync/maintenance
+{"op":"adminForgetIdentity","configType":"vod","targets":[
+  "f0de0fdc-b6cd-4690-9d52-e0f5824256d2",   // 虎斑
+  "69d526ce-9fd7-4f84-a91b-72f761bc114e",
+  "e2534da7-7f77-4ec7-a4fa-d9df0c61c267"]}
+→ HTTP 200 {"ok":true,"forgotten":[三个 key],"missing":[]}
+```
+
+`/api/playback/sync/identity/spaces` 前后对比，条目数 **9 → 6**，三个目标全部消失：
+
+| 接口 | 注销前 | 注销后 |
+|---|---|---|
+| 摸鱼 `b27dbd82` | canonical, 32 条 | 保留 |
+| 饭太硬 `4c1c5c5b` | canonical, 4 条 | 保留 |
+| 潇洒 `242fdcb3` | unregistered, 8 条 | 保留 |
+| 肥猫 `f8909b38` | unregistered, 1 条 | 保留 |
+| 胖猫 `ab5445c1` | unregistered, 10 条 | 保留 |
+| 豆儿 `ba4fc89e` | unregistered, 1 条 | 保留 |
+| 虎斑 `f0de0fdc` | canonical, 0 条 | **消失** |
+| `69d526ce` | canonical, 0 条 | **消失** |
+| `e2534da7` | canonical, 0 条 | **消失** |
+
+**幂等复测**——同请求重放：`HTTP 200 {"ok":true,"forgotten":[],"missing":[三个 key]}`。一个都没删到时不写库，符合 §4.1 设计。
+
+**（3）浏览器验证**（真实页面 https://webhtv-remote.dodge.cc.cd/ ，6 行全部渲染）：
+
+| 检查 | 结果 | 证据 |
+|---|---|---|
+| A 按钮渲染范围 | PASS | 摸鱼 / 饭太硬 行按钮为 `["并入…","注销身份","清除"]`；潇洒 / 肥猫 / 胖猫 / 豆儿 行为 `["并入…","清除"]`，无「注销身份」 |
+| B 二次确认弹窗 | PASS | 标题「⚠️ 注销该身份注册」，正文含「摸鱼」「32 条」 |
+| C 取消即关闭 | PASS | 点「取消」后弹窗关闭，列表仍 6 行、名称与条数不变 |
+| D 控制台 | PASS | 无任何 console 消息 |
+
+验收全程未点击「确认注销」（该按钮会真实改动线上数据）。
+
+**（4）验收中发现的一个坑**：首次浏览器验证报告「按钮在所有行都缺失」，但服务端直接拉取 HTML 已确认包含 `注销身份` / `forgetIdentityConfirm` / `adminForgetIdentity`，且响应头为 `Cache-Control: no-store`。原因是浏览器标签页持有旧文档。用 `?cachebust=<随机数>` 强制缓存失效重载后，`typeof forgetIdentityConfirm` 返回 `function`，全部检查通过。**结论：验证此类前端改动前必须先确认页面加载的是新文档，否则会得到假阴性。**
 
 ## 6. 已知坑
 
@@ -129,6 +172,8 @@ tokenOnly: OK
 
 **回滚**：`git revert` 对应 commit，重新部署即可；已执行的注销无数据副作用（记录未动），受影响的只是身份注册表，设备重连即自愈。
 
-## 8. 下一动作
+## 8. 状态与下一动作
 
-`bash .codex/scripts/task_guard.sh finish --verified "<本地验证结果 + 线上验收结果>" --commit-message "..."`，随后 push `main` 并按 §5.2 做线上验收。
+**状态：完成。** 代码提交 `a0b40badbb` + tag `recovery/cf-feature-forget-identity/20261006125804-a0b40badbba2` 已推送 `origin/main`，CF 已部署，本地验证（§5.1）与线上验收（§5.2）全部通过，用户指定的三个 0 条身份已从列表消失。
+
+**下一动作：无。** 等待用户反馈。
