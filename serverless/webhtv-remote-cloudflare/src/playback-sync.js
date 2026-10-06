@@ -328,25 +328,68 @@ export class WebHTVPlaybackSyncDO {
   }
 
   // WebHTV adaptation (dashboard): list every config space in this token
-  // namespace with its record count. SQLite bare-column rule: non-aggregated
-  // columns take values from the row containing the MAX(updated_at), so `name`
-  // is the interface name from the most recent record of each configKey
-  // (the App sends configName on every push).
+  // namespace with its record count. The space name is the interface name
+  // carried by the MAJORITY of its records, never by its most recent one: a
+  // device pushes every sync source it has into its own bound space, so a
+  // 饭太硬 space holding a single newer 摸鱼 row was labelled 摸鱼 and looked
+  // like a second 摸鱼 main space.
   listConfigs() {
-    const rows = this.sql.exec(`
-      SELECT config_key, COUNT(*) AS items, MAX(updated_at) AS latest,
-             COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name
-        FROM playback_items
-       GROUP BY config_key
-       ORDER BY latest DESC
-    `).toArray();
-    const configs = rows.map((row) => ({
-      configKey: String(row.config_key || ''),
-      name: String(row.name || ''),
-      items: Number(row.items || 0),
-      latest: Number(row.latest || 0)
-    }));
+    const configs = [...this.spaceNameIndex('1 = 1', []).values()]
+      .sort((a, b) => (b.latest - a.latest) || (a.storageKey < b.storageKey ? -1 : 1))
+      .map((entry) => ({
+        configKey: entry.storageKey,
+        name: entry.name,
+        items: entry.items,
+        latest: entry.latest
+      }));
     return playbackJson({ ok: true, configs });
+  }
+
+  // One aggregated scan of every stored space: total record count, earliest and
+  // latest timestamp, and the interface name (payload.configName) carried by
+  // the largest group of rows. Ties prefer the more recently used name, then
+  // key order, so a label never flickers between equally sized groups.
+  // `nameItems` is the size of that winning group — readers that only label a
+  // space accept it as-is, while the name-gated merge additionally requires a
+  // strict majority (`nameItems * 2 > items`) before a name may decide a merge.
+  spaceNameIndex(where, args) {
+    const rows = this.sql.exec(`
+      SELECT config_key,
+             COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name,
+             COUNT(*) AS items, MIN(updated_at) AS first_at, MAX(updated_at) AS latest
+        FROM playback_items
+       WHERE ${where}
+       GROUP BY config_key, name
+    `, ...args).toArray();
+    const index = new Map();
+    for (const row of rows) {
+      const storageKey = String(row.config_key || '');
+      const name = String(row.name || '');
+      const items = Number(row.items || 0);
+      const firstAt = Number(row.first_at || 0);
+      const latest = Number(row.latest || 0);
+      let entry = index.get(storageKey);
+      if (!entry) {
+        entry = {
+          storageKey, name: '', nameItems: 0, nameFirstAt: 0, nameLatest: 0,
+          items: 0, firstAt, latest
+        };
+        index.set(storageKey, entry);
+      }
+      entry.items += items;
+      if (firstAt < entry.firstAt) entry.firstAt = firstAt;
+      if (latest > entry.latest) entry.latest = latest;
+      if (!name) continue;
+      if (items > entry.nameItems
+        || (items === entry.nameItems
+          && (latest > entry.nameLatest || (latest === entry.nameLatest && name < entry.name)))) {
+        entry.name = name;
+        entry.nameItems = items;
+        entry.nameFirstAt = firstAt;
+        entry.nameLatest = latest;
+      }
+    }
+    return index;
   }
 
   // WebHTV adaptation (dashboard): identity-aware space list. Extends the
@@ -359,13 +402,14 @@ export class WebHTVPlaybackSyncDO {
   async listIdentitySpaces(request) {
     const token = playbackToken(request);
     const store = this.identityStore(request);
-    const rows = this.sql.exec(`
-      SELECT config_key, COUNT(*) AS items, MAX(updated_at) AS latest,
-             COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name
-        FROM playback_items
-       GROUP BY config_key
-       ORDER BY latest DESC
-    `).toArray();
+    const rows = [...this.spaceNameIndex('1 = 1', []).values()]
+      .sort((a, b) => (b.latest - a.latest) || (a.storageKey < b.storageKey ? -1 : 1))
+      .map((entry) => ({
+        config_key: entry.storageKey,
+        items: entry.items,
+        latest: entry.latest,
+        name: entry.name
+      }));
     const spaces = [];
     const groups = [];
     const seen = new Set();
@@ -459,6 +503,7 @@ export class WebHTVPlaybackSyncDO {
     if (op === 'adminInspectIdentity') return this.runAdminInspectIdentity(request, body, configType);
     if (op === 'adminUnbindIdentity') return this.runAdminUnbindIdentity(request, body, configType);
     if (op === 'adminSplitIdentity') return this.runAdminSplitIdentity(request, body, configType);
+    if (op === 'adminMoveRows') return this.runAdminMoveRows(body, configType);
     throw playbackHttpError(400, 'Unknown maintenance op');
   }
 
@@ -807,6 +852,28 @@ export class WebHTVPlaybackSyncDO {
     });
   }
 
+  // WebHTV adaptation (ops): move playback rows between two EXISTING spaces
+  // without touching the identity registry. adminSplitIdentity only moves rows
+  // as part of creating or re-pointing an identity, so rows stranded in a space
+  // that is merely an alias of the right canonical — or already present there —
+  // had no cleanup tool. Rows only; identity bindings stay untouched.
+  runAdminMoveRows(body, configType) {
+    const requested = Array.isArray(body.moves) ? body.moves : [];
+    if (!requested.length) throw playbackHttpError(400, 'adminMoveRows requires a non-empty moves array');
+    let movedRows = 0;
+    const moves = [];
+    for (const move of requested) {
+      const from = normalizeIdentityKey(move && move.from, 'moves[].from');
+      const to = normalizeIdentityKey(move && move.to, 'moves[].to');
+      if (from === to) throw playbackHttpError(400, 'adminMoveRows needs distinct from and to values');
+      const name = cleanString(move && move.name, 64);
+      const moved = this.movePlaybackRows(configType, to, from, name);
+      movedRows += moved;
+      moves.push({ from, to, name, moved });
+    }
+    return playbackJson({ ok: true, op: 'adminMoveRows', configType, movedRows, moves });
+  }
+
   upsertAdminTombstone(storageConfigKey, markerKey, scope, historyKey, siteKey, vodId, deletedAt, payload) {
     const seq = this.nextSequence();
     this.sql.exec(`
@@ -964,29 +1031,23 @@ export class WebHTVPlaybackSyncDO {
   }
 
   // One aggregated scan of every stored space of a config type: bare key,
-  // record count, earliest/latest timestamp and the latest record's
-  // configName. Read-only; callers decide whether any write is needed.
+  // record count, earliest/latest timestamp and the winning (majority)
+  // configName plus the size of that group. Read-only; callers decide whether
+  // any write is needed.
   spaceSnapshot(configType) {
     const where = configType === 'vod'
       ? "config_key NOT LIKE 'live:%' AND config_key NOT LIKE 'wall:%'"
       : 'config_key LIKE ?';
     const args = configType === 'vod' ? [] : [`${configType}:%`];
     const prefix = configType === 'vod' ? '' : `${configType}:`;
-    const rows = this.sql.exec(`
-      SELECT config_key, COUNT(*) AS items,
-             MIN(updated_at) AS first_at, MAX(updated_at) AS latest,
-             COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name
-        FROM playback_items
-       WHERE ${where}
-       GROUP BY config_key
-    `, ...args).toArray();
-    return rows.map((row) => ({
-      storageKey: String(row.config_key || ''),
-      key: String(row.config_key || '').slice(prefix.length),
-      items: Number(row.items || 0),
-      firstAt: Number(row.first_at || 0),
-      latest: Number(row.latest || 0),
-      name: String(row.name || '')
+    return [...this.spaceNameIndex(where, args).values()].map((entry) => ({
+      storageKey: entry.storageKey,
+      key: entry.storageKey.slice(prefix.length),
+      items: entry.items,
+      firstAt: entry.firstAt,
+      latest: entry.latest,
+      name: entry.name,
+      nameItems: entry.nameItems
     }));
   }
 
@@ -1906,38 +1967,59 @@ export function planAutoMergeGroups(registry, countOf) {
   return plans;
 }
 
-// WebHTV adaptation: plan merges for UNREGISTERED spaces (no identity record,
-// i.e. devices that never called /identity/resolve) based on the exact
-// configName carried by their latest stored record. Pure function — no I/O.
+// WebHTV adaptation: plan merges by interface name, for registered and
+// unregistered spaces alike. Pure function — no I/O.
+//
+// Every interface is configured with a primary and a backup address. The two
+// addresses share no address fingerprint at all (different scheme, host and
+// path), so a device that only ever reported one of them registers its own
+// canonical identity, and two such devices produce two "main spaces" of the
+// same interface that no fingerprint-based grouping can ever join. The only
+// clue the server holds for them is the interface name the App stamps on every
+// record.
 //
 // Rules (conservative, reversible):
 //   - exact, trimmed, case-sensitive name match; empty names never merge;
-//   - a name owned by 2+ different canonical identities is ambiguous → skip;
-//   - a name owned by exactly one canonical identity → all unregistered
-//     spaces of that name (plus the current submitter via hintName) join it;
-//   - unregistered-only groups of 2+ spaces elect their own canonical
-//     (most records, then earliest record, then key order);
+//   - a space only contributes a name when that name covers a STRICT MAJORITY
+//     of its rows (`nameItems * 2 > items`). A space that mixes two interfaces
+//     almost evenly carries no usable signal, and a device pushes every sync
+//     source it has into its own bound space, so minority rows must never name
+//     a space (this is what once made a 饭太硬 space look like 摸鱼);
+//   - after the pass one name owns exactly one canonical: same-name canonicals
+//     collapse first (primary/backup address pair of one interface) and the
+//     unregistered spaces of that name then join the winner;
+//   - a name with no canonical needs 2+ unregistered spaces to elect one;
+//   - the winner is the most records, then the earliest first record, then key
+//     order;
 //   - each key participates in at most one plan, and the submitter's own
 //     hintName group is processed first so a renamed interface cannot be
 //     dragged into its stale-name group.
+//
+// Migration copies rows and keeps the source as an alias, so a wrong guess is
+// undone by dropping the alias; playback rows are never reinterpreted.
 export function planNameUnifyGroups(registry, spaces, submitted, hintName) {
-  const canonicalNames = new Map(); // canonicalKey -> name
+  const canonicalNames = new Map(); // canonicalKey -> { name, items, firstAt }
   const unregistered = new Map();   // name -> [space]
   for (const space of Array.isArray(spaces) ? spaces : []) {
     const key = String(space && space.key || '');
     const name = String(space && space.name || '').trim();
     if (!key) continue;
+    const items = Number(space && space.items || 0);
+    const nameItems = Number(space && space.nameItems || 0);
+    const majority = Boolean(name) && nameItems * 2 > items;
     if (registry.identities[key]) {
-      if (name) canonicalNames.set(key, name);
+      if (majority) {
+        canonicalNames.set(key, { name, items, firstAt: Number(space.firstAt || 0) });
+      }
     } else if (!registry.aliases[key] && name) {
       if (!unregistered.has(name)) unregistered.set(name, []);
       unregistered.get(name).push(space);
     }
   }
-  const nameToCanonicals = new Map();
-  for (const [key, name] of canonicalNames) {
-    if (!nameToCanonicals.has(name)) nameToCanonicals.set(name, []);
-    nameToCanonicals.get(name).push(key);
+  const nameToCanonicals = new Map(); // name -> [{ key, items, firstAt }]
+  for (const [key, entry] of canonicalNames) {
+    if (!nameToCanonicals.has(entry.name)) nameToCanonicals.set(entry.name, []);
+    nameToCanonicals.get(entry.name).push({ key, items: entry.items, firstAt: entry.firstAt });
   }
 
   const elect = (members) => members.slice().sort((a, b) =>
@@ -1953,18 +2035,20 @@ export function planNameUnifyGroups(registry, spaces, submitted, hintName) {
         && !registry.identities[extraKey] && !registry.aliases[extraKey]) {
       members.push({ key: extraKey, name, items: 0, firstAt: 0 });
     }
-    if (!members.length) return;
-    const canonicals = nameToCanonicals.get(name) || [];
+    const canonicals = (nameToCanonicals.get(name) || []).filter((c) => !used.has(c.key));
     let target;
     let sources;
-    if (canonicals.length === 1) {
-      target = canonicals[0];
-      sources = members.map((m) => m.key).filter((k) => k !== target);
-    } else if (canonicals.length === 0 && members.length >= 2) {
+    if (canonicals.length) {
+      target = elect(canonicals);
+      sources = [
+        ...canonicals.map((c) => c.key).filter((k) => k !== target),
+        ...members.map((m) => m.key)
+      ];
+    } else if (members.length >= 2) {
       target = elect(members);
       sources = members.map((m) => m.key).filter((k) => k !== target);
     } else {
-      return; // ambiguous (multiple canonicals) or singleton with no canonical
+      return; // a lone unregistered space with no canonical has nothing to join
     }
     sources = [...new Set(sources)].filter((k) => k && k !== target && !used.has(k));
     if (!sources.length) return;
@@ -1979,7 +2063,8 @@ export function planNameUnifyGroups(registry, spaces, submitted, hintName) {
   if (submitted && hint && !registry.identities[submitted] && !registry.aliases[submitted]) {
     buildPlan(hint, submitted);
   }
-  for (const name of [...unregistered.keys()].sort()) {
+  const names = new Set([...unregistered.keys(), ...nameToCanonicals.keys()]);
+  for (const name of [...names].sort()) {
     if (name === hint) continue; // already evaluated
     buildPlan(name, '');
   }
