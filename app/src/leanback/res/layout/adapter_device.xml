@@ -24,7 +24,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:singleLine="true"
-            android:textColor="?attr/webhtvColorOnWallpaper"
+            android:textColor="?attr/colorOnSurface"
             android:textSize="14sp"
             tools:text="Google Chrome Cast" />
 
@@ -34,7 +34,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:singleLine="true"
-            android:textColor="?attr/webhtvColorOnWallpaper"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="12sp"
             tools:text="127.0.0.1" />
 

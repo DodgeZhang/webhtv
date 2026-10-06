@@ -38,10 +38,10 @@ import com.fongmi.android.tv.cache.CachePolicyStore;
 import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.cache.CacheSnapshot;
 import com.fongmi.android.tv.databinding.DialogCacheManagementBinding;
+import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -205,7 +205,7 @@ public class CacheManagementDialog extends DialogFragment {
             case STANDARD -> R.string.cache_cleanup_confirm_standard;
             default -> R.string.cache_cleanup_confirm_deep;
         };
-        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
+        AlertDialog dialog = new WebHtvAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(message)
                 .setNegativeButton(R.string.dialog_negative, null)
@@ -217,7 +217,7 @@ public class CacheManagementDialog extends DialogFragment {
     }
 
     private void confirmModule(CacheModuleId id, View returnFocus) {
-        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
+        AlertDialog dialog = new WebHtvAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(getString(R.string.cache_cleanup_confirm_module, getModuleName(id)))
                 .setNegativeButton(R.string.dialog_negative, null)
@@ -257,7 +257,7 @@ public class CacheManagementDialog extends DialogFragment {
     }
 
     private void confirmDeep(View returnFocus) {
-        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
+        AlertDialog dialog = new WebHtvAlertDialogBuilder(requireContext())
                 .setTitle(R.string.cache_cleanup_confirm_title)
                 .setMessage(R.string.cache_cleanup_confirm_deep)
                 .setNegativeButton(R.string.dialog_negative, null)
