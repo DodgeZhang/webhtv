@@ -2,7 +2,7 @@
 
 任务 ID：`cf-feature-forget-identity`
 类别：WebHTV 本地运维能力（Cloudflare Worker + Durable Object + Dashboard）
-状态：独立按钮版本（`a0b40badbb`）已上线并验收；随后按用户要求把「注销身份」合并进「清除」按钮，见 §9
+状态：独立按钮版本（`a0b40badbb`）已上线并验收；随后按用户要求把「注销身份」合并进「清除」按钮（`6572f5699a`），已上线验收，见 §9
 创建时间：2026-10-06 20:57 +08:00
 基线 HEAD：`42eb16580894f14daf01205d382f9f567b5001ea`（§9 的基线为 `9db00db722`）
 
@@ -234,11 +234,36 @@ frontend 20/20 PASS   (inline script 语法解析 OK, chars=36281; 含死代码�
 backend  11/11 PASS   (playback-sync.js 全量 2272 行语法解析 OK; 含 dispatch 传 request、opt-in 标志、两个新 helper)
 ```
 
-**线上验收**：见 §9.5（提交后执行）。
+**线上验收**：见 §9.5（已执行，全部通过）。
 
-### 9.5 线上验收（待执行）
+### 9.5 线上验收（已执行，全部通过）
 
-待提交推送、CF 构建完成后填写。
+提交 `6572f5699a36e944d4fb68d62f96a088ff725370`，tag `recovery/cf-merge-clear-forget-buttons/20261006132844-6572f5699a36`，已推送 `origin/main`；CF 完成部署（轮询线上 HTML 确认 `'并入其他空间'` 出现、`并入…` 消失、`forgetIdentityConfirm` 消失）。
+
+**（1）后端 op 探测**——全部使用不存在的 ghost key，因此零写入（`deletedRows: 0` 也不写墓碑）：
+
+| 探测 | 响应 | 结论 |
+|---|---|---|
+| A `adminClearSpace` + `forgetIdentity:true` | `200 {"ok":true,…,"deletedRows":0,"propagated":false,"forgotten":[],"missing":["5999…"]}` | 标志路径生效，未命中不写库 |
+| B `adminClearSpace` 不带标志 | `200 {"ok":true,…,"deletedRows":0,"propagated":false}` | **响应里完全没有 `forgotten` / `missing` 字段** → 不传标志时行为与改动前一致 |
+| C `adminClearAll` + `forgetIdentity:true` | `200 {"ok":true,"op":"adminClearAll","deletedRows":0,"forgotten":[],"missing":["5999…"]}` | 「清空全部」路径同样生效 |
+| D `adminForgetIdentity` 无 targets | `HTTP 400` | 瘦身为薄包装后参数校验仍生效 |
+
+**（2）浏览器验证**——真实页面 https://webhtv-remote.dodge.cc.cd/ ，6 行全部渲染，控制台无任何消息：
+
+| 检查 | 结果 | 证据 |
+|---|---|---|
+| A 身份主空间行按钮 | PASS | 摸鱼 / 饭太硬 → `["并入其他空间","清除并注销"]` |
+| B 未注册行按钮 | PASS | 潇洒 / 肥猫 / 胖猫 / 豆儿 → `["并入其他空间","清除"]` |
+| C 已并入行按钮 | PASS（本数据集无 alias 行，无冲突） | — |
+| D 无独立「注销身份」按钮 | PASS | 遍历全页按钮无该标签 |
+| E 合并按钮不再有省略号 | PASS | 「并入其他空间」无 U+2026 后缀 |
+| F 弹窗文案与确认按钮 | PASS | 标题「⚠️ 清除该接口的记录并注销身份」，确认按钮「确认清除并注销」，正文含「同时会从身份注册表中注销这个身份」 |
+| G 取消不产生副作用 | PASS | 点取消后弹窗关闭，行数仍为 6 |
+
+验收全程未点击任何「确认清除 / 确认清除并注销」，未改动线上数据。
+
+**（3）踩坑——另一类假阴性**：浏览器首轮报「该 Token 命名空间下暂无记录」，但服务端用同一 Token 直连 `/identity/spaces` 返回 `HTTP 200 spaces=6`。根因是 **Token 没有被真正写入输入框就点了查询**（不是缓存问题）。改用在页面内脚本直接给 `#loginUrl` / `#loginToken` 赋值并**回读**实际值（Token 长度必须为 64）后再查询，全部通过。**结论：这类验证必须回读输入框的实际值再断言，不能只假设「已经输入了」。**
 
 ### 9.6 风险与回滚
 
