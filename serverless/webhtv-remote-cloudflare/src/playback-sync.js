@@ -172,6 +172,16 @@ export class WebHTVPlaybackSyncDO {
         state TEXT NOT NULL
       );
     `);
+    // WebHTV quota optimization (Durable Objects rows_read): applyUpsert used to
+    // read every tombstone of the space on every event just to learn the newest
+    // deleted_at. This index lets that scan become a range probe over
+    // (config_key, deleted_at) that normally proves no suppression is possible
+    // without reading any tombstone. Query results are unaffected; the index is
+    // only a lookup structure.
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_playback_tombstones_config_deleted
+        ON playback_tombstones (config_key, deleted_at);
+    `);
     // WebHTV adaptation: season-scoped deletions (TV shows matched by TMDB
     // identity). The App webhook sends scope="season"; without these columns
     // the server only accepted item/site/all and answered HTTP 400, so the
@@ -1073,7 +1083,8 @@ export class WebHTVPlaybackSyncDO {
       if (!submitted) return;
       const registryKey = await identityRegistryKey(token, configType);
       const snapshot = await store.load(registryKey);
-      const registry = normalizeIdentityRegistry(snapshot.state);
+      // Let: the fingerprint pass re-reads this only when its merge wrote.
+      let registry = normalizeIdentityRegistry(snapshot.state);
       const bound = boundCanonicalKey(registry, submitted);
 
       // Pass 1: fingerprint adoption for an unbound submitted key. Require at
@@ -1102,6 +1113,9 @@ export class WebHTVPlaybackSyncDO {
             await this.tagAutoAliases(request, registryKey, target, [submitted], 'auto-fingerprint', fingerprints);
             if (Array.isArray(result.merged) && result.merged.includes(submitted)) return;
             if (result.alreadyMerged) return;
+            // The merge above may have rewritten the registry even though this
+            // key was not adopted, so the name pass below must re-read it.
+            registry = normalizeIdentityRegistry((await store.load(registryKey)).state);
           }
         }
       }
@@ -1110,7 +1124,7 @@ export class WebHTVPlaybackSyncDO {
       // Cheap short-circuit: need at least one non-empty unregistered name.
       const spaces = this.spaceSnapshot(configType);
       const plans = planNameUnifyGroups(
-        normalizeIdentityRegistry((await store.load(registryKey)).state),
+        registry,
         spaces,
         submitted,
         cleanString(hintName, 2048)
@@ -1333,7 +1347,22 @@ export class WebHTVPlaybackSyncDO {
         storageConfigKey,
         event.itemKey
       ));
-      const tombstone = firstRow(this.sql.exec(`
+      // WebHTV quota optimization (Durable Objects rows_read): the scoped scan
+      // below reads every tombstone of this space, on every event, and the set
+      // only grows for as long as the 90-day retention window holds it. A
+      // tombstone can only suppress this event when its deleted_at reaches the
+      // event's updated_at, so one indexed range probe over
+      // (config_key, deleted_at) can prove that no suppression is possible and
+      // skip the scan. The probe ignores scope, so it is a superset of the
+      // scoped query: whenever it does find a newer deletion the original scan
+      // runs unchanged, and both the skip decision and the reported seq are
+      // identical to the previous behaviour in either branch.
+      const newerTombstone = firstRow(this.sql.exec(
+        'SELECT MAX(deleted_at) AS deleted_at FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ?',
+        storageConfigKey,
+        event.updatedAt
+      ));
+      const tombstone = Number(newerTombstone?.deleted_at || 0) > 0 ? firstRow(this.sql.exec(`
         SELECT MAX(deleted_at) AS deleted_at, MAX(seq) AS seq
           FROM playback_tombstones
          WHERE config_key = ? AND (
@@ -1346,7 +1375,7 @@ export class WebHTVPlaybackSyncDO {
       `, storageConfigKey, event.siteKey, event.siteKey, event.vodId, event.historyKey,
         String(event.payload.mediaType || '').toLowerCase(),
         Number(event.payload.tmdbId || 0), Number(event.payload.seasonNumber ?? -1),
-        event.siteKey));
+        event.siteKey)) : null;
       const deletedAt = Number(tombstone?.deleted_at || 0);
       if (deletedAt > 0 && event.updatedAt <= deletedAt) {
         this.recordEvent(storageConfigKey, event.eventId, receivedAt);
