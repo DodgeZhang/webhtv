@@ -112,6 +112,43 @@ public class AppearanceRowThemeTest {
         assertFalse(source.contains("#E8F0FE"));
     }
 
+    @Test
+    public void theRowOwnsThePaletteItIsPaintedWith() throws Exception {
+        // The regression was a mismatch between a fixed row fill and token-driven text.
+        // Guard the invariant directly: every colour the row paints comes from the same
+        // ThemeTokens instance the row text is set from.
+        String source = codeOnly(read("src/main/java/com/fongmi/android/tv/theme/AppearanceRowTheme.java"));
+        assertTrue(source.contains("public static void apply(View row, TextView title, TextView summary, ThemeTokens tokens)"));
+        int apply = source.indexOf("public static void apply(");
+        String body = source.substring(apply, source.indexOf("public static int refresh("));
+        assertTrue("the row fill comes from the passed tokens", body.contains("background(row.getContext(), safe)"));
+        assertTrue("the title colour comes from the same tokens", body.contains("title.setTextColor(safe.colorOnSurface())"));
+        assertTrue("the value colour comes from the same tokens", body.contains("summary.setTextColor(safe.colorOnSurfaceVariant())"));
+    }
+
+    /**
+     * The picker opened from these rows paints its title on the same dialog panel, so it
+     * had the identical defect: a fixed {@code #202124} title on the dark panel measured
+     * <b>1.00:1</b> on device. It must use the active palette too.
+     */
+    @Test
+    public void thePickerOpenedFromTheseRowsAlsoUsesTheActivePalette() throws Exception {
+        String dialog = codeOnly(read("src/main/java/com/fongmi/android/tv/ui/dialog/ChoiceDialog.java"));
+        assertTrue(dialog.contains("titleView.setTextColor(ThemeController.current().colorOnSurface())"));
+        assertTrue(dialog.contains("messageView.setTextColor(ThemeController.current().colorOnSurfaceVariant())"));
+        assertTrue(dialog.contains("import com.fongmi.android.tv.theme.ThemeController;"));
+        // The title/message sit directly on the dialog panel, which is the part that was
+        // invisible. Item rows keep their own opaque card, so their colours are a separate
+        // concern and stay untouched here.
+        int title = dialog.indexOf("titleView.setTextColor(");
+        int message = dialog.indexOf("messageView.setTextColor(");
+        assertTrue(title > 0 && message > 0);
+        assertFalse("the panel-drawn title must not be a fixed colour",
+                dialog.substring(title, dialog.indexOf(";", title)).contains("parseColor"));
+        assertFalse("the panel-drawn message must not be a fixed colour",
+                dialog.substring(message, dialog.indexOf(";", message)).contains("parseColor"));
+    }
+
     /**
      * Strips comments so a source contract matches executable code, not the explanatory
      * prose that names the very colours and selectors the contract forbids.
