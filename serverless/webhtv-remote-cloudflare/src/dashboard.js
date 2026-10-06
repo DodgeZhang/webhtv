@@ -621,6 +621,15 @@ function renderSpaceRow(cfg) {
     mergeBtn.onclick = (e) => { e.stopPropagation(); pickMergeTarget(cfg.configKey); };
     head.appendChild(mergeBtn);
   }
+  // 清除该空间的全部记录。危险操作，必须二次确认；清的就是这一行的存储键，
+  // 不做身份归一（详见 clearSpaceConfirm）。
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'btn btn-sm btn-danger';
+  clearBtn.textContent = '清除';
+  clearBtn.title = '清空该接口的全部记录';
+  clearBtn.onclick = (e) => { e.stopPropagation(); clearSpaceConfirm(cfg); };
+  head.appendChild(clearBtn);
   const keyLine = document.createElement('div');
   keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin-top:3px;';
   keyLine.textContent = cfg.configKey;
@@ -744,6 +753,74 @@ async function doMerge(targetKey, sourceKeys, configType) {
     findConfigs();
   } catch (e) {
     showToast('合并失败: ' + e.message, 'error');
+  }
+}
+
+// 清除某个接口空间的全部记录。危险操作：先弹窗写清接口名、条数与后果，确认后
+// 才执行。请求只带 Token，不发送 X-WebHTV-Config-Key，服务端也就不会做身份
+// 归一——避免误清到该行"已并入"指向的真实主空间。
+function clearSpaceConfirm(cfg) {
+  const node = document.createElement('div');
+  const h3 = document.createElement('h3');
+  h3.textContent = '⚠️ 清除该接口的全部记录';
+  node.appendChild(h3);
+  const p1 = document.createElement('p');
+  p1.appendChild(document.createTextNode('将删除 '));
+  const strong = document.createElement('strong');
+  strong.textContent = (cfg.name || '未命名接口') + '（' + cfg.items + ' 条）';
+  p1.appendChild(strong);
+  p1.appendChild(document.createTextNode(' 的全部观影记录，此操作不可恢复。'));
+  node.appendChild(p1);
+  const p2 = document.createElement('p');
+  p2.textContent = '同时写入删除指令：仍在使用该接口的设备下次同步时会一并删除这些记录。'
+    + (cfg.identity === 'canonical'
+      ? '该空间是「身份主空间」，若设备仍在用它，之后同步可能把新记录重新推回。'
+      : '');
+  node.appendChild(p2);
+  const keyLine = document.createElement('div');
+  keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin:6px 0;';
+  keyLine.textContent = cfg.configKey;
+  node.appendChild(keyLine);
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = '取消';
+  cancel.onclick = hideModal;
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-danger';
+  ok.textContent = '确认清除';
+  ok.onclick = () => doClearSpace(cfg);
+  actions.appendChild(cancel);
+  actions.appendChild(ok);
+  node.appendChild(actions);
+  showModalNode(node);
+}
+
+async function doClearSpace(cfg) {
+  const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\\/+$/, '');
+  const token = document.getElementById('loginToken').value.trim();
+  hideModal();
+  try {
+    const res = await fetch(baseUrl + '/api/playback/sync/maintenance', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'X-WebHTV-Token': token } : {}),
+      body: JSON.stringify({ op: 'adminClearSpace', configType: cfg.configType || 'vod', configKey: cfg.configKey })
+    });
+    const text = await res.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (e) {}
+    if (!res.ok || !data.ok) {
+      showToast('清除失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 120)), 'error');
+      return;
+    }
+    const deleted = data.deletedRows || 0;
+    showToast(deleted
+      ? '已清除 ' + deleted + ' 条记录（删除指令将同步到设备）'
+      : '该空间没有记录，无需清除', deleted ? 'success' : 'info');
+    findConfigs();
+  } catch (e) {
+    showToast('清除失败: ' + e.message, 'error');
   }
 }
 

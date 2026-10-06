@@ -504,6 +504,7 @@ export class WebHTVPlaybackSyncDO {
     if (op === 'adminUnbindIdentity') return this.runAdminUnbindIdentity(request, body, configType);
     if (op === 'adminSplitIdentity') return this.runAdminSplitIdentity(request, body, configType);
     if (op === 'adminMoveRows') return this.runAdminMoveRows(body, configType);
+    if (op === 'adminClearSpace') return this.runAdminClearSpace(body, configType);
     throw playbackHttpError(400, 'Unknown maintenance op');
   }
 
@@ -611,6 +612,41 @@ export class WebHTVPlaybackSyncDO {
       ).rowsWritten || 0);
     });
     return playbackJson({ ok: true, op: 'adminClearAll', deletedRows });
+  }
+
+  // WebHTV adaptation (dashboard): clear one EXACT stored space, addressed by the
+  // key shown in the pre-login interface list. runAdminClearAll resolves the
+  // submitted key through the identity registry first, so clearing a row that is
+  // merely an alias of another identity — or a canonical whose device reports a
+  // different key — would wipe a different, real space than the one the operator
+  // clicked. This op never consults the registry: the row you see is the row that
+  // is cleared, which is also why it needs no X-WebHTV-Config-Key header and works
+  // from the token-only pre-login list.
+  //
+  // A scope=all tombstone is written in the same transaction so a device that
+  // still holds these rows deletes them on its next sync instead of pushing them
+  // straight back. Nothing is written when the space held no rows: an already
+  // empty space (or a mistyped key) must not leave a deletion marker behind.
+  runAdminClearSpace(body, configType) {
+    const configKey = validatedConfigKey(
+      body && (body.configKey || body.config_key), 'adminClearSpace requires configKey'
+    );
+    const storageConfigKey = scopedConfigKey(configType, configKey);
+    const deletedAt = Date.now();
+    const payload = JSON.stringify({ scope: 'all', deletedAt, origin: 'dashboard' });
+    const deletedRows = this.state.storage.transactionSync(() => {
+      const deleted = Number(this.sql.exec(
+        'DELETE FROM playback_items WHERE config_key = ?', storageConfigKey
+      ).rowsWritten || 0);
+      if (deleted > 0) {
+        this.upsertAdminTombstone(storageConfigKey, 'all', 'all', '', '', '', deletedAt, payload);
+      }
+      return deleted;
+    });
+    return playbackJson({
+      ok: true, op: 'adminClearSpace', configType, configKey, deletedRows,
+      propagated: deletedRows > 0
+    });
   }
 
   // Read-only registry dump for diagnosing wrong identity bindings: every
