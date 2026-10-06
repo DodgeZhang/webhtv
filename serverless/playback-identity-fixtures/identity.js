@@ -255,6 +255,13 @@ export async function resolveIdentity(store, token, input) {
     if (resolution.action === 'confirm_required') return cacheIdentityResponse(store, registryKey, snapshot, registry, input, identityResponse('confirm_required', input, resolution, 200));
     const next = cloneJson(registry);
     const now = Date.now();
+    if (resolution.action === 'rebind') {
+      // The device stopped using its previous interface. Drop the stale alias
+      // binding so its records route to the newly matched canonical instead of
+      // the old interface's space; playback rows are never moved between
+      // different interfaces.
+      delete next.aliases[input.interfaceKey];
+    }
     let identity = next.identities[resolution.canonicalInterfaceKey];
     if (!identity) {
       identity = normalizeIdentity({}, resolution.canonicalInterfaceKey);
@@ -264,7 +271,7 @@ export async function resolveIdentity(store, token, input) {
     addIdentityKeys(next, identity, input);
     next.epoch += 1;
     next.updatedAt = now;
-    if ((resolution.action === 'adopt' || resolution.action === 'merge') && input.interfaceKey !== resolution.canonicalInterfaceKey) {
+    if ((resolution.action === 'adopt' || resolution.action === 'merge' || resolution.action === 'rebind') && input.interfaceKey !== resolution.canonicalInterfaceKey) {
       addAlias(next, input.interfaceKey, resolution.canonicalInterfaceKey, 'interface');
     }
     for (const key of [...identity.strictAddressKeys, ...identity.endpointMatchKeys, ...identity.hostMatchKeys, ...identity.legacyConfigKeys]) {
@@ -282,15 +289,21 @@ export async function resolveIdentity(store, token, input) {
     }
     if (await store.compareAndSet(registryKey, snapshot.version, next)) {
       let migration = { migrated: false, pending: false, resetSince: false };
+      // A rebind never migrates the old interface's space: the device's rows
+      // under its previous binding belong to a different interface and must
+      // stay there. Only the newly matched URL's own legacy spaces qualify.
+      const migrationSourceKeys = resolution.action === 'rebind'
+        ? [...input.legacyConfigKeys]
+        : [...input.legacyConfigKeys, input.interfaceKey];
       try {
         migration = typeof store.migrateIdentitySpaces === 'function'
-          ? await store.migrateIdentitySpaces(token, input.configType, resolution.canonicalInterfaceKey, [...input.legacyConfigKeys, input.interfaceKey])
+          ? await store.migrateIdentitySpaces(token, input.configType, resolution.canonicalInterfaceKey, migrationSourceKeys)
           : await migrateIdentitySpaces(
             store,
             token,
             input.configType,
             resolution.canonicalInterfaceKey,
-            [...input.legacyConfigKeys, input.interfaceKey]
+            migrationSourceKeys
           );
       } catch {
         migration.pending = true;
@@ -498,6 +511,17 @@ function chooseIdentity(registry, input) {
       ? { set: legacy, matchedBy: 'legacyConfigKey', keys: input.legacyConfigKeys } : null;
   if (bound) {
     if (strong && (strong.set.size > 1 || !strong.set.has(bound))) {
+      // WebHTV adaptation: a device whose interface key is bound to one
+      // interface may legitimately switch its sync source to a different
+      // interface. A single unambiguous strong URL match to another canonical
+      // means exactly that — strong hashes are never shared by unrelated
+      // interfaces (unlike proxy hosts), so re-binding the device key to the
+      // newly matched canonical is safe. The device key itself being a
+      // canonical identity, or strong keys matching several canonicals, stays
+      // a hard conflict (genuinely ambiguous).
+      if (strong.set.size === 1 && !registry.identities[input.interfaceKey]) {
+        return { action: 'rebind', canonicalInterfaceKey: [...strong.set][0], matchedBy: strong.matchedBy, matchedKeys: strong.keys };
+      }
       return { action: 'conflict', matchedBy: strong.matchedBy, matchedKeys: [...strong.set], candidates: [...strong.set], error: 'Submitted interface is bound to a different identity' };
     }
     return { action: 'keep', canonicalInterfaceKey: bound, matchedBy: bound === input.interfaceKey ? 'interfaceKey' : 'alias', matchedKeys: [] };
