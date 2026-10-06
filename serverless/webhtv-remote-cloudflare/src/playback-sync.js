@@ -615,9 +615,11 @@ export class WebHTVPlaybackSyncDO {
   // block the actual sync request.
   //
   // Pass 1 (strong): address fingerprints carried in X-WebHTV-Config-Aliases
-  // that resolve to exactly one registered canonical identity adopt the
-  // submitted key immediately, no confirmation needed (address hashes are the
-  // same strong signal the official resolver adopts on empty sources).
+  // adopt the submitted key only when at least two distinct fingerprints
+  // resolve to the same single registered canonical identity — the strong
+  // signal the official resolver adopts on empty sources. A lone host-tier
+  // hit is ambiguous (unrelated interfaces share proxy hosts) and is left to
+  // the dashboard.
   //
   // Pass 2 (weak, reversible): unregistered spaces whose latest records carry
   // the same exact configName are collapsed. Same-name match against multiple
@@ -635,23 +637,33 @@ export class WebHTVPlaybackSyncDO {
       const registry = normalizeIdentityRegistry(snapshot.state);
       const bound = boundCanonicalKey(registry, submitted);
 
-      // Pass 1: fingerprint adoption for an unbound submitted key.
+      // Pass 1: fingerprint adoption for an unbound submitted key. Require at
+      // least two distinct fingerprints to agree on one canonical identity:
+      // the App mixes every address tier (URL hash + endpoint + host) in the
+      // aliases header, so a genuine same-interface device matches through
+      // several fingerprints, while an unrelated interface that only shares a
+      // proxy host matches through exactly one host-tier fingerprint and must
+      // stay separate (single-hit adoption caused cross-interface merges).
       if (!bound) {
-        const fingerprints = (Array.isArray(aliases) ? aliases : [])
+        const fingerprints = [...new Set((Array.isArray(aliases) ? aliases : [])
           .map((item) => normalizeOptionalKey(item, 'config alias'))
-          .filter(Boolean);
-        const candidates = new Set();
+          .filter(Boolean))];
+        const hits = new Map();
         for (const fp of fingerprints) {
-          if (registry.identities[fp]) candidates.add(fp);
-          const alias = registry.aliases[fp];
-          if (alias) candidates.add(alias.canonicalInterfaceKey);
+          const canonical = registry.identities[fp] ? fp : registry.aliases[fp]?.canonicalInterfaceKey || '';
+          if (!canonical) continue;
+          const list = hits.get(canonical);
+          if (list) list.push(fp);
+          else hits.set(canonical, [fp]);
         }
-        if (candidates.size === 1) {
-          const target = [...candidates][0];
-          const result = await mergeIdentityRegistry(store, token, configType, target, [submitted]);
-          await this.tagAutoAliases(request, registryKey, target, [submitted], 'auto-fingerprint', fingerprints);
-          if (Array.isArray(result.merged) && result.merged.includes(submitted)) return;
-          if (result.alreadyMerged) return;
+        if (hits.size === 1) {
+          const [target, matched] = [...hits][0];
+          if (matched.length >= 2) {
+            const result = await mergeIdentityRegistry(store, token, configType, target, [submitted]);
+            await this.tagAutoAliases(request, registryKey, target, [submitted], 'auto-fingerprint', fingerprints);
+            if (Array.isArray(result.merged) && result.merged.includes(submitted)) return;
+            if (result.alreadyMerged) return;
+          }
         }
       }
 
@@ -1753,7 +1765,10 @@ function firstEventConfigName(rawEvents) {
 // (collapsing registered same-interface groups), and a confirm_required
 // answer — which the official App can never act on because it never sends
 // confirm:true — is re-submitted once with confirm to run the official merge
-// path. The retry uses a derived requestId so it cannot hit the resolver's
+// path, but only for strong address matches (exact URL / endpoint / legacy
+// URL hash). Host-only confirm_required results are returned untouched:
+// a shared proxy domain must never silently merge unrelated interfaces.
+// The retry uses a derived requestId so it cannot hit the resolver's
 // idempotency cache, which would otherwise return the confirm_required body
 // again.
 export async function resolveWithAutoMerge(store, token, input, hooks = {}) {
@@ -1768,6 +1783,14 @@ export async function resolveWithAutoMerge(store, token, input, hooks = {}) {
   }
   const result = await resolveIdentity(store, token, input);
   if (autoMerge && result.status === 200 && result.body && result.body.action === 'confirm_required') {
+    // Auto-answer only strong address matches (exact URL / endpoint / legacy
+    // URL hash). A host-only match can be shared by unrelated interfaces that
+    // happen to sit behind the same proxy domain, so it stays confirm_required:
+    // the App keeps its own identity and the dashboard merge stays manual.
+    const matchedBy = result.body.matchedBy;
+    if (matchedBy !== 'strictAddressKey' && matchedBy !== 'endpointMatchKey' && matchedBy !== 'legacyConfigKey') {
+      return result;
+    }
     const retryInput = { ...input, confirm: true };
     if (input.requestId) retryInput.requestId = `${input.requestId}-auto`.slice(0, 160);
     try {
