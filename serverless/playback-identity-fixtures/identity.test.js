@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveIdentity, parseIdentityRequest, canonicalizeAddress, addressMaterial, sha256 } from './identity.js';
+import { resolveIdentity, resolveConfigKey, parseIdentityRequest, canonicalizeAddress, addressMaterial, sha256 } from './identity.js';
 
 function createMemoryPlaybackStore() {
   const entries = new Map();
@@ -68,7 +68,7 @@ test('rebinds a device key when its strong keys now match a different canonical'
   assert.equal(result.body.canonicalInterfaceKey, 'c');
 });
 
-test('keeps a hard conflict when a bound device matches multiple canonicals', async () => {
+test('keeps a bound device on its own canonical when its accumulated keys span several', async () => {
   const store = createMemoryPlaybackStore();
   const input = (key, strict, endpoint, host, state = 'empty') => parseIdentityRequest({ schema: 'webhtv.playback.identity.v1', operation: 'resolve', interfaceKey: key, configType: 'vod', strictAddressKeys: strict, endpointMatchKeys: endpoint, hostMatchKeys: host, legacyConfigKeys: [], sourceDataState: state }, new Headers());
   let result = await resolveIdentity(store, 'token', input('a', ['strictA'], ['endpointA'], ['hostA'], 'empty'));
@@ -77,9 +77,42 @@ test('keeps a hard conflict when a bound device matches multiple canonicals', as
   assert.equal(result.body.action, 'adopt');
   result = await resolveIdentity(store, 'token', input('c', ['strictC'], ['endpointC'], ['hostC'], 'empty'));
   assert.equal(result.body.action, 'create');
-  // Device 'b' is bound to 'a' but its strong keys match BOTH 'a' and 'c' —
-  // genuinely ambiguous, so the official 409 conflict is preserved.
+  // Device 'b' is bound to 'a'. Its source was repointed at other interfaces in
+  // the past, and the App never prunes their fingerprints, so the strong keys
+  // now match 'a' AND 'c'. Being bound to 'a' is not ambiguous for 'b': keeping
+  // the binding is the only outcome that does not fail every sync with 409.
   result = await resolveIdentity(store, 'token', input('b', ['strictA', 'strictC'], ['endpointA', 'endpointC'], ['hostA', 'hostC'], 'has_data'));
+  assert.equal(result.body.action, 'keep');
+  assert.equal(result.body.canonicalInterfaceKey, 'a');
+});
+
+test('keeps a hard conflict when a bound device matches canonicals other than its own', async () => {
+  const store = createMemoryPlaybackStore();
+  const input = (key, strict, endpoint, host, state = 'empty') => parseIdentityRequest({ schema: 'webhtv.playback.identity.v1', operation: 'resolve', interfaceKey: key, configType: 'vod', strictAddressKeys: strict, endpointMatchKeys: endpoint, hostMatchKeys: host, legacyConfigKeys: [], sourceDataState: state }, new Headers());
+  let result = await resolveIdentity(store, 'token', input('a', ['strictA'], ['endpointA'], ['hostA'], 'empty'));
+  assert.equal(result.body.action, 'create');
+  result = await resolveIdentity(store, 'token', input('d', ['strictA'], ['endpointA'], ['hostA'], 'empty'));
+  assert.equal(result.body.action, 'adopt');
+  result = await resolveIdentity(store, 'token', input('b', ['strictB'], ['endpointB'], ['hostB'], 'empty'));
+  assert.equal(result.body.action, 'create');
+  result = await resolveIdentity(store, 'token', input('c', ['strictC'], ['endpointC'], ['hostC'], 'empty'));
+  assert.equal(result.body.action, 'create');
+  // Device 'd' is bound to 'a', but its strong keys match 'b' and 'c' only —
+  // genuinely ambiguous with no binding among the matches, so 409 is preserved.
+  result = await resolveIdentity(store, 'token', input('d', ['strictB', 'strictC'], ['endpointB', 'endpointC'], ['hostB', 'hostC'], 'has_data'));
   assert.equal(result.status, 409);
   assert.equal(result.body.action, 'conflict');
+});
+
+test('routes sync to the requesting key binding when aliases span several canonicals', async () => {
+  const store = createMemoryPlaybackStore();
+  const input = (key, strict) => parseIdentityRequest({ schema: 'webhtv.playback.identity.v1', operation: 'resolve', interfaceKey: key, configType: 'vod', strictAddressKeys: strict, endpointMatchKeys: [], hostMatchKeys: [], legacyConfigKeys: [], sourceDataState: 'empty' }, new Headers());
+  await resolveIdentity(store, 'token', input('a', ['strictA']));
+  await resolveIdentity(store, 'token', input('b', ['strictB']));
+  // Device 'd' joins interface 'a'; the aliases header later carries stale
+  // fingerprints of interface 'b' as well.
+  await resolveIdentity(store, 'token', input('d', ['strictA']));
+  assert.equal(await resolveConfigKey(store, 'token', 'vod', 'd', ['strictB']), 'a');
+  // Nothing declares an identity for this key, so the ambiguity stays an error.
+  await assert.rejects(() => resolveConfigKey(store, 'token', 'vod', 'unbound-device', ['strictA', 'strictB']), (error) => error.status === 409);
 });

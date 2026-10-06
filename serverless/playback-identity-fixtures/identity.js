@@ -338,6 +338,18 @@ export async function resolveConfigKey(store, token, configType, configKey, alia
     if (alias) candidates.add(alias.canonicalInterfaceKey);
   }
   if (candidates.size > 1) {
+    // WebHTV adaptation: the App never prunes a sync source's address
+    // fingerprints (Config.rememberAddressAliases and addLegacyConfigKey only
+    // append), so once the user repoints a source at another interface the
+    // submitted key set spans both the old and the new canonical identity and
+    // this hard 409 blocks every sync of that device forever. Those extra keys
+    // are only hints about what the requester's key might be; the requester's
+    // own key binding is its declared identity and identity resolve refreshes
+    // it (including across an interface switch, see the rebind action), so the
+    // binding decides. Genuine ambiguity with no binding for the submitted key
+    // remains an error.
+    const bound = registry.identities[raw] ? raw : registry.aliases[raw]?.canonicalInterfaceKey || '';
+    if (bound) return bound;
     const error = new Error('Identity alias maps to multiple canonical interfaces');
     error.status = 409;
     throw error;
@@ -510,15 +522,22 @@ function chooseIdentity(registry, input) {
     ? { set: endpoint, matchedBy: 'endpointMatchKey', keys: input.endpointMatchKeys } : legacy.size
       ? { set: legacy, matchedBy: 'legacyConfigKey', keys: input.legacyConfigKeys } : null;
   if (bound) {
-    if (strong && (strong.set.size > 1 || !strong.set.has(bound))) {
-      // WebHTV adaptation: a device whose interface key is bound to one
-      // interface may legitimately switch its sync source to a different
-      // interface. A single unambiguous strong URL match to another canonical
-      // means exactly that — strong hashes are never shared by unrelated
-      // interfaces (unlike proxy hosts), so re-binding the device key to the
-      // newly matched canonical is safe. The device key itself being a
-      // canonical identity, or strong keys matching several canonicals, stays
-      // a hard conflict (genuinely ambiguous).
+    // WebHTV adaptation: the App never prunes a sync source's address
+    // fingerprints (Config.rememberAddressAliases only appends), so a source
+    // that was ever repointed at another interface keeps submitting strong keys
+    // for BOTH the old and the new interface. When the device's own bound
+    // canonical is among those matches the request is not ambiguous for that
+    // device — keep its binding. Testing the old `strong.set.size > 1` first
+    // made this case a permanent conflict, which failed every resolve and
+    // therefore every sync of that device with 409.
+    if (strong && !strong.set.has(bound)) {
+      // The bound canonical is not among the strong matches: either the device
+      // really switched its source, or the keys are genuinely ambiguous. A
+      // single unambiguous strong match to another canonical means a switch —
+      // strong hashes are never shared by unrelated interfaces (unlike proxy
+      // hosts), so re-binding the device key to the newly matched canonical is
+      // safe. The device key itself being a canonical identity, or strong keys
+      // matching several canonicals, stays a hard conflict.
       if (strong.set.size === 1 && !registry.identities[input.interfaceKey]) {
         return { action: 'rebind', canonicalInterfaceKey: [...strong.set][0], matchedBy: strong.matchedBy, matchedKeys: strong.keys };
       }
