@@ -57,7 +57,9 @@ beta 增量零丢失：cb82755ae..414babc1b 的 65 个路径
                  → 在合并结果中逐文件与 414babc1b 比对，全部字节一致
 dev1 既有零丢失：5c95aa19c 相对 cb82755ae 的 5 个路径
                  → 在合并结果中逐文件与 5c95aa19c 比对，全部字节一致
-合并结果净差异：git diff --name-only origin/beta HEAD = 5 个路径，全部为 dev1 自身改动
+合并结果净差异：git diff --name-only origin/beta HEAD
+  = 5 个路径（本任务文档 C41-*.md 尚未创建时）
+  = 6 个路径（包含本任务文档自身），全部为 dev1 自身改动
 ```
 
 ## 评审循环记录
