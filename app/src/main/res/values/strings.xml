@@ -1799,6 +1799,7 @@
     <string name="crash_details_title">Error details</string>
     <string name="crash_details_message">App version: %1$s\n\n%2$s</string>
     <string name="crash_details_close">Close</string>
+    <string name="crash_details_spider">Last loaded spider: %1$s</string>
 
     <!-- Hint -->
     <string name="copied">Copied</string>

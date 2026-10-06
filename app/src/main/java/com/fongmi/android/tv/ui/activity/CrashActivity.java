@@ -9,6 +9,7 @@ import com.fongmi.android.tv.databinding.ActivityCrashBinding;
 import com.fongmi.android.tv.ui.base.BaseActivity;
 import com.fongmi.android.tv.utils.AppVersion;
 import com.fongmi.android.tv.utils.CrashRestartMode;
+import com.fongmi.android.tv.utils.SpiderCrashBreadcrumb;
 
 import java.util.Objects;
 
@@ -52,8 +53,19 @@ public class CrashActivity extends BaseActivity {
                 .setTitle(R.string.crash_details_title)
                 .setMessage(getString(R.string.crash_details_message,
                         AppVersion.fullName(),
-                        CustomActivityOnCrash.getAllErrorDetailsFromIntent(this, getIntent())))
+                        suspect() + CustomActivityOnCrash.getAllErrorDetailsFromIntent(this, getIntent())))
                 .setPositiveButton(R.string.crash_details_close, null)
                 .show();
+    }
+
+    /**
+     * Names the last spider the main process initialised. A jar pulled from a site config can fault
+     * from a layout callback the host never wrapped in a try/catch, and that jar is not in this
+     * repository; this only tells the user which source to switch away from. The crash page runs in
+     * a separate process, so the breadcrumb is read from disk rather than from memory.
+     */
+    private String suspect() {
+        String breadcrumb = SpiderCrashBreadcrumb.read();
+        return breadcrumb.isEmpty() ? "" : getString(R.string.crash_details_spider, breadcrumb) + "\n\n";
     }
 }

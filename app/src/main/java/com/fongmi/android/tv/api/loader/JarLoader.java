@@ -4,6 +4,7 @@ import android.content.Context;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.utils.Download;
+import com.fongmi.android.tv.utils.SpiderCrashBreadcrumb;
 import com.fongmi.android.tv.utils.UrlUtil;
 import com.github.catvod.crawler.Spider;
 import com.github.catvod.crawler.SpiderDebug;
@@ -217,6 +218,10 @@ public class JarLoader {
     public Spider getSpider(String key, String api, String ext, String jar) {
         String jaKey = Util.md5(jar);
         String spKey = jaKey + key;
+        // Recorded on every call, not only on a cache miss, so a cached spider that faults later
+        // from a layout callback is still attributed to the source the user actually selected.
+        // Diagnostics only: never swallows an exception, never disables a source.
+        SpiderCrashBreadcrumb.record(key, api, jar, jaKey);
         return getOrCreateSpider(spKey, () -> {
             long start = System.currentTimeMillis();
             try {

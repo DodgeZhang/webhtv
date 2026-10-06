@@ -1720,6 +1720,7 @@
     <string name="crash_details_title">錯誤訊息</string>
     <string name="crash_details_message">應用版本：%1$s\n\n%2$s</string>
     <string name="crash_details_close">關閉</string>
+    <string name="crash_details_spider">最後載入的蜘蛛：%1$s</string>
 
     <!-- Hint -->
     <string name="copied">已複製</string>
