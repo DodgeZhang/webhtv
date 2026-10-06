@@ -596,12 +596,14 @@ function renderSpaceRow(cfg) {
   const badge = identityBadge(cfg);
   const row = document.createElement('div');
   row.style.cssText = 'cursor:pointer;padding:8px 10px;margin:6px 0;border:1px solid var(--border,#333);border-radius:6px;' + (cfg.identity === 'alias' ? 'opacity:.65;' : '');
-  // 两行布局：第一行 = 接口名 + 类型标签 + 记录数 + 身份徽章 + 合并按钮；
-  // 第二行 = configKey 本身。configName 来自用户数据，必须用 textContent 注入。
+  // 三行布局：第一行 = 接口名 + 类型标签 + 记录数 + 身份徽章；第二行 = configKey；
+  // 第三行 = 操作按钮（并入… / 注销身份 / 清除）。按钮单独一行是因为登录卡片很窄，
+  // 挤在第一行会把接口名压成省略号。configName 来自用户数据，必须用 textContent 注入。
   const head = document.createElement('div');
-  head.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+  head.style.cssText = 'display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;';
   const name = document.createElement('div');
-  name.style.cssText = 'font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  // 名字允许换行而不是省略号截断：按钮已移到下面独立一行，这里不再和按钮抢宽度。
+  name.style.cssText = 'font-size:13px;font-weight:600;flex:1;min-width:0;word-break:break-word;';
   name.textContent = (cfg.name || (isUuid ? '未命名接口' : '旧版接口'))
     + '  ' + (isUuid ? '(新版 interfaceKey)' : '(旧版 sha256)')
     + '  · ' + cfg.items + ' 条'
@@ -612,6 +614,8 @@ function renderSpaceRow(cfg) {
   badgeEl.style.cssText = 'font-size:11px;color:' + badge.color + ';border:1px solid currentColor;border-radius:999px;padding:1px 8px;white-space:nowrap;';
   head.appendChild(name);
   head.appendChild(badgeEl);
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;';
   // 已并入的空间不需要再合并；其余提供"并入…"手动选择目标（兜底老空间）。
   if (cfg.identity !== 'alias') {
     const mergeBtn = document.createElement('button');
@@ -619,7 +623,7 @@ function renderSpaceRow(cfg) {
     mergeBtn.className = 'btn btn-sm';
     mergeBtn.textContent = '并入…';
     mergeBtn.onclick = (e) => { e.stopPropagation(); pickMergeTarget(cfg.configKey); };
-    head.appendChild(mergeBtn);
+    actions.appendChild(mergeBtn);
   }
   // 注销身份：只有已注册身份（canonical）才有可注销的条目。清空记录清不掉
   // 「0 条」的身份条目——那是注册表里的身份，不是播放记录（详见 forgetIdentityConfirm）。
@@ -630,7 +634,7 @@ function renderSpaceRow(cfg) {
     forgetBtn.textContent = '注销身份';
     forgetBtn.title = '从身份注册表中移除该注册身份及其别名';
     forgetBtn.onclick = (e) => { e.stopPropagation(); forgetIdentityConfirm(cfg); };
-    head.appendChild(forgetBtn);
+    actions.appendChild(forgetBtn);
   }
   // 清除该空间的全部记录。危险操作，必须二次确认；清的就是这一行的存储键，
   // 不做身份归一（详见 clearSpaceConfirm）。
@@ -640,12 +644,13 @@ function renderSpaceRow(cfg) {
   clearBtn.textContent = '清除';
   clearBtn.title = '清空该接口的全部记录';
   clearBtn.onclick = (e) => { e.stopPropagation(); clearSpaceConfirm(cfg); };
-  head.appendChild(clearBtn);
+  actions.appendChild(clearBtn);
   const keyLine = document.createElement('div');
   keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin-top:3px;';
   keyLine.textContent = cfg.configKey;
   row.appendChild(head);
   row.appendChild(keyLine);
+  row.appendChild(actions);
   row.onclick = () => {
     document.getElementById('loginConfigKey').value = cfg.configKey;
     document.getElementById('configListResult').style.display = 'none';
