@@ -1,14 +1,11 @@
 package com.fongmi.android.tv.theme;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.view.View;
 import android.widget.TextView;
-
-import androidx.core.content.ContextCompat;
 
 /**
  * Row rendering for the “Appearance &amp; language” dialog.
@@ -82,29 +79,6 @@ public final class AppearanceRowTheme {
         if (summary != null) summary.setTextColor(safe.colorOnSurfaceVariant());
     }
 
-    /**
-     * Re-applies the palette with the currently active tokens.
-     *
-     * <p>Used after a theme change so an already-open dialog follows the profile without
-     * being rebuilt. Returns the token signature it painted, so callers can skip a
-     * redundant repaint.
-     */
-    public static int refresh(View row, TextView title, TextView summary) {
-        ThemeTokens tokens = ThemeController.current();
-        apply(row, title, summary, tokens);
-        return tokens.hashCode();
-    }
-
-    /**
-     * The colour of a {@code MaterialTextView} created by {@code AppearanceDialog}, or
-     * {@code null} when the view is absent. Package-visible so the contract test can
-     * assert the pairing without an Android device.
-     */
-    static ColorStateList textColors(ThemeTokens tokens) {
-        ThemeTokens safe = tokens == null ? ThemeTokens.dark() : tokens;
-        return ColorStateList.valueOf(safe.colorOnSurface());
-    }
-
     private static GradientDrawable shape(Context context, int fill, int stroke, int strokeDp) {
         float density = context.getResources().getDisplayMetrics().density;
         GradientDrawable drawable = new GradientDrawable();
@@ -113,10 +87,5 @@ public final class AppearanceRowTheme {
         drawable.setCornerRadius(CORNER_DP * density);
         if (strokeDp > 0) drawable.setStroke(Math.max(1, Math.round(strokeDp * density)), stroke);
         return drawable;
-    }
-
-    /** Resolves a colour resource for callers that still need a static token value. */
-    static int color(Context context, int resource) {
-        return ContextCompat.getColor(context, resource);
     }
 }

@@ -120,7 +120,7 @@ public class AppearanceRowThemeTest {
         String source = codeOnly(read("src/main/java/com/fongmi/android/tv/theme/AppearanceRowTheme.java"));
         assertTrue(source.contains("public static void apply(View row, TextView title, TextView summary, ThemeTokens tokens)"));
         int apply = source.indexOf("public static void apply(");
-        String body = source.substring(apply, source.indexOf("public static int refresh("));
+        String body = source.substring(apply, source.indexOf("private static GradientDrawable shape("));
         assertTrue("the row fill comes from the passed tokens", body.contains("background(row.getContext(), safe)"));
         assertTrue("the title colour comes from the same tokens", body.contains("title.setTextColor(safe.colorOnSurface())"));
         assertTrue("the value colour comes from the same tokens", body.contains("summary.setTextColor(safe.colorOnSurfaceVariant())"));
