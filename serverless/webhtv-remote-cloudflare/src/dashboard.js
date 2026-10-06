@@ -621,6 +621,17 @@ function renderSpaceRow(cfg) {
     mergeBtn.onclick = (e) => { e.stopPropagation(); pickMergeTarget(cfg.configKey); };
     head.appendChild(mergeBtn);
   }
+  // 注销身份：只有已注册身份（canonical）才有可注销的条目。清空记录清不掉
+  // 「0 条」的身份条目——那是注册表里的身份，不是播放记录（详见 forgetIdentityConfirm）。
+  if (cfg.identity === 'canonical') {
+    const forgetBtn = document.createElement('button');
+    forgetBtn.type = 'button';
+    forgetBtn.className = 'btn btn-sm';
+    forgetBtn.textContent = '注销身份';
+    forgetBtn.title = '从身份注册表中移除该注册身份及其别名';
+    forgetBtn.onclick = (e) => { e.stopPropagation(); forgetIdentityConfirm(cfg); };
+    head.appendChild(forgetBtn);
+  }
   // 清除该空间的全部记录。危险操作，必须二次确认；清的就是这一行的存储键，
   // 不做身份归一（详见 clearSpaceConfirm）。
   const clearBtn = document.createElement('button');
@@ -821,6 +832,76 @@ async function doClearSpace(cfg) {
     findConfigs();
   } catch (e) {
     showToast('清除失败: ' + e.message, 'error');
+  }
+}
+
+// 注销身份：从身份注册表里删掉该 canonical 及其全部别名。与「清除」不同，它不动
+// 播放记录，所以只对列表里的注册身份（canonical）开放，且是唯一能让「0 条」身份
+// 条目消失的手段。危险操作，同样需要二次确认。
+function forgetIdentityConfirm(cfg) {
+  const node = document.createElement('div');
+  const h3 = document.createElement('h3');
+  h3.textContent = '⚠️ 注销该身份注册';
+  node.appendChild(h3);
+  const p1 = document.createElement('p');
+  p1.appendChild(document.createTextNode('将从身份注册表中移除 '));
+  const strong = document.createElement('strong');
+  strong.textContent = (cfg.name || '未命名接口') + '（' + cfg.items + ' 条）';
+  p1.appendChild(strong);
+  p1.appendChild(document.createTextNode(' 这个注册身份，以及所有指向它的别名。'));
+  node.appendChild(p1);
+  const p2 = document.createElement('p');
+  p2.textContent = cfg.items > 0
+    ? '播放记录不会被删除，但该空间会失去身份绑定，在列表中变成「未注册」并仍然可见。'
+    : '该身份没有任何播放记录，注销后这条目会从列表消失。';
+  node.appendChild(p2);
+  const p3 = document.createElement('p');
+  p3.textContent = '若仍有设备在使用这个接口，设备下次同步时会重新注册该身份，条目可能再次出现——最坏情况只是重现，不会损坏同步。';
+  node.appendChild(p3);
+  const keyLine = document.createElement('div');
+  keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin:6px 0;';
+  keyLine.textContent = cfg.configKey;
+  node.appendChild(keyLine);
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = '取消';
+  cancel.onclick = hideModal;
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-danger';
+  ok.textContent = '确认注销';
+  ok.onclick = () => doForgetIdentity(cfg);
+  actions.appendChild(cancel);
+  actions.appendChild(ok);
+  node.appendChild(actions);
+  showModalNode(node);
+}
+
+async function doForgetIdentity(cfg) {
+  const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\\/+$/, '');
+  const token = document.getElementById('loginToken').value.trim();
+  hideModal();
+  try {
+    const res = await fetch(baseUrl + '/api/playback/sync/maintenance', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'X-WebHTV-Token': token } : {}),
+      body: JSON.stringify({ op: 'adminForgetIdentity', configType: cfg.configType || 'vod', targets: [cfg.configKey] })
+    });
+    const text = await res.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (e) {}
+    if (!res.ok || !data.ok) {
+      showToast('注销失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 120)), 'error');
+      return;
+    }
+    const forgotten = (data.forgotten || []).length;
+    showToast(forgotten
+      ? '已注销身份 ' + shortKey(data.forgotten[0])
+      : '该身份已不在注册表中', forgotten ? 'success' : 'info');
+    findConfigs();
+  } catch (e) {
+    showToast('注销失败: ' + e.message, 'error');
   }
 }
 

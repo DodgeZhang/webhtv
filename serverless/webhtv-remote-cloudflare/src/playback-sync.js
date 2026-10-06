@@ -502,6 +502,7 @@ export class WebHTVPlaybackSyncDO {
     if (op === 'adminClearAll') return this.runAdminClearAll(request, body, configType);
     if (op === 'adminInspectIdentity') return this.runAdminInspectIdentity(request, body, configType);
     if (op === 'adminUnbindIdentity') return this.runAdminUnbindIdentity(request, body, configType);
+    if (op === 'adminForgetIdentity') return this.runAdminForgetIdentity(request, body, configType);
     if (op === 'adminSplitIdentity') return this.runAdminSplitIdentity(request, body, configType);
     if (op === 'adminMoveRows') return this.runAdminMoveRows(body, configType);
     if (op === 'adminClearSpace') return this.runAdminClearSpace(body, configType);
@@ -747,6 +748,56 @@ export class WebHTVPlaybackSyncDO {
       }
     }
     return playbackJson({ ok: true, op: 'adminUnbindIdentity', configType, removedAliases, strippedKeys });
+  }
+
+  // WebHTV adaptation (dashboard): drop a canonical identity from the registry
+  // together with every alias that pointed at it, so an unused or dangling
+  // identity disappears from the space list. Clearing records cannot do this:
+  // listIdentitySpaces deliberately lists a registered canonical even with
+  // items=0 so a merge target always has a visible row, so a space that never
+  // held records can only be removed by unregistering it.
+  //
+  // Playback rows are never touched: forgetting an identity that still has
+  // records only turns its space into an unregistered one. Removal is also
+  // self-healing — identity.js creates any missing canonical for the key it
+  // resolves to, so a device that still reports this interface re-registers the
+  // identity on its next resolve. The worst case is that the entry reappears,
+  // never a broken sync.
+  async runAdminForgetIdentity(request, body, configType) {
+    const token = playbackToken(request);
+    const store = this.identityStore(request);
+    const registryKey = await identityRegistryKey(token, configType);
+    const targets = [...new Set((Array.isArray(body.targets) ? body.targets : [])
+      .map((item) => normalizeOptionalKey(item, 'targets'))
+      .filter(Boolean))];
+    if (!targets.length) throw playbackHttpError(400, 'adminForgetIdentity requires targets');
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const snapshot = await store.load(registryKey);
+      const registry = normalizeIdentityRegistry(snapshot.state);
+      const forgotten = [];
+      const missing = [];
+      for (const key of targets) {
+        // Accept an alias key as well: forget the canonical it points at,
+        // otherwise the alias would be left pointing at a canonical that no
+        // longer exists and would be dropped as stale on the next normalize.
+        const canonical = registry.aliases[key]?.canonicalInterfaceKey || key;
+        if (!registry.identities[canonical]) { missing.push(key); continue; }
+        delete registry.identities[canonical];
+        for (const [aliasKey, alias] of Object.entries(registry.aliases)) {
+          if (alias && alias.canonicalInterfaceKey === canonical) delete registry.aliases[aliasKey];
+        }
+        forgotten.push(canonical);
+      }
+      if (!forgotten.length) {
+        return playbackJson({ ok: true, op: 'adminForgetIdentity', configType, forgotten, missing });
+      }
+      registry.epoch = Number(registry.epoch || 0) + 1;
+      registry.updatedAt = Date.now();
+      if (await store.compareAndSet(registryKey, snapshot.version, registry)) {
+        return playbackJson({ ok: true, op: 'adminForgetIdentity', configType, forgotten, missing });
+      }
+    }
+    throw playbackHttpError(503, 'Identity registry changed concurrently; retry');
   }
 
   // WebHTV adaptation: reverse one wrong automatic merge. Before addIdentityKeys
