@@ -41,3 +41,18 @@
 ## 回滚
 
 单文件两处独立修改；`git revert` 本次提交即可整体回滚。Pass 1 误收养产生的 alias 可通过面板/维护端点拆分（迁移为复制不删源，可逆）。
+
+## 续：存量污染清理（cf-clean-identity-pollution，2026-10-06）
+
+新代码部署（4ae61e96）后用户实测：饭太硬播放记录仍落入主空间。线上 `/identity/spaces` 证实根因是**存量污染**而非新合并：
+
+- canonical `4c1c5c5b-7dd0`（6 条，最新记录名"饭太硬"）仍持有王二小/潇洒/肥猫/胖猫/摸鱼(3c264f95) 等别名绑定
+- 早前错误合并把无关接口的 interfaceKey、URL/端点/域哈希写进了 canonical 的 aliases 与身份密钥列表
+- 设备每次同步都 resolve，服务端对已绑定 key 直接答 "keep via alias"，无需新合并即继续写主空间——代码修复拦不住存量绑定
+
+新增两个 token 鉴权维护 op（`POST /api/playback/sync/maintenance`）：
+
+1. `adminInspectIdentity`：只读导出注册表（identities 全部地址密钥列表 + aliases 全部绑定），可带 `configKey` 附返回该空间原始行。
+2. `adminUnbindIdentity`：按 `targets: [{canonical, keep: [key...]}]` 外科摘除——删除指向 canonical 且 key 不在 keep 内的 alias 条目，并从 canonical 身份四个密钥列表剥离不在 keep 内的 key。不动播放行；误摘的设备密钥下次 resolve 自愈（addIdentityKeys 从 URL 重导出）。
+
+清理流程：inspect → 依据摸鱼系 URL 哈希（本地面行计算）+ 保留别名的 legacyConfigKeys 确定 keep 集合 → unbind → spaces 复核分离 → 处理主空间内残留的饭太硬测试行（adminDeleteItem 可用）。

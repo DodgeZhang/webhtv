@@ -455,6 +455,8 @@ export class WebHTVPlaybackSyncDO {
     if (op === 'adminCleanupExpired') return this.runAdminCleanupExpired();
     if (op === 'adminDeleteItem') return this.runAdminDeleteItem(request, body, configType);
     if (op === 'adminClearAll') return this.runAdminClearAll(request, body, configType);
+    if (op === 'adminInspectIdentity') return this.runAdminInspectIdentity(request, body, configType);
+    if (op === 'adminUnbindIdentity') return this.runAdminUnbindIdentity(request, body, configType);
     throw playbackHttpError(400, 'Unknown maintenance op');
   }
 
@@ -562,6 +564,106 @@ export class WebHTVPlaybackSyncDO {
       ).rowsWritten || 0);
     });
     return playbackJson({ ok: true, op: 'adminClearAll', deletedRows });
+  }
+
+  // Read-only registry dump for diagnosing wrong identity bindings: every
+  // registered identity with its full address-key lists, every alias with its
+  // canonical target, and optionally the raw rows of one space.
+  async runAdminInspectIdentity(request, body, configType) {
+    const token = playbackToken(request);
+    const store = this.identityStore(request);
+    const registryKey = await identityRegistryKey(token, configType);
+    const snapshot = await store.load(registryKey);
+    const registry = normalizeIdentityRegistry(snapshot.state);
+    const identities = {};
+    for (const [key, identity] of Object.entries(registry.identities)) {
+      identities[key] = {
+        strictAddressKeys: [...(identity.strictAddressKeys || [])],
+        endpointMatchKeys: [...(identity.endpointMatchKeys || [])],
+        hostMatchKeys: [...(identity.hostMatchKeys || [])],
+        legacyConfigKeys: [...(identity.legacyConfigKeys || [])],
+        updatedAt: identity.updatedAt || 0
+      };
+    }
+    const aliases = {};
+    for (const [key, alias] of Object.entries(registry.aliases)) {
+      aliases[key] = {
+        canonicalInterfaceKey: alias.canonicalInterfaceKey,
+        kind: alias.kind || '',
+        legacyConfigKeys: [...(alias.legacyConfigKeys || [])]
+      };
+    }
+    const result = {
+      ok: true, op: 'adminInspectIdentity', configType,
+      epoch: registry.epoch, updatedAt: registry.updatedAt, identities, aliases
+    };
+    if (body.configKey) {
+      const storageKey = scopedConfigKey(configType, cleanString(body.configKey, 128));
+      const rows = this.sql.exec(`
+        SELECT item_key, site_key, vod_id, updated_at,
+               COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') AS name
+          FROM playback_items WHERE config_key = ? ORDER BY updated_at DESC
+      `, storageKey).toArray();
+      result.rows = rows.map((row) => ({
+        itemKey: String(row.item_key || ''),
+        siteKey: String(row.site_key || ''),
+        vodId: String(row.vod_id || ''),
+        name: String(row.name || ''),
+        updatedAt: Number(row.updated_at || 0)
+      }));
+    }
+    return playbackJson(result);
+  }
+
+  // Surgical removal of wrong identity bindings. For every {canonical, keep}
+  // target: delete alias entries pointing at the canonical whose key is not
+  // in keep, and strip keys not in keep from the canonical identity's address
+  // lists. Playback rows are never touched; stripped device keys self-heal on
+  // the next resolve (addIdentityKeys re-derives them from the URL).
+  async runAdminUnbindIdentity(request, body, configType) {
+    const token = playbackToken(request);
+    const store = this.identityStore(request);
+    const registryKey = await identityRegistryKey(token, configType);
+    const targets = Array.isArray(body.targets) ? body.targets : [];
+    if (!targets.length) throw playbackHttpError(400, 'adminUnbindIdentity requires targets');
+    const plans = [];
+    for (const entry of targets) {
+      const canonical = normalizeIdentityKey(entry && entry.canonical, 'target.canonical');
+      const keep = new Set((Array.isArray(entry && entry.keep) ? entry.keep : [])
+        .map((item) => normalizeOptionalKey(item, 'target.keep'))
+        .filter(Boolean));
+      plans.push({ canonical, keep });
+    }
+    let removedAliases = 0;
+    let strippedKeys = 0;
+    for (const plan of plans) {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const snapshot = await store.load(registryKey);
+        const registry = normalizeIdentityRegistry(snapshot.state);
+        const identity = registry.identities[plan.canonical];
+        if (!identity) throw playbackHttpError(404, `canonical identity not found: ${plan.canonical}`);
+        let changed = false;
+        for (const [key, alias] of Object.entries(registry.aliases)) {
+          if (!alias || alias.canonicalInterfaceKey !== plan.canonical || plan.keep.has(key)) continue;
+          delete registry.aliases[key];
+          removedAliases += 1;
+          changed = true;
+        }
+        for (const listName of ['strictAddressKeys', 'endpointMatchKeys', 'hostMatchKeys', 'legacyConfigKeys']) {
+          const list = identity[listName];
+          if (!Array.isArray(list) || !list.length) continue;
+          const filtered = list.filter((key) => plan.keep.has(key));
+          if (filtered.length !== list.length) {
+            strippedKeys += list.length - filtered.length;
+            identity[listName] = filtered;
+            changed = true;
+          }
+        }
+        if (!changed) break;
+        if (await store.compareAndSet(registryKey, snapshot.version, registry)) break;
+      }
+    }
+    return playbackJson({ ok: true, op: 'adminUnbindIdentity', configType, removedAliases, strippedKeys });
   }
 
   upsertAdminTombstone(storageConfigKey, markerKey, scope, historyKey, siteKey, vodId, deletedAt, payload) {
