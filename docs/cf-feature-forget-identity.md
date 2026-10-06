@@ -2,9 +2,9 @@
 
 任务 ID：`cf-feature-forget-identity`
 类别：WebHTV 本地运维能力（Cloudflare Worker + Durable Object + Dashboard）
-状态：实现完成，本地验证通过；待提交/推送/线上验收
+状态：独立按钮版本（`a0b40badbb`）已上线并验收；随后按用户要求把「注销身份」合并进「清除」按钮，见 §9
 创建时间：2026-10-06 20:57 +08:00
-基线 HEAD：`42eb16580894f14daf01205d382f9f567b5001ea`
+基线 HEAD：`42eb16580894f14daf01205d382f9f567b5001ea`（§9 的基线为 `9db00db722`）
 
 ## 1. 目标与完成句
 
@@ -177,3 +177,77 @@ POST /api/playback/sync/maintenance
 **状态：完成。** 代码提交 `a0b40badbb` + tag `recovery/cf-feature-forget-identity/20261006125804-a0b40badbba2` 已推送 `origin/main`，CF 已部署，本地验证（§5.1）与线上验收（§5.2）全部通过，用户指定的三个 0 条身份已从列表消失。
 
 **下一动作：无。** 等待用户反馈。
+
+---
+
+## 9. 后续变更 — 把「注销身份」合并进「清除」按钮
+
+基线 HEAD：`9db00db722c22cf4df2b3c79c51deb9c2863bfeb`（任务守卫 id `cf-merge-clear-forget-buttons`）
+时间：2026-10-06 21:27 +08:00
+
+### 9.1 用户要求（原文）
+
+- 「那能不能把 清除 和 注销身份合并成一个按钮，已注册的即清除记录也注销身份，未注册的就清除记录。」
+- 「登录进接口后的清空全部按钮也一样，清空记录的同时也注销身份。」
+- 「在然后就是 并入... 按钮是没显示全还是啥情况，后面有三个点，看着不美观。」
+
+### 9.2 设计决策
+
+| 方案 | 结论 |
+|---|---|
+| 前端发两次 fetch（先 clear 再 forget） | 不选：两次往返、部分失败无法集中表达、中间态可被看到 |
+| 新增 `adminClearSpaceAndForget` op | 不选：「清空全部」也需要同样能力，会产生两个近似 op |
+| **在既有 op 上加 opt-in `forgetIdentity` 标志（选定）** | 一套机制同时覆盖「清除」与「清空全部」两条路径；不传标志时既有行为逐字节不变 |
+
+**关键约束（为什么标志由前端按行决定，而不是服务端猜）**：
+
+- **alias 行绝不能注销**：alias 指向的 canonical 才是真正的主空间，注销会把主空间一起带走。所以只有 `cfg.identity === 'canonical'` 的行才置 `forgetIdentity: true`。
+- **两表不能同事务**：`playback_items` 与 `playback_identity_registry` 是不同表，无法共享事务。因此组合操作采用「清除先提交，注销失败不回溯」——失败原因写入 `result.forgetError`，前端如实报「记录已清、身份没注销」，而不是谎报完全成功。
+- **「清空全部」与「清除」的 key 语义不同**：`adminClearSpace` 不查注册表（你点哪行就清哪行的存储键），`adminClearAll` 会先走身份归一（`X-WebHTV-Config-Key` → canonical）。两条路径的 `forgetIdentity` 因此都是安全的。
+- `注销身份` 独立按钮已删除 → `forgetIdentityConfirm` / `doForgetIdentity` 成为死代码，一并删除。
+
+### 9.3 改动清单
+
+`playback-sync.js`：
+
+- 分发行（L502 / L508）：`runAdminClearAll(request, body, configType)`、`runAdminClearSpace(request, body, configType)` —— `adminClearSpace` 由只传 `body` 改为同时传 `request`（注销需要 Token）。
+- `runAdminClearAll` / `runAdminClearSpace` 末尾：`if (body && body.forgetIdentity === true) await this.runUnregisterAfterClear(request, configType, configKey, result);`
+- `runAdminForgetIdentity` 瘦身为薄包装（校验 `targets` → 调共享 helper）。
+- 新增共享 helper `forgetIdentities(request, configType, targets)`：`load → normalize → 删 canonical + 指向它的全部别名 → epoch+1 → compareAndSet`，5 次重试；一个都没命中时**不写库**直接返回（保持幂等语义）。
+- 新增 `runUnregisterAfterClear(request, configType, configKey, result)`：`try/catch` 包裹 `forgetIdentities`，成功写 `result.forgotten` / `result.missing`，失败写 `result.forgetError` 且**不抛出**（避免把已提交的记录删除回滚成 5xx）。
+
+`dashboard.js`：
+
+- `renderSpaceRow`：删除独立「注销身份」按钮；清除按钮标签动态化 —— canonical 行显示 `清除并注销`，未注册行显示 `清除`，并用 `title` 说明各自会做什么。
+- `clearSpaceConfirm`：标题、正文、确认按钮文字全部按 `forgetIdentity` 分支动态化（canonical 额外说明「注销后这一行消失」「注销可自愈」）。
+- 新增 `clearSpaceResultText(data, forgetsIdentity)`：区分并注销成功 / 未注册只清 / 记录已清但注销失败 / 无记录四种文案。
+- `confirmClearAll` / `clearAll`：弹窗标题改为「⚠️ 清空全部记录并注销身份」并说明可自愈；请求体加 `forgetIdentity: true`；toast 按 `res.forgetError` 分支。
+- 删除死代码 `forgetIdentityConfirm` / `doForgetIdentity`。
+- 「并入…」→「并入其他空间」：原来那三个点是**字面 U+2026 省略号字符**（不是 CSS 截断、也不是宽度不足），已替换为完整文字。
+
+### 9.4 验证
+
+**本地（Exec 沙箱，无 node/npm/wrangler）**：全量读入两个源文件后做「模板字面量反转义 → `new Function` 语法解析 + 内容锚点」。
+
+```
+frontend 20/20 PASS   (inline script 语法解析 OK, chars=36281; 含死代码已清除、无 U+2026、动态标签存在)
+backend  11/11 PASS   (playback-sync.js 全量 2272 行语法解析 OK; 含 dispatch 传 request、opt-in 标志、两个新 helper)
+```
+
+**线上验收**：见 §9.5（提交后执行）。
+
+### 9.5 线上验收（待执行）
+
+待提交推送、CF 构建完成后填写。
+
+### 9.6 风险与回滚
+
+| 风险 | 评估 |
+|---|---|
+| 未传标志时行为改变 | 无。`forgetIdentity === true` 是严格相等判定，不传或传假值与改动前完全一致 |
+| 误注销 alias 指向的主空间 | 已规避：前端只在 `identity === 'canonical'` 行置 true；后端 op 仍可单独作为「只清记录」原语使用 |
+| 注销失败导致记录删除被回滚 | 无。`runUnregisterAfterClear` 吞掉异常写进 `forgetError`，删除已提交的结果照常返回 |
+| 清空全部误伤别的空间 | 「清空全部」的 key 走身份归一，命中的就是 canonical 本身，注销安全 |
+| 注销后同步损坏 | 无。identity.js L265-270 会在下次 resolve 自动重建 canonical（同 §3） |
+
+**回滚**：`git revert` 本节 commit 并重新部署；已执行的注销无数据副作用（记录未动），设备重连即自愈。

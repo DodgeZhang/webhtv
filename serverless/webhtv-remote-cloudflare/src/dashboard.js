@@ -597,7 +597,7 @@ function renderSpaceRow(cfg) {
   const row = document.createElement('div');
   row.style.cssText = 'cursor:pointer;padding:8px 10px;margin:6px 0;border:1px solid var(--border,#333);border-radius:6px;' + (cfg.identity === 'alias' ? 'opacity:.65;' : '');
   // 三行布局：第一行 = 接口名 + 类型标签 + 记录数 + 身份徽章；第二行 = configKey；
-  // 第三行 = 操作按钮（并入… / 注销身份 / 清除）。按钮单独一行是因为登录卡片很窄，
+  // 第三行 = 操作按钮（并入其他空间 / 清除）。按钮单独一行是因为登录卡片很窄，
   // 挤在第一行会把接口名压成省略号。configName 来自用户数据，必须用 textContent 注入。
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;';
@@ -616,33 +616,27 @@ function renderSpaceRow(cfg) {
   head.appendChild(badgeEl);
   const actions = document.createElement('div');
   actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;';
-  // 已并入的空间不需要再合并；其余提供"并入…"手动选择目标（兜底老空间）。
+  // 已并入的空间不需要再合并；其余提供手动选择目标（兜底老空间）。
   if (cfg.identity !== 'alias') {
     const mergeBtn = document.createElement('button');
     mergeBtn.type = 'button';
     mergeBtn.className = 'btn btn-sm';
-    mergeBtn.textContent = '并入…';
+    mergeBtn.textContent = '并入其他空间';
     mergeBtn.onclick = (e) => { e.stopPropagation(); pickMergeTarget(cfg.configKey); };
     actions.appendChild(mergeBtn);
   }
-  // 注销身份：只有已注册身份（canonical）才有可注销的条目。清空记录清不掉
-  // 「0 条」的身份条目——那是注册表里的身份，不是播放记录（详见 forgetIdentityConfirm）。
-  if (cfg.identity === 'canonical') {
-    const forgetBtn = document.createElement('button');
-    forgetBtn.type = 'button';
-    forgetBtn.className = 'btn btn-sm';
-    forgetBtn.textContent = '注销身份';
-    forgetBtn.title = '从身份注册表中移除该注册身份及其别名';
-    forgetBtn.onclick = (e) => { e.stopPropagation(); forgetIdentityConfirm(cfg); };
-    actions.appendChild(forgetBtn);
-  }
-  // 清除该空间的全部记录。危险操作，必须二次确认；清的就是这一行的存储键，
-  // 不做身份归一（详见 clearSpaceConfirm）。
+  // 清除：一个按钮做两件事。已注册身份（canonical）连带注销身份，历史遗留的未注册
+  // 空间只清记录——所以标签跟着这一行实际要做的事变，避免按钮默默多做一个动作。
+  // 已并入（alias）的行绝不能注销：它指向的 canonical 才是真正的主空间，注销会把主
+  // 空间一起带走，因此只清记录。这也是这个标志由前端按行决定、而不由服务端猜的原因。
+  const forgetsIdentity = cfg.identity === 'canonical';
   const clearBtn = document.createElement('button');
   clearBtn.type = 'button';
   clearBtn.className = 'btn btn-sm btn-danger';
-  clearBtn.textContent = '清除';
-  clearBtn.title = '清空该接口的全部记录';
+  clearBtn.textContent = forgetsIdentity ? '清除并注销' : '清除';
+  clearBtn.title = forgetsIdentity
+    ? '清空该接口的全部记录，并从身份注册表中注销该身份'
+    : '清空该空间的全部记录（该空间未注册身份，无身份可注销）';
   clearBtn.onclick = (e) => { e.stopPropagation(); clearSpaceConfirm(cfg); };
   actions.appendChild(clearBtn);
   const keyLine = document.createElement('div');
@@ -772,13 +766,17 @@ async function doMerge(targetKey, sourceKeys, configType) {
   }
 }
 
-// 清除某个接口空间的全部记录。危险操作：先弹窗写清接口名、条数与后果，确认后
-// 才执行。请求只带 Token，不发送 X-WebHTV-Config-Key，服务端也就不会做身份
-// 归一——避免误清到该行"已并入"指向的真实主空间。
+// 清除某个接口空间。危险操作：先弹窗写清接口名、条数与后果，确认后才执行。
+// 请求只带 Token，不发送 X-WebHTV-Config-Key，服务端也就不会做身份归一——避免
+// 误清到该行"已并入"指向的真实主空间。
+//
+// 已注册身份（canonical）的行会连带注销身份，弹窗必须把两件事都写出来；未注册空间
+// 只清记录。注销是可自愈的（设备仍在用就会重新注册），记录删除才是不可恢复的那半。
 function clearSpaceConfirm(cfg) {
+  const forgetsIdentity = cfg.identity === 'canonical';
   const node = document.createElement('div');
   const h3 = document.createElement('h3');
-  h3.textContent = '⚠️ 清除该接口的全部记录';
+  h3.textContent = forgetsIdentity ? '⚠️ 清除该接口的记录并注销身份' : '⚠️ 清除该接口的全部记录';
   node.appendChild(h3);
   const p1 = document.createElement('p');
   p1.appendChild(document.createTextNode('将删除 '));
@@ -788,11 +786,20 @@ function clearSpaceConfirm(cfg) {
   p1.appendChild(document.createTextNode(' 的全部观影记录，此操作不可恢复。'));
   node.appendChild(p1);
   const p2 = document.createElement('p');
-  p2.textContent = '同时写入删除指令：仍在使用该接口的设备下次同步时会一并删除这些记录。'
-    + (cfg.identity === 'canonical'
-      ? '该空间是「身份主空间」，若设备仍在用它，之后同步可能把新记录重新推回。'
-      : '');
-  node.appendChild(p2);
+  if (forgetsIdentity) {
+    p2.textContent = '该空间是「身份主空间」，同时会从身份注册表中注销这个身份（连带指向它的别名），'
+      + '所以注销后这一行会从列表消失。播放记录不会因此额外删除。';
+    node.appendChild(p2);
+    const p3 = document.createElement('p');
+    p3.textContent = '注销是可自愈的：若仍有设备在使用该接口，它下次同步会重新注册这个身份，这一行可能重新出现。';
+    node.appendChild(p3);
+  } else {
+    p2.textContent = '该空间未注册身份，因此只清记录，没有可注销的身份条目。';
+    node.appendChild(p2);
+  }
+  const p4 = document.createElement('p');
+  p4.textContent = '同时写入删除指令：仍在使用该接口的设备下次同步时会一并删除这些记录。';
+  node.appendChild(p4);
   const keyLine = document.createElement('div');
   keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin:6px 0;';
   keyLine.textContent = cfg.configKey;
@@ -805,7 +812,7 @@ function clearSpaceConfirm(cfg) {
   cancel.onclick = hideModal;
   const ok = document.createElement('button');
   ok.className = 'btn btn-danger';
-  ok.textContent = '确认清除';
+  ok.textContent = forgetsIdentity ? '确认清除并注销' : '确认清除';
   ok.onclick = () => doClearSpace(cfg);
   actions.appendChild(cancel);
   actions.appendChild(ok);
@@ -816,12 +823,18 @@ function clearSpaceConfirm(cfg) {
 async function doClearSpace(cfg) {
   const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\\/+$/, '');
   const token = document.getElementById('loginToken').value.trim();
+  const forgetsIdentity = cfg.identity === 'canonical';
   hideModal();
   try {
     const res = await fetch(baseUrl + '/api/playback/sync/maintenance', {
       method: 'POST',
       headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'X-WebHTV-Token': token } : {}),
-      body: JSON.stringify({ op: 'adminClearSpace', configType: cfg.configType || 'vod', configKey: cfg.configKey })
+      body: JSON.stringify({
+        op: 'adminClearSpace',
+        configType: cfg.configType || 'vod',
+        configKey: cfg.configKey,
+        forgetIdentity: forgetsIdentity
+      })
     });
     const text = await res.text();
     let data = {};
@@ -830,84 +843,34 @@ async function doClearSpace(cfg) {
       showToast('清除失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 120)), 'error');
       return;
     }
-    const deleted = data.deletedRows || 0;
-    showToast(deleted
-      ? '已清除 ' + deleted + ' 条记录（删除指令将同步到设备）'
-      : '该空间没有记录，无需清除', deleted ? 'success' : 'info');
+    showToast(clearSpaceResultText(data, forgetsIdentity), data.forgetError ? 'error' : 'success');
     findConfigs();
   } catch (e) {
     showToast('清除失败: ' + e.message, 'error');
   }
 }
 
-// 注销身份：从身份注册表里删掉该 canonical 及其全部别名。与「清除」不同，它不动
-// 播放记录，所以只对列表里的注册身份（canonical）开放，且是唯一能让「0 条」身份
-// 条目消失的手段。危险操作，同样需要二次确认。
-function forgetIdentityConfirm(cfg) {
-  const node = document.createElement('div');
-  const h3 = document.createElement('h3');
-  h3.textContent = '⚠️ 注销该身份注册';
-  node.appendChild(h3);
-  const p1 = document.createElement('p');
-  p1.appendChild(document.createTextNode('将从身份注册表中移除 '));
-  const strong = document.createElement('strong');
-  strong.textContent = (cfg.name || '未命名接口') + '（' + cfg.items + ' 条）';
-  p1.appendChild(strong);
-  p1.appendChild(document.createTextNode(' 这个注册身份，以及所有指向它的别名。'));
-  node.appendChild(p1);
-  const p2 = document.createElement('p');
-  p2.textContent = cfg.items > 0
-    ? '播放记录不会被删除，但该空间会失去身份绑定，在列表中变成「未注册」并仍然可见。'
-    : '该身份没有任何播放记录，注销后这条目会从列表消失。';
-  node.appendChild(p2);
-  const p3 = document.createElement('p');
-  p3.textContent = '若仍有设备在使用这个接口，设备下次同步时会重新注册该身份，条目可能再次出现——最坏情况只是重现，不会损坏同步。';
-  node.appendChild(p3);
-  const keyLine = document.createElement('div');
-  keyLine.style.cssText = 'font-family:monospace;font-size:11px;color:var(--text-muted,#888);word-break:break-all;margin:6px 0;';
-  keyLine.textContent = cfg.configKey;
-  node.appendChild(keyLine);
-  const actions = document.createElement('div');
-  actions.className = 'modal-actions';
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.textContent = '取消';
-  cancel.onclick = hideModal;
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-danger';
-  ok.textContent = '确认注销';
-  ok.onclick = () => doForgetIdentity(cfg);
-  actions.appendChild(cancel);
-  actions.appendChild(ok);
-  node.appendChild(actions);
-  showModalNode(node);
-}
-
-async function doForgetIdentity(cfg) {
-  const baseUrl = document.getElementById('loginUrl').value.trim().replace(/\\/+$/, '');
-  const token = document.getElementById('loginToken').value.trim();
-  hideModal();
-  try {
-    const res = await fetch(baseUrl + '/api/playback/sync/maintenance', {
-      method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'X-WebHTV-Token': token } : {}),
-      body: JSON.stringify({ op: 'adminForgetIdentity', configType: cfg.configType || 'vod', targets: [cfg.configKey] })
-    });
-    const text = await res.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch (e) {}
-    if (!res.ok || !data.ok) {
-      showToast('注销失败 HTTP ' + res.status + ': ' + (data.error || text.slice(0, 120)), 'error');
-      return;
-    }
-    const forgotten = (data.forgotten || []).length;
-    showToast(forgotten
-      ? '已注销身份 ' + shortKey(data.forgotten[0])
-      : '该身份已不在注册表中', forgotten ? 'success' : 'info');
-    findConfigs();
-  } catch (e) {
-    showToast('注销失败: ' + e.message, 'error');
+// 记录已删、身份注销是另一个表上的第二次写入，两者不能同事务，所以服务端可能只完成
+// 前半段。这种情况必须如实告诉用户「记录已清、身份没注销」，不能报成完全成功。
+function clearSpaceResultText(data, forgetsIdentity) {
+  const deleted = data.deletedRows || 0;
+  if (data.forgetError) {
+    return '记录已清除 ' + deleted + ' 条，但注销身份失败：' + data.forgetError + '（可稍后重试）';
   }
+  const forgotten = (data.forgotten || []).length;
+  if (forgetsIdentity && forgotten) {
+    return deleted
+      ? '已清除 ' + deleted + ' 条记录并注销身份（删除指令将同步到设备）'
+      : '该空间没有记录，已注销身份';
+  }
+  if (forgetsIdentity) {
+    return deleted
+      ? '已清除 ' + deleted + ' 条记录（该身份已不在注册表中）'
+      : '该空间没有记录，身份也已不在注册表中';
+  }
+  return deleted
+    ? '已清除 ' + deleted + ' 条记录（删除指令将同步到设备）'
+    : '该空间没有记录，无需清除';
 }
 
 // ============ API 调用（适配 Durable Object 后端） ============
@@ -1132,16 +1095,17 @@ async function deleteRecord(historyKey, siteKey, vodId) {
   } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
 }
 
-// 清空全部 — 发送 scope=all 的删除墓碑
+// 清空全部 — 发送 scope=all 的删除墓碑，并注销该接口的身份（与行内「清除并注销」一致）
 async function confirmClearAll() {
   const count = state.filtered.length;
   if (!count) { showToast('没有可清空的记录', 'info'); return; }
   showModal(\`
-    <h3>⚠️ 清空全部记录</h3>
-    <p>即将删除当前 configKey 下所有 <strong>\${count}</strong> 条观影记录，此操作不可恢复。</p>
+    <h3>⚠️ 清空全部记录并注销身份</h3>
+    <p>即将删除当前接口下所有 <strong>\${count}</strong> 条观影记录，同时从身份注册表中注销该接口的身份，此操作不可恢复。</p>
+    <p>注销是可自愈的：若仍有设备在使用该接口，它下次同步会重新注册这个身份，条目可能重新出现——最坏情况只是重现，不会损坏同步。</p>
     <div class="modal-actions">
       <button class="btn" onclick="hideModal()">取消</button>
-      <button class="btn btn-danger" onclick="clearAll()">确认清空</button>
+      <button class="btn btn-danger" onclick="clearAll()">确认清空并注销</button>
     </div>
   \`);
 }
@@ -1151,9 +1115,15 @@ async function clearAll() {
   try {
     const res = await fetchJSON('/api/playback/sync/maintenance', {
       method: 'POST',
-      body: JSON.stringify({ op: 'adminClearAll', configKey: state.configKey })
+      // forgetIdentity：与行内「清除并注销」一致，清记录的同时注销该接口身份。
+      // 这里的 configKey 已经过身份归一，服务端解析到的是 canonical 本身，注销安全。
+      body: JSON.stringify({ op: 'adminClearAll', configKey: state.configKey, forgetIdentity: true })
     });
-    showToast('已清空 ' + (res.deletedRows || 0) + ' 条记录（删除指令将同步到设备）', 'success');
+    if (res.forgetError) {
+      showToast('已清空 ' + (res.deletedRows || 0) + ' 条记录，但注销身份失败：' + res.forgetError + '（可稍后重试）', 'error');
+    } else {
+      showToast('已清空 ' + (res.deletedRows || 0) + ' 条记录并注销身份（删除指令将同步到设备）', 'success');
+    }
     loadData();
   } catch (e) { showToast('清空失败: ' + e.message, 'error'); }
 }

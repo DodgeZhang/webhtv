@@ -505,7 +505,7 @@ export class WebHTVPlaybackSyncDO {
     if (op === 'adminForgetIdentity') return this.runAdminForgetIdentity(request, body, configType);
     if (op === 'adminSplitIdentity') return this.runAdminSplitIdentity(request, body, configType);
     if (op === 'adminMoveRows') return this.runAdminMoveRows(body, configType);
-    if (op === 'adminClearSpace') return this.runAdminClearSpace(body, configType);
+    if (op === 'adminClearSpace') return this.runAdminClearSpace(request, body, configType);
     throw playbackHttpError(400, 'Unknown maintenance op');
   }
 
@@ -612,7 +612,14 @@ export class WebHTVPlaybackSyncDO {
         'DELETE FROM playback_items WHERE config_key = ?', storageConfigKey
       ).rowsWritten || 0);
     });
-    return playbackJson({ ok: true, op: 'adminClearAll', deletedRows });
+    const result = { ok: true, op: 'adminClearAll', deletedRows };
+    // Same opt-in unregister as adminClearSpace, for the post-login 清空全部
+    // button. Unlike adminClearSpace the key here already went through identity
+    // resolution, so it is the canonical itself and safe to unregister.
+    if (body && body.forgetIdentity === true) {
+      await this.runUnregisterAfterClear(request, configType, configKey, result);
+    }
+    return playbackJson(result);
   }
 
   // WebHTV adaptation (dashboard): clear one EXACT stored space, addressed by the
@@ -628,7 +635,15 @@ export class WebHTVPlaybackSyncDO {
   // still holds these rows deletes them on its next sync instead of pushing them
   // straight back. Nothing is written when the space held no rows: an already
   // empty space (or a mistyped key) must not leave a deletion marker behind.
-  runAdminClearSpace(body, configType) {
+  //
+  // body.forgetIdentity additionally drops this row's identity registration once
+  // the rows are gone, which is what the single merged dashboard button sends. It
+  // is opt-in so the op stays usable as a records-only primitive: this row is
+  // addressed by its stored key without any registry lookup, so the caller has to
+  // decide whether the row it clicked is the registered identity or merely an
+  // alias. Unregistering an alias would take its canonical — the real main space —
+  // down with it, so the dashboard only sets the flag for canonical rows.
+  async runAdminClearSpace(request, body, configType) {
     const configKey = validatedConfigKey(
       body && (body.configKey || body.config_key), 'adminClearSpace requires configKey'
     );
@@ -644,10 +659,14 @@ export class WebHTVPlaybackSyncDO {
       }
       return deleted;
     });
-    return playbackJson({
+    const result = {
       ok: true, op: 'adminClearSpace', configType, configKey, deletedRows,
       propagated: deletedRows > 0
-    });
+    };
+    if (body && body.forgetIdentity === true) {
+      await this.runUnregisterAfterClear(request, configType, configKey, result);
+    }
+    return playbackJson(result);
   }
 
   // Read-only registry dump for diagnosing wrong identity bindings: every
@@ -764,22 +783,32 @@ export class WebHTVPlaybackSyncDO {
   // identity on its next resolve. The worst case is that the entry reappears,
   // never a broken sync.
   async runAdminForgetIdentity(request, body, configType) {
-    const token = playbackToken(request);
-    const store = this.identityStore(request);
-    const registryKey = await identityRegistryKey(token, configType);
     const targets = [...new Set((Array.isArray(body.targets) ? body.targets : [])
       .map((item) => normalizeOptionalKey(item, 'targets'))
       .filter(Boolean))];
     if (!targets.length) throw playbackHttpError(400, 'adminForgetIdentity requires targets');
+    const { forgotten, missing } = await this.forgetIdentities(request, configType, targets);
+    return playbackJson({ ok: true, op: 'adminForgetIdentity', configType, forgotten, missing });
+  }
+
+  // Shared registry removal, used both by adminForgetIdentity and by the combined
+  // clear+unregister dashboards buttons. Only the identity registry is touched —
+  // playback rows are never read or written here, so this can safely run after a
+  // row deletion that already committed in its own transaction.
+  //
+  // Accepts an alias key as well: it forgets the canonical that key points at,
+  // otherwise the alias would be left pointing at a canonical that no longer
+  // exists and would be dropped as stale on the next normalize. Returns without
+  // writing when nothing matched, so a repeated call is a no-op.
+  async forgetIdentities(request, configType, targets) {
+    const store = this.identityStore(request);
+    const registryKey = await identityRegistryKey(playbackToken(request), configType);
     for (let attempt = 0; attempt < 5; attempt++) {
       const snapshot = await store.load(registryKey);
       const registry = normalizeIdentityRegistry(snapshot.state);
       const forgotten = [];
       const missing = [];
       for (const key of targets) {
-        // Accept an alias key as well: forget the canonical it points at,
-        // otherwise the alias would be left pointing at a canonical that no
-        // longer exists and would be dropped as stale on the next normalize.
         const canonical = registry.aliases[key]?.canonicalInterfaceKey || key;
         if (!registry.identities[canonical]) { missing.push(key); continue; }
         delete registry.identities[canonical];
@@ -788,16 +817,29 @@ export class WebHTVPlaybackSyncDO {
         }
         forgotten.push(canonical);
       }
-      if (!forgotten.length) {
-        return playbackJson({ ok: true, op: 'adminForgetIdentity', configType, forgotten, missing });
-      }
+      if (!forgotten.length) return { forgotten, missing };
       registry.epoch = Number(registry.epoch || 0) + 1;
       registry.updatedAt = Date.now();
       if (await store.compareAndSet(registryKey, snapshot.version, registry)) {
-        return playbackJson({ ok: true, op: 'adminForgetIdentity', configType, forgotten, missing });
+        return { forgotten, missing };
       }
     }
     throw playbackHttpError(503, 'Identity registry changed concurrently; retry');
+  }
+
+  // Rows and the identity registry live in different tables and cannot share one
+  // transaction, so a combined clear+unregister reports partial success rather
+  // than rolling back a deletion that already committed. The caller sees the
+  // deletion count either way and can retry the unregister half on its own.
+  async runUnregisterAfterClear(request, configType, configKey, result) {
+    try {
+      const { forgotten, missing } = await this.forgetIdentities(request, configType, [configKey]);
+      result.forgotten = forgotten;
+      result.missing = missing;
+    } catch (error) {
+      result.forgetError = error && error.message ? error.message : String(error);
+    }
+    return result;
   }
 
   // WebHTV adaptation: reverse one wrong automatic merge. Before addIdentityKeys
