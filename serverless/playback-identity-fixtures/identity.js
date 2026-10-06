@@ -576,12 +576,40 @@ function collectCandidates(registry, keys) {
   return result;
 }
 
+// The canonical identity that already claims an address clue, if any. Mirrors
+// collectCandidates: an explicit alias binding wins, otherwise the clue is its
+// own canonical.
+function identityKeyOwner(registry, key) {
+  const alias = registry.aliases[key];
+  if (alias && alias.canonicalInterfaceKey) return alias.canonicalInterfaceKey;
+  return registry.identities[key] ? key : '';
+}
+
 function addIdentityKeys(registry, identity, input) {
   identity.updatedAt = Date.now();
-  for (const key of input.strictAddressKeys) pushUnique(identity.strictAddressKeys, key);
-  for (const key of input.endpointMatchKeys) pushUnique(identity.endpointMatchKeys, key);
-  for (const key of input.hostMatchKeys) pushUnique(identity.hostMatchKeys, key);
-  for (const key of input.legacyConfigKeys) pushUnique(identity.legacyConfigKeys, key);
+  // WebHTV adaptation: never absorb an address clue that another interface
+  // already owns. The App only ever appends sync-source address aliases
+  // (Config.rememberAddressAliases / addLegacyConfigKey), so a device that was
+  // once pointed at a second interface keeps submitting BOTH interfaces'
+  // fingerprints forever. Pushing them all into whichever canonical the request
+  // resolved to made two unrelated interfaces share an address clue, and
+  // planAutoMergeGroups then folded them together on a later resolve — merging
+  // different URLs and different names into one space. A clue that already has
+  // an owner keeps that owner; genuinely related interfaces still merge because
+  // a device reporting a NEW address clue (URL migration) finds no owner and is
+  // accepted, and an explicit dashboard merge is unaffected.
+  for (const [listName, keys] of [
+    ['strictAddressKeys', input.strictAddressKeys],
+    ['endpointMatchKeys', input.endpointMatchKeys],
+    ['hostMatchKeys', input.hostMatchKeys],
+    ['legacyConfigKeys', input.legacyConfigKeys]
+  ]) {
+    for (const key of keys) {
+      const owner = identityKeyOwner(registry, key);
+      if (owner && owner !== identity.canonicalInterfaceKey) continue;
+      pushUnique(identity[listName], key);
+    }
+  }
 }
 
 function addAlias(registry, key, canonicalInterfaceKey, kind) {

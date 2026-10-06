@@ -7,7 +7,8 @@ import {
   identityRegistryKey,
   normalizeIdentityRegistry,
   normalizeIdentityKey,
-  normalizeOptionalKey
+  normalizeOptionalKey,
+  normalizeKeyList
 } from '../../playback-identity-fixtures/identity.js';
 const PLAYBACK_SYNC_PATHS = new Set(['/api/playback/sync', '/playback/sync']);
 const IDENTITY_RESOLVE_PATHS = new Set(['/api/playback/identity/resolve', '/playback/identity/resolve']);
@@ -457,6 +458,7 @@ export class WebHTVPlaybackSyncDO {
     if (op === 'adminClearAll') return this.runAdminClearAll(request, body, configType);
     if (op === 'adminInspectIdentity') return this.runAdminInspectIdentity(request, body, configType);
     if (op === 'adminUnbindIdentity') return this.runAdminUnbindIdentity(request, body, configType);
+    if (op === 'adminSplitIdentity') return this.runAdminSplitIdentity(request, body, configType);
     throw playbackHttpError(400, 'Unknown maintenance op');
   }
 
@@ -664,6 +666,145 @@ export class WebHTVPlaybackSyncDO {
       }
     }
     return playbackJson({ ok: true, op: 'adminUnbindIdentity', configType, removedAliases, strippedKeys });
+  }
+
+  // WebHTV adaptation: reverse one wrong automatic merge. Before addIdentityKeys
+  // was guarded, a device whose App only ever appends sync-source aliases pushed
+  // another interface's address clue into whichever canonical its request
+  // resolved to; planAutoMergeGroups then folded the two unrelated interfaces
+  // together on a later resolve. This op undoes exactly one such fusion: it
+  // registers `canonical` as its own identity owning the given address clues,
+  // takes those clues (and every alias that pointed at `from`) away from the
+  // wrong canonical, re-points the listed alias keys, and moves the affected
+  // playback rows so no progress is stranded in the other interface's space.
+  async runAdminSplitIdentity(request, body, configType) {
+    const token = playbackToken(request);
+    const store = this.identityStore(request);
+    const registryKey = await identityRegistryKey(token, configType);
+    const canonical = normalizeIdentityKey(body.canonical, 'canonical');
+    const from = normalizeIdentityKey(body.from, 'from');
+    if (canonical === from) throw playbackHttpError(400, 'adminSplitIdentity needs distinct canonical and from values');
+    const raw = body.fingerprints && typeof body.fingerprints === 'object' && !Array.isArray(body.fingerprints) ? body.fingerprints : {};
+    const fingerprints = {
+      strictAddressKeys: normalizeKeyList(raw.strictAddressKeys, 'fingerprints.strictAddressKeys'),
+      endpointMatchKeys: normalizeKeyList(raw.endpointMatchKeys, 'fingerprints.endpointMatchKeys'),
+      hostMatchKeys: normalizeKeyList(raw.hostMatchKeys, 'fingerprints.hostMatchKeys'),
+      legacyConfigKeys: normalizeKeyList(raw.legacyConfigKeys, 'fingerprints.legacyConfigKeys')
+    };
+    const claimed = [...new Set([
+      ...(Array.isArray(body.aliases) ? body.aliases : []).map((item) => normalizeOptionalKey(item, 'aliases')).filter(Boolean),
+      ...Object.values(fingerprints).flat()
+    ])];
+    if (!claimed.length) throw playbackHttpError(400, 'adminSplitIdentity requires fingerprints or aliases');
+    const claimedSet = new Set(claimed);
+
+    let stripped = 0;
+    let repointed = 0;
+    let created = false;
+    let done = false;
+    for (let attempt = 0; attempt < 5 && !done; attempt++) {
+      const snapshot = await store.load(registryKey);
+      const registry = normalizeIdentityRegistry(snapshot.state);
+      if (!registry.identities[from]) throw playbackHttpError(404, `source identity not found: ${from}`);
+      if (!registry.identities[canonical]) {
+        registry.identities[canonical] = {
+          canonicalInterfaceKey: canonical,
+          strictAddressKeys: [],
+          endpointMatchKeys: [],
+          hostMatchKeys: [],
+          legacyConfigKeys: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        created = true;
+      }
+      const target = registry.identities[canonical];
+      const source = registry.identities[from];
+      for (const listName of ['strictAddressKeys', 'endpointMatchKeys', 'hostMatchKeys', 'legacyConfigKeys']) {
+        // Take every claimed clue away from the wrong canonical, then hand the
+        // clues this split assigns to the new canonical one.
+        const previous = source[listName];
+        if (Array.isArray(previous)) {
+          const kept = previous.filter((key) => !claimedSet.has(key));
+          stripped += previous.length - kept.length;
+          source[listName] = kept;
+        }
+        for (const key of fingerprints[listName]) {
+          if (!target[listName].includes(key)) target[listName].push(key);
+        }
+      }
+      if (Array.isArray(source.selfLegacyConfigKeys)) {
+        source.selfLegacyConfigKeys = source.selfLegacyConfigKeys.filter((key) => !claimedSet.has(key));
+      }
+      for (const key of claimed) {
+        const previous = registry.aliases[key];
+        const entry = {
+          canonicalInterfaceKey: canonical,
+          kind: previous && previous.kind ? previous.kind : 'manual-merge'
+        };
+        if (previous && Array.isArray(previous.legacyConfigKeys) && previous.legacyConfigKeys.length) {
+          entry.legacyConfigKeys = previous.legacyConfigKeys.slice(-8);
+        }
+        registry.aliases[key] = entry;
+        repointed += 1;
+      }
+      target.updatedAt = Date.now();
+      source.updatedAt = Date.now();
+      registry.epoch = Number(registry.epoch || 0) + 1;
+      registry.updatedAt = Date.now();
+      done = await store.compareAndSet(registryKey, snapshot.version, registry);
+    }
+    if (!done) throw playbackHttpError(503, 'Identity registry changed concurrently; retry the split');
+
+    let movedRows = 0;
+    for (const source of Array.isArray(body.moveSpaces) ? body.moveSpaces : []) {
+      movedRows += this.movePlaybackRows(configType, canonical, cleanString(source, 128));
+    }
+    for (const entry of Array.isArray(body.moveRows) ? body.moveRows : []) {
+      movedRows += this.movePlaybackRows(
+        configType, canonical, cleanString(entry && entry.from, 128), cleanString(entry && entry.name, 64)
+      );
+    }
+    return playbackJson({ ok: true, op: 'adminSplitIdentity', configType, canonical, from, created, stripped, repointed, movedRows });
+  }
+
+  // Move every playback row of one space into another. migrateIdentitySpaces is a
+  // merge primitive that deliberately leaves the source space intact; a split must
+  // not, or the other interface keeps listing records it no longer owns. nameOf
+  // optionally restricts the move to one interface name, which is the only clue a
+  // stored row carries about the sync source that pushed it.
+  movePlaybackRows(configType, targetKey, sourceKey, nameOf = '') {
+    if (!sourceKey || sourceKey === targetKey) return 0;
+    const target = scopedConfigKey(configType, targetKey);
+    const source = scopedConfigKey(configType, sourceKey);
+    const nameClause = nameOf ? " AND COALESCE(NULLIF(json_extract(payload, '$.configName'), ''), '') = ?" : '';
+    return this.state.storage.transactionSync(() => {
+      const base = this.sequenceValue();
+      const copied = this.sql.exec(`
+        INSERT INTO playback_items
+          (config_key, item_key, history_key, site_key, vod_id, updated_at, seq, payload)
+        SELECT ?, item_key, history_key, site_key, vod_id, updated_at,
+               ? + ROW_NUMBER() OVER (ORDER BY updated_at, item_key), payload
+          FROM playback_items WHERE config_key = ?${nameClause}
+        ON CONFLICT(config_key, item_key) DO UPDATE SET
+          history_key = excluded.history_key,
+          site_key = excluded.site_key,
+          vod_id = excluded.vod_id,
+          updated_at = excluded.updated_at,
+          seq = excluded.seq,
+          payload = excluded.payload
+        WHERE excluded.updated_at > playback_items.updated_at
+      `, target, base, source, ...(nameOf ? [nameOf] : []));
+      const scanned = Number(copied.rowsRead || 0);
+      if (scanned > 0) {
+        this.sql.exec("UPDATE playback_meta SET value = ? WHERE key = 'sequence'", base + scanned);
+      }
+      const removed = this.sql.exec(
+        `DELETE FROM playback_items WHERE config_key = ?${nameClause}`,
+        source, ...(nameOf ? [nameOf] : [])
+      );
+      return Number(removed.rowsWritten || 0);
+    });
   }
 
   upsertAdminTombstone(storageConfigKey, markerKey, scope, historyKey, siteKey, vodId, deletedAt, payload) {

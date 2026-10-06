@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveIdentity, resolveConfigKey, parseIdentityRequest, canonicalizeAddress, addressMaterial, sha256 } from './identity.js';
+import { resolveIdentity, resolveConfigKey, parseIdentityRequest, canonicalizeAddress, addressMaterial, sha256, identityRegistryKey } from './identity.js';
 
 function createMemoryPlaybackStore() {
   const entries = new Map();
@@ -102,6 +102,26 @@ test('keeps a hard conflict when a bound device matches canonicals other than it
   result = await resolveIdentity(store, 'token', input('d', ['strictB', 'strictC'], ['endpointB', 'endpointC'], ['hostB', 'hostC'], 'has_data'));
   assert.equal(result.status, 409);
   assert.equal(result.body.action, 'conflict');
+});
+
+test('never absorbs an address clue another canonical already owns', async () => {
+  const store = createMemoryPlaybackStore();
+  const input = (key, strict, state = 'empty') => parseIdentityRequest({ schema: 'webhtv.playback.identity.v1', operation: 'resolve', interfaceKey: key, configType: 'vod', strictAddressKeys: strict, endpointMatchKeys: [], hostMatchKeys: [], legacyConfigKeys: [], sourceDataState: state }, new Headers());
+  // Two unrelated interfaces, each owning its own address clue.
+  await resolveIdentity(store, 'token', input('a', ['strictA']));
+  await resolveIdentity(store, 'token', input('b', ['strictB']));
+  // Device 'd' joins interface A. Its App never prunes sync-source aliases, so
+  // it keeps submitting interface B's clue as well. Absorbing that clue into 'a'
+  // would make two unrelated interfaces share a fingerprint and let the
+  // auto-merge fold them together on a later resolve.
+  await resolveIdentity(store, 'token', input('d', ['strictA']));
+  const result = await resolveIdentity(store, 'token', input('d', ['strictA', 'strictB'], 'has_data'));
+  assert.equal(result.body.action, 'keep');
+  assert.equal(result.body.canonicalInterfaceKey, 'a');
+  const snapshot = await store.load(await identityRegistryKey('token', 'vod'));
+  assert.deepEqual(snapshot.state.identities.a.strictAddressKeys, ['stricta']);
+  assert.deepEqual(snapshot.state.identities.b.strictAddressKeys, ['strictb']);
+  assert.equal(snapshot.state.aliases.strictb.canonicalInterfaceKey, 'b');
 });
 
 test('routes sync to the requesting key binding when aliases span several canonicals', async () => {
