@@ -23,7 +23,6 @@ import androidx.core.widget.TextViewCompat;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.theme.ThemeEditorUi;
-import com.fongmi.android.tv.theme.ThemeTokens;
 import com.fongmi.android.tv.ui.helper.TouchOptimizationHelper;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
@@ -40,9 +39,12 @@ public final class LightDialog {
         Window window = dialog.getWindow();
         if (window == null) return;
         TouchOptimizationHelper.sync(dialog);
-        ThemeTokens tokens = ThemeController.current();
-        Drawable background = ThemeEditorUi.shape(dialog.getContext(),
-                ThemeEditorUi.withAlpha(tokens.colorSurfaceContainerHigh(), tokens.dialogOpacity()), 0, 0, 22);
+        // The shell keeps the opaque semantic fill on purpose: dialogOpacity is applied by
+        // bindWindowBackground below, which is the one documented owner of that slot. Baking
+        // the alpha in here scaled it twice (0.70 -> 0.49) and, because a translucent fill no
+        // longer matches its baseline role, also stopped the shell from following a user
+        // surfaceContainerHigh override.
+        Drawable background = shell(dialog.getContext());
         int verticalInset = (int) (dialog.getContext().getResources().getDisplayMetrics().density * 24);
         window.setBackgroundDrawable(new InsetDrawable(background, 0, verticalInset, 0, verticalInset));
         if (Util.isLeanback()) applyAlertWindow(dialog, window);
@@ -50,6 +52,18 @@ public final class LightDialog {
         // binder root is registered here and re-walked by descendant-count changes.
         ThemeController.bindDialog(dialog);
         ThemeController.bindWindowBackground(background);
+    }
+
+    /**
+     * The one dialog shell shape, shared by the AlertDialog and the custom-Dialog paths.
+     *
+     * <p>Public so a test can assert the two halves of the shell contract on the real
+     * drawable: it ships opaque (so {@code dialogOpacity} has a single owner), and its fill
+     * is the semantic {@code colorSurfaceContainerHigh} value (so the binder's exact-match
+     * rewrite can still find the role).
+     */
+    public static Drawable shell(Context context) {
+        return ThemeEditorUi.shape(context, ThemeController.current().colorSurfaceContainerHigh(), 0, 0, 22);
     }
 
     static int resolveAlertWidth(int screenWidth, int screenHeight) {
@@ -152,8 +166,7 @@ public final class LightDialog {
     private static View root(Context context, CharSequence title, View content, String positive, View.OnClickListener onPositive, String negative, View.OnClickListener onNegative, String neutral, View.OnClickListener onNeutral, boolean fillHeight) {
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackground(ThemeEditorUi.shape(context,
-                ThemeController.current().colorSurfaceContainerHigh(), 0, 0, 22));
+        root.setBackground(shell(context));
         int actionCount = (positive == null ? 0 : 1) + (negative == null ? 0 : 1) + (neutral == null ? 0 : 1);
         int vertical = ResUtil.dp2px(24);
         int horizontal = ResUtil.dp2px(actionCount >= 3 ? 18 : 24);
