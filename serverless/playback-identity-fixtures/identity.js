@@ -295,18 +295,43 @@ export async function resolveIdentity(store, token, input) {
       const migrationSourceKeys = resolution.action === 'rebind'
         ? [...input.legacyConfigKeys]
         : [...input.legacyConfigKeys, input.interfaceKey];
-      try {
-        migration = typeof store.migrateIdentitySpaces === 'function'
-          ? await store.migrateIdentitySpaces(token, input.configType, resolution.canonicalInterfaceKey, migrationSourceKeys)
-          : await migrateIdentitySpaces(
-            store,
-            token,
-            input.configType,
-            resolution.canonicalInterfaceKey,
-            migrationSourceKeys
-          );
-      } catch {
-        migration.pending = true;
+      // WebHTV quota optimization (Durable Objects rows_read): the App resolves
+      // its identity before every sync, and each resolve used to call the space
+      // migration unconditionally — a value copy that scans every source space
+      // in full (~95k webhook dedup rows per aliased space) even when the
+      // resolve learned nothing new. Only a binding change can leave rows behind
+      // a key that is not the canonical one: as soon as a key is an alias, every
+      // write submitted under it routes to the canonical space, so a
+      // steady-state resolve has nothing left to move. The pending list below
+      // keeps the retry promise for a migration that failed after its registry
+      // commit, and a key this resolve newly adopted is not an alias yet in the
+      // pre-mutation registry, so a URL-migration resolve still migrates.
+      const pendingKeys = uniqueKeys(identity.pendingMigrationKeys);
+      const needsMigration = resolution.action !== 'keep'
+        || pendingKeys.length > 0
+        || migrationSourceKeys.some((key) => !routesToCanonicalIdentity(registry, key, resolution.canonicalInterfaceKey));
+      if (needsMigration) {
+        try {
+          migration = typeof store.migrateIdentitySpaces === 'function'
+            ? await store.migrateIdentitySpaces(token, input.configType, resolution.canonicalInterfaceKey, migrationSourceKeys)
+            : await migrateIdentitySpaces(
+              store,
+              token,
+              input.configType,
+              resolution.canonicalInterfaceKey,
+              migrationSourceKeys
+            );
+        } catch {
+          migration.pending = true;
+        }
+        // A migration that threw is still outstanding, but its keys are aliases
+        // already, so the gate above would never revisit that space again.
+        // Record (or clear) the retry list so the next resolve re-attempts it.
+        if (migration.pending) {
+          await rememberPendingMigration(store, registryKey, resolution.canonicalInterfaceKey, migrationSourceKeys);
+        } else if (pendingKeys.length) {
+          await rememberPendingMigration(store, registryKey, resolution.canonicalInterfaceKey, []);
+        }
       }
       const action = migration.pending ? 'migration_pending' : resolution.action;
       const response = identityResponse(action, input, {
@@ -585,6 +610,35 @@ function identityKeyOwner(registry, key) {
   return registry.identities[key] ? key : '';
 }
 
+// Whether a write submitted under this key already lands in the canonical
+// space, i.e. whether the space migration has nothing left to look for. Mirrors
+// boundCanonical: the canonical key itself, or an alias bound to it.
+function routesToCanonicalIdentity(registry, key, canonicalInterfaceKey) {
+  if (!key || key === canonicalInterfaceKey) return true;
+  return registry.aliases[key]?.canonicalInterfaceKey === canonicalInterfaceKey;
+}
+
+// Persist the source keys whose migration still has to be retried. Called on the
+// rare resolve that changes a binding, so the steady-state path stays one CAS.
+async function rememberPendingMigration(store, registryKey, canonicalInterfaceKey, sourceKeys) {
+  const keys = uniqueKeys(sourceKeys);
+  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    const current = await store.load(registryKey);
+    const next = normalizeIdentityRegistry(current.state);
+    const identity = next.identities[canonicalInterfaceKey];
+    if (!identity) return;
+    if (sameKeySet(uniqueKeys(identity.pendingMigrationKeys), keys)) return;
+    identity.pendingMigrationKeys = keys;
+    identity.updatedAt = Date.now();
+    next.updatedAt = Date.now();
+    if (await store.compareAndSet(registryKey, current.version, next)) return;
+  }
+}
+
+function sameKeySet(left, right) {
+  return left.length === right.length && left.every((key) => right.includes(key));
+}
+
 function addIdentityKeys(registry, identity, input) {
   identity.updatedAt = Date.now();
   // WebHTV adaptation: never absorb an address clue that another interface
@@ -639,6 +693,10 @@ function normalizeIdentity(value, canonicalInterfaceKey) {
     // device itself on its latest resolve; pull uses them to stamp changes with
     // a key that exact device build can map (old builds only know URL hashes).
     selfLegacyConfigKeys: fingerprintKeys(source.selfLegacyConfigKeys),
+    // WebHTV adaptation: source keys whose space migration is still outstanding
+    // after a failed attempt; resolve retries those on the next request instead
+    // of re-scanning every space on every request.
+    pendingMigrationKeys: uniqueKeys(source.pendingMigrationKeys),
     createdAt: Number.isSafeInteger(source.createdAt) ? source.createdAt : 0,
     updatedAt: Number.isSafeInteger(source.updatedAt) ? source.updatedAt : 0
   };

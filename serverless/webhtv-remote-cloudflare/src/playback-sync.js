@@ -507,6 +507,7 @@ export class WebHTVPlaybackSyncDO {
     const op = cleanString(body.op, 32);
     const configType = normalizeConfigType(body.configType || request.headers.get('x-webhtv-config-type') || 'vod');
     if (op === 'purgeTombstones') return this.runPurgeTombstones(request, body, configType);
+    if (op === 'purgeEvents') return this.runPurgeEvents(request, body, configType);
     if (op === 'adminCleanupExpired') return this.runAdminCleanupExpired();
     if (op === 'adminDeleteItem') return this.runAdminDeleteItem(request, body, configType);
     if (op === 'adminClearAll') return this.runAdminClearAll(request, body, configType);
@@ -554,6 +555,39 @@ export class WebHTVPlaybackSyncDO {
     return playbackJson({ ok: true, op: 'purgeTombstones', configType, purged: deleted });
   }
 
+  // WebHTV quota maintenance: reclaim historical webhook dedup rows ahead of the
+  // 90-day retention sweep. playback_events carries no playback data — it only
+  // answers "was this event id already applied?" — but identity migration reads a
+  // source space's events in full to copy them, so the ~190k experiment-era rows
+  // left behind in now-aliased spaces made every binding change expensive.
+  // Batched on purpose: the free tier allows 100k written rows per day and a
+  // single DELETE of that size fails the statement (docs/cf-do-quota-rows-written.md),
+  // so the caller repeats the call while `hasMore` stays true and the daily
+  // budget is theirs to spend.
+  async runPurgeEvents(request, body, configType) {
+    const before = Number(body.beforeReceivedAt);
+    if (!Number.isFinite(before) || before <= 0) throw playbackHttpError(400, 'beforeReceivedAt must be a positive ms timestamp');
+    const limit = Math.min(Math.max(Math.floor(Number(body.limit) || 5000), 1), 20000);
+    let configKey = '';
+    if (body.configKey) {
+      const submittedConfigKey = requireConfigKey(request, body);
+      configKey = await this.resolvePlaybackConfigKey(
+        request, submittedConfigKey, configType, requestAliases(request, body)
+      );
+    }
+    const storageConfigKey = configKey ? scopedConfigKey(configType, configKey) : '';
+    const deleted = this.state.storage.transactionSync(() => {
+      const sql = storageConfigKey
+        ? 'DELETE FROM playback_events WHERE rowid IN (SELECT rowid FROM playback_events WHERE config_key = ? AND received_at < ? LIMIT ?)'
+        : 'DELETE FROM playback_events WHERE rowid IN (SELECT rowid FROM playback_events WHERE received_at < ? LIMIT ?)';
+      const args = storageConfigKey ? [storageConfigKey, before, limit] : [before, limit];
+      return Number(this.sql.exec(sql, ...args).rowsWritten || 0);
+    });
+    return playbackJson({
+      ok: true, op: 'purgeEvents', configType, ...(configKey ? { configKey } : {}),
+      deleted, limit, hasMore: deleted >= limit, beforeReceivedAt: before
+    });
+  }
   // Dashboard "clean up now": the same retention sweep as the periodic
   // cleanup() but forced past its interval gate, so the operator can reclaim
   // expired tombstones and event-dedup rows immediately. Active playback
