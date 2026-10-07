@@ -22,6 +22,8 @@ import androidx.core.widget.TextViewCompat;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.theme.ThemeController;
+import com.fongmi.android.tv.theme.ThemeEditorUi;
+import com.fongmi.android.tv.theme.ThemeTokens;
 import com.fongmi.android.tv.ui.helper.TouchOptimizationHelper;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
@@ -38,14 +40,16 @@ public final class LightDialog {
         Window window = dialog.getWindow();
         if (window == null) return;
         TouchOptimizationHelper.sync(dialog);
-        Drawable background = ContextCompat.getDrawable(dialog.getContext(), R.drawable.shape_shell_proxy_dialog);
-        if (background == null) return;
+        ThemeTokens tokens = ThemeController.current();
+        Drawable background = ThemeEditorUi.shape(dialog.getContext(),
+                ThemeEditorUi.withAlpha(tokens.colorSurfaceContainerHigh(), tokens.dialogOpacity()), 0, 0, 22);
         int verticalInset = (int) (dialog.getContext().getResources().getDisplayMetrics().density * 24);
         window.setBackgroundDrawable(new InsetDrawable(background, 0, verticalInset, 0, verticalInset));
         if (Util.isLeanback()) applyAlertWindow(dialog, window);
         // AlertController installs the message and button views during show(), so the
         // binder root is registered here and re-walked by descendant-count changes.
         ThemeController.bindDialog(dialog);
+        ThemeController.bindWindowBackground(background);
     }
 
     static int resolveAlertWidth(int screenWidth, int screenHeight) {
@@ -148,7 +152,8 @@ public final class LightDialog {
     private static View root(Context context, CharSequence title, View content, String positive, View.OnClickListener onPositive, String negative, View.OnClickListener onNegative, String neutral, View.OnClickListener onNeutral, boolean fillHeight) {
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundResource(R.drawable.shape_shell_proxy_dialog);
+        root.setBackground(ThemeEditorUi.shape(context,
+                ThemeController.current().colorSurfaceContainerHigh(), 0, 0, 22));
         int actionCount = (positive == null ? 0 : 1) + (negative == null ? 0 : 1) + (neutral == null ? 0 : 1);
         int vertical = ResUtil.dp2px(24);
         int horizontal = ResUtil.dp2px(actionCount >= 3 ? 18 : 24);

@@ -356,6 +356,10 @@ public class ThemeBinderContractTest {
         String light = read("src/main/java/com/fongmi/android/tv/ui/dialog/LightDialog.java");
         assertEquals("both LightDialog entry points must bind",
                 2, light.split("ThemeController\\.bindDialog\\(dialog\\)", -1).length - 1);
+        assertTrue("LightDialog must bind the window shell as well as the view tree",
+                light.contains("ThemeController.bindWindowBackground(background)"));
+        assertTrue("custom LightDialog shells must use the active semantic surface",
+                light.contains("ThemeController.current().colorSurfaceContainerHigh()"));
         assertFalse("the dialog title must not be a hard-coded hex colour",
                 light.contains("Color.parseColor(\"#202124\")"));
         assertTrue(light.contains("titleView.setTextColor(ThemeController.current().colorOnSurface())"));
