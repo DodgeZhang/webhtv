@@ -311,13 +311,13 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="stat-value" id="nextSince">-</div>
       <div class="stat-sub">最新序列号 (nextSince) · 点击说明</div>
     </div>
-    <div class="stat-card" title="立即清理超期数据" onclick="confirmCleanupExpired()" style="cursor:pointer">
+    <div class="stat-card" title="清理事件去重记录" onclick="confirmPurgeEvents()" style="cursor:pointer">
       <div class="stat-label">
         <span class="stat-icon" style="background: var(--warning-bg); color: var(--warning);">⏱️</span>
         数据保留
       </div>
       <div class="stat-value" id="retentionDays">-</div>
-      <div class="stat-sub">天 · 超期自动清理 · 点击立即清理</div>
+      <div class="stat-sub">天 · 事件去重自动保留 · 点击清理</div>
     </div>
   </div>
 
@@ -944,7 +944,7 @@ function renderStats() {
   document.getElementById('totalCount').textContent = s.items ?? 0;
   document.getElementById('tombstoneCount').textContent = s.tombstones ?? 0;
   document.getElementById('nextSince').textContent = s.nextSince ?? '-';
-  document.getElementById('retentionDays').textContent = s.retentionDays ?? '-';
+  document.getElementById('retentionDays').textContent = s.eventRetentionDays ?? s.retentionDays ?? '-';
 }
 
 function applyFilter() {
@@ -1182,26 +1182,59 @@ function showCursorInfo() {
   \`);
 }
 
-// 数据保留卡片 — 强制执行一次与自动清理相同口径的超期清理
-async function confirmCleanupExpired() {
+// 数据保留卡片 — 按天清理事件去重记录（playback_events）
+let purgeEventDays = 30;
+
+function confirmPurgeEvents() {
+  purgeEventDays = 30;
   showModal(\`
-    <h3>⏱️ 立即清理超期数据</h3>
-    <p>将立即清除超过 <strong>90</strong> 天的删除墓碑与同步事件去重记录（与自动清理完全相同的口径），不影响任何活跃观影记录。</p>
+    <h3>⏱️ 清理事件去重记录</h3>
+    <p>「事件去重记录」只用于判断同一条设备上报是否已处理过，<strong>不含任何观影记录</strong>。清理它不影响进度同步、删除墓碑与设备拉取内容。</p>
+    <p>选择保留期，将清除更早的去重记录：</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0;">
+      \${[15, 30, 60, 90].map((d) => \`<button class="btn day-btn\${d === purgeEventDays ? ' active' : ''}" data-days="\${d}" onclick="selectPurgeEventDays(\${d})">\${d} 天</button>\`).join('')}
+    </div>
+    <p id="purgeEventHint" style="color: var(--text-muted);">保留最近 30 天的去重记录。</p>
     <div class="modal-actions">
       <button class="btn" onclick="hideModal()">取消</button>
-      <button class="btn btn-danger" onclick="cleanupExpired()">立即清理</button>
+      <button class="btn btn-danger" onclick="purgeEvents()">确认清理</button>
     </div>
   \`);
+  selectPurgeEventDays(purgeEventDays);
 }
 
-async function cleanupExpired() {
+function selectPurgeEventDays(days) {
+  purgeEventDays = days;
+  document.querySelectorAll('.day-btn').forEach((btn) => {
+    const on = Number(btn.dataset.days) === days;
+    btn.classList.toggle('active', on);
+    btn.style.background = on ? 'var(--accent)' : '';
+    btn.style.borderColor = on ? 'var(--accent)' : '';
+    btn.style.color = on ? '#fff' : '';
+  });
+  const hint = document.getElementById('purgeEventHint');
+  if (hint) hint.textContent = '保留最近 ' + days + ' 天的去重记录，清除更早的。';
+}
+
+async function purgeEvents() {
   hideModal();
+  const days = purgeEventDays;
+  const before = Date.now() - days * 86400000;
+  let deleted = 0;
+  let rounds = 0;
   try {
-    const res = await fetchJSON('/api/playback/sync/maintenance', {
-      method: 'POST',
-      body: JSON.stringify({ op: 'adminCleanupExpired' })
-    });
-    showToast('已清理 ' + (res.tombstones || 0) + ' 条过期墓碑、' + (res.events || 0) + ' 条过期事件记录', 'success');
+    // 服务端单次最多 20000 行，免费版每日写入额度 10 万行，故最多 3 轮后停手交由用户决定
+    while (rounds < 3) {
+      const res = await fetchJSON('/api/playback/sync/maintenance', {
+        method: 'POST',
+        body: JSON.stringify({ op: 'purgeEvents', beforeReceivedAt: before, limit: 20000 })
+      });
+      deleted += res.deleted || 0;
+      rounds++;
+      if (!res.hasMore) break;
+    }
+    showToast('已清理 ' + deleted + ' 条 ' + days + ' 天前的事件去重记录'
+      + (rounds >= 3 ? '（仍有剩余，可再次点击继续）' : ''), 'success');
     loadData();
   } catch (e) { showToast('清理失败: ' + e.message, 'error'); }
 }

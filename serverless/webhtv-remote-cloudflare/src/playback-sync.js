@@ -13,6 +13,12 @@ import {
 const PLAYBACK_SYNC_PATHS = new Set(['/api/playback/sync', '/playback/sync']);
 const IDENTITY_RESOLVE_PATHS = new Set(['/api/playback/identity/resolve', '/playback/identity/resolve']);
 const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+// WebHTV adaptation: event-dedup rows only answer "was this webhook already
+// applied?", so they must outlive a device retry window (minutes, at most a
+// few days offline), not a tombstone's 90-day anti-resurrection window. Sharing
+// the 90-day constant let tens of thousands of dead rows accumulate, and every
+// identity migration re-scans them in full. Independent and much shorter.
+const EVENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 128 * 1024;
 const MAX_BATCH_ITEMS = 100;
@@ -332,7 +338,8 @@ export class WebHTVPlaybackSyncDO {
       items: Number(items.count || 0),
       tombstones: Number(tombstones.count || 0),
       nextSince: String(latest.seq || 0),
-      retentionDays: 90,
+      retentionDays: Math.round(TOMBSTONE_RETENTION_MS / 86400000),
+      eventRetentionDays: Math.round(EVENT_RETENTION_MS / 86400000),
       endpoint: `${url.origin}${basePlaybackPath(url.pathname)}`
     });
   }
@@ -508,7 +515,6 @@ export class WebHTVPlaybackSyncDO {
     const configType = normalizeConfigType(body.configType || request.headers.get('x-webhtv-config-type') || 'vod');
     if (op === 'purgeTombstones') return this.runPurgeTombstones(request, body, configType);
     if (op === 'purgeEvents') return this.runPurgeEvents(request, body, configType);
-    if (op === 'adminCleanupExpired') return this.runAdminCleanupExpired();
     if (op === 'adminDeleteItem') return this.runAdminDeleteItem(request, body, configType);
     if (op === 'adminClearAll') return this.runAdminClearAll(request, body, configType);
     if (op === 'adminInspectIdentity') return this.runAdminInspectIdentity(request, body, configType);
@@ -588,26 +594,6 @@ export class WebHTVPlaybackSyncDO {
       deleted, limit, hasMore: deleted >= limit, beforeReceivedAt: before
     });
   }
-  // Dashboard "clean up now": the same retention sweep as the periodic
-  // cleanup() but forced past its interval gate, so the operator can reclaim
-  // expired tombstones and event-dedup rows immediately. Active playback
-  // rows are never touched.
-  runAdminCleanupExpired() {
-    const now = Date.now();
-    const cutoff = now - TOMBSTONE_RETENTION_MS;
-    const deleted = this.state.storage.transactionSync(() => {
-      const tombstones = Number(this.sql.exec(
-        'DELETE FROM playback_tombstones WHERE deleted_at < ?', cutoff
-      ).rowsWritten || 0);
-      const events = Number(this.sql.exec(
-        'DELETE FROM playback_events WHERE received_at < ?', cutoff
-      ).rowsWritten || 0);
-      this.sql.exec("UPDATE playback_meta SET value = ? WHERE key = 'last_cleanup'", now);
-      return { tombstones, events };
-    });
-    return playbackJson({ ok: true, op: 'adminCleanupExpired', retentionDays: 90, ...deleted });
-  }
-
   // Dashboard management delete. Unlike a device delete event this uses the
   // SERVER clock and physically removes rows with no updatedAt guard, so a
   // skewed device clock or a row whose payload identity drifted can never
@@ -1549,10 +1535,11 @@ export class WebHTVPlaybackSyncDO {
     const now = Date.now();
     const last = Number(this.sql.exec("SELECT value FROM playback_meta WHERE key = 'last_cleanup'").one().value || 0);
     if (now - last < CLEANUP_INTERVAL_MS) return;
-    const cutoff = now - TOMBSTONE_RETENTION_MS;
+    const tombstoneCutoff = now - TOMBSTONE_RETENTION_MS;
+    const eventCutoff = now - EVENT_RETENTION_MS;
     this.state.storage.transactionSync(() => {
-      this.sql.exec('DELETE FROM playback_tombstones WHERE deleted_at < ?', cutoff);
-      this.sql.exec('DELETE FROM playback_events WHERE received_at < ?', cutoff);
+      this.sql.exec('DELETE FROM playback_tombstones WHERE deleted_at < ?', tombstoneCutoff);
+      this.sql.exec('DELETE FROM playback_events WHERE received_at < ?', eventCutoff);
       this.sql.exec("UPDATE playback_meta SET value = ? WHERE key = 'last_cleanup'", now);
     });
   }
