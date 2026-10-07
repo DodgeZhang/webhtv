@@ -4,8 +4,9 @@
 
 - **目标**：把 `origin/beta` 最新代码合入 `dev1`（**远端已移除/回退的提交不得顺带带回**）；复评 dev1 全部已修改代码（含已提交未推送的 `6414185af`）；发现问题修复并验证通过；循环评审直至通过；然后提交、推送 `dev1`、创建 `dev1 -> beta` 中文 PR（**只创建，不合并**）。
 - **验收标准**：① 合并结果第二父为 `origin/beta` tip `2a2139beb`；② 远端被回退内容**零复活**；③ beta 增量**零丢失**、dev1 既有改动**零丢失**；④ 双 flavor Java 与 androidTest 编译通过；⑤ 双 flavor 全量 JVM 套件零失败；⑥ UI token 门禁相对基线零新增违规；⑦ 净差异只含本分支自身改动；⑧ 提交 + recovery tag；⑨ `dev1` 已推送、PR 已创建且**未合并**。
-- **当前状态**：合并完成（0 冲突）；4 轮评审完成——第 1 轮发现并修复 1 处真实的契约覆盖缺口（对应生产缺陷的第三个站点），第 2/3/4 轮为订正我自己新增断言的脆弱性并复评通过；全部验证通过；待 `task_guard.sh finish`。
-- **下一动作**：`task_guard.sh finish` → 推送 `dev1` → `gh pr create`（只创建不合并）。
+- **当前状态**：合并完成（0 冲突）；4 轮评审完成——第 1 轮发现并修复 1 处真实的契约覆盖缺口（对应生产缺陷的第三个站点），第 2/3/4 轮为订正我自己新增断言的脆弱性并复评通过；全部验证通过；已提交、已推送、PR 已创建且未合并。
+- **交付坐标**：提交 `84d76f4c592ad80acdab61e3439f80712498544d`（第二父 `2a2139bebc9cc7dd02ec421a68d0f027baf547ef`）；recovery tag `recovery/C42-beta-merge-review-dev1/20261007130522-84d76f4c592a`；`dev1` 已推送至 `origin/dev1`（0/0 同步）；PR [#414](https://github.com/Silent1566/webhtv/pull/414) `dev1 → beta`，状态 **OPEN、未合并**、MERGEABLE，4 文件 +273 −10。
+- **下一动作**：无（任务已收口）。
 
 ## 合并台账
 
@@ -17,7 +18,8 @@
 | 合并基点（merge-base） | `9b168a1f3805614547308a638a13ddae45a8f564`（Merge PR #411 from dev1） |
 | 合并方式 | `git merge --no-commit --no-ff origin/beta`，由 task_guard `finish` 创建合并提交 |
 | 合并结果 | 19 路径自动合入，**0 冲突、0 冲突标记** |
-| 合并树哈希 | `de7921410bda2fb84759cdff262b936015798d32` |
+| 合并结果树（本任务文档写入前） | `de7921410bda2fb84759cdff262b936015798d32`（19 路径合入后的索引树，用于 beta 增量/dev1 增量的逐字节比对） |
+| 提交树（含本任务文档） | `4351c0fdcb2e8388e45a77fe4f1af7d0181088b8` |
 | 初始脏路径 | 无（`git status` 干净） |
 | 回滚锚点 | `6414185aff91edd15ad96f81bffaccea3a72f87e` |
 | 任务守卫 | `C42-beta-merge-review-dev1`（standard，scope `app/src` + `docs` + `scripts` + `.codex/scripts` + `.codex/task-state`） |
