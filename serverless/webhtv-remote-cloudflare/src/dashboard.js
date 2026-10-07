@@ -1192,7 +1192,7 @@ function confirmPurgeEvents() {
     <p>「事件去重记录」只用于判断同一条设备上报是否已处理过，<strong>不含任何观影记录</strong>。清理它不影响进度同步、删除墓碑与设备拉取内容。</p>
     <p>选择保留期，将清除更早的去重记录：</p>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0;">
-      \${[15, 30, 60, 90].map((d) => \`<button class="btn day-btn\${d === purgeEventDays ? ' active' : ''}" data-days="\${d}" onclick="selectPurgeEventDays(\${d})">\${d} 天</button>\`).join('')}
+      \${[7, 15, 30, 60, 90].map((d) => \`<button class="btn day-btn\${d === purgeEventDays ? ' active' : ''}" data-days="\${d}" onclick="selectPurgeEventDays(\${d})">\${d} 天</button>\`).join('')}
     </div>
     <p id="purgeEventHint" style="color: var(--text-muted);">保留最近 30 天的去重记录。</p>
     <div class="modal-actions">
