@@ -16,13 +16,16 @@ const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 // WebHTV adaptation: only deletions write a dedup receipt — a replayed progress
 // event is fully answered by the timestamp gates alone — so this table holds one
 // row per delete webhook instead of one row per progress webhook (the latter
-// arrived every ~30s per playing device and was the bulk of the table). The
-// window only has to outlive a device retry (minutes, at most a few days
-// offline), not a tombstone's 90-day anti-resurrection window. These rows are
-// the sole guard against a delete replay whose payload lacks deletedAt, because
-// that payload is re-stamped as "now" and the timestamp gate cannot catch it,
-// which is why a week is the floor rather than a single day.
-const EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+// arrived every ~30s per playing device and was the bulk of the table). These
+// rows are the sole guard against a delete replay whose payload lacks deletedAt:
+// that payload is re-stamped as "now", so the timestamp gate can never catch it,
+// and the replay would re-apply the deletion with a fresh deletedAt, sweeping
+// rows the original deletion had no right to touch. Only a device retry reaches
+// this path, so a month is deliberately generous. The delete-only change is what
+// makes that affordable: the table now grows by deletions alone — hundreds of
+// rows a month instead of thousands a day — so the window no longer has to be
+// traded against the free tier's rows-written budget.
+const EVENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 128 * 1024;
 const MAX_BATCH_ITEMS = 100;
@@ -572,7 +575,7 @@ export class WebHTVPlaybackSyncDO {
   }
 
   // WebHTV quota maintenance: reclaim historical webhook dedup rows ahead of the
-  // 7-day retention sweep. playback_events carries no playback data — it only
+  // 30-day retention sweep. playback_events carries no playback data — it only
   // answers "was this delete event id already applied?" (progress events write no
   // receipt at all) — but identity migration reads a source space's events in
   // full to copy them, so the ~190k experiment-era rows left behind in now-aliased
