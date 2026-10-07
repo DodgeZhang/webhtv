@@ -314,10 +314,10 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     <div class="stat-card" title="清理事件去重记录" onclick="confirmPurgeEvents()" style="cursor:pointer">
       <div class="stat-label">
         <span class="stat-icon" style="background: var(--warning-bg); color: var(--warning);">⏱️</span>
-        数据保留
+        去重记录
       </div>
-      <div class="stat-value" id="retentionDays">-</div>
-      <div class="stat-sub">天 · 事件去重自动保留 · 点击清理</div>
+      <div class="stat-value" id="eventCount">-</div>
+      <div class="stat-sub">条 · 全部接口合计 · 点击清理</div>
     </div>
   </div>
 
@@ -944,7 +944,7 @@ function renderStats() {
   document.getElementById('totalCount').textContent = s.items ?? 0;
   document.getElementById('tombstoneCount').textContent = s.tombstones ?? 0;
   document.getElementById('nextSince').textContent = s.nextSince ?? '-';
-  document.getElementById('retentionDays').textContent = s.eventRetentionDays ?? s.retentionDays ?? '-';
+  document.getElementById('eventCount').textContent = s.events ?? 0;
 }
 
 function applyFilter() {
@@ -1182,19 +1182,19 @@ function showCursorInfo() {
   \`);
 }
 
-// 数据保留卡片 — 按天清理事件去重记录（playback_events）
-let purgeEventDays = 30;
+// 去重记录卡片 — 按天清理事件去重记录（playback_events）
+let purgeEventDays = 7;
 
 function confirmPurgeEvents() {
-  purgeEventDays = 30;
+  purgeEventDays = 7;
   showModal(\`
     <h3>⏱️ 清理事件去重记录</h3>
     <p>「事件去重记录」只用于判断同一条设备上报是否已处理过，<strong>不含任何观影记录</strong>。清理它不影响进度同步、删除墓碑与设备拉取内容。</p>
-    <p>选择保留期，将清除更早的去重记录：</p>
+    <p>选择保留期，将清除全部接口中更早的去重记录：</p>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0;">
-      \${[7, 15, 30, 60, 90].map((d) => \`<button class="btn day-btn\${d === purgeEventDays ? ' active' : ''}" data-days="\${d}" onclick="selectPurgeEventDays(\${d})">\${d} 天</button>\`).join('')}
+      \${[1, 3, 7, 15, 30, 60, 90].map((d) => \`<button class="btn day-btn\${d === purgeEventDays ? ' active' : ''}" data-days="\${d}" onclick="selectPurgeEventDays(\${d})">\${d} 天</button>\`).join('')}
     </div>
-    <p id="purgeEventHint" style="color: var(--text-muted);">保留最近 30 天的去重记录。</p>
+    <p id="purgeEventHint" style="color: var(--text-muted);">保留最近 7 天的去重记录。</p>
     <div class="modal-actions">
       <button class="btn" onclick="hideModal()">取消</button>
       <button class="btn btn-danger" onclick="purgeEvents()">确认清理</button>
@@ -1213,7 +1213,8 @@ function selectPurgeEventDays(days) {
     btn.style.color = on ? '#fff' : '';
   });
   const hint = document.getElementById('purgeEventHint');
-  if (hint) hint.textContent = '保留最近 ' + days + ' 天的去重记录，清除更早的。';
+  if (hint) hint.textContent = '保留最近 ' + days + ' 天的去重记录，清除更早的。'
+    + (days <= 3 ? ' 注意：窗口较短，异常重发事件的兜底时间会同步缩短。' : '');
 }
 
 async function purgeEvents() {

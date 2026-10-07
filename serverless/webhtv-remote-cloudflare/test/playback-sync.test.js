@@ -104,7 +104,7 @@ test('never infers a full-config deletion without explicit scope=all', () => {
   );
   assert.throws(
     () => normalizePlaybackEvent({ event: 'playback.deleted', scope: 'everything', siteKey: 'site-a' }, CONFIG_KEY, NOW),
-    /scope must be item, site, or all/
+    /scope must be item, site, season, or all/
   );
   assert.throws(
     () => normalizePlaybackEvent({ event: 'playback.deleted', scope: 'all' }, CONFIG_KEY, NOW),

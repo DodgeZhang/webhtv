@@ -17,8 +17,11 @@ const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 // applied?", so they must outlive a device retry window (minutes, at most a
 // few days offline), not a tombstone's 90-day anti-resurrection window. Sharing
 // the 90-day constant let tens of thousands of dead rows accumulate, and every
-// identity migration re-scans them in full. Independent and much shorter.
-const EVENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+// identity migration re-scans them in full. Independent and much shorter: these
+// rows are the only guard against a delete replay whose payload lacks deletedAt
+// (the timestamp gate cannot catch that one, because the fallback stamp is
+// "now"), which is why a week is the floor rather than a single day.
+const EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 128 * 1024;
 const MAX_BATCH_ITEMS = 100;
@@ -322,6 +325,11 @@ export class WebHTVPlaybackSyncDO {
     const cutoff = Date.now() - TOMBSTONE_RETENTION_MS;
     const items = this.sql.exec('SELECT COUNT(*) AS count FROM playback_items WHERE config_key = ?', storageConfigKey).one();
     const tombstones = this.sql.exec('SELECT COUNT(*) AS count FROM playback_tombstones WHERE config_key = ? AND deleted_at >= ?', storageConfigKey, cutoff).one();
+    // Unscoped on purpose: the dedup card reports the table's total weight (the
+    // part that makes identity migration expensive) and the cleanup action
+    // purges that same global set, so the number shown and the number removed
+    // always agree.
+    const events = this.sql.exec('SELECT COUNT(*) AS count FROM playback_events').one();
     const latest = this.sql.exec(`
       SELECT COALESCE(MAX(seq), 0) AS seq FROM (
         SELECT seq FROM playback_items WHERE config_key = ?
@@ -337,6 +345,7 @@ export class WebHTVPlaybackSyncDO {
       capabilities: identityCapabilities(),
       items: Number(items.count || 0),
       tombstones: Number(tombstones.count || 0),
+      events: Number(events.count || 0),
       nextSince: String(latest.seq || 0),
       retentionDays: Math.round(TOMBSTONE_RETENTION_MS / 86400000),
       eventRetentionDays: Math.round(EVENT_RETENTION_MS / 86400000),
