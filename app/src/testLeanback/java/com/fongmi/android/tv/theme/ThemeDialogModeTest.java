@@ -51,6 +51,11 @@ public class ThemeDialogModeTest {
             click(dialog, R.string.theme_editor_apply);
             assertEquals(dark ? 1 : 0, Setting.getThemeMode());
             assertEquals(dark ? "dark" : "light", ThemeProfileStore.load().mode);
+            ThemeController.applyFromPreferences(null);
+            assertEquals(dark ? ThemeTokens.dark().colorSurface() : ThemeTokens.light().colorSurface(),
+                    ThemeController.current().colorSurface());
+            assertEquals(dark ? ThemeTokens.dark().colorPrimary() : ThemeTokens.light().colorPrimary(),
+                    ThemeController.current().colorPrimary());
             ShadowLooper.idleMainLooper();
         }
         var host = Robolectric.buildActivity(Host.class).setup();
