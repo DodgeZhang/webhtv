@@ -13,14 +13,15 @@ import {
 const PLAYBACK_SYNC_PATHS = new Set(['/api/playback/sync', '/playback/sync']);
 const IDENTITY_RESOLVE_PATHS = new Set(['/api/playback/identity/resolve', '/playback/identity/resolve']);
 const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-// WebHTV adaptation: event-dedup rows only answer "was this webhook already
-// applied?", so they must outlive a device retry window (minutes, at most a
-// few days offline), not a tombstone's 90-day anti-resurrection window. Sharing
-// the 90-day constant let tens of thousands of dead rows accumulate, and every
-// identity migration re-scans them in full. Independent and much shorter: these
-// rows are the only guard against a delete replay whose payload lacks deletedAt
-// (the timestamp gate cannot catch that one, because the fallback stamp is
-// "now"), which is why a week is the floor rather than a single day.
+// WebHTV adaptation: only deletions write a dedup receipt — a replayed progress
+// event is fully answered by the timestamp gates alone — so this table holds one
+// row per delete webhook instead of one row per progress webhook (the latter
+// arrived every ~30s per playing device and was the bulk of the table). The
+// window only has to outlive a device retry (minutes, at most a few days
+// offline), not a tombstone's 90-day anti-resurrection window. These rows are
+// the sole guard against a delete replay whose payload lacks deletedAt, because
+// that payload is re-stamped as "now" and the timestamp gate cannot catch it,
+// which is why a week is the floor rather than a single day.
 const EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 128 * 1024;
@@ -571,10 +572,11 @@ export class WebHTVPlaybackSyncDO {
   }
 
   // WebHTV quota maintenance: reclaim historical webhook dedup rows ahead of the
-  // 90-day retention sweep. playback_events carries no playback data — it only
-  // answers "was this event id already applied?" — but identity migration reads a
-  // source space's events in full to copy them, so the ~190k experiment-era rows
-  // left behind in now-aliased spaces made every binding change expensive.
+  // 7-day retention sweep. playback_events carries no playback data — it only
+  // answers "was this delete event id already applied?" (progress events write no
+  // receipt at all) — but identity migration reads a source space's events in
+  // full to copy them, so the ~190k experiment-era rows left behind in now-aliased
+  // spaces made every binding change expensive.
   // Batched on purpose: the free tier allows 100k written rows per day and a
   // single DELETE of that size fails the statement (docs/cf-do-quota-rows-written.md),
   // so the caller repeats the call while `hasMore` stays true and the daily
@@ -1367,10 +1369,14 @@ export class WebHTVPlaybackSyncDO {
   applyUpsert(event, receivedAt) {
     const storageConfigKey = event.storageConfigKey || event.configKey;
     return this.state.storage.transactionSync(() => {
-      if (event.eventId && this.hasEvent(storageConfigKey, event.eventId)) {
-        return resultFor(event, 'duplicate', 0, 'Event already processed');
-      }
-
+      // WebHTV adaptation: progress events write NO dedup receipt. A replayed
+      // upsert is already fully answered by the tombstone gate and the "not
+      // newer" check below — both use <=, so an equal timestamp is skipped
+      // without writing and without consuming a sequence number — while the
+      // receipt cost one row per progress webhook (the bulk of the table, one
+      // row every ~30s per playing device, forever). Receipts remain for
+      // deletions, where a payload without deletedAt is re-stamped as "now" and
+      // the timestamp gate therefore cannot catch a replay.
       const current = firstRow(this.sql.exec(
         'SELECT updated_at, seq FROM playback_items WHERE config_key = ? AND item_key = ?',
         storageConfigKey,
@@ -1407,11 +1413,9 @@ export class WebHTVPlaybackSyncDO {
         event.siteKey)) : null;
       const deletedAt = Number(tombstone?.deleted_at || 0);
       if (deletedAt > 0 && event.updatedAt <= deletedAt) {
-        this.recordEvent(storageConfigKey, event.eventId, receivedAt);
         return resultFor(event, 'skipped', Number(tombstone?.seq || 0), 'A newer deletion exists');
       }
       if (current && event.updatedAt <= Number(current.updated_at || 0)) {
-        this.recordEvent(storageConfigKey, event.eventId, receivedAt);
         return resultFor(event, 'skipped', Number(current.seq || 0), 'A newer progress record exists');
       }
 
@@ -1429,7 +1433,6 @@ export class WebHTVPlaybackSyncDO {
           seq = excluded.seq,
           payload = excluded.payload
       `, storageConfigKey, event.itemKey, event.historyKey, event.siteKey, event.vodId, event.updatedAt, seq, payload);
-      this.recordEvent(storageConfigKey, event.eventId, receivedAt);
       return resultFor(event, current ? 'updated' : 'created', seq, '');
     });
   }
