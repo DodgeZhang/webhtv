@@ -5,7 +5,8 @@
 - 目标：消除每次 `POST /api/playback/identity/resolve` 无条件执行的空间迁移全表扫描（每个已别名空间约 9.5 万条 `playback_events`），并提供一个可分批回收历史事件去重行的维护操作；响应体、写决策、身份判定结果一律不变。
 - 验收：resolve 在稳态（`keep` 且提交的键都已指向 canonical）时不再调用迁移；凡是仍然调用迁移的请求，其 `action`、`canonicalInterfaceKey`、`migrationRequired/Done`、`resetSince`、`nextSince`、`identityEpoch` 与改动前逐字节一致；迁移失败仍会被后续请求重试。
 - 范围：A（`serverless/playback-identity-fixtures/identity.js` 迁移门限 + 待重试清单）、C（`serverless/webhtv-remote-cloudflare/src/playback-sync.js` 新增 `purgeEvents`）。B 档（事件保留期解耦）与 A 档第三项（`cleanup()` 的 `playback_meta` 读缓存）不在本次。
-- 状态：代码已改，沙箱等价性验证通过，待提交。
+- 状态：已实现、已提交（`f38c847dbd`）、已推送 `main` 并部署生效。
+- 验收记录（2026-10-07）：`POST /api/playback/sync/maintenance` 带 `{"op":"purgeEvents"}` 返回 `HTTP 400 {"ok":false,"error":"beforeReceivedAt must be a positive ms timestamp"}`，证明新构建已上线（部署前该 op 命中 `Unknown maintenance op` 分支）。DO Metrics 的 rows_read 日增量需在实际同步后再观察。
 - 回滚锚：revert 本次 commit 即回到 `c50524ba60`（= rows_read A 档前两项任务状态）。
 
 ## 计量事实（用户 Data Studio 截图 + DO 实例）
@@ -88,7 +89,7 @@ DO 实例 `user-df1b09fd3a46ec39a82ea221b7d65391cdb7c9066ba3419235c75516402201c5
 
 ## 部署与后续操作
 
-- 部署：推送 `main` 触发 CF 构建后生效（本次提交不自动推送，需用户授权）。
+- 部署：已推送 `main`（`c50524ba60..f38c847dbd`）并由 CF 构建上线，见上方验收记录。
 - 回收历史事件行（可选，按当日写入额度分批）：
   `POST https://webhtv-remote.dodge.cc.cd/api/playback/sync/maintenance`，头 `X-WebHTV-Token: <token>`，体 `{"op":"purgeEvents","beforeReceivedAt":<毫秒时间戳>,"limit":20000}`；返回 `hasMore=true` 即继续新一轮。建议单日不超过当日剩余 rows_written 额度（免费版 10 万行/日，UTC 0 点即北京 08:00 重置），例如每天 2 万行、约 10 天清完 19 万行。
 - 事件去重行被删除的语义等同现有 90 天保留期清理：只影响「同一 eventId 被重复上报时是否被识别为重复」，pull 响应与观影记录不受影响。
