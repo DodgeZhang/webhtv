@@ -3043,7 +3043,15 @@ private boolean runtimeSourceOnly;
             SpiderDebug.log("video-flow", "drop player result before detail ready key=%s id=%s", getKey(), getId());
             return;
         }
-        if (result == mAppliedPlayerResult && !player().isEmpty()) return;
+        if (result == mAppliedPlayerResult && !player().isEmpty()) {
+            // 同一个结果已经在播，本次不会再走 startPlayer，也就不会有新的 READY 回调来收圈。
+            // 守卫若留在这里，onStateChanged 与 hidePlaybackProgressIfStale 都会被它挡下，
+            // 圈再没有任何清除路径——正是那个兜底方法要防的「画面在动、圈不走」。
+            // 此时播放器已在播同一结果，加载态本身是陈旧的，直接释放。
+            mPlaybackRequestActive = false;
+            mPlaybackPlayerStarted = false;
+            return;
+        }
         mAppliedPlayerResult = result;
         mQualityAdapter.addAll(result);
         mQualityAdapter.setPosition(mQualityAdapter.getPosition());

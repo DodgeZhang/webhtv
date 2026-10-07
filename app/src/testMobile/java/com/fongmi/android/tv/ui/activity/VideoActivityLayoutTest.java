@@ -1331,6 +1331,14 @@ public class VideoActivityLayoutTest {
                 error.contains("mPlaybackRequestActive = false;")
                         && error.contains("mPlaybackPlayerStarted = false;")
                         && error.contains("showError(msg);"));
+        // 早退分支同样必须释放守卫：同一结果已在播时不会再走 startPlayer，没有新的 READY 回调，
+        // 守卫留下就等于「画面在动、圈不走」——两个清除点都被它自己挡下。
+        int duplicateResultReturn = setPlayer.indexOf("if (result == mAppliedPlayerResult && !player().isEmpty())");
+        assertTrue("the duplicate-result early return must release the loading guard", duplicateResultReturn >= 0);
+        String duplicateResultBranch = setPlayer.substring(duplicateResultReturn, setPlayer.indexOf("mAppliedPlayerResult = result;", duplicateResultReturn));
+        assertTrue("a duplicate result that is already playing has no later READY callback, so it must clear the guard itself",
+                duplicateResultBranch.contains("mPlaybackRequestActive = false;")
+                        && duplicateResultBranch.contains("mPlaybackPlayerStarted = false;"));
     }
 
     @Test
