@@ -564,6 +564,8 @@
     <string name="setting_custom_csp_recognize_empty">請先貼上站點 JSON</string>
     <string name="setting_custom_csp_recognize_invalid">未識別到有效站點 JSON</string>
     <string name="setting_custom_csp_recognize_done">已加入 %1$d 個條目</string>
+    <string name="setting_custom_csp_search_hint">搜尋站點注入…</string>
+    <string name="setting_custom_csp_search_empty">沒有符合的站點注入</string>
     <string name="setting_custom_csp_count">%1$d/%2$d 可用</string>
     <string name="setting_custom_csp_api">api</string>
     <string name="setting_custom_csp_code">代碼</string>

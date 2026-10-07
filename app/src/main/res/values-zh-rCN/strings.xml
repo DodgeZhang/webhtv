@@ -564,6 +564,8 @@
     <string name="setting_custom_csp_recognize_empty">请先粘贴站点 JSON</string>
     <string name="setting_custom_csp_recognize_invalid">未识别到有效站点 JSON</string>
     <string name="setting_custom_csp_recognize_done">已添加 %1$d 个条目</string>
+    <string name="setting_custom_csp_search_hint">搜索站点注入…</string>
+    <string name="setting_custom_csp_search_empty">没有匹配的站点注入</string>
     <string name="setting_custom_csp_sort">排序</string>
     <string name="setting_custom_csp_sort_done">完成</string>
     <string name="setting_custom_csp_sort_drag">拖拽排序</string>

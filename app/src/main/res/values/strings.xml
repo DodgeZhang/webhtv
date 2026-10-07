@@ -566,6 +566,8 @@
     <string name="setting_custom_csp_recognize_empty">Paste site JSON first</string>
     <string name="setting_custom_csp_recognize_invalid">No valid site JSON detected</string>
     <string name="setting_custom_csp_recognize_done">Added %1$d items</string>
+    <string name="setting_custom_csp_search_hint">Search site injections…</string>
+    <string name="setting_custom_csp_search_empty">No matching site injections</string>
     <string name="setting_custom_csp_sort">Sort</string>
     <string name="setting_custom_csp_sort_done">Done</string>
     <string name="setting_custom_csp_sort_drag">Drag to sort</string>
