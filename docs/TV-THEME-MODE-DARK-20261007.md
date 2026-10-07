@@ -11,6 +11,29 @@
 - 保留 `frozenPalette()`/`resolvedDark()` 的编译资源基线逻辑，不改变 ThemeBinder 的基线匹配契约。
 - 回归测试在保存深色、保存浅色后调用 `ThemeController.applyFromPreferences(null)`，分别断言 `ThemeController.current()` 的 surface 和 primary 与对应 canonical palette 一致。
 
+## 同批修复：`ChoiceDialog` 选项按钮固定浅色字面量
+
+### 根因
+
+`ChoiceDialog.styleItem()` 把选项按钮的前景/底色/描边写死为手机版浅色字面量：聚焦 `#1A73E8`/`#FFFFFF`、选中 `#E8F0FE`/`#174EA6`、常规 `#FFFFFF`/`#202124`、禁用 `#F1F3F4`/`#9AA0A6`。这些值在日间浅色表上尚可，但在**夜间表**上按钮底色仍是近白，而同屏的弹窗面板来自 `ThemeController.current()`，于是同一弹窗出现两种调色板；用户把主题色改掉后按钮也不再跟随。
+
+### 修复
+
+- `styleItem()` 与 `createView()` 统一从 `ThemeController.current()` 取 token：聚焦 `colorPrimary`/`colorOnPrimary`、选中 `colorPrimaryContainer`/`colorOnPrimaryContainer`、常规 `colorSurfaceContainer`/`colorOnSurface`、禁用 `colorSurfaceContainerHighest`/`colorOutlineVariant`/半透明 `colorOnSurfaceVariant`。
+- 弹窗根背景由静态 `shape_shell_proxy_dialog` 改为 `ThemeEditorUi.shape(context, colorSurfaceContainerHigh, 0, 0, 22)`，与其它运行时构建的弹窗同源（同半径、同语义槽）。
+- 自定义 `Dialog` 入口补 `ThemeController.bindDialog(dialog)`，让用户 profile 覆写也能到达该窗口（原先只有 `AlertDialog` 入口绑定）。
+
+### 对比度实测（`ThemeContrast.ratio`，浅色/深色）
+
+| 状态 | 前景 / 底色 | 浅色表 | 深色表 |
+| --- | --- | ---: | ---: |
+| 聚焦 | `colorOnPrimary` / `colorPrimary` | 6.39:1 | 7.50:1 |
+| 选中 | `colorOnPrimaryContainer` / `colorPrimaryContainer` | 12.57:1 | 7.04:1 |
+| 常规 | `colorOnSurface` / `colorSurfaceContainer` | 14.73:1 | 12.14:1 |
+| 禁用 | 45% `colorOnSurfaceVariant` / `colorSurfaceContainerHighest` | 2.12:1 | 2.67:1 |
+
+禁用态沿用原实现的「弱化但仍可辨」口径（原 `#9AA0A6`/`#F1F3F4` = 2.37:1），两表数值接近，未新增不可读组合。
+
 ## 当前验证
 
 - `:app:testLeanbackArm64_v8aDebugUnitTest --tests com.fongmi.android.tv.theme.ThemeDialogModeTest --tests com.fongmi.android.tv.theme.ThemeControllerContractTest`：通过。
