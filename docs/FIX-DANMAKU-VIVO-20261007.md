@@ -70,8 +70,9 @@
 
 ## Recovery anchor
 
-- 状态：实现与定向验证完成，待提交。
+- 状态：已完成并提交。
 - 任务文件：本文件；生产目标：`BaseAlertDialog.builder()`；测试：`DialogRoundedCornerSourceTest`、`DanmakuApiDialogDeviceTest`。
 - 已改文件：`BaseAlertDialog.java`（1 行）、`DialogRoundedCornerSourceTest.java`、`DanmakuApiDialogDeviceTest.java`（新增）、本文件。
+- 提交：`7596ebabb73ca6d1b38273c774513f32cbdb7343`（分支 `dev2`）；恢复标签：`recovery/FIX-DANMAKU-VIVO-20261007/20261007062638-7596ebabb73c`。
 - 未决风险：仅限无 vivo Android 14 真机；应用侧诱因已由设备证据证实。
-- 下一步：`task_guard.sh finish` 提交并打恢复标签。
+- 下一步：无。如需真机确认，请在 vivo V2307A / Android 14 上覆盖安装后长按弹幕接口输入框验证。
