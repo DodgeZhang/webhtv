@@ -1131,12 +1131,13 @@ async function clearAll() {
 // 清理当前接口的删除墓碑 — 仅清当前 configKey，与卡片计数口径一致。
 // 按保留期清理：只删除比保留期更早的墓碑，最近这几十天的删除指令照旧留给设备，
 // 因此不存在「刚删完就清墓碑」导致未同步设备把记录传回来（复活）的窗口。
-let purgeTombstoneDays = 30;
+// 默认 90 天：与墓碑保留期（TOMBSTONE_RETENTION_MS）一致，等于只清早就不再下发的墓碑。
+let purgeTombstoneDays = 90;
 
 function confirmPurgeTombstones() {
   const count = parseInt(document.getElementById('tombstoneCount').textContent, 10) || 0;
   if (!count) { showToast('当前接口没有可清理的删除墓碑', 'info'); return; }
-  purgeTombstoneDays = 30;
+  purgeTombstoneDays = 90;
   showModal(\`
     <h3>⚠️ 清理删除墓碑</h3>
     <p>当前接口有 <strong>\${count}</strong> 条删除墓碑（服务端的删除同步历史，只保留最近 90 天）。墓碑是「这条记录已被删除」的指令，用来自动清掉其他设备上残留的同名记录。</p>
@@ -1166,7 +1167,7 @@ function selectPurgeTombstoneDays(days) {
   const hint = document.getElementById('purgeTombstoneHint');
   if (hint) hint.textContent = '保留最近 ' + days + ' 天的删除指令，清除更早的墓碑。'
     + (days >= 90
-      ? ' 服务端上限为 90 天，此项等于清掉全部存量墓碑。'
+      ? ' 与墓碑保留期一致：只清掉早就不再下发给设备的墓碑（日常已被服务端自动清理，可能为 0 条），正常同步不受影响。'
       : ' 保留期内的删除同步历史照常下发，未在保留期内同步过的设备才可能漏掉删除。');
 }
 
