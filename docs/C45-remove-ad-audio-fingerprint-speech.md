@@ -62,9 +62,12 @@
 - 布局：`activity_setting_ad.xml`、`fragment_setting_ad.xml` 删除 `setting_ad_group_audio` 整组（含 `adAudioFingerprint`、`adAudioAutoSkip`、`probeRuleSource`、`probeRuleRefresh`、`speechAdEnabled`、`speechAdKeywords`、`speechAdRules`、`speechAdBuiltin`、`speechAdSkipSeconds`、`speechAdSkipMode`）。
 - 字符串：三套 `strings.xml` 各删除 66 条音频指纹/语音广告键，并把 `setting_ad_summary` 从“总开关、规则、音频识别、片头片尾”改为“总开关、规则、片头片尾”。
 - 构建：移除 `libs.tink.android` 依赖与 `tink` 版本/别名（唯一使用者是签名规则包校验）。
+- `scripts/pull-ad-audio-log.sh`：本次 C45 遗漏，C46 复评删除（详见 `docs/C46-beta-merge-review-dev1-20261008.md`）。
 - `SettingPlaybackDefaultsTest`：`adSettingsLiveUnderTheDedicatedAdPage` 断言列表去掉音频识别相关 id，保留分组归属校验。
 - `docs/settings-classification-review.md`：删除 `adAudioFingerprint` 归类行与“音频指纹规则”描述。
-- `智能去广-设计文档.md`：删除 3.3 语音广告检测验收、4.2 语音广告检测通道全节、决策 E（复用 PCM + Sherpa-ONNX 语音去广）、决策 G（签名规则包信封）与第 21 节音频指纹 Phase 1 落地状态；决策 F 改写为“实时字幕等 PCM 消费者”；“当前明确不承诺”改写为不含音频指纹/语音的边界表述。
+- `智能去广-设计文档.md`：删除 3.3 语音广告检测验收、4.2 语音广告检测通道全节、原决策 E（复用 PCM + Sherpa-ONNX 语音去广）、原决策 G（签名规则包信封）与第 21 节音频指纹 Phase 1 落地状态（其中第 4、6 项与决策 G 属被删功能）。
+  - 原决策 F（管线所有权与业务启停分离）描述的 `PlaybackMediaSignalHub` / `PipelineLease` / generation 门控在删除后**仍被实时字幕使用**，属于保留能力，不能随功能一起删除。C46 复评已将其以“决策 E”恢复（内容改写为以实时字幕为现存唯一 consumer）。
+  - “当前明确不承诺”的 4 条全部指向已删功能（音频指纹匹配、指纹库、第三方 H5/SDK 协议），随功能一并删除是正确的，C46 复评未恢复。
 
 ## 验证
 
