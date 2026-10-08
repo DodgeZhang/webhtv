@@ -87,8 +87,14 @@
   2. 把 `SEEK_PROGRESS_MIN_VISIBLE_MS` 从 1200 改回 500 → 同测试在「最小可见时长必须盖过一个网速采样间隔」断言变红。
   - 两处变异均在断言后按 md5 校验恢复为变异前内容（`e21ac2279f16fba59deed4be73053ebc` / `5a3134b05ab83ab4400bc95b4899aaf8`）。
 - **接口面核查**：全仓测试源集内无其它用例钉住旧的 500ms/`App.post(mSeekProgressFallback, 500)` 形状；`TmdbDetailActivity` 内嵌播放器不走 seek 专属亮圈（`onSeekStarted` 未覆写、加载态纯由 `isLoading()` 驱动），不存在同款「先亮后收」竞态，故未纳入本次范围。
-- **未执行（边界，如实记录）**：未做真机/模拟器观感验收。按 AGENTS.md 的模拟器分配规则本工作区对应 `192.168.50.3:5561`，本次多次连接均被拒绝（`目标计算机积极拒绝`），其余 `5557/5559/5554/5556/5558` 属其它工作区，未擅自占用。因此**不宣称**「实机观感已修复」；已修的是可静态证伪的时序契约与闸门。
-- 未打正式包（遵守 webhtv 项目约定），仅 Debug Java 编译与 JVM 单测。
+- **实机（模拟器）验收**：设备 `192.168.50.3:5561`（= `emulator-5560`，HD1910，x86_64 + ARM 转译），mobile/arm64-v8a Debug 覆盖安装（签名一致，`-r`，未卸载）。
+  - 环境阻塞与排除：安装后 App 启动即崩 `Room IllegalStateException: Migration didn't properly handle: History`（`HomeActivity.initView`）。经只读排查为**设备预存状态**：`PRAGMA user_version=37` 但 `History` 仅 17 列，缺 `MIGRATION_36_37` 应加的 5 列（`typeName/area/actor/director/year`，Room 期望 31 列），且 `tv` 文件时间戳早于本次安装。C47 提交不触碰 `db/`（仅 2 个 VideoActivity + 测试 + 文档），故与本次改动无关。为完成验收把 `databases/tv` 暂时移开让 Room 重建，**验收后已完整还原**。
+  - 关键判据纠正：`dumpsys activity top` 报的 `V`/`G` 是视图自身标志，**对 overlay 容器不可靠**（根 `app:id/progress` 为 `G` 时其子 `app:id/traffic` 仍可能显示 `V`）。必须用**根节点** `app:id/progress` 判定覆盖层可见性。
+  - 可复现路径辨析：mobile 的**手势横滑**路径不经过本次改动——`onSeeking()` 会主动 `hideProgress()`，且 `onTouchEnd`/`onSeekEnd` 不调用 `onSeekStarted()`（`onSeekStarted()` 的唯一调用者是 `CustomSeekView`，即进度条）。用户所述「拖拽进度」对应**进度条**路径，验收须用 `app:id/timeBar`（`uiautomator` 实测绝对坐标 `[178,597][794,675]`），不能用横滑代替。
+  - 进度条拖拽实测（设备端紧循环采样 `app:id/progress`，单次 ~30–160ms）：基线 `G`（隐藏）→ 抬手瞬间 `V`（出现）→ 持续约 1.0–2.0s 后回到 `G`；越过缓冲区拖拽时可见窗口更长（实测 s19–s22 + t1、t2 共约 2s 后干净收口）。与「最小可见 1.2s + 闸门」的预期一致，**未复现「抬手即被收圈」**。
+  - 采样精度边界（如实记录）：该实例 `loadavg≈9–12`（x86_64 + ARM 转译 + 软件渲染），`uiautomator dump` 需 ~3.9s、`dumpsys` 读取后取时戳会滞后 150–800ms，因此**无法逐帧分辨 1.2s 窗口的起止**，也无法稳定读到覆盖层内的网速文本（`traffic` 文本在 dump 中不落 `mText`）。故本次**不宣称**「网速观感已逐帧确认」，只宣称：进度条拖拽会立即亮圈并保持到可收口为止，且收口后不残留。
+  - 设备已还原：原 APK 重新覆盖安装（sha256 `315e7d03…` 与安装前一致）、`databases/tv` 还原为 `user_version=37` / 17 列、移除全部临时文件；未打正式包（遵守 webhtv 约定）。
+- **仍未覆盖**：`screenrecord`/`screencap` 逐帧观感（需宿主 ffmpeg 抽帧，本机无 ffmpeg 且模拟器负载使 `screencap` 单次达 3.2–4.2s）；leanback 侧的实机验收（该设备装的是 mobile flavor）。
 
 ## 回滚
 
