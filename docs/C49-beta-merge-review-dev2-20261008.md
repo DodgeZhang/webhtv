@@ -125,5 +125,11 @@
 
 ## 交付坐标
 
-- 合并提交与 recovery tag：由 `task_guard.sh finish` 生成（见提交 trailer 与 `recovery/C49-beta-merge-review-dev2/<timestamp>`）。
-- `dev2` 推送与 `dev2 → beta` PR：完成后在本节补充 commit / tag / PR 编号（PR **只创建，不合并**）。
+| 项 | 值 |
+| --- | --- |
+| 合并提交 | `a51e6f366f2f50048f95d6c383f816710ebd1a62`（第一父 `0582c722216a39854c9d9421af25297bffc80daa`，第二父 `4174c65ea3dd30c9ee9ebb55db64839970d85a29`） |
+| recovery tag | `recovery/C49-beta-merge-review-dev2/20261008140803-a51e6f366f2f` |
+| 分支推送 | `origin/dev2` = `a51e6f366f`（推送后 `git fetch` 复核 `origin/beta` tip 未前进，仍为 `4174c65ea3`） |
+| PR | `#423`：base `beta` / head `dev2` / state `OPEN` / `mergedAt=null` / 文件 3 个（与 `git diff --name-status origin/beta HEAD` 逐项一致） |
+| PR 性质 | **只创建，不合并**（未开启自动合并，未手动合并） |
+| 本文件提交 | docs-only 收口提交，仅用于记录以上提交 / tag / PR 坐标，无任何再次构建或验证 |
