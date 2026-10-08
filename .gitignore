@@ -30,7 +30,8 @@ __pycache__/
 third_party/sources/
 app/signing/
 .gradle-user-home/
-plans/
+# 只忽略仓库根目录的 plans/。写成 plans/ 会匹配任意深度，误伤 docs/superpowers/plans/ 下已跟踪的文档。
+/plans/
 .tokensave
 .codebase-memory
 graphify-out/
