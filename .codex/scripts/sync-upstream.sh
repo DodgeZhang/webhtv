@@ -52,7 +52,10 @@ REMOTE="upstream"
 BRANCH="beta"
 
 # 本仓库独有/有意分歧的路径前缀。白名单内出现的差异不报警。
+# 注意 .codex/scripts/task_guard.sh 在上游同样存在，故只精确放行本仓库自有的同步助手，
+# 以免掩盖 task_guard.sh 的真实分歧。
 LOCAL_ONLY_PATTERNS=(
+  ".codex/scripts/sync-upstream.sh"
   "docs/cf-"
   "plans/"
   "serverless/playback-identity-fixtures/"
