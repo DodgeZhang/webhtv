@@ -1129,33 +1129,61 @@ async function clearAll() {
 }
 
 // 清理当前接口的删除墓碑 — 仅清当前 configKey，与卡片计数口径一致。
-// beforeDeletedAt 取当前时间 +1 分钟，覆盖设备时钟略快产生的未来墓碑。
-async function confirmPurgeTombstones() {
+// 按保留期清理：只删除比保留期更早的墓碑，最近这几十天的删除指令照旧留给设备，
+// 因此不存在「刚删完就清墓碑」导致未同步设备把记录传回来（复活）的窗口。
+let purgeTombstoneDays = 30;
+
+function confirmPurgeTombstones() {
   const count = parseInt(document.getElementById('tombstoneCount').textContent, 10) || 0;
   if (!count) { showToast('当前接口没有可清理的删除墓碑', 'info'); return; }
+  purgeTombstoneDays = 30;
   showModal(\`
     <h3>⚠️ 清理删除墓碑</h3>
-    <p>即将清理当前接口 <strong>\${count}</strong> 条删除墓碑（服务端的删除同步历史），此操作不可恢复。</p>
-    <p style="color: var(--warning);">请确保所有设备近期已点过「同步」：未同步的设备将收不到这些删除指令，其本地残留记录之后可能重新同步回服务端。</p>
+    <p>当前接口有 <strong>\${count}</strong> 条删除墓碑（服务端的删除同步历史，只保留最近 90 天）。墓碑是「这条记录已被删除」的指令，用来自动清掉其他设备上残留的同名记录。</p>
+    <p>选择保留期后只清除更早的墓碑，保留期内的删除指令仍会照常下发给设备：</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0;">
+      \${[30, 60, 90].map((d) => \`<button class="btn day-btn\${d === purgeTombstoneDays ? ' active' : ''}" data-days="\${d}" onclick="selectPurgeTombstoneDays(\${d})">保留 \${d} 天</button>\`).join('')}
+    </div>
+    <p id="purgeTombstoneHint" style="color: var(--text-muted);"></p>
+    <p style="color: var(--warning);">保留期内没有同步过的设备收不到这些删除指令，其本地残留记录之后可能重新同步回服务端。</p>
     <div class="modal-actions">
       <button class="btn" onclick="hideModal()">取消</button>
       <button class="btn btn-danger" onclick="purgeTombstones()">确认清理</button>
     </div>
   \`);
+  selectPurgeTombstoneDays(purgeTombstoneDays);
+}
+
+function selectPurgeTombstoneDays(days) {
+  purgeTombstoneDays = days;
+  document.querySelectorAll('.day-btn').forEach((btn) => {
+    const on = Number(btn.dataset.days) === days;
+    btn.classList.toggle('active', on);
+    btn.style.background = on ? 'var(--accent)' : '';
+    btn.style.borderColor = on ? 'var(--accent)' : '';
+    btn.style.color = on ? '#fff' : '';
+  });
+  const hint = document.getElementById('purgeTombstoneHint');
+  if (hint) hint.textContent = '保留最近 ' + days + ' 天的删除指令，清除更早的墓碑。'
+    + (days >= 90
+      ? ' 服务端上限为 90 天，此项等于清掉全部存量墓碑。'
+      : ' 保留期内的删除同步历史照常下发，未在保留期内同步过的设备才可能漏掉删除。');
 }
 
 async function purgeTombstones() {
   hideModal();
+  const days = purgeTombstoneDays;
+  const before = Date.now() - days * 86400000;
   try {
     const res = await fetchJSON('/api/playback/sync/maintenance', {
       method: 'POST',
       body: JSON.stringify({
         op: 'purgeTombstones',
         configKey: state.configKey,
-        beforeDeletedAt: Date.now() + 60000
+        beforeDeletedAt: before
       })
     });
-    showToast('已清理 ' + (res.purged || 0) + ' 条删除墓碑', 'success');
+    showToast('已清理 ' + (res.purged || 0) + ' 条 ' + days + ' 天前的删除墓碑', 'success');
     loadData();
   } catch (e) { showToast('清理失败: ' + e.message, 'error'); }
 }
