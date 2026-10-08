@@ -1,0 +1,322 @@
+# WebHTV Remote + Playback Sync Cloudflare Worker
+
+这是 WebHTV 的 Cloudflare Worker serverless 服务，包含两套相互隔离的 Durable Object：
+
+- `RELAY_DO`：为“远程托管”提供在线命令和一次性同步文件中转。
+- `PLAYBACK_DO`：为“增强功能 -> 观影记录同步”持久保存最新进度、增量游标和 90 天删除墓碑。
+
+两项能力复用同一个 Worker 域名，但不会共用状态。服务不需要 KV、R2、外部数据库或必填环境变量；观影记录由 Durable Object 内置 SQLite 持久化。
+
+Cloudflare Worker 普通全局变量不能保证两台设备命中同一个运行实例，所以默认配置使用 Durable Object 统一承载绑定码、在线设备快照和命令队列，并保存轻量状态快照。长期绑定状态仍保存在 App/主控端本地，`deviceId/groupId/grantId` 由 `serverOrigin + token` 派生。同步文件分片仍是短期中转数据，不适合作为长期备份存储。需要离线队列、大文件暂存或长期备份时，再换完整版 Go/Rust 服务端或给 serverless 版本加 R2 等存储增强。
+
+新版 App 会在请求头中自动携带 `X-WebHTV-Origin`，服务端优先用该值作为 `serverOrigin`。因此 Cloudflare 同时存在 `*.workers.dev` 和自定义域名时，只要 App 中填写的是同一个自定义域名，就不需要额外配置环境变量，也不会因为平台默认域名参与 ID 派生而导致绑定码校验失败。旧客户端未携带该头时仍回退到请求实际 origin。
+
+## 部署
+
+```bash
+cd serverless/webhtv-remote-cloudflare-custom
+npm install
+cp wrangler.toml.example wrangler.toml
+npm run deploy
+```
+
+`wrangler.toml.example` 已包含两套 Durable Object 绑定和迁移配置，复制后可以直接部署。旧版本如果已经部署过 `RELAY_DO`，保留原有 `v1`，再追加 `PLAYBACK_DO` 绑定和 `v2` 迁移：
+
+```toml
+[[durable_objects.bindings]]
+name = "PLAYBACK_DO"
+class_name = "WebHTVPlaybackSyncDO"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["WebHTVPlaybackSyncDO"]
+```
+
+不要修改已经发布过的 `v1` migration tag；Cloudflare 升级时只需追加 `v2`。
+
+## 维护提示：合并上游时保护本目录
+
+本目录是仓库的定制版 Worker，上游同名实现位于 `serverless/webhtv-remote-cloudflare`。Cloudflare Workers Builds 的**根目录**必须指向本目录（`serverless/webhtv-remote-cloudflare-custom`），旧路径已不再参与部署。
+
+Git 默认会按文件内容把重命名配对，导致上游对旧路径的改动被静默合并进本目录并触发自动部署。因此本仓库已设置：
+
+```bash
+git config merge.renames false
+```
+
+设置后，上游改动旧路径时会变成显式的 `modify/delete` 冲突，而不是覆盖本目录；合并时删除旧路径即可：
+
+```bash
+git rm -r --force serverless/webhtv-remote-cloudflare
+```
+
+在新克隆中合并上游前，需要重新执行一次上面的 `git config`。Worker 名称、Durable Object 绑定和 migration tag 均未改变，因此本目录改名不影响已同步的数据。
+
+## 观影记录同步
+
+部署后使用同一个地址同时配置“远端同步源”和“Webhook 上报”：
+
+```text
+https://<你的 Worker 域名>/api/playback/sync
+```
+
+也兼容 `/playback/sync`。该地址的行为由 HTTP 方法区分：
+
+| 方法 | 用途 |
+| --- | --- |
+| `POST` | 接收 `playback.progress`、`playback.ended`、`playback.deleted` Webhook，也支持最多 100 条的批量写入 |
+| `GET` | 按 `X-WebHTV-Since` 拉取增量进度和删除墓碑 |
+| `GET /api/playback/sync/status` | 查看当前 token、`configKey` 空间的记录数和最新游标 |
+| `GET /api/playback/sync/configs` | 列出当前 token 命名空间下已有数据的所有 `configKey`（发现 App 实际使用的 interfaceKey） |
+| `POST /api/playback/sync/merge` | 把一个 `configKey` 空间并入另一个并建立永久别名（Dashboard 查询结果中的"合并"按钮） |
+
+`/api/playback/sync/configs` 不需要 `X-WebHTV-Config-Key`（这正是发现机制的意义所在），只需 token（可为空）。App 界面未展示 `interfaceKey`，但每次上报都会在 `X-WebHTV-Config-Key` 头中携带，服务端已记录，可直接查：
+
+```bash
+curl 'https://<你的 Worker 域名>/api/playback/sync/configs' \
+  -H 'X-WebHTV-Token: <你的 token>'
+```
+
+响应为 `{ "ok": true, "configs": [{ "configKey": "550e8400-...", "name": "我的接口", "items": 87, "latest": 1789... }] }`，按最近更新排序。`name` 取自该 configKey 最新一条记录的 `configName`（App 每次上报都会携带）；历史记录缺少该字段时显示为"未命名接口"或"旧版接口"，App 在该接口下再次播放后即会补全。Dashboard 登录页的"查询已有接口"按钮与测试脚本 GUI 的同名按钮均调用此端点，点击结果即可自动填入。
+
+### 合并分叉的接口空间
+
+新版 App 的 `interfaceKey` 由各设备**本机随机生成**（同一接口在电视和手机上独立添加会各产生一个 UUID），记录会分散在多个 `configKey` 命名空间中互不同步。在 Dashboard 登录页点击"查询已有接口"后，每条结果提供"🔗 合并其他接口到此空间"按钮：选定要保留的主空间，把另一个 `configKey` 的数据物理迁入（同名记录按 `updated_at` 保留较新者，删除墓碑同理），并为旧 key 建立永久别名——旧设备后续的读写会自动落到主空间，App 无需任何改动。
+
+等价 curl：
+
+```bash
+curl -X POST 'https://<你的 Worker 域名>/api/playback/sync/merge' \
+  -H 'Content-Type: application/json' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -d '{ "target": "<保留的 configKey>", "source": "<被合并的 configKey>" }'
+```
+
+响应为 `{ "ok": true, "itemsMoved": 2, "tombstonesMoved": 0, "eventsMoved": 0 }`。合并是幂等的：重复提交同一对 key 返回 `alreadyMerged: true`。
+
+### 多设备自动归一
+
+服务端在**每次写入（webhook）和拉取（远端同步）时自动归一**，不需要等设备调用身份解析接口，也不要求所有设备都升级新版 App：
+
+1. **地址指纹（强信号）**：请求携带的地址哈希（`X-WebHTV-Config-Aliases`）若唯一命中某个已注册接口，该设备的 key 立即自动并入，无需确认。
+2. **接口名称（兜底，可逆）**：未注册的设备空间若最新记录携带完全相同的 `configName`（如三台设备的接口都叫"摸鱼"），会自动合并到同一空间——名称同时匹配两个不同接口时保持隔离不自动合并。合并采用复制迁移且不删除源空间，误判可通过 Dashboard 手动拆分恢复。
+
+因此新设备（只配置了 webhook、旧版 App、或身份解析失败）第一次播放上报后，最迟在任一台设备下次同步时即完成归一：新产生的进度和删除墓碑都会进入统一空间，其他设备下一次拉取即可收到。
+
+### App 配置
+
+1. 自己生成一个足够随机的 token，例如 `openssl rand -hex 32`。服务端不负责签发 token，token 就是用户空间凭证，请勿公开。
+2. 在“增强功能 -> 观影记录同步 -> 远端同步”中新增同步源，URL 填上面的地址，token 填刚生成的值。
+3. 在“Webhook 上报”中新增端点，填写完全相同的 URL 和 token。字段预设使用“基础”“标准”或“完整”；匿名预设以及缺少 `siteKey/vodId/vodName/episodeName` 的自定义预设不能作为完整同步数据源。
+4. 其它设备填写同一 URL 和 token，即进入同一个用户空间；不同用户或不同数据空间应使用不同 token。
+
+内置服务端要求 `X-WebHTV-Token` 和 `X-WebHTV-Config-Key`。token 只用于计算不可逆的 Durable Object 分区名，不会以明文写入 SQLite 或日志；同一 token 下仍按 `configKey` 隔离不同点播接口。
+
+> **新版 App 的 configKey 变化**：自"稳定身份与多地址配置"功能起，App 不再用 `SHA-256(接口URL)` 作为 `configKey`，改为发送稳定的 `interfaceKey`（UUID 格式，如 `550e8400-e29b-41d4-a716-446655440000`）。Dashboard 和测试脚本已支持自动识别 UUID / 旧 SHA-256 / URL 三种格式。旧版 App 升级后，历史数据仍存储在旧 `SHA-256(url)` 命名空间下，新数据将写入 `interfaceKey` 命名空间。如需迁移，请在 App 中查看当前接口的 `interfaceKey` 并在 Dashboard 中直接粘贴。
+
+### curl 联调
+
+写入一条进度：
+
+```bash
+curl -X POST 'https://<你的 Worker 域名>/api/playback/sync' \
+  -H 'Content-Type: application/json' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -H 'X-WebHTV-Config-Key: <点播接口 configKey>' \
+  -d '{
+    "event": "playback.progress",
+    "eventId": "test-progress-1",
+    "timestamp": 1781170000000,
+    "historyKey": "site_key@@@vod_id@@@1",
+    "siteKey": "site_key",
+    "vodId": "vod_id",
+    "vodName": "影片名",
+    "episodeName": "第1集",
+    "positionMs": 123456,
+    "durationMs": 456789
+  }'
+```
+
+从头拉取增量：
+
+```bash
+curl 'https://<你的 Worker 域名>/api/playback/sync' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -H 'X-WebHTV-Config-Key: <点播接口 configKey>' \
+  -H 'X-WebHTV-Since: 0' \
+  -H 'X-WebHTV-Limit: 100'
+```
+
+写入单条删除墓碑：
+
+```bash
+curl -X POST 'https://<你的 Worker 域名>/api/playback/sync' \
+  -H 'Content-Type: application/json' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -H 'X-WebHTV-Config-Key: <点播接口 configKey>' \
+  -d '{
+    "event": "playback.deleted",
+    "eventId": "test-delete-1",
+    "scope": "item",
+    "historyKey": "site_key@@@vod_id@@@1",
+    "siteKey": "site_key",
+    "vodId": "vod_id",
+    "deletedAt": 1781170005000
+  }'
+```
+
+查看状态：
+
+```bash
+curl 'https://<你的 Worker 域名>/api/playback/sync/status' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -H 'X-WebHTV-Config-Key: <点播接口 configKey>'
+```
+
+服务端使用单调数字游标，拉取响应格式为 `{ "changes": [...], "nextSince": "...", "hasMore": false }`。较旧的进度不能覆盖较新的删除；删除后产生的新进度可以恢复该条目。`scope=all` 必须显式提交，缺少范围和条目标识的删除请求会被拒绝，避免误清空。
+
+请求体上限为 128 KiB，单次写入最多 100 条，单次拉取最多 1000 条。删除墓碑和 Webhook 幂等记录保留 90 天。其它内置版本也实现了相同协议：Deno 使用 Deno KV，Vercel 使用 Vercel KV/Upstash Redis REST，Go 与 Rust 使用本地原子 JSON 文件；部署边界见各目录 README。
+
+### 小说 / 漫画 / 音频阅读记录同步
+
+自 schema v4 起，`/api/playback/sync` 同时承载小说、漫画、音频的阅读进度，与视频进度复用同一端点、同一 token、同一 `configKey` 命名空间。客户端在 payload 中携带 `mediaType` 字段区分内容类型，服务端按 `(vodName, mediaType)` 范围做同标题去重，避免同名小说与同名电影互相删除。
+
+| mediaType | 含义 | 对应 Android 端 |
+| --- | --- | --- |
+| `video` | 影视 / 直播（默认，旧 client 不传时填充） | `History` 默认 / `movie`/`tv` 自动归一 |
+| `novel` | 小说 | `WebReaderActivity` `kind=1` |
+| `comic` | 漫画 | `WebReaderActivity` `kind=2` |
+| `audio` | 音频 | `AudioHistory` |
+
+服务端同时接受以下别名并自动归一化：`movie`/`tv` → `video`，`fiction`/`book` → `novel`，`manga` → `comic`，`music` → `audio`，`kind: 1` → `novel`，`kind: 2` → `comic`。未识别的字符串不会 400，而是回落为 `video`，避免客户端升级被服务端拦截。
+
+字段映射与视频一致，复用现有 playback 协议字段，无新增字段（除 `mediaType`）：
+
+| 阅读语义 | playback 字段 | 说明 |
+| --- | --- | --- |
+| 站点 key | `siteKey` | 小说/漫画所在站点 |
+| 内容 ID | `vodId` | 一本书 / 一部漫画的 ID |
+| 书名 | `vodName` | 小说/漫画名 |
+| 封面 | `vodPic` | 封面图 URL |
+| 站点线路 | `flag` | 站点线路名 |
+| 章节名 | `episodeName` | 当前章节名 |
+| 章节 URL | `episodeUrl` | 当前章节 URL |
+| 章节内锚点序号 | `positionMs` | 小说=段落序号，漫画=页码 |
+| 章节内锚点总数 | `durationMs` | 小说=段落总数，漫画=总页数 |
+| 完成标记 | `completed` | `positionMs == durationMs - 1` 时由客户端置 `true` |
+
+> 锚点序号与总数本是序数，但协议字段名沿用 `positionMs`/`durationMs` 是历史命名（视频场景下确实是毫秒）。服务端只做比较与透传，不假设单位，因此小说/漫画复用同一字段无歧义。
+
+写入一条小说阅读进度：
+
+```bash
+curl -X POST 'https://<你的 Worker 域名>/api/playback/sync' \
+  -H 'Content-Type: application/json' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -H 'X-WebHTV-Config-Key: <点播接口 configKey>' \
+  -d '{
+    "event": "playback.progress",
+    "eventId": "novel-progress-1",
+    "timestamp": 1781170000000,
+    "historyKey": "novel_site@@@book_id@@@1",
+    "siteKey": "novel_site",
+    "vodId": "book_id",
+    "vodName": "斗破苍穹",
+    "vodPic": "https://example.com/cover.jpg",
+    "episodeName": "第1章 陨落的天才",
+    "episodeUrl": "https://example.com/chapter/1",
+    "mediaType": "novel",
+    "positionMs": 5,
+    "durationMs": 20,
+    "completed": false
+  }'
+```
+
+等价的 `kind` 写法（与 Android `WebReaderActivity` 一致）：
+
+```bash
+-d '{
+  ...
+  "kind": 1,
+  ...
+}'
+```
+
+写入一条漫画阅读进度（kind=2）：
+
+```bash
+curl -X POST 'https://<你的 Worker 域名>/api/playback/sync' \
+  -H 'Content-Type: application/json' \
+  -H 'X-WebHTV-Token: <你的 token>' \
+  -H 'X-WebHTV-Config-Key: <点播接口 configKey>' \
+  -d '{
+    "event": "playback.progress",
+    "eventId": "comic-progress-1",
+    "timestamp": 1781170001000,
+    "historyKey": "comic_site@@@manga_id@@@1",
+    "siteKey": "comic_site",
+    "vodId": "manga_id",
+    "vodName": "进击的巨人",
+    "episodeName": "第1话",
+    "episodeUrl": "https://example.com/episode/1",
+    "mediaType": "comic",
+    "positionMs": 3,
+    "durationMs": 24,
+    "completed": false
+  }'
+```
+
+`GET /api/playback/sync/status` 现返回 `byType` 字段，按 `mediaType` 分组列出当前 token + `configKey` 空间下的记录数：
+
+```json
+{
+  "ok": true,
+  "configKey": "...",
+  "items": 87,
+  "tombstones": 3,
+  "nextSince": "412",
+  "retentionDays": 90,
+  "dedupeEnabled": true,
+  "byType": {
+    "video": 60,
+    "novel": 22,
+    "comic": 5,
+    "audio": 0
+  },
+  "endpoint": "https://<你的 Worker 域名>/api/playback/sync"
+}
+```
+
+### 向后兼容
+
+- 旧客户端不传 `mediaType` 字段：服务端视为 `video`，行为与 v3 完全一致。
+- 已部署的 `PLAYBACK_DO` 实例下次访问时自动执行 v4 迁移：`ALTER TABLE playback_items ADD COLUMN media_type TEXT NOT NULL DEFAULT ""`，从现有 payload 回填，并建立 `(config_key, media_type)` 索引。
+- 迁移在 `blockConcurrencyWhile + transactionSync` 内原子完成，半迁移状态不可见。
+- 同标题去重开关已开启时，历史视频数据不会被新的同名小说/漫画误删；开启瞬间的一次性清理也按 `(vod_name, media_type)` 分组，不会跨类型合并。
+
+## 核心流程
+
+1. 任意 WebHTV App 调用 `/api/device/register` 注册设备并保存 `deviceId/deviceToken`。
+2. 被控端生成 `bindGrantToken`，调用 `/api/device/bind-code` 生成 6 位绑定码。
+3. 主控端 Web 控制台调用 `/api/groups/claim` 输入绑定码，服务端返回 `groupToken/groupTokenHash/bindGrantToken`，主控端本地保存。
+4. 另一台 WebHTV App 可用同一个 `groupToken` 注册为来源设备，也可以通过绑定码加入同一个设备组。
+5. 主控端 Web 控制台调用 `/api/sync/create`，选择来源设备、目标设备和 `SyncOptions`。
+6. 来源设备轮询到 `remoteSync.export` 命令后自动生成 `backup`、`syncFiles` 和同步内部文件包并提交到 Worker。
+7. 目标设备轮询到 `remoteSync.restore` 命令后自动拉取临时文件并恢复。
+
+## 约定
+
+设备请求头：
+
+```text
+X-Device-Id: <deviceId>
+Authorization: Bearer <deviceToken>
+```
+
+主控端 Web 控制台请求头：
+
+```text
+Authorization: Bearer <groupToken>
+```
+
+`/api/server/capabilities` 会返回 `serverMode=cloudflare`、`relayMode=cloudflare-durable-object` 和能力清单；配置 `PLAYBACK_DO` 后 `capabilities.playbackSync=true`。没有配置 `RELAY_DO` 时远程托管会降级为 `origin-token-memory`，该模式只适合本地调试，不建议生产使用。完整版 Go/Rust 服务端应复用同一套字段，只是开放更多能力。
