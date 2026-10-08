@@ -6,7 +6,7 @@
 - 允许路径：`app/src/main/java/com/fongmi/android/tv/lab/**`、`app/src/main/res/values/lab_styles.xml`、`app/src/main/res/values/lab_colors.xml`、`app/src/main/res/values-night/lab_colors.xml`、`app/src/test/**`、`docs/**`。
 - 验收标准：默认主题（浅色系统）与深色主题下，弹窗正文/提示/输入框文字与面板对比度 ≥ 4.5:1；设置用户主题色后弹窗面板与文字随之变化（像素级 A/B 非零差异）。
 - 当前状态：**已实施、已验证、已交付**。两处修复（弹窗内容与面板同源、下拉列表改用弹窗主题上下文与语义 item 布局）均已落地并通过设备像素实测；随后由 `docs/C50-beta-merge-review-dev1-20261008.md` 记录的合并轮次独立复测复现全部数据，并在该轮修正了本文档 §4.1.1 的两处不实描述（见 §4.1.1 与 §4.4）。
-- 下一步唯一动作：无（PR 由用户决定是否合并）。
+- 下一步唯一动作：无（本轮已随 `dev1 → beta` 的 PR [#424](https://github.com/Silent1566/webhtv/pull/424) 创建交付，只创建未合并；是否合入由用户决定）。
 
 ## 1. 现象与证据（2026-10-08，dev1 `192.168.50.3:5555`，mobile arm64 debug）
 

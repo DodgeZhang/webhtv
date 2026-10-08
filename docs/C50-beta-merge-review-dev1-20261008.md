@@ -4,9 +4,9 @@
 
 - **目标**：把远端 `beta` 最新代码合入 `dev1`（**远端已移除/回退的提交不得顺带带回**）；复评 dev1 全部已修改代码（含已提交未推送的 `a7154d35e`、`60e657c07`）；发现问题修复并验证通过；循环评审直至通过；然后提交、推送 `dev1`、创建 `dev1 -> beta` 中文 PR（**只创建，不合并**）。
 - **验收标准**：① 合并提交第二父为 `origin/beta` tip `765dce2e2a`；② 远端被回退内容**零复活**；③ beta 增量**零丢失**、dev1 既有改动**零丢失**；④ 双 flavor Java 编译通过；⑤ 双 flavor AndroidTest Java 编译通过；⑥ 双 flavor 全量 JVM 套件零失败；⑦ UI token 门禁相对基线零新增违规；⑧ 净差异只含本分支自身改动；⑨ 复评发现的问题已修复或已按 AGENTS.md 明确记录处置；⑩ 提交 + recovery tag、`dev1` 已推送、PR 已创建且**未合并**。
-- **当前状态**：合并完成（0 冲突）；3 轮评审完成；复评发现 1 处**文档不实描述**（已修正）与 1 处**低影响契约分歧**（按 AGENTS.md §2 只记录不修，见「发现与处置」）；双 flavor 编译、双 flavor 全量单测、UI token 门禁全部通过；设备像素复测复现原修复数据。
+- **当前状态**：合并完成（0 冲突）；3 轮评审完成；复评发现 1 处**文档不实描述**（已修正）与 1 处**低影响契约分歧**（按 AGENTS.md §2 只记录不修，见「发现与处置」）；双 flavor 编译、双 flavor 全量单测、UI token 门禁全部通过；设备像素复测复现原修复数据；已提交、已推送，PR [#424](https://github.com/Silent1566/webhtv/pull/424) 已创建且**未合并**。
 - **交付坐标**：见文末「交付坐标」。
-- **下一动作**：无（任务已收口；PR 由用户决定是否合并）。
+- **下一动作**：无（任务已收口；PR #424 由用户决定是否合并）。
 
 ## 时间与设备
 
@@ -246,9 +246,11 @@ bash ./gradlew :app:compileLeanbackArm64_v8aDebugJavaWithJavac :app:compileMobil
 | `origin/beta` tip | `765dce2e2a4e12d66c30bf07eaaa0d3a92a5f899` |
 | 合并提交 | `a8b30e09dcc788713b6b91ce170385f476728ba9` |
 | C50 改动 | 2 路径（`docs/`；`app/src` 零改动） |
-| 提交 / recovery tag | 见本文件收口追加记录 |
-| 推送 | `dev1` → `origin/dev1` |
-| PR | 见本文件收口追加记录（`dev1 → beta`，**只创建不合并**） |
+| 提交 | 合并 `a8b30e09dcc788713b6b91ce170385f476728ba9`；评审文档 `1e83bdc25a6819b1767f8526dbebeda9bab11cfc`；坐标收口提交见 `git log` 最新一条 |
+| recovery tag | `recovery/C50-beta-merge-review-dev1/20261008235056-1e83bdc25a68`（及坐标收口提交自己的 tag） |
+| 推送 | `dev1` → `origin/dev1`（`0a0bed420..1e83bdc25`，推送后 0 ahead / 0 behind） |
+| PR | [#424](https://github.com/Silent1566/webhtv/pull/424) `dev1 → beta`，**OPEN、未合并**（`mergedAt=null`、`state=OPEN`）、MERGEABLE，7 文件 +735 −6 |
+| PR 文件集校验 | `gh api .../pulls/424/files` 分页合计 **7**，与 `git diff --name-only origin/beta HEAD` **逐项一致** |
 
 ## 备注
 
