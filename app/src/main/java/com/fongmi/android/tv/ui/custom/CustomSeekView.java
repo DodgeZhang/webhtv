@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.ui.custom;
 
 import android.content.Context;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -10,6 +11,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.Util;
@@ -17,6 +19,8 @@ import androidx.media3.ui.DefaultTimeBar;
 import androidx.media3.ui.TimeBar;
 
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.player.cache.PlaybackDiskBufferStore;
+import com.github.catvod.crawler.SpiderDebug;
 
 import java.util.Formatter;
 import java.util.Locale;
@@ -31,6 +35,10 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
     private static final String TAG = "CustomSeekView";
     private static final int MAX_UPDATE_INTERVAL_MS = 1000;
     private static final int MIN_UPDATE_INTERVAL_MS = 200;
+    private static final long DISK_RANGE_GAP_TOLERANCE_MS = 2000;
+    private static final long PAUSED_BUFFER_LOG_INTERVAL_MS = 5000;
+    private static final long SEEK_POSITION_TOLERANCE_MS = 1500;
+    private static final long SEEK_POSITION_HOLD_TIMEOUT_MS = 10000;
 
     private final StringBuilder timeBuilder = new StringBuilder();
     private final Formatter timeFormatter = new Formatter(timeBuilder, Locale.getDefault());
@@ -44,8 +52,6 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
     private boolean scrubbing;
     private boolean attached;
     private Player player;
-<<<<<<< HEAD
-=======
     private SeekListener seekListener;
     private Player progressPlayer;
     private long lastPausedBufferLogAtMs;
@@ -55,7 +61,6 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
     private long pendingSeekPosition = C.TIME_UNSET;
     private long pendingSeekOrigin = C.TIME_UNSET;
     private long pendingSeekDeadlineMs;
->>>>>>> upstream/dev
 
     public CustomSeekView(Context context) {
         this(context, null);
@@ -81,13 +86,13 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
     }
 
     public void setPlayer(Player player) {
+        if (this.player != null) this.player.removeListener(this);
+        clearPendingSeek();
         this.player = player;
-        player.addListener(this);
+        if (player != null) player.addListener(this);
         if (attached) updateTimeline();
     }
 
-<<<<<<< HEAD
-=======
     public void setSeekListener(SeekListener seekListener) {
         this.seekListener = seekListener;
     }
@@ -115,14 +120,14 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
         return progressPlayer != null ? progressPlayer : player;
     }
 
->>>>>>> upstream/dev
     private String stringToTime(long time) {
         return Util.getStringForTime(timeBuilder, timeFormatter, time);
     }
 
     private void updateTimeline() {
-        if (!attached || player == null) return;
-        long duration = player.getDuration();
+        Player progress = getProgressPlayer();
+        if (!attached || progress == null) return;
+        long duration = progress.getDuration();
         if (duration < 0) duration = 0;
         currentDuration = duration;
         setKeyTimeIncrement(duration);
@@ -133,10 +138,12 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
 
     private void updateProgress() {
         removeCallbacks(runnable);
-        if (!attached || player == null) return;
-        long position = player.getCurrentPosition();
-        long buffered = player.getBufferedPosition();
-        long duration = player.getDuration();
+        Player progress = getProgressPlayer();
+        if (!attached || progress == null) return;
+        long reportedPosition = Math.max(0, progress.getCurrentPosition());
+        long position = stableSeekPosition(reportedPosition);
+        long buffered = effectiveBufferedPosition(progress);
+        long duration = progress.getDuration();
         if (duration < 0) duration = 0;
         if (duration != currentDuration) {
             currentDuration = duration;
@@ -155,15 +162,14 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
             currentBuffered = buffered;
             timeBar.setBufferedPosition(buffered);
         }
-        if (player.isPlaying()) {
-            postDelayed(runnable, delayMs(position));
+        logPausedBufferProgress(progress, position, buffered);
+        if (progress.isPlaying()) {
+            postDelayed(runnable, delayMs(progress, position));
         } else {
             postDelayed(runnable, MAX_UPDATE_INTERVAL_MS);
         }
     }
 
-<<<<<<< HEAD
-=======
     private long effectiveBufferedPosition(Player progress) {
         long buffered = Math.max(0, progress.getBufferedPosition());
         String mediaKey = PlaybackDiskBufferStore.mediaKey(progress.getCurrentMediaItem());
@@ -202,8 +208,8 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
         }
     }
 
->>>>>>> upstream/beta
     private void resetView() {
+        clearPendingSeek();
         positionView.setText("00:00");
         durationView.setText("00:00");
         timeBar.setPosition(currentPosition = 0);
@@ -225,8 +231,8 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
         }
     }
 
-    private long delayMs(long position) {
-        float speed = player.getPlaybackParameters().speed;
+    private long delayMs(Player progress, long position) {
+        float speed = progress.getPlaybackParameters().speed;
         long mediaTimeUntilNextFullSecondMs = 1000 - position % 1000;
         long mediaTimeDelayMs = Math.min(timeBar.getPreferredUpdateDelay(), mediaTimeUntilNextFullSecondMs);
         long delayMs = (long) (mediaTimeDelayMs / Math.max(speed, 0.1f));
@@ -234,9 +240,6 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
     }
 
     private void seekToTimeBarPosition(long positionMs) {
-<<<<<<< HEAD
-        player.seekTo(positionMs);
-=======
         Player commandPlayer = player;
         if (commandPlayer == null) {
             updateProgress();
@@ -245,28 +248,64 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
         if (seekListener != null) seekListener.onSeekStarted();
         beginPendingSeek(positionMs);
         commandPlayer.seekTo(positionMs);
->>>>>>> upstream/dev
         updateProgress();
         commandPlayer.play();
     }
 
     public void previewSeekPosition(long positionMs) {
-        long duration = currentDuration > 0 ? currentDuration : player == null ? 0 : Math.max(0, player.getDuration());
+        Player progress = getProgressPlayer();
+        long duration = currentDuration > 0 ? currentDuration : progress == null ? 0 : Math.max(0, progress.getDuration());
         long position = duration > 0 ? Util.constrainValue(positionMs, 0, duration) : Math.max(0, positionMs);
         removeCallbacks(runnable);
+        if (!scrubbing) clearPendingSeek();
         scrubbing = true;
         timeBar.setPosition(position);
         positionView.setText(stringToTime(position));
     }
 
     public void commitSeekPreview(long positionMs) {
-        long duration = currentDuration > 0 ? currentDuration : player == null ? 0 : Math.max(0, player.getDuration());
+        Player progress = getProgressPlayer();
+        long duration = currentDuration > 0 ? currentDuration : progress == null ? 0 : Math.max(0, progress.getDuration());
         long position = duration > 0 ? Util.constrainValue(positionMs, 0, duration) : Math.max(0, positionMs);
         scrubbing = false;
-        timeBar.setPosition(position);
-        positionView.setText(stringToTime(position));
+        beginPendingSeek(position);
         removeCallbacks(runnable);
-        postDelayed(runnable, 350);
+        postDelayed(runnable, MIN_UPDATE_INTERVAL_MS);
+    }
+
+    private void beginPendingSeek(long targetPosition) {
+        Player progress = getProgressPlayer();
+        long origin = progress == null ? currentPosition : Math.max(0, progress.getCurrentPosition());
+        pendingSeekOrigin = origin;
+        pendingSeekPosition = Math.max(0, targetPosition);
+        pendingSeekDeadlineMs = SystemClock.elapsedRealtime() + SEEK_POSITION_HOLD_TIMEOUT_MS;
+        currentPosition = pendingSeekPosition;
+        timeBar.setPosition(pendingSeekPosition);
+        positionView.setText(stringToTime(pendingSeekPosition));
+    }
+
+    private long stableSeekPosition(long reportedPosition) {
+        if (pendingSeekPosition == C.TIME_UNSET) return reportedPosition;
+        if (SystemClock.elapsedRealtime() >= pendingSeekDeadlineMs || hasReachedPendingSeek(reportedPosition)) {
+            clearPendingSeek();
+            return reportedPosition;
+        }
+        return pendingSeekPosition;
+    }
+
+    private boolean hasReachedPendingSeek(long reportedPosition) {
+        long delta = pendingSeekPosition - pendingSeekOrigin;
+        if (Math.abs(delta) <= SEEK_POSITION_TOLERANCE_MS) {
+            return Math.abs(reportedPosition - pendingSeekPosition) <= SEEK_POSITION_TOLERANCE_MS;
+        }
+        if (delta > 0) return reportedPosition >= pendingSeekPosition - SEEK_POSITION_TOLERANCE_MS;
+        return reportedPosition <= pendingSeekPosition + SEEK_POSITION_TOLERANCE_MS;
+    }
+
+    private void clearPendingSeek() {
+        pendingSeekPosition = C.TIME_UNSET;
+        pendingSeekOrigin = C.TIME_UNSET;
+        pendingSeekDeadlineMs = 0;
     }
 
     @Override
@@ -312,6 +351,7 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
 
     @Override
     public void onScrubStart(@NonNull TimeBar timeBar, long position) {
+        clearPendingSeek();
         scrubbing = true;
         positionView.setText(stringToTime(position));
     }
@@ -325,5 +365,6 @@ public class CustomSeekView extends FrameLayout implements Player.Listener, Time
     public void onScrubStop(@NonNull TimeBar timeBar, long position, boolean canceled) {
         scrubbing = false;
         if (!canceled) seekToTimeBarPosition(position);
+        else updateProgress();
     }
 }

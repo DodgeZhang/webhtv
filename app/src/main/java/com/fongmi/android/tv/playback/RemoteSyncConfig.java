@@ -4,8 +4,10 @@ import android.text.TextUtils;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 public class RemoteSyncConfig {
@@ -23,11 +25,10 @@ public class RemoteSyncConfig {
     public long lastSuccessAt;
     public int lastFetched;
     public int lastApplied;
+    public int lastDeleted;
     public int lastSkipped;
     public int lastFailed;
     public String lastError;
-<<<<<<< HEAD
-=======
     public String identityState;
     public String identityEpoch;
     public boolean identitySupported;
@@ -35,7 +36,6 @@ public class RemoteSyncConfig {
     public String identityMatchedBy;
     public String identityMessage;
     public Map<String, String> cursors;
->>>>>>> upstream/beta
 
     public RemoteSyncConfig() {
         this.id = UUID.randomUUID().toString();
@@ -48,8 +48,6 @@ public class RemoteSyncConfig {
         this.intervalMinutes = 0;
         this.maxItems = 100;
         this.lastError = "";
-<<<<<<< HEAD
-=======
         this.identityState = "unknown";
         this.identityEpoch = "";
         this.identitySupported = false;
@@ -57,7 +55,6 @@ public class RemoteSyncConfig {
         this.identityMatchedBy = "";
         this.identityMessage = "";
         this.cursors = new HashMap<>();
->>>>>>> upstream/beta
     }
 
     public boolean isUsable() {
@@ -85,8 +82,6 @@ public class RemoteSyncConfig {
         return "Remote sync";
     }
 
-<<<<<<< HEAD
-=======
     public String cursor(String configKey) {
         if (cursors == null || cursors.isEmpty()) return "";
         String value = cursors.get(cursorKey(configKey));
@@ -109,7 +104,6 @@ public class RemoteSyncConfig {
         return value.isEmpty() ? "_default" : value;
     }
 
->>>>>>> upstream/beta
     public static String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }

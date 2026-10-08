@@ -30,11 +30,8 @@ import com.fongmi.android.tv.bean.UserAdRule;
 import com.fongmi.android.tv.impl.ParseCallback;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.dialog.WebDialog;
-<<<<<<< HEAD
-=======
 import com.fongmi.android.tv.utils.RuleIdUtil;
 import com.fongmi.android.tv.utils.WebSniffHeaders;
->>>>>>> upstream/dev
 import com.fongmi.android.tv.utils.WebViewUtil;
 import com.fongmi.android.tv.utils.Sniffer;
 import com.github.catvod.crawler.Spider;
@@ -123,17 +120,12 @@ public class CustomWebView extends WebView implements DialogInterface.OnDismissL
 
     private void start(Map<String, String> headers) {
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true);
-<<<<<<< HEAD
-        checkHeader(url, headers);
-        loadUrl(url, headers);
-=======
         Map<String, String> pageHeaders = WebSniffHeaders.forPage(headers, getSettings().getUserAgentString());
         this.pageHeaders = new HashMap<>(pageHeaders);
         if (!this.pageHeaders.containsKey(HttpHeaders.REFERER)) this.pageHeaders.put(HttpHeaders.REFERER, url);
         checkHeader(url, pageHeaders);
         SpiderDebug.log("webview-parse", "page headers input=%s applied=%s ua=%s", headers == null ? "[]" : headers.keySet(), pageHeaders.keySet(), getSettings().getUserAgentString());
         loadUrl(url, pageHeaders);
->>>>>>> upstream/beta
     }
 
     private void checkHeader(String url, Map<String, String> headers) {

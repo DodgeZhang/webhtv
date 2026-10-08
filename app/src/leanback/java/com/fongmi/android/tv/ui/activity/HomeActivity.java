@@ -854,11 +854,7 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
 
     private void performClearHistory() {
         mAdapter.removeItems(getHistoryIndex(), 1);
-<<<<<<< HEAD
-        History.delete(VodConfig.getCid());
-=======
         History.deleteForDisplay();
->>>>>>> upstream/dev
         mPresenter.setDelete(false);
         mHistoryAdapter.clear();
     }
@@ -1082,11 +1078,7 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
 
     @Override
     public void onItemDelete(History item) {
-<<<<<<< HEAD
-        mHistoryAdapter.remove(item.delete());
-=======
         mHistoryAdapter.remove(item.deleteDisplayItem());
->>>>>>> upstream/dev
         if (mHistoryAdapter.size() > 0) return;
         mAdapter.removeItems(getHistoryIndex(), 1);
         mPresenter.setDelete(false);

@@ -248,38 +248,6 @@ import com.fongmi.android.tv.player.mpv.MpvConfigStore;
 import com.fongmi.android.tv.setting.LyricsSetting;
 import com.fongmi.android.tv.ui.custom.AudioPlayerBackgroundDrawable;
 import com.fongmi.android.tv.ui.custom.KaraokeResultView;
-<<<<<<< HEAD
-import com.fongmi.android.tv.ui.custom.PlayerOsdController;
-import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
-import com.fongmi.android.tv.ui.dialog.CastDialog;
-import com.fongmi.android.tv.ui.dialog.CodecCapabilityDialog;
-import com.fongmi.android.tv.ui.dialog.ControlDialog;
-import com.fongmi.android.tv.ui.dialog.DanmakuDialog;
-import com.fongmi.android.tv.ui.dialog.EpisodeGridDialog;
-import com.fongmi.android.tv.ui.dialog.EpisodeListDialog;
-import com.fongmi.android.tv.ui.dialog.InfoDialog;
-import com.fongmi.android.tv.ui.dialog.LutPanelDialog;
-import com.fongmi.android.tv.ui.dialog.QuickSearchDialog;
-import com.fongmi.android.tv.ui.dialog.ReceiveDialog;
-import com.fongmi.android.tv.ui.dialog.SubtitleDialog;
-import com.fongmi.android.tv.ui.dialog.TitleDialog;
-import com.fongmi.android.tv.ui.dialog.TrackDialog;
-import com.fongmi.android.tv.ui.dialog.VideoContentDialog;
-import com.fongmi.android.tv.utils.Clock;
-import com.fongmi.android.tv.utils.EpisodeTitleCompact;
-import com.fongmi.android.tv.utils.FileChooser;
-import com.fongmi.android.tv.utils.ImgUtil;
-import com.fongmi.android.tv.utils.Notify;
-import com.fongmi.android.tv.utils.PiP;
-import com.fongmi.android.tv.utils.ResUtil;
-import com.fongmi.android.tv.utils.Sniffer;
-import com.fongmi.android.tv.utils.Task;
-import com.fongmi.android.tv.utils.Timer;
-import com.fongmi.android.tv.utils.Traffic;
-import com.fongmi.android.tv.utils.Util;
-import com.github.catvod.crawler.SpiderDebug;
-=======
->>>>>>> upstream/dev
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -481,6 +449,7 @@ private int mAudioBackgroundRandomNonce;
     private int decodeSwitchRequestId;
     private int mPendingPlayerKernel = PlayerSetting.NONE;
     private boolean decodeSwitchRefreshing;
+    private int deferredFullscreenOrientation = Configuration.ORIENTATION_UNDEFINED;
     private int mEpisodeSpanCount;
     private int mEpisodeBottomInset;
     private int mEpisodeMaxHeight = -1;
@@ -1456,6 +1425,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         setPlayerKernel();
         setDecode();
         setLut();
+        applyDeferredFullscreenOrientation();
         checkLand();
         if (consumePendingPlaybackResult()) return;
         if (consumeImmersiveAudioLaunch()) return;
@@ -1899,8 +1869,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     }
 
     private int getEpisodeSpanCount() {
-        if (ResUtil.isLand(this)) return 6;
-        return ResUtil.isPad() ? 6 : 4;
+        return EpisodeGridLayoutPolicy.getMaxSpan(isLand(), ResUtil.isPad());
     }
 
     private void setVideoView() {
@@ -1940,7 +1909,6 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         addActionButton(PlayerButtonSetting.SCALE, mBinding.control.action.scale);
         addActionButton(PlayerButtonSetting.QUALITY, mBinding.control.action.actionQuality);
         addActionButton(PlayerButtonSetting.LUT, mBinding.control.action.lut);
-        addActionButton(PlayerButtonSetting.KARAOKE, mBinding.control.action.karaoke);
         addActionButton(PlayerButtonSetting.RESET, mBinding.control.action.reset);
         addActionButton(PlayerButtonSetting.REPEAT, mBinding.control.action.repeat);
         addActionButton(PlayerButtonSetting.TEXT, mBinding.control.action.text);
@@ -3449,7 +3417,13 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         }
         if (maxLen >= 12) return PlayerSetting.getEpisodeColumn();
         int ideal = maxLen >= 10 ? 130 : maxLen >= 7 ? 104 : 80;
-        int width = mBinding.episode.getWidth() > 0 ? mBinding.episode.getWidth() : ResUtil.getScreenWidth(this) - ResUtil.dp2px(32);
+        int width = EpisodeGridLayoutPolicy.getAvailableWidth(
+                mBinding.episode.getWidth(),
+                ResUtil.getScreenWidth(this),
+                ResUtil.getScreenHeight(this),
+                ResUtil.dp2px(32),
+                isLand(),
+                ResUtil.isLand(this));
         int span = width / ResUtil.dp2px(ideal);
         return Math.max(2, Math.min(getEpisodeSpanCount(), span));
     }
@@ -4799,14 +4773,10 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     private void setKaraokeActionState() {
         if (mBinding.control.action.karaoke != null) {
             mBinding.control.action.karaoke.setSelected(PlayerSetting.isKaraokeMode());
-            mBinding.control.action.karaoke.setVisibility(isKaraokeActionAvailable() ? View.VISIBLE : View.GONE);
+            mBinding.control.action.karaoke.setVisibility(View.GONE);
         }
         if (mBinding.audioKaraokeAction != null) mBinding.audioKaraokeAction.setSelected(PlayerSetting.isKaraokeMode());
         applyActionButtonVisibility();
-    }
-
-    private boolean isKaraokeActionAvailable() {
-        return service() != null && (isAudioOnly() || isMusicLike());
     }
 
     private void applyKaraokeTrackChange(boolean enableMode) {
@@ -5247,23 +5217,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     }
 
     private void onPlayerKernel() {
-<<<<<<< HEAD
-<<<<<<< HEAD
-        if (refreshAndSwitchPlayerKernel()) return;
-        mClock.setCallback(null);
-        clearLyrics();
-        player().togglePlayer();
-        setPlayerKernel();
-        setDecode();
-        setR1Callback();
-    }
-
-    private boolean refreshAndSwitchPlayerKernel() {
-        if (playerKernelSwitchRefreshing) return true;
-=======
-=======
         invalidateShortDramaQueue("kernel");
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
         mClock.setCallback(null);
         onChoose();
         setR1Callback();
@@ -5276,11 +5230,10 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     private boolean refreshAndSwitchPlayerKernel(int type) {
         int requestId = ++playerKernelSwitchRequestId;
->>>>>>> upstream/dev
         Flag currentFlag = getFlag();
         Episode currentEpisode = getEpisode();
         if (currentFlag == null || currentEpisode == null || TextUtils.isEmpty(currentFlag.getFlag()) || TextUtils.isEmpty(currentEpisode.getUrl())) return false;
-        int nextType = PlayerSetting.nextPlayer(player().getPlayerType());
+        int nextType = PlayerSetting.sanitizePlayer(type);
         long position = getPlayerSwitchPosition();
         float speed = player().getSpeed();
         boolean repeat = player().isRepeatOne();
@@ -5354,15 +5307,12 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     private void enterFullscreen() {
         if (isFullscreen()) return;
-<<<<<<< HEAD
-=======
         if (service() == null) {
             SpiderDebug.log("video-flow", "fullscreen enter deferred reason=player-not-ready");
             return;
         }
         PlayerManager current = player();
         if (current == null) return;
->>>>>>> upstream/dev
         logVideoFrame("enterFullscreen before");
         setFullscreen(true);
         if (isLand() && !current.isPortrait()) setTransition();
@@ -5393,15 +5343,12 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
     private void exitFullscreen() {
         if (!isFullscreen()) return;
-<<<<<<< HEAD
-=======
         PlayerManager current = player();
         if (service() == null) {
             SpiderDebug.log("video-flow", "fullscreen exit deferred reason=player-not-ready");
             return;
         }
         if (current == null) return;
->>>>>>> upstream/dev
         logVideoFrame("exitFullscreen before");
         setFullscreen(false);
         if (current != null && isLand() && !current.isPortrait()) setTransition();
@@ -6178,9 +6125,8 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         FollowingPlaybackBridge.findAsync(identityKey, existing -> {
             if (isFinishing() || isDestroyed()) return;
             if (existing != null) {
-                followingActionPending = false;
-                mBinding.following.setEnabled(true);
-                FollowingActivity.start(this, existing.identityKey);
+                // 播放页保持原地：已追更时再次点击即刻取消，绝不跳转追更页打断播放。
+                cancelFollowing(identityKey);
                 return;
             }
             Following item = FollowingPlaybackBridge.build(mHistory, currentSourceSeasonNumber());
@@ -6198,6 +6144,23 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
                 updateFollowingState();
                 Notify.show(R.string.following_added);
             });
+        });
+    }
+
+    /** 播放页取消追更：写墓碑后立即刷新按钮状态，不离开当前播放页。 */
+    private void cancelFollowing(String identityKey) {
+        FollowingScheduler.cancelNext(this, identityKey);
+        FollowingPlaybackBridge.deleteAsync(identityKey, error -> {
+            followingActionPending = false;
+            if (isFinishing() || isDestroyed()) return;
+            if (error != null) {
+                mBinding.following.setEnabled(true);
+                Notify.show(error.getMessage());
+                return;
+            }
+            updateFollowingState();
+            FollowingPlaybackBridge.refreshUnreadCountAsync(null);
+            Notify.show(R.string.following_canceled);
         });
     }
 
@@ -6481,8 +6444,9 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
         @Override
         public void onAudio() {
-            moveTaskToBack(true);
             setAudioOnly(true);
+            syncPiPForPlaybackMode();
+            moveTaskToBack(true);
         }
     };
 
@@ -6511,7 +6475,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     @Override
     protected void onTracksChanged() {
         updateAudioOnlyState();
-        suppressPiPForAudio();
+        syncPiPForPlaybackMode();
         refreshLyrics();
         setTrackVisible();
         mClock.setCallback(this);
@@ -6542,11 +6506,13 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         if (visible) ensureImmersiveAudioControllers();
         if (visible && isAutoRotate() && !isLock() && !isRotate()) setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
         if (mAudioStageVisible == visible) {
+            syncPiPForPlaybackMode();
             updateAudioStageText();
             updateAudioStageControls();
             return;
         }
         mAudioStageVisible = visible;
+        syncPiPForPlaybackMode();
         if (!visible) mAudioLightEffectAnimated = false;
         applyStatusBarSpacer();
         applyAudioStageInsets();
@@ -7722,18 +7688,12 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
                 if (!mShortDramaQueueSessionActive) beginShortDramaQueue();
                 break;
             case Player.STATE_ENDED:
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
                 if (mShortDramaQueue.shouldSuppressLegacyAutoAdvance()) {
                     scheduleShortDramaEndedFallback();
                     break;
                 }
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
                 checkEnded(true);
                 updatePlayControl(false, syncPiPForPlaybackMode());
->>>>>>> upstream/dev
                 break;
         }
     }
@@ -7748,20 +7708,8 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     protected void onPlayingChanged(boolean isPlaying) {
         syncLyricsPlaybackState(isPlaying);
         syncKaraokePosition();
-<<<<<<< HEAD
-        if (isPlaying) {
-            if (!suppressPiPForAudio()) mPiP.update(this, true);
-            mBinding.control.play.setImageResource(androidx.media3.ui.R.drawable.exo_icon_pause);
-            checkAudioPlayImg(true);
-        } else if (isPaused()) {
-            if (!suppressPiPForAudio()) mPiP.update(this, false);
-            mBinding.control.play.setImageResource(androidx.media3.ui.R.drawable.exo_icon_play);
-            checkAudioPlayImg(false);
-        }
-=======
         boolean audioMode = syncPiPForPlaybackMode();
         if (isPlaying || isPaused()) updatePlayControl(isPlaying, audioMode);
->>>>>>> upstream/dev
     }
 
     private void updatePlayControl(boolean isPlaying, boolean audioMode) {
@@ -9674,7 +9622,7 @@ private void checkOrientation() {
 
     private boolean preparePiP(String reason) {
         if (isRedirect() || isPlaybackExiting()) return false;
-        if (suppressPiPForAudio()) return false;
+        if (syncPiPForPlaybackMode()) return false;
         if (service() == null || !player().haveTrack(C.TRACK_TYPE_VIDEO)) return false;
         mPiP.update(this, player().getVideoWidth(), player().getVideoHeight(), getScale());
         return true;
@@ -9687,21 +9635,19 @@ private void checkOrientation() {
     }
 
     private boolean enterPiP(String reason) {
-        if (suppressPiPForAudio()) return false;
+        if (syncPiPForPlaybackMode()) return false;
         if (service() == null || !player().haveTrack(C.TRACK_TYPE_VIDEO)) return false;
         return mPiP.enter(this, player().getVideoWidth(), player().getVideoHeight(), getScale());
     }
 
-    private boolean suppressPiPForAudio() {
-        if (!isAudioContentForPiP()) return false;
-        mPiP.disableAutoEnter(this);
-        return true;
+    private boolean syncPiPForPlaybackMode() {
+        boolean audioMode = isAudioBackgroundMode();
+        if (mPiP != null) mPiP.setAudioMode(this, audioMode);
+        return audioMode;
     }
 
-    private boolean isAudioContentForPiP() {
-        if (service() == null) return false;
-        updateAudioOnlyState();
-        return isAudioOnly() || isMusicLike() || LyricsController.isAudioContent(player());
+    private boolean isAudioBackgroundMode() {
+        return mAudioStageVisible || isAudioOnly();
     }
 
     @Override
@@ -9740,11 +9686,6 @@ private void checkOrientation() {
             recreate();
             return;
         }
-<<<<<<< HEAD
-        if (isAutoRotate() && isPort() && newConfig.orientation == Configuration.ORIENTATION_PORTRAIT && !isRotate() && !isLock()) exitFullscreen();
-        if (isAutoRotate() && isPort() && newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) enterFullscreen();
-        if (isFullscreen()) Util.hideSystemUI(this);
-=======
         syncFullscreenForOrientation(newConfig.orientation);
         setupCustomActionButtons();
         if (!isFullscreen()) {
@@ -9757,9 +9698,6 @@ private void checkOrientation() {
             Util.hideSystemUI(this);
             if (isVisible(mBinding.control.getRoot())) showControl();
         }
-<<<<<<< HEAD
->>>>>>> upstream/dev
-=======
         updateDiscMenuTools();
     }
 
@@ -9783,7 +9721,6 @@ private void checkOrientation() {
         if (orientation == Configuration.ORIENTATION_UNDEFINED) return;
         SpiderDebug.log("video-flow", "fullscreen orientation resume orientation=%d", orientation);
         syncFullscreenForOrientation(orientation);
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     }
 
     private boolean shouldRecreateAudioStageForOrientation(Configuration config) {

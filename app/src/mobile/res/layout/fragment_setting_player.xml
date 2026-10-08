@@ -132,13 +132,10 @@
                     android:id="@+id/exo4kCompatText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:ellipsize="end"
                     android:gravity="end"
-<<<<<<< HEAD
-                    android:textColor="@color/white"
-=======
                     android:singleLine="true"
                     android:textColor="?attr/webhtvColorOnWallpaper"
->>>>>>> upstream/beta
                     android:textSize="16sp"
                     tools:text="关" />
 
@@ -201,40 +198,6 @@
 
               </androidx.appcompat.widget.LinearLayoutCompat>
 
-<<<<<<< HEAD
-            <androidx.appcompat.widget.LinearLayoutCompat
-                android:id="@+id/mpvRender"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/shape_item"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="16dp"
-                    android:singleLine="true"
-                    android:text="@string/player_mpv_render"
-                    android:textColor="@color/white"
-                    android:textSize="16sp" />
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/mpvRenderText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:gravity="end"
-                    android:singleLine="true"
-                    android:textColor="@color/white"
-                    android:textSize="16sp"
-                    tools:text="OpenGL" />
-
-            </androidx.appcompat.widget.LinearLayoutCompat>
-
-            <androidx.appcompat.widget.LinearLayoutCompat
-                android:id="@+id/scale"
-=======
               <androidx.appcompat.widget.LinearLayoutCompat
                   android:id="@+id/mpvRender"
                   android:layout_width="match_parent"
@@ -265,11 +228,6 @@
 
               </androidx.appcompat.widget.LinearLayoutCompat>
 
-<<<<<<< HEAD
-              <androidx.appcompat.widget.LinearLayoutCompat
-                  android:id="@+id/scale"
->>>>>>> upstream/dev
-=======
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:id="@+id/blurayMenu"
                 android:layout_width="match_parent"
@@ -299,7 +257,6 @@
 
             <androidx.appcompat.widget.LinearLayoutCompat
                 android:id="@+id/scale"
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
@@ -652,8 +609,6 @@
             </androidx.appcompat.widget.LinearLayoutCompat>
 
             <androidx.appcompat.widget.LinearLayoutCompat
-<<<<<<< HEAD
-=======
                 android:id="@+id/preloadAhead"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -712,7 +667,6 @@
             </androidx.appcompat.widget.LinearLayoutCompat>
 
             <androidx.appcompat.widget.LinearLayoutCompat
->>>>>>> upstream/beta
                 android:id="@+id/autoPlay"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -1105,7 +1059,7 @@
                     android:gravity="end"
                     android:textColor="?attr/webhtvColorOnWallpaper"
                     android:textSize="16sp"
-                    tools:text="畫中畫" />
+                    tools:text="開啟" />
 
             </androidx.appcompat.widget.LinearLayoutCompat>
 

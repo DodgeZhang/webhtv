@@ -12,6 +12,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.player.PlayerHelper;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,8 +39,6 @@ public class TrackUtil {
         return supported != null ? supported : first;
     }
 
-<<<<<<< HEAD
-=======
     public static Format explicitlySelectedFormat(Tracks tracks, int type) {
         if (tracks == null || tracks.isEmpty()) return null;
         List<Format> selected = new ArrayList<>();
@@ -58,7 +57,6 @@ public class TrackUtil {
         return selected != null && selected.size() == 1 ? selected.get(0) : null;
     }
 
->>>>>>> upstream/beta
     public static void reset(Player player) {
         player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().clearOverrides().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false).setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).build());
     }

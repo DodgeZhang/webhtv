@@ -421,6 +421,7 @@ private AudioHistory.Record audioHistoryRecord;
     }
 
     public void setPlaybackForeground(boolean foreground) {
+        if (player != null) player.setPlaybackForeground(foreground);
         if (desktopLyrics != null) desktopLyrics.setForeground(foreground);
     }
 
@@ -709,16 +710,10 @@ public void onIsPlayingChanged(boolean isPlaying) {
                 scheduleAudioHistorySync();
             }
             if (state == Player.STATE_ENDED) {
-<<<<<<< HEAD
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("audio-auto-next", "service ended owner=%s navigation=%s key=%s navigationKey=%s", isNavigationOwner(), hasNavigationCallback(), player.getKey(), navigationKey);
-                if (hasNavigationCallback() && isNavigationOwner()) dispatchNext();
-                else navigateItem(1);
-=======
                 syncAudioHistoryProgress(true);
                 boolean ownerHandlesNavigation = hasNavigationCallback() && isNavigationOwner();
                 if (SpiderDebug.isEnabled()) SpiderDebug.log("audio-auto-next", "service ended owner=%s navigation=%s key=%s navigationKey=%s action=%s", isNavigationOwner(), hasNavigationCallback(), player.getKey(), navigationKey, ownerHandlesNavigation ? "defer-to-owner" : "browse-next");
                 if (!ownerHandlesNavigation) navigateItem(1);
->>>>>>> upstream/dev
             }
         }
 

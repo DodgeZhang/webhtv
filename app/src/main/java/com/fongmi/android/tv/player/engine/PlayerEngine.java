@@ -13,6 +13,7 @@ import androidx.media3.common.Tracks;
 import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.player.AudioPlaybackDiagnostics;
 import com.fongmi.android.tv.player.PlaybackRoute;
+import com.fongmi.android.tv.player.PlaybackResourceClassifier;
 import com.fongmi.android.tv.player.PlaybackTrace;
 import com.fongmi.android.tv.player.lut.MpvLutShader;
 
@@ -136,6 +137,11 @@ default void resetTrack(int type) {
         return null;
     }
 
+    /** Returns only runtime-observed playback facts; requested decode/output values must not be substituted. */
+    default PlaybackFactsSnapshot getPlaybackFactsSnapshot() {
+        return PlaybackFactsSnapshot.empty();
+    }
+
     default PlayerCacheState getCacheState() {
         return PlayerCacheState.empty();
     }
@@ -169,6 +175,11 @@ default void resetTrack(int type) {
 
     default long getDroppedFrames() {
         return 0;
+    }
+
+    /** Runtime metrics observed by a native engine. Unknown values are null. */
+    default RuntimeMetrics getRuntimeMetrics() {
+        return RuntimeMetrics.unknown();
     }
 
     default String getPlaybackTraceId() {
@@ -227,6 +238,15 @@ default void resetTrack(int type) {
         return null;
     }
 
+    /**
+     * Returns the most recent resource classification observed by this engine.
+     * Implementations must return an immutable snapshot and may return null
+     * when the engine has not observed a stronger fact than the request itself.
+     */
+    default PlaybackResourceClassifier.Classification getResourceClassification() {
+        return null;
+    }
+
     default boolean selectEdition(MediaEdition edition) {
         return false;
     }
@@ -241,8 +261,6 @@ default void resetTrack(int type) {
         DECODE,
         FATAL
     }
-<<<<<<< HEAD
-=======
 
     enum DecoderKind {
         HARDWARE,
@@ -348,5 +366,4 @@ default void resetTrack(int type) {
             return value == null || value < 0 ? null : value;
         }
     }
->>>>>>> upstream/dev
 }

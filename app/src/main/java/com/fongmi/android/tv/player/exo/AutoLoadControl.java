@@ -1,9 +1,10 @@
 package com.fongmi.android.tv.player.exo;
 
+import android.os.SystemClock;
+
 import androidx.media3.common.C;
 import androidx.media3.common.Timeline;
 import androidx.media3.common.util.Util;
-import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.LoadControl;
 import androidx.media3.exoplayer.analytics.PlayerId;
 import androidx.media3.exoplayer.source.MediaSource;
@@ -11,17 +12,15 @@ import androidx.media3.exoplayer.source.TrackGroupArray;
 import androidx.media3.exoplayer.trackselection.ExoTrackSelection;
 import androidx.media3.exoplayer.upstream.Allocator;
 
+import com.fongmi.android.tv.player.PlaybackAutoContext;
+import com.fongmi.android.tv.player.PlaybackTelemetry;
+import com.fongmi.android.tv.player.PlaybackTelemetryCoordinator;
 import com.fongmi.android.tv.setting.ExoPerformanceSetting;
+
+import java.util.List;
 
 final class AutoLoadControl implements LoadControl {
 
-<<<<<<< HEAD
-    static final int MAX_REBUFFER_MS = 8_000;
-    private final DefaultLoadControl delegate;
-
-    AutoLoadControl(DefaultLoadControl delegate) {
-        this.delegate = delegate;
-=======
     private final AutoTargetLoadControl delegate;
     private final int fallbackStreamingStartBufferMs;
     private final ExoPlaybackThresholdCoordinator thresholdCoordinator;
@@ -70,7 +69,6 @@ final class AutoLoadControl implements LoadControl {
         this.thresholdCoordinator = thresholdCoordinator;
         this.automaticStartBuffer = automaticStartBuffer;
         this.automaticRebuffer = automaticRebuffer;
->>>>>>> upstream/dev
     }
 
     @Override
@@ -100,12 +98,15 @@ final class AutoLoadControl implements LoadControl {
 
     @Override
     public long getBackBufferDurationUs(PlayerId playerId) {
-        return delegate.getBackBufferDurationUs(playerId);
+        return effectiveBackBufferDurationUs(
+                delegate.getBackBufferDurationUs(playerId),
+                delegate.isBackBufferSuppressed(playerId));
     }
 
     @Override
     public boolean retainBackBufferFromKeyframe(PlayerId playerId) {
-        return delegate.retainBackBufferFromKeyframe(playerId);
+        return !delegate.isBackBufferSuppressed(playerId)
+                && delegate.retainBackBufferFromKeyframe(playerId);
     }
 
     @Override
@@ -116,10 +117,6 @@ final class AutoLoadControl implements LoadControl {
     @Override
     public boolean shouldStartPlayback(Parameters parameters) {
         boolean delegateReady = delegate.shouldStartPlayback(parameters);
-<<<<<<< HEAD
-        if (!parameters.rebuffering || delegateReady) return delegateReady;
-        return reachedAdaptiveThreshold(parameters.bufferedDurationUs, parameters.playbackSpeed, parameters.targetLiveOffsetUs, ExoPerformanceSetting.getAutoSessionRebufferMs());
-=======
         if (PlayerId.PRELOAD.equals(parameters.playerId)) return delegateReady;
         if (parameters.rebuffering ? !automaticRebuffer : !automaticStartBuffer) {
             return delegateReady;
@@ -183,12 +180,14 @@ final class AutoLoadControl implements LoadControl {
                 mode.appProxyVodFallback(),
                 targetSizeReady,
                 adaptiveReady);
->>>>>>> upstream/dev
     }
 
     @Override
     public boolean shouldContinuePreloading(PlayerId playerId, Timeline timeline, MediaSource.MediaPeriodId mediaPeriodId, long bufferedDurationUs) {
-        return delegate.shouldContinuePreloading(playerId, timeline, mediaPeriodId, bufferedDurationUs);
+        return shouldContinuePreloading(
+                delegate.shouldContinuePreloading(
+                        playerId, timeline, mediaPeriodId, bufferedDurationUs),
+                delegate.isPreloadPaused());
     }
 
     static boolean reachedAdaptiveThreshold(long bufferedDurationUs, float playbackSpeed, long targetLiveOffsetUs, int rebufferMs) {
@@ -197,8 +196,6 @@ final class AutoLoadControl implements LoadControl {
         long playoutBufferedUs = Util.getPlayoutDurationForMediaDuration(bufferedDurationUs, playbackSpeed);
         return playoutBufferedUs >= requiredUs;
     }
-<<<<<<< HEAD
-=======
 
     static ExoPlaybackThresholdCoordinator.Episode playbackEpisode(
             boolean rebuffering,
@@ -401,5 +398,4 @@ final class AutoLoadControl implements LoadControl {
                                         PlaybackAutoContext.Confidence.HIGH))),
                 now);
     }
->>>>>>> upstream/dev
 }

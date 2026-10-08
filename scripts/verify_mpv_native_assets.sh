@@ -176,12 +176,9 @@ verify_abi() {
   done
   [ ! -e "$directory/libcurl.so" ] || die "libcurl must remain static: $directory/libcurl.so"
   [ ! -e "$directory/libnghttp2.so" ] || die "nghttp2 must remain static: $directory/libnghttp2.so"
-<<<<<<< HEAD
-=======
   [ ! -e "$directory/libfontconfig.so" ] || die "fontconfig must remain static: $directory/libfontconfig.so"
   [ ! -e "$directory/libexpat.so" ] || die "Expat must remain static: $directory/libexpat.so"
   [ ! -e "$directory/libxml2.so" ] || die "libxml2 must remain static: $directory/libxml2.so"
->>>>>>> upstream/dev
 
   file_info="$(file "$directory/libmpv.so")"
   printf '%s\n' "$file_info" | grep -E "$file_pattern" >/dev/null || die "unexpected $abi ELF type: $file_info"
@@ -189,17 +186,10 @@ verify_abi() {
   contains_string "$directory/libmpv.so" "mpv v$MPV_VERSION"
   contains_string "$directory/libmpv.so" "v$LIBPLACEBO_VERSION"
   contains_string "$directory/libmpv.so" "WebHTV stream_cb controls enabled"
-<<<<<<< HEAD
-<<<<<<< HEAD
-  contains_string "$directory/libmpv.so" "Using Vulkan AHardwareBuffer GPU conversion"
-  contains_string "$directory/libmpv.so" "AImageReader has no buffer yet"
-=======
-=======
   contains_string "$directory/libmpv.so" "disc-menu-active"
   contains_string "$directory/libmpv.so" "discnav"
   contains_string "$directory/libmpv.so" "WebHTV event-only disc navigation polling enabled"
   contains_string "$directory/libmpv.so" "WebHTV MediaCodec reset discards pending output"
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
   contains_string "$directory/libmpv.so" "Vulkan AImageReader backend:"
   contains_string "$directory/libmpv.so" "Using Vulkan YCbCr AHardwareBuffer sampling"
   contains_string "$directory/libmpv.so" "Vulkan AImageReader sync-fd:"
@@ -274,7 +264,6 @@ verify_abi() {
   contains_string "$directory/libmpv.so" "WebHTV AV-DIAG audio-write v=1"
   contains_string "$directory/libmvcodec.so" "WebHTV hardware audio MediaCodec decoder:"
   contains_string "$directory/libmpv.so" "No usable fontconfig configuration file found, using fallback."
->>>>>>> upstream/dev
   if [ -n "$CURL_VERSION" ]; then
     contains_string "$directory/libmpv.so" "libcurl/$CURL_VERSION"
     contains_string "$directory/libmpv.so" "HTTP2"
@@ -289,12 +278,9 @@ verify_abi() {
       if printf '%s\n' "$dynamic" | grep -Eq 'Shared library: \[lib(curl|nghttp2|mbed[^]]*)\.so'; then
         die "network dependency must remain static in $file_path"
       fi
-<<<<<<< HEAD
-=======
       if printf '%s\n' "$dynamic" | grep -Eq 'Shared library: \[lib(fontconfig|expat|xml2)\.so'; then
         die "font stack dependency must remain static in $file_path"
       fi
->>>>>>> upstream/dev
       name="$(basename "$file_path")"
       if [ "$name" != "libc++_shared.so" ]; then
         soname="$(printf '%s\n' "$dynamic" | sed -n 's/.*Library soname: \[\([^]]*\)\].*/\1/p')"

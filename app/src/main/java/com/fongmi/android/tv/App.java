@@ -16,13 +16,11 @@ import androidx.core.os.HandlerCompat;
 
 import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.server.proxy.MultiThreadProxy;
+import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.playback.PlaybackRemoteSyncer;
-<<<<<<< HEAD
-=======
 import com.fongmi.android.tv.player.PlaybackMemoryMonitor;
 import com.fongmi.android.tv.player.PlaybackSystemConditionMonitor;
 import com.fongmi.android.tv.player.mpv.PlaybackRecoveryMonitor;
->>>>>>> upstream/beta
 import com.fongmi.android.tv.remote.RemoteAgent;
 import com.fongmi.android.tv.setting.AppBranding;
 import com.fongmi.android.tv.setting.ProxySetting;
@@ -116,12 +114,9 @@ public class App extends Application implements Application.ActivityLifecycleCal
     @Override
     public void onCreate() {
         super.onCreate();
-<<<<<<< HEAD
-=======
         if (PlaybackRecoveryMonitor.isRecoveryProcess(this)) return;
         PlaybackMemoryMonitor.process().initialize(this);
         PlaybackSystemConditionMonitor.process().initialize(this);
->>>>>>> upstream/beta
         Setting.applyLanguage();
         ThemeController.applyNightModeToApp();
         AppBranding.applyLauncherIcon(this);
@@ -136,6 +131,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
         registerActivityLifecycleCallbacks(this);
         registerContentHandlers();
         resumeBackgroundServices();
+        post(() -> CacheScheduler.get().start(), 30_000L);
     }
 
     private void registerContentHandlers() {
@@ -152,9 +148,6 @@ public class App extends Application implements Application.ActivityLifecycleCal
         Product.registerReaderFallback();
     }
 
-<<<<<<< HEAD
-    private void startBackgroundServices() {
-=======
     @Override
     public void onTrimMemory(int level) {
         if (!PlaybackRecoveryMonitor.isRecoveryProcess(this)) PlaybackMemoryMonitor.process().onTrimMemory(level);
@@ -168,7 +161,6 @@ public class App extends Application implements Application.ActivityLifecycleCal
     }
 
     private void startBackgroundServicesNow() {
->>>>>>> upstream/dev
         SpiderDebug.log("startup", "background services start cost=%sms", System.currentTimeMillis() - time);
         Server.get().start();
         startMultiThreadProxy();

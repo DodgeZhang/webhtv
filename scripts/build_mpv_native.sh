@@ -6,16 +6,10 @@ export WEBHTV_ROOT="$ROOT"
 LOCK_FILE="$ROOT/third_party/mpv-native-lock.json"
 OVERRIDE_DIR="$ROOT/third_party/mpv-native-overrides"
 MPV_DISC_PATCH="$ROOT/third_party/patches/mpv-stream-cb-disc-controls.patch"
-<<<<<<< HEAD
-<<<<<<< HEAD
-MPV_AIMAGE_PATCH="$ROOT/third_party/patches/mpv-aimagereader-transient-buffer.patch"
-=======
-=======
 MPV_DISC_MENU_PATCH="$ROOT/third_party/patches/mpv-discnav.patch"
 MPV_DISC_INPUT_PATCH="$ROOT/third_party/mpv-player-jni/patches/mpv-discnav-input.patch"
 MPV_DISC_POLL_PATCH="$ROOT/third_party/mpv-player-jni/patches/mpv-discnav-poll.patch"
 LIBBLURAY_HDMV_INPUT_PATCH="$ROOT/third_party/mpv-player-jni/patches/libbluray-hdmv-input.patch"
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 MPV_DOVI_SURFACE_PATCH="$ROOT/third_party/patches/mpv-android-dovi-el-surface.patch"
 MPV_ANDROID_FEL_PATCH="$ROOT/third_party/patches/mpv-android-fel.patch"
 MPV_DOVI_HDR10_BL_PATCH="$ROOT/third_party/patches/mpv-dovi-profile7-hdr10-base-layer.patch"
@@ -42,18 +36,11 @@ MPV_P1_HLS_EDITION_PATCH="$ROOT/third_party/patches/mpv-p1-hls-edition.patch"
 LIBPLACEBO_P1_ALPHA_PATCH="$ROOT/third_party/patches/libplacebo-p1-alpha.patch"
 FFMPEG_PROXY_RANGE_PATCH="$ROOT/third_party/patches/ffmpeg-webhtv-proxy-range.patch"
 FFMPEG_MEDIACODEC_STARVATION_PATCH="$ROOT/third_party/patches/ffmpeg-mediacodec-port-starvation.patch"
-<<<<<<< HEAD
->>>>>>> upstream/dev
-=======
 FFMPEG_AUDIO_MEDIACODEC_HARDWARE_PATCH="$ROOT/third_party/patches/ffmpeg-audio-mediacodec-hardware-first.patch"
 FFMPEG_MEDIACODEC_OUTPUT_PATCH="$ROOT/third_party/patches/ffmpeg-mediacodec-output-serialization.patch"
-<<<<<<< HEAD
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
-=======
 FFMPEG_DIAGNOSTICS_PATCH="$ROOT/third_party/patches/ffmpeg-mediacodec-diagnostics.patch"
 FFMPEG_AVS3_MEDIACODEC_PATCH="$ROOT/third_party/patches/ffmpeg-avs3-mediacodec.patch"
 MPV_DIAGNOSTICS_PATCH="$ROOT/third_party/patches/mpv-playback-diagnostics.patch"
->>>>>>> upstream/beta
 WORK_DIR="${MPV_NATIVE_WORK_DIR:-$ROOT/build/mpv-native}"
 ABI="arm64-v8a"
 JOBS="${MPV_NATIVE_JOBS:-}"
@@ -163,6 +150,8 @@ need_cmd make
 need_cmd python3
 need_cmd pkg-config
 need_cmd perl
+need_cmd cmake
+need_cmd gperf
 
 eval "$(python3 - "$LOCK_FILE" <<'PY'
 import json
@@ -365,10 +354,7 @@ prepare_framework() {
   printf '\n# WebHTV wrapper cache identity: exact selected lock file.\nci_tarball="prefix-webhtv-%s.tgz"\n' \
     "$lock_hash" >> "$BUILDSCRIPTS/include/depinfo.sh"
   chmod +x "$BUILDSCRIPTS/scripts/libass.sh" "$BUILDSCRIPTS/scripts/lua.sh" \
-<<<<<<< HEAD
-=======
     "$BUILDSCRIPTS/scripts/shaderc.sh" \
->>>>>>> upstream/dev
     "$BUILDSCRIPTS/scripts/libplacebo.sh" "$BUILDSCRIPTS/scripts/nghttp2.sh" \
     "$BUILDSCRIPTS/scripts/curl.sh" "$BUILDSCRIPTS/scripts/mpv.sh"
   python3 - "$BUILDSCRIPTS/buildall.sh" "$BUILDSCRIPTS/include/cmake-android.sh" <<'PY'
@@ -465,15 +451,9 @@ prepare_sources() {
     -r "$deps/mbedtls/scripts/basic.requirements.txt"
   checkout_repo dav1d "$DAV1D_REPO" "$DAV1D_COMMIT" "$deps/dav1d"
   checkout_repo FFmpeg "$FFMPEG_REPO" "$FFMPEG_COMMIT" "$deps/ffmpeg"
-<<<<<<< HEAD
-<<<<<<< HEAD
-  checkout_repo FreeType "$FREETYPE2_REPO" "$FREETYPE2_COMMIT" "$deps/freetype2"
-=======
-=======
   mkdir -p "$deps/uavs3d"
   git -C "$deps/ffmpeg" apply --check "$ROOT/third_party/patches/ffmpeg-avs3.patch"
   git -C "$deps/ffmpeg" apply "$ROOT/third_party/patches/ffmpeg-avs3.patch"
->>>>>>> upstream/beta
   [ -f "$FFMPEG_PROXY_RANGE_PATCH" ] || die "missing FFmpeg proxy range patch: $FFMPEG_PROXY_RANGE_PATCH"
   git -C "$deps/ffmpeg" apply --check "$FFMPEG_PROXY_RANGE_PATCH"
   git -C "$deps/ffmpeg" apply "$FFMPEG_PROXY_RANGE_PATCH"
@@ -496,7 +476,6 @@ prepare_sources() {
   extract_archive libxml2 "$LIBXML2_URL" "$LIBXML2_SHA256" "$deps/libxml2"
   extract_archive libaribcaption "$LIBARIBCAPTION_URL" "$LIBARIBCAPTION_SHA256" "$deps/libaribcaption"
   checkout_repo fontconfig "$FONTCONFIG_REPO" "$FONTCONFIG_COMMIT" "$deps/fontconfig"
->>>>>>> upstream/dev
   checkout_repo FriBidi "$FRIBIDI_REPO" "$FRIBIDI_COMMIT" "$deps/fribidi"
   checkout_repo HarfBuzz "$HARFBUZZ_REPO" "$HARFBUZZ_COMMIT" "$deps/harfbuzz"
   extract_archive libunibreak "$UNIBREAK_URL" "$UNIBREAK_SHA256" "$deps/unibreak"
@@ -569,15 +548,6 @@ prepare_sources() {
   [ -f "$MPV_DISC_PATCH" ] || die "missing MPV disc controls patch: $MPV_DISC_PATCH"
   git -C "$deps/mpv" apply --check "$MPV_DISC_PATCH"
   git -C "$deps/mpv" apply "$MPV_DISC_PATCH"
-<<<<<<< HEAD
-<<<<<<< HEAD
-  [ -f "$MPV_AIMAGE_PATCH" ] || die "missing MPV AImageReader transient buffer patch: $MPV_AIMAGE_PATCH"
-  git -C "$deps/mpv" apply --check --unidiff-zero "$MPV_AIMAGE_PATCH"
-  git -C "$deps/mpv" apply --unidiff-zero "$MPV_AIMAGE_PATCH"
-  mkdir -p "$deps/shaderc"
-  printf '%s\n' "shaderc is supplied by Android NDK $NDK_VERSION" >"$deps/shaderc/README.webhtv"
-=======
-=======
   [ -f "$MPV_DISC_MENU_PATCH" ] || die "missing MPV disc navigation patch: $MPV_DISC_MENU_PATCH"
   git -C "$deps/mpv" apply --check "$MPV_DISC_MENU_PATCH"
   git -C "$deps/mpv" apply "$MPV_DISC_MENU_PATCH"
@@ -587,7 +557,6 @@ prepare_sources() {
   [ -f "$MPV_DISC_POLL_PATCH" ] || die "missing MPV event-only navigation patch: $MPV_DISC_POLL_PATCH"
   git -C "$deps/mpv" apply --check "$MPV_DISC_POLL_PATCH"
   git -C "$deps/mpv" apply "$MPV_DISC_POLL_PATCH"
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
   [ -f "$MPV_DOVI_SURFACE_PATCH" ] || die "missing MPV Android Dolby Vision Surface patch: $MPV_DOVI_SURFACE_PATCH"
   git -C "$deps/mpv" apply --check "$MPV_DOVI_SURFACE_PATCH"
   git -C "$deps/mpv" apply "$MPV_DOVI_SURFACE_PATCH"
@@ -685,9 +654,6 @@ prepare_sources() {
   [ -f "$MPV_MATROSKA_PATCH" ] || die "missing MPV Matroska segment patch: $MPV_MATROSKA_PATCH"
   git -C "$deps/mpv" apply --check "$MPV_MATROSKA_PATCH"
   git -C "$deps/mpv" apply "$MPV_MATROSKA_PATCH"
-<<<<<<< HEAD
->>>>>>> upstream/dev
-=======
   [ -f "$MPV_P1_PACKED_RGB10_PATCH" ] || die "missing MPV packed RGB10 patch: $MPV_P1_PACKED_RGB10_PATCH"
   git -C "$deps/mpv" apply --check "$MPV_P1_PACKED_RGB10_PATCH"
   git -C "$deps/mpv" apply "$MPV_P1_PACKED_RGB10_PATCH"
@@ -697,14 +663,10 @@ prepare_sources() {
   [ -f "$MPV_P1_HLS_EDITION_PATCH" ] || die "missing MPV HLS edition patch: $MPV_P1_HLS_EDITION_PATCH"
   git -C "$deps/mpv" apply --check "$MPV_P1_HLS_EDITION_PATCH"
   git -C "$deps/mpv" apply "$MPV_P1_HLS_EDITION_PATCH"
-<<<<<<< HEAD
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
-=======
   [ -f "$MPV_ANDROID_FEL_PATCH" ] || die "missing MPV Android FEL patch: $MPV_ANDROID_FEL_PATCH"
   git -C "$deps/mpv" apply --check --recount "$MPV_ANDROID_FEL_PATCH"
   git -C "$deps/mpv" apply --recount "$MPV_ANDROID_FEL_PATCH"
   python3 "$ROOT/scripts/verify_mpv_fel_contract.py" --mpv-source "$deps/mpv"
->>>>>>> upstream/beta
 }
 
 patch_dynamic_names() {
@@ -756,12 +718,9 @@ verify_directory() {
     if printf '%s\n' "$dynamic" | grep -Eq 'Shared library: \[lib(av|sw).+\.so\]'; then
       die "unrenamed FFmpeg dependency in $file"
     fi
-<<<<<<< HEAD
-=======
     if printf '%s\n' "$dynamic" | grep -Eq 'Shared library: \[lib(fontconfig|expat|xml2)\.so'; then
       die "font stack dependency must remain static in $file"
     fi
->>>>>>> upstream/dev
     name="$(basename "$file")"
     if [ "$name" != "libc++_shared.so" ]; then
       soname="$(printf '%s\n' "$dynamic" | sed -n 's/.*Library soname: \[\([^]]*\)\].*/\1/p')"
@@ -772,15 +731,6 @@ verify_directory() {
   for name in libmvcodec.so libmvdevice.so libmvfilter.so libmvformat.so libmvutil.so libmwresample.so libmwscale.so libvulkan.so; do
     printf '%s\n' "$dynamic" | grep -Fq "Shared library: [$name]" || die "libmpv.so does not depend on $name"
   done
-<<<<<<< HEAD
-  local version_strings
-  version_strings="$(strings "$directory/libmpv.so")"
-  grep -Fq "mpv v$MPV_VERSION" <<<"$version_strings" || die "unexpected MPV version in $directory/libmpv.so"
-  grep -Fq "v$LIBPLACEBO_VERSION" <<<"$version_strings" || die "unexpected libplacebo version in $directory/libmpv.so"
-  grep -Fq "WebHTV stream_cb controls enabled" <<<"$version_strings" || die "MPV stream_cb disc controls patch missing from $directory/libmpv.so"
-  grep -Fq "Using Vulkan AHardwareBuffer GPU conversion" <<<"$version_strings" || die "MPV Vulkan MediaCodec interop missing from $directory/libmpv.so"
-  grep -Fq "AImageReader has no buffer yet" <<<"$version_strings" || die "MPV AImageReader transient buffer patch missing from $directory/libmpv.so"
-=======
   local version_strings codec_strings format_strings
   version_strings="$(strings "$directory/libmpv.so")"
   codec_strings="$(strings "$directory/libmvcodec.so")"
@@ -842,7 +792,6 @@ verify_directory() {
   grep -Fq "MMT protocol over TLV packets" <<<"$format_strings" || die "FFmpeg MMT/TLV demuxer missing from $directory/libmvformat.so"
   grep -Fq "WebHTV proxy range offset accepted" <<<"$format_strings" || die "FFmpeg proxy range patch missing from $directory/libmvformat.so"
   grep -Fq "No usable fontconfig configuration file found, using fallback." <<<"$version_strings" || die "libass fontconfig provider missing from $directory/libmpv.so"
->>>>>>> upstream/dev
   if [ "$ENABLE_LIBCURL" -eq 1 ]; then
     grep -Fq "libcurl/$CURL_VERSION" <<<"$version_strings" || die "libcurl $CURL_VERSION missing from $directory/libmpv.so"
     grep -Fq "HTTP2" <<<"$version_strings" || die "HTTP/2 support missing from $directory/libmpv.so"
@@ -944,9 +893,6 @@ build_abi() {
     rm -rf "$BUILDSCRIPTS/prefix/$prefix_name"
   fi
   export cores="$JOBS"
-<<<<<<< HEAD
-  local targets=(mbedtls unibreak dav1d ffmpeg freetype2 fribidi harfbuzz libass lua shaderc libplacebo)
-=======
   export android_api="$ANDROID_API_LEVEL"
   export WEBHTV_ANDROID_API_LEVEL="$ANDROID_API_LEVEL"
   local targets=(
@@ -954,7 +900,6 @@ build_abi() {
     libaribcaption uavs3d ffmpeg fontconfig fribidi harfbuzz unibreak libass lua
     shaderc libplacebo
   )
->>>>>>> upstream/dev
   if [ "$ENABLE_LIBCURL" -eq 1 ]; then
     targets+=(nghttp2 curl)
     export WEBHTV_MPV_LIBCURL=enabled
@@ -978,10 +923,6 @@ build_abi() {
       zstd) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libzstd.a" ] ;;
       mbedtls) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libmbedtls.a" ] ;;
       dav1d) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libdav1d.a" ] ;;
-<<<<<<< HEAD
-      ffmpeg) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libavcodec.so" ] ;;
-      freetype2) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libfreetype.a" ] ;;
-=======
       libxml2) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libxml2.a" ] ;;
       freetype2) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libfreetype.a" ] ;;
       libaribcaption) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libaribcaption.a" ] ;;
@@ -989,7 +930,6 @@ build_abi() {
         [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libwebhtvhpm.a" ] ;;
       ffmpeg) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libavcodec.so" ] ;;
       fontconfig) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libfontconfig.a" ] ;;
->>>>>>> upstream/dev
       fribidi) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libfribidi.a" ] ;;
       harfbuzz) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libharfbuzz.a" ] ;;
       unibreak) [ -f "$BUILDSCRIPTS/prefix/$prefix_name/lib/libunibreak.a" ] ;;

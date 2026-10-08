@@ -57,26 +57,6 @@ public class BackupPreferenceFilterTest {
     }
 
     @Test
-    public void speechAdRulePreferencesFollowSettingsOption() {
-        SyncOptions settingsOnly = new SyncOptions().config(false).spider(false)
-                .webHome(false).settings(true);
-        SyncOptions configOnly = new SyncOptions().config(true).spider(false)
-                .webHome(false).settings(false);
-        SyncOptions spiderOnly = new SyncOptions().config(false).spider(true)
-                .webHome(false).settings(false);
-        SyncOptions everything = new SyncOptions().config(true).spider(true)
-                .webHome(true).settings(true);
-
-        for (String key : new String[]{
-                "speech_ad_rules_v1", "speech_ad_rules_source", "speech_ad_builtin_enabled"}) {
-            assertTrue(key, Backup.include(key, settingsOnly));
-            assertTrue(key, Backup.include(key, everything));
-            assertFalse(key, Backup.include(key, configOnly));
-            assertFalse(key, Backup.include(key, spiderOnly));
-        }
-    }
-
-    @Test
     public void playbackOverlayFollowsSettingsOption() {
         SyncOptions settingsOnly = new SyncOptions().config(false).spider(false).webHome(false).settings(true);
         SyncOptions spiderOnly = new SyncOptions().config(false).spider(true).webHome(false).settings(false);
@@ -124,8 +104,6 @@ public class BackupPreferenceFilterTest {
         assertEquals(3, backup.getWebHomeExtensionPreferenceCount());
         assertEquals(2, backup.getWebHomeExtensionSourceCount());
     }
-<<<<<<< HEAD
-=======
 
     @Test
     public void playbackExperimentStateRemainsDeviceLocal() {
@@ -227,5 +205,4 @@ public class BackupPreferenceFilterTest {
         assertFalse(Backup.include("update_channel", settings));
         assertFalse(Backup.include("update_fallback", settings));
     }
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 }

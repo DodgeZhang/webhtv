@@ -79,6 +79,7 @@ public final class PlaybackRemoteSyncStore {
             config.lastSyncAt = now;
             config.lastFetched = result == null ? 0 : result.fetched;
             config.lastApplied = result == null ? 0 : result.applied;
+            config.lastDeleted = result == null ? 0 : result.deleted;
             config.lastSkipped = result == null ? 0 : result.skipped;
             config.lastFailed = result == null ? 0 : result.failed;
             config.lastError = result == null ? "" : result.message;
@@ -93,14 +94,11 @@ public final class PlaybackRemoteSyncStore {
             if (result != null && result.success) {
                 config.lastSuccessAt = now;
                 config.lastError = "";
-<<<<<<< HEAD
-=======
                 if (result.cursors != null) {
                     for (java.util.Map.Entry<String, String> entry : result.cursors.entrySet()) config.cursor(entry.getKey(), entry.getValue());
                 } else {
                     config.cursor(result.configKey, result.nextSince);
                 }
->>>>>>> upstream/beta
             }
             break;
         }
@@ -131,6 +129,7 @@ public final class PlaybackRemoteSyncStore {
         if (config.url == null) config.url = "";
         if (config.token == null) config.token = "";
         if (config.siteKeys == null) config.siteKeys = new ArrayList<>();
+        if (config.cursors == null) config.cursors = new java.util.HashMap<>();
         if (config.intervalMinutes < 0) config.intervalMinutes = 0;
         if (config.maxItems <= 0) config.maxItems = 100;
         if (config.maxItems > 1000) config.maxItems = 1000;

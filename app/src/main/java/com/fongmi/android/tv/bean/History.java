@@ -20,8 +20,6 @@ import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.impl.Diffable;
-<<<<<<< HEAD
-=======
 import com.fongmi.android.tv.history.HistoryDisplayPolicy;
 import com.fongmi.android.tv.player.VideoAspectMode;
 import com.fongmi.android.tv.playback.PlaybackProgressWriter;
@@ -33,7 +31,6 @@ import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.TmdbLanguagePolicy;
 import com.fongmi.android.tv.utils.Util;
->>>>>>> upstream/dev
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.reflect.TypeToken;
 
@@ -420,6 +417,10 @@ public class History implements Diffable<History> {
         } else {
             PlaybackProgressWriter.deleteAllFromUser(VodConfig.getCid());
         }
+    }
+
+    public static void deleteAndSync(int cid) {
+        PlaybackProgressWriter.deleteAllFromUser(cid);
     }
 
     public static void sync(List<History> targets) {
@@ -1228,8 +1229,6 @@ public class History implements Diffable<History> {
         return this;
     }
 
-<<<<<<< HEAD
-=======
     private static boolean mediaIdentityChanged(History before, History after) {
         if (before == null || after == null) return false;
         return before.getTmdbId() != after.getTmdbId()
@@ -1301,7 +1300,6 @@ public class History implements Diffable<History> {
         return deleteDisplayItem();
     }
 
->>>>>>> upstream/dev
     public void findEpisode(List<Flag> flags) {
         if (flags.isEmpty()) return;
         setVodFlag(flags.get(0).getFlag());

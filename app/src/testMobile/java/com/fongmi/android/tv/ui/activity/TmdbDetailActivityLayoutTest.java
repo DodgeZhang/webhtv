@@ -1097,17 +1097,19 @@ public class TmdbDetailActivityLayoutTest {
         int cinemaShade = source.indexOf("private Drawable cinemaBackdropShade()");
         int cinemaShadeEnd = source.indexOf("\n    }", cinemaShade);
         String cinemaShadeBody = source.substring(cinemaShade, cinemaShadeEnd);
-        assertTrue("Light cinema backdrop must show original artwork without a light gradient wash",
-                cinemaShadeBody.contains("return TmdbDetailLayoutUtils.colorDrawable(Color.TRANSPARENT);"));
-        assertTrue("Light cinema gradient wash must not remain",
-                source.indexOf("private Drawable cinemaLightBackdropShade()") < 0);
-        assertTrue("Light cinema copy must use a local feathered plate instead of covering the poster",
-                source.contains("private void applyLightCinemaCopyPlate()")
-                        && source.contains("binding.detailInfo.setBackground(new LightCinemaCopyPlateDrawable(feather, ResUtil.dp2px(18)));")
-                        && source.contains("if (!(lightTheme && isCinemaStyle()))"));
-        assertTrue("Light cinema copy plate must stay a light white mist instead of the heavier warm beige slab",
-                source.contains("private static final int PLATE = 0xC8FFFFFF;")
-                        && !source.contains("0xE6F6F1EA"));
+        assertTrue("Light cinema must keep its white middle layer between artwork and content, like the dark black one",
+                cinemaShadeBody.contains("if (lightTheme) return cinemaLightBackdropShade();"));
+        int lightShade = source.indexOf("private Drawable cinemaLightBackdropShade()");
+        assertTrue("Light cinema white middle layer must exist", lightShade > 0);
+        int lightShadeEnd = source.indexOf("\n    }", lightShade);
+        String lightShadeBody = source.substring(lightShade, lightShadeEnd);
+        assertTrue("Light cinema middle layer must be a white scrim over the artwork",
+                lightShadeBody.contains("0xB8F4F7FA") && lightShadeBody.contains("0x99F4F7FA"));
+        assertTrue("Light cinema middle layer must not be a fully transparent drawable",
+                !cinemaShadeBody.contains("return TmdbDetailLayoutUtils.colorDrawable(Color.TRANSPARENT);"));
+        assertTrue("Light cinema copy must not resurrect the feathered plate hack now that a real middle layer exists",
+                source.indexOf("private void applyLightCinemaCopyPlate()") < 0
+                        && source.indexOf("LightCinemaCopyPlateDrawable") < 0);
         assertTrue("Backdrop opacity must remain theme-aware instead of one global opaque value",
                 !body.contains("return modeController.isCinemaStyle() && !lightTheme ? 0.9f : 1f;"));
         int initPage = source.indexOf("private void initPage()");
@@ -1777,7 +1779,7 @@ public class TmdbDetailActivityLayoutTest {
                         && activity.contains("private void applyEpisodeToolButtonsFocus()")
                         && activity.contains("applyEpisodeToolButtonFocus(binding.episodeReverse, colors);")
                         && activity.contains("applyEpisodeToolButtonFocus(binding.episodeViewMode, colors);")
-                        && activity.contains("button.setStrokeColor(ColorStateList.valueOf(focused ? FOCUS_STROKE : colors.lineStrong));"));
+                        && activity.contains("button.setStrokeColor(ColorStateList.valueOf(focused ? focusStroke() : colors.lineStrong));"));
         assertTrue("episode tool delayed refocus must not steal focus back from the sibling tool",
                 activity.contains("isEpisodeToolFocusedOtherThan(button)")
                         && activity.contains("retryDetailButtonFocus(button, previousFocus)")
@@ -1907,7 +1909,7 @@ public class TmdbDetailActivityLayoutTest {
                         && activity.contains("button.setMinWidth(ResUtil.dp2px(64));")
                         && activity.contains("ThemeColors colors = currentThemeColors();")
                         && activity.contains("background.setColor(focused ? colors.control : selected ? colors.chipActive : colors.chip);")
-                        && activity.contains("background.setStroke(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : selected ? 2 : CHIP_STROKE_DP), focused ? FOCUS_STROKE : selected ? colors.accent : colors.line);")
+                        && activity.contains("background.setStroke(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : selected ? 2 : CHIP_STROKE_DP), focused ? focusStroke() : selected ? colors.accent : colors.line);")
                         && activity.contains("button.setTextColor(colors.primary);")
                         && activity.contains("button.setBackground(background);")
                         && activity.contains("button.setActivated(selected);")
@@ -2151,6 +2153,31 @@ public class TmdbDetailActivityLayoutTest {
                         && updateStatesBody.indexOf("setChipState(button, i == episodeRangeIndex);") < updateStatesBody.indexOf("setEpisodeRangeFocusChange(button, i);"));
     }
 
+    /**
+     * 用户报告：电视版「线路」和「选集」chip 只剩描边、没有底色，压在亮色剧照上看不清。
+     *
+     * <p>根因是 {@code setChipState} 用 {@code setBackgroundColor}。该方法只把颜色写进当时那个
+     * {@code MaterialShapeDrawable} 实例，而 Material 之后会因 inset/圆角/测量变化重建背景，
+     * 重建时读的是 {@code backgroundTint} 字段（这些代码新建的按钮该字段仍为透明），填充因此被
+     * 丢回全透明。{@code setBackgroundTintList} 写的才是那个持久字段，这也是同页选集「第 N 季」
+     * 按钮（走 {@code applyEpisodeTitleButtonFocus}）一直有底色的原因。
+     */
+    @Test
+    public void episodeAndSourceChipsKeepTheirFillThroughMaterialBackgroundRebuilds() throws Exception {
+        Path sourcePath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        int method = source.indexOf("private void setChipState(MaterialButton button, boolean selected)");
+
+        assertTrue(sourcePath + " is missing setChipState", method >= 0);
+        int methodEnd = source.indexOf("\n    }", method);
+        String body = source.substring(method, methodEnd);
+
+        assertTrue("chip fill must go through the persistent backgroundTint channel so a Material background rebuild cannot drop it",
+                body.contains("button.setBackgroundTintList(ColorStateList.valueOf(selected ? colors.chipActive : colors.chip));"));
+        assertFalse("setBackgroundColor only tints the current drawable instance and is silently lost when Material rebuilds the background",
+                body.contains("setBackgroundColor("));
+    }
+
     @Test
     public void tmdbArtworkRowsSeparateBackdropsAndPostersWhileSlidesRemainResponsive() throws Exception {
         Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
@@ -2304,9 +2331,10 @@ public class TmdbDetailActivityLayoutTest {
                         && helper.contains("card.setForeground(null);")
                         && helper.contains("card.setRippleColor(ColorStateList.valueOf(0x00000000));"));
         assertTrue("shared TMDB card focus helper should draw a transparent foreground border above card content",
-                helper.contains("private static final int FOCUS_STROKE = 0xFFFFD166;")
-                        && helper.contains("card.setStrokeColor(focused ? FOCUS_STROKE : strokeColor);")
-                        && helper.contains("card.setForeground(focused ? foregroundBorder(card, FOCUS_STROKE, FOCUS_STROKE_DP) : null);")
+                helper.contains("private static final int FOCUS_STROKE_DP = 3;")
+                        && helper.contains("int focus = ThemeController.focusRingColor(card.getContext());")
+                        && helper.contains("card.setStrokeColor(focused ? focus : strokeColor);")
+                        && helper.contains("card.setForeground(focused ? foregroundBorder(card, focus, FOCUS_STROKE_DP) : null);")
                         && helper.contains("drawable.setColor(Color.TRANSPARENT);")
                         && !helper.contains("FOCUS_SCALE")
                         && !helper.contains("scaleX(")
@@ -2600,8 +2628,8 @@ public class TmdbDetailActivityLayoutTest {
         assertTrue("episode tool focus refresh should keep text and icons on the neutral detail theme color",
                 applyBody.contains("button.setTextColor(colors.primary);")
                         && applyBody.contains("button.setIconTint(ColorStateList.valueOf(colors.primary));"));
-        assertTrue("episode tool focus refresh should use the shared yellow focus stroke and themed idle stroke",
-                applyBody.contains("focused ? FOCUS_STROKE : colors.lineStrong")
+        assertTrue("episode tool focus refresh should use the shared theme focus stroke and themed idle stroke",
+                applyBody.contains("focused ? focusStroke() : colors.lineStrong")
                         && !applyBody.contains("focused ? colors.accent : colors.lineStrong"));
     }
 
@@ -3133,11 +3161,11 @@ public class TmdbDetailActivityLayoutTest {
 
         int method = adapter.indexOf("private void applyNativeEnhancedCardFocus");
         assertTrue(adapterPath + " is missing native enhanced card focus styling", method >= 0);
-        assertTrue("native enhanced episode focus must use the same yellow stroke as TV buttons",
-                adapter.contains("private static final int FOCUS_STROKE = 0xFFFFD166;")
-                        && adapter.indexOf("holder.binding.getRoot().setStrokeColor(focused ? FOCUS_STROKE : activated ? activeStrokeColor : 0x00000000);", method) > method
+        assertTrue("native enhanced episode focus must use the same theme focus ring as TV buttons",
+                adapter.contains("int focusStroke = ThemeController.focusRingColor(holder.binding.getRoot().getContext());")
+                        && adapter.indexOf("holder.binding.getRoot().setStrokeColor(focused ? focusStroke : activated ? activeStrokeColor : 0x00000000);", method) > method
                         && adapter.indexOf("Drawable foreground = focused", method) > method
-                        && adapter.indexOf("TmdbCardFocusHelper.foregroundBorder(holder.binding.getRoot(), FOCUS_STROKE, FOCUS_STROKE_DP)", method) > method
+                        && adapter.indexOf("TmdbCardFocusHelper.foregroundBorder(holder.binding.getRoot(), focusStroke, FOCUS_STROKE_DP)", method) > method
                         && adapter.indexOf("holder.binding.getRoot().setForeground(foreground);", method) > method);
         assertTrue("currently playing episode cards must keep the green active border when not focused",
                 adapter.contains("private int activeStrokeColor = 0xFF2CC56F;")
@@ -3146,9 +3174,12 @@ public class TmdbDetailActivityLayoutTest {
                 !adapter.contains("FOCUS_SCALE")
                         && adapter.indexOf("scaleX(", method) < 0
                         && adapter.indexOf("scaleY(", method) < 0);
-        assertTrue("legacy episode foreground selector must also keep focus yellow and playing green",
+        assertTrue("legacy episode foreground selector must also keep focus theme-driven and playing green",
                 selector.contains("android:color=\"?attr/tvFocusRing\"")
                         && selector.contains("android:color=\"?attr/tvCurrentRing\""));
+        assertTrue("legacy photo focus shape must resolve the ring through the theme attribute, not a literal",
+                readMainRes("drawable", "shape_episode_photo_focused.xml").contains("?attr/tvFocusRing")
+                        && !readMainRes("drawable", "shape_episode_photo_focused.xml").contains("FFD166"));
     }
 
     @Test
@@ -3665,6 +3696,12 @@ public class TmdbDetailActivityLayoutTest {
     private static String readLayout(String file) throws Exception {
         Path layoutPath = findMainResPath().resolve(Path.of("layout", file));
         return new String(Files.readAllBytes(layoutPath), StandardCharsets.UTF_8);
+    }
+
+    /** Reads a shared (main source set) drawable by name. */
+    private static String readMainRes(String dir, String file) throws Exception {
+        Path path = findMainResPath().resolve(Path.of(dir, file));
+        return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
     }
 
     private static String readLeanbackLayout(String file) throws Exception {

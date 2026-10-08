@@ -17,8 +17,6 @@ v_libaribcaption=1.1.1
 v_fontconfig=2.18.2
 v_nghttp2=1.69.0
 v_curl=8.21.0
-<<<<<<< HEAD
-=======
 v_libbluray=1.4.1
 v_libiconv=1.19
 v_uchardet=0.0.8
@@ -29,7 +27,6 @@ v_libarchive=3.8.7
 v_libdvdread=7.0.1
 v_libdvdnav=7.0.0
 v_rubberband=4.0.0
->>>>>>> upstream/dev
 
 dep_libiconv=()
 dep_uchardet=(libiconv)
@@ -38,14 +35,6 @@ dep_xz=()
 dep_zstd=()
 dep_mbedtls=()
 dep_dav1d=()
-<<<<<<< HEAD
-dep_ffmpeg=(mbedtls dav1d)
-dep_freetype2=()
-dep_fribidi=()
-dep_harfbuzz=()
-dep_unibreak=()
-dep_libass=(freetype2 fribidi harfbuzz unibreak)
-=======
 dep_libxml2=()
 dep_freetype2=()
 dep_libaribcaption=(freetype2)
@@ -56,7 +45,6 @@ dep_fribidi=()
 dep_harfbuzz=()
 dep_unibreak=()
 dep_libass=(freetype2 fontconfig fribidi harfbuzz unibreak)
->>>>>>> upstream/dev
 dep_lua=()
 dep_shaderc=()
 dep_libplacebo=(shaderc)
@@ -70,14 +58,5 @@ dep_rubberband=()
 dep_mpv=(ffmpeg libass lua libplacebo curl libbluray libiconv uchardet libarchive libdvdnav rubberband)
 dep_mpv_android=(mpv)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-v_ci_ffmpeg=8ae0b34901ba60a802f183ee75a250a9fc3e09a5
-ci_tarball="prefix-ndk-${v_ndk}-lua-${v_lua}-unibreak-${v_unibreak}-harfbuzz-${v_harfbuzz}-fribidi-${v_fribidi}-freetype-${v_freetype}-mbedtls-${v_mbedtls}-nghttp2-${v_nghttp2}-curl-${v_curl}-ffmpeg-${v_ci_ffmpeg}.tgz"
-=======
-v_ci_ffmpeg=04482c8d13ac27b2a9fe93f5d388929eef8af5f4
-=======
 v_ci_ffmpeg=177f090e0503b7e013922ca903bde14b1c375f18
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 ci_tarball="prefix-ndk-${v_ndk}-webhtv-fongmi-ffmpeg9.tgz"
->>>>>>> upstream/dev

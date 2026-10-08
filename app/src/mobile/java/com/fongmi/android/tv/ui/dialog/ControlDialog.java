@@ -327,21 +327,12 @@ public class ControlDialog extends BaseBottomSheetDialog implements ParseAdapter
         binding.episodeColumn1.setOnClickListener(v -> setEpisodeColumn(1));
         binding.episodeColumn2.setOnClickListener(v -> setEpisodeColumn(2));
         binding.compactEpisodeTitle.setOnClickListener(v -> setCompactEpisodeTitle());
-<<<<<<< HEAD
-        binding.title.setOnClickListener(v -> ((Listener) requireActivity()).onTitlePanel());
-        binding.player.setOnClickListener(v -> click(binding.player, parent.control.action.player));
-        binding.danmaku.setOnClickListener(v -> ((Listener) requireActivity()).onDanmakuPanel());
-        binding.repeat.setOnClickListener(v -> active(binding.repeat, parent.control.action.repeat));
-        binding.decode.setOnClickListener(v -> click(binding.decode, parent.control.action.decode));
-        binding.codecCapability.setOnClickListener(v -> ((Listener) requireActivity()).onCodecCapabilityPanel());
-=======
         binding.title.setOnClickListener(v -> listener().onTitlePanel());
         binding.player.setOnClickListener(v -> click(binding.player, controls.player));
         binding.danmaku.setOnClickListener(v -> listener().onDanmakuPanel());
         binding.repeat.setOnClickListener(v -> active(binding.repeat, controls.repeat));
         binding.decode.setOnClickListener(v -> click(binding.decode, controls.decode));
         binding.codecCapability.setOnClickListener(v -> listener().onCodecCapabilityPanel());
->>>>>>> upstream/dev
         binding.panDiagnostic.setOnClickListener(v -> onPanDiagnostic());
         binding.lut.setOnClickListener(v -> onLut());
         binding.ending.setOnClickListener(v -> click(binding.ending, controls.ending));

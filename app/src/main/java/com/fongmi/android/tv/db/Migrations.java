@@ -69,8 +69,6 @@ public class Migrations {
             database.execSQL("ALTER TABLE History ADD COLUMN wallPic TEXT DEFAULT NULL");
         }
     };
-<<<<<<< HEAD
-=======
 
     public static final Migration MIGRATION_36_37 = new Migration(36, 37) {
         @Override
@@ -257,5 +255,4 @@ public class Migrations {
         }
         database.execSQL(statement);
     }
->>>>>>> upstream/dev
 }

@@ -12,6 +12,7 @@ import com.fongmi.android.tv.bean.Device;
 import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.Keep;
 import com.fongmi.android.tv.bean.Live;
+import com.fongmi.android.tv.bean.PlaybackDeleteTombstone;
 import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.bean.TmdbSeasonProgress;
@@ -20,6 +21,7 @@ import com.fongmi.android.tv.db.dao.DeviceDao;
 import com.fongmi.android.tv.db.dao.HistoryDao;
 import com.fongmi.android.tv.db.dao.KeepDao;
 import com.fongmi.android.tv.db.dao.LiveDao;
+import com.fongmi.android.tv.db.dao.PlaybackDeleteTombstoneDao;
 import com.fongmi.android.tv.db.dao.SiteDao;
 import com.fongmi.android.tv.db.dao.TrackDao;
 import com.fongmi.android.tv.db.dao.TmdbSeasonProgressDao;
@@ -35,33 +37,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-@Database(entities = {Keep.class, Site.class, Live.class, Track.class, Config.class, Device.class, History.class}, version = AppDatabase.VERSION)
-public abstract class AppDatabase extends RoomDatabase {
-
-    public static final int VERSION = 36;
-=======
-@Database(entities = {Keep.class, Site.class, Live.class, Track.class, Config.class, Device.class, History.class, PlaybackDeleteTombstone.class, TmdbSeasonProgress.class}, version = AppDatabase.VERSION)
-public abstract class AppDatabase extends RoomDatabase {
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-    public static final int VERSION = 43;
->>>>>>> upstream/dev
-=======
-    public static final int VERSION = 45;
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
-=======
-    public static final int VERSION = 47;
->>>>>>> upstream/beta
-=======
 @Database(entities = {Keep.class, Site.class, Live.class, Track.class, Config.class, Device.class, History.class, PlaybackDeleteTombstone.class, TmdbSeasonProgress.class}, version = AppDatabase.VERSION, exportSchema = true)
 public abstract class AppDatabase extends RoomDatabase {
 
     // VERSION = 47 was the pre-identity-alias schema; 48 adds migration clues.
     public static final int VERSION = 48;
->>>>>>> upstream/beta
     public static final String NAME = "tv";
     public static final String SYMBOL = "@@@";
     private static final int BACKUP_KEEP_COUNT = 7;
@@ -191,8 +171,6 @@ public abstract class AppDatabase extends RoomDatabase {
                 .addMigrations(Migrations.MIGRATION_33_34)
                 .addMigrations(Migrations.MIGRATION_34_35)
                 .addMigrations(Migrations.MIGRATION_35_36)
-<<<<<<< HEAD
-=======
                 .addMigrations(Migrations.MIGRATION_36_37)
                 .addMigrations(Migrations.MIGRATION_37_38)
                 .addMigrations(Migrations.MIGRATION_38_39)
@@ -200,21 +178,11 @@ public abstract class AppDatabase extends RoomDatabase {
                 .addMigrations(Migrations.MIGRATION_40_41)
                 .addMigrations(Migrations.MIGRATION_41_42)
                 .addMigrations(Migrations.MIGRATION_42_43)
-<<<<<<< HEAD
->>>>>>> upstream/dev
-=======
                 .addMigrations(Migrations.MIGRATION_43_44)
                 .addMigrations(Migrations.MIGRATION_44_45)
-<<<<<<< HEAD
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
-=======
                 .addMigrations(Migrations.MIGRATION_45_46)
                 .addMigrations(Migrations.MIGRATION_46_47)
-<<<<<<< HEAD
->>>>>>> upstream/beta
-=======
                 .addMigrations(Migrations.MIGRATION_47_48)
->>>>>>> upstream/beta
                 .fallbackToDestructiveMigration(true)
                 .allowMainThreadQueries().build();
     }
@@ -232,11 +200,8 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract DeviceDao getDeviceDao();
 
     public abstract HistoryDao getHistoryDao();
-<<<<<<< HEAD
-=======
 
     public abstract PlaybackDeleteTombstoneDao getPlaybackDeleteTombstoneDao();
 
     public abstract TmdbSeasonProgressDao getTmdbSeasonProgressDao();
->>>>>>> upstream/dev
 }

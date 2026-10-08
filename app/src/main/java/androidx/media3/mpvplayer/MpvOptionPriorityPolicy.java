@@ -37,20 +37,11 @@ final class MpvOptionPriorityPolicy {
             "demuxer-max-bytes",
             "demuxer-max-back-bytes",
             "demuxer-readahead-secs",
-<<<<<<< HEAD
-=======
             "demuxer-hysteresis-secs",
             "demuxer-dovi-profile7",
-<<<<<<< HEAD
->>>>>>> upstream/dev
-=======
             "demuxer-dovi-profile8",
-<<<<<<< HEAD
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
-=======
             "android-dovi-fel",
             "android-dovi-fel-vulkan",
->>>>>>> upstream/beta
             "framedrop",
             "video-sync",
             "interpolation",
@@ -86,6 +77,7 @@ final class MpvOptionPriorityPolicy {
         candidates.put("demuxer-max-bytes", String.valueOf(config.demuxerMaxBytes()));
         candidates.put("demuxer-max-back-bytes", String.valueOf(config.demuxerMaxBackBytes()));
         candidates.put("demuxer-readahead-secs", String.valueOf(config.demuxerReadaheadSeconds()));
+        candidates.put("demuxer-hysteresis-secs", String.valueOf(config.demuxerHysteresisSeconds()));
         candidates.putAll(config.extraOptions());
         return selectPerformanceOverlay(config.performanceOptionsPriority(), candidates);
     }

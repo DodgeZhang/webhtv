@@ -29,6 +29,9 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.theme.ThemeController;
+import com.fongmi.android.tv.theme.ThemeEditorUi;
+import com.fongmi.android.tv.theme.ThemeTokens;
 import com.fongmi.android.tv.ui.helper.TmdbSeasonResolver;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
@@ -51,6 +54,7 @@ public final class ChoiceDialog extends DialogFragment {
     private boolean[] checked;
     private int selected = -1;
     private boolean multi;
+    private boolean showCancel = true;
     private boolean dismissOnChoice = true;
     private OnChoice choice;
     private OnApply apply;
@@ -140,11 +144,24 @@ public final class ChoiceDialog extends DialogFragment {
         showSingle(activity.getSupportFragmentManager(), activity.getString(titleRes), items, selected, choice);
     }
 
+    public static void showSingleNoCancel(Fragment fragment, int titleRes, CharSequence[] items, int selected, OnChoice choice) {
+        showSingle(fragment.getChildFragmentManager(), fragment.getString(titleRes), items, selected, false, choice);
+    }
+
+    public static void showSingleNoCancel(FragmentActivity activity, int titleRes, CharSequence[] items, int selected, OnChoice choice) {
+        showSingle(activity.getSupportFragmentManager(), activity.getString(titleRes), items, selected, false, choice);
+    }
+
     public static void showSingle(FragmentManager manager, CharSequence title, CharSequence[] items, int selected, OnChoice choice) {
+        showSingle(manager, title, items, selected, true, choice);
+    }
+
+    private static void showSingle(FragmentManager manager, CharSequence title, CharSequence[] items, int selected, boolean showCancel, OnChoice choice) {
         ChoiceDialog dialog = new ChoiceDialog();
         dialog.title = title;
         dialog.items = items == null ? new CharSequence[0] : Arrays.copyOf(items, items.length);
         dialog.selected = selected;
+        dialog.showCancel = showCancel;
         dialog.choice = choice;
         dialog.show(manager, ChoiceDialog.class.getSimpleName());
     }
@@ -225,6 +242,7 @@ public final class ChoiceDialog extends DialogFragment {
         Dialog dialog = new Dialog(requireContext());
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(createView(LayoutInflater.from(requireContext())));
+        ThemeController.bindDialog(dialog);
         dialog.setCanceledOnTouchOutside(true);
         return dialog;
     }
@@ -245,8 +263,6 @@ public final class ChoiceDialog extends DialogFragment {
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         window.setAttributes(params);
         window.setLayout(params.width, params.height);
-<<<<<<< HEAD
-=======
         window.getDecorView().post(() -> {
             adaptListHeight(window);
             if (Util.isLeanback()) window.getDecorView().post(this::focusSelectedItem);
@@ -366,21 +382,25 @@ public final class ChoiceDialog extends DialogFragment {
             if (child.isEnabled() && child.isFocusable() && child.requestFocus()) return true;
         }
         return true;
->>>>>>> upstream/dev
     }
 
     private View createView(LayoutInflater inflater) {
-        if (!multi && items != null && items.length > 0 && negative == null) negative = getString(R.string.dialog_negative);
+        if (showCancel && !multi && items != null && items.length > 0 && negative == null) negative = getString(R.string.dialog_negative);
         LinearLayout root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundResource(R.drawable.shape_shell_proxy_dialog);
+        ThemeTokens tokens = ThemeController.current();
+        root.setBackground(ThemeEditorUi.shape(requireContext(), tokens.colorSurfaceContainerHigh(), 0, 0, 22));
         int vertical = dp(24);
         int horizontal = dp(actionCount() >= 3 ? 18 : 24);
         root.setPadding(horizontal, vertical, horizontal, vertical);
 
         MaterialTextView titleView = new MaterialTextView(requireContext());
         titleView.setText(title);
-        titleView.setTextColor(Color.parseColor("#202124"));
+        // The panel is shape_shell_proxy_dialog (?attr/colorSurfaceContainerHigh), which on
+        // the TV flavour compiles to the dark table (#2A2F34). A fixed #202124 title was
+        // therefore invisible there - measured 1.00:1 on device - while the very same
+        // AppearanceDialog rows were being opened from this dialog. Use the active palette.
+        titleView.setTextColor(ThemeController.current().colorOnSurface());
         titleView.setTextSize(18);
         titleView.setGravity(Gravity.CENTER_VERTICAL);
         titleView.setSingleLine(false);
@@ -395,7 +415,8 @@ public final class ChoiceDialog extends DialogFragment {
     private void addMessage(LinearLayout root) {
         MaterialTextView messageView = new MaterialTextView(requireContext());
         messageView.setText(message);
-        messageView.setTextColor(Color.parseColor("#5F6368"));
+        // Same panel, same reason as the title above.
+        messageView.setTextColor(ThemeController.current().colorOnSurfaceVariant());
         messageView.setTextSize(14);
         messageView.setLineSpacing(dp(2), 1f);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -469,17 +490,18 @@ public final class ChoiceDialog extends DialogFragment {
     }
 
     private void styleItem(MaterialButton button, int position) {
+        ThemeTokens tokens = ThemeController.current();
         if (!itemEnabled(position)) {
-            button.setTextColor(ColorStateList.valueOf(Color.parseColor("#9AA0A6")));
-            button.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#F1F3F4")));
-            button.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#E0E0E0")));
+            button.setTextColor(ColorStateList.valueOf(ThemeEditorUi.withAlpha(tokens.colorOnSurfaceVariant(), 0.45f)));
+            button.setBackgroundTintList(ColorStateList.valueOf(tokens.colorSurfaceContainerHighest()));
+            button.setStrokeColor(ColorStateList.valueOf(tokens.colorOutlineVariant()));
             return;
         }
         boolean on = itemSelected(position);
         boolean focused = button.isFocused();
-        int text = on || focused ? Color.parseColor("#174EA6") : Color.parseColor("#202124");
-        int bg = on || focused ? Color.parseColor("#E8F0FE") : Color.WHITE;
-        int stroke = on || focused ? Color.parseColor("#1A73E8") : Color.parseColor("#DADCE0");
+        int text = focused ? tokens.colorOnPrimary() : on ? tokens.colorOnPrimaryContainer() : tokens.colorOnSurface();
+        int bg = focused ? tokens.colorPrimary() : on ? tokens.colorPrimaryContainer() : tokens.colorSurfaceContainer();
+        int stroke = focused ? tokens.colorOnPrimary() : on ? tokens.colorPrimary() : tokens.colorOutline();
         button.setTextColor(ColorStateList.valueOf(text));
         button.setBackgroundTintList(ColorStateList.valueOf(bg));
         button.setStrokeColor(ColorStateList.valueOf(stroke));

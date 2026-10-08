@@ -13,14 +13,13 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 public class MpvConfigStoreTest {
 
     @Test
-<<<<<<< HEAD
-=======
     public void newAndLegacyScriptsDefaultToEnabledIndependentlyOfButton() {
         assertTrue(new MpvConfigStore.CustomButton().scriptEnabled);
         assertTrue(new MpvConfigStore.ConfigProfile().scriptEnabled);
@@ -235,7 +234,6 @@ public class MpvConfigStoreTest {
     }
 
     @Test
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     public void parseProfilesJson_returnsEmptyForBrokenOrNonArrayJson() {
         assertTrue(MpvConfigStore.parseProfilesJson("broken").isEmpty());
         assertTrue(MpvConfigStore.parseProfilesJson("{\"id\":\"one\"}").isEmpty());

@@ -5,18 +5,18 @@ import android.text.TextUtils;
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.History;
-<<<<<<< HEAD
-=======
 import com.fongmi.android.tv.bean.PlaybackDeleteTombstone;
 import com.fongmi.android.tv.bean.TmdbSeasonProgress;
->>>>>>> upstream/dev
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.db.dao.HistoryDao;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.following.FollowingStore;
 import com.fongmi.android.tv.setting.Setting;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class PlaybackProgressWriter {
 
@@ -43,7 +43,7 @@ public final class PlaybackProgressWriter {
     public static PlaybackProgressApplyResult applyFromLocalApi(PlaybackProgressInput input) {
         if (!ViewingRecordSyncStore.isEnabled()) return PlaybackProgressApplyResult.failed(input, "观影记录同步未开启");
         if (!ViewingRecordSyncStore.isLocalWriteEnabled()) return PlaybackProgressApplyResult.failed(input, "本机 API 修改未开启");
-        return applyInternal(input);
+        return applyInternal(input, PlaybackDeleteTombstoneStore.snapshot(), false);
     }
 
     public static PlaybackProgressBatchResult applyFromLocalApi(List<PlaybackProgressInput> inputs) {
@@ -56,7 +56,7 @@ public final class PlaybackProgressWriter {
             batch.add(PlaybackProgressApplyResult.failed((PlaybackProgressInput) null, "本机 API 修改未开启"));
             return batch;
         }
-        return applyInternal(inputs);
+        return applyInternal(inputs, PlaybackDeleteTombstoneStore.snapshot(), false);
     }
 
     public static PlaybackProgressBatchResult deleteFromLocalApi(List<PlaybackProgressDeleteInput> inputs) {
@@ -70,12 +70,10 @@ public final class PlaybackProgressWriter {
             return batch;
         }
         if (inputs == null || inputs.isEmpty()) return batch;
-        for (PlaybackProgressDeleteInput input : inputs) batch.add(deleteInternal(input));
+        for (PlaybackProgressDeleteInput input : inputs) batch.add(deleteInternal(input, null, false, false));
         return batch;
     }
 
-<<<<<<< HEAD
-=======
     /** Called by the history UI for a deliberate user deletion. */
     public static PlaybackProgressApplyResult deleteFromUser(History history) {
         if (history == null) return PlaybackProgressApplyResult.failed((PlaybackProgressDeleteInput) null, "记录不存在");
@@ -110,45 +108,58 @@ public final class PlaybackProgressWriter {
         return deleteInternal(input, null, false, true);
     }
 
->>>>>>> upstream/dev
     public static PlaybackProgressBatchResult applyFromRemoteSync(List<PlaybackProgressInput> inputs, RemoteSyncConfig config) {
         PlaybackProgressBatchResult batch = new PlaybackProgressBatchResult();
         if (!ViewingRecordSyncStore.isEnabled()) {
             batch.add(PlaybackProgressApplyResult.failed((PlaybackProgressInput) null, "观影记录同步未开启"));
             return batch;
         }
-        for (PlaybackProgressInput input : inputs) {
-            input.normalize();
-            if (config != null && !config.matchesSite(input.siteKey)) {
+        List<PlaybackDeleteTombstone> tombstones = PlaybackDeleteTombstoneStore.snapshot();
+        if (inputs != null) for (PlaybackProgressInput input : inputs) {
+            input = input == null ? null : input.normalize();
+            if (input == null) {
+                batch.add(PlaybackProgressApplyResult.failed((PlaybackProgressInput) null, "请求体不能为空"));
+            } else if (config != null && !config.matchesSite(input.siteKey)) {
                 batch.add(PlaybackProgressApplyResult.skipped(input, input.targetHistoryKey(targetCid(input)), "站点不匹配", 0));
             } else if (!TextUtils.isEmpty(input.configKey) && targetCid(input) <= 0) {
                 batch.add(PlaybackProgressApplyResult.skipped(input, input.historyKey, "接口不匹配", 0));
             } else {
-                batch.add(applyInternal(input));
+                batch.add(applyInternal(input, tombstones, true));
             }
         }
         return batch;
     }
 
-    private static PlaybackProgressBatchResult applyInternal(List<PlaybackProgressInput> inputs) {
+    /** Applies delete operations from a delete-aware remote response. */
+    public static PlaybackProgressBatchResult deleteFromRemoteSync(List<PlaybackProgressDeleteInput> inputs, RemoteSyncConfig config) {
         PlaybackProgressBatchResult batch = new PlaybackProgressBatchResult();
-        if (inputs == null || inputs.isEmpty()) return batch;
-        for (PlaybackProgressInput input : inputs) batch.add(applyInternal(input));
+        if (!ViewingRecordSyncStore.isEnabled()) {
+            batch.add(PlaybackProgressApplyResult.failed((PlaybackProgressDeleteInput) null, "观影记录同步未开启"));
+            return batch;
+        }
+        if (inputs != null) for (PlaybackProgressDeleteInput input : inputs) {
+            batch.add(deleteInternal(input, config, true, false));
+        }
         return batch;
     }
 
-    private static PlaybackProgressApplyResult applyInternal(PlaybackProgressInput input) {
+    private static PlaybackProgressBatchResult applyInternal(List<PlaybackProgressInput> inputs,
+                                                              List<PlaybackDeleteTombstone> tombstones,
+                                                              boolean remote) {
+        PlaybackProgressBatchResult batch = new PlaybackProgressBatchResult();
+        if (inputs == null || inputs.isEmpty()) return batch;
+        for (PlaybackProgressInput input : inputs) batch.add(applyInternal(input, tombstones, remote));
+        return batch;
+    }
+
+    private static synchronized PlaybackProgressApplyResult applyInternal(PlaybackProgressInput input,
+                                                                           List<PlaybackDeleteTombstone> tombstones,
+                                                                           boolean remote) {
         if (Setting.isIncognito()) return PlaybackProgressApplyResult.failed(input, "隐身模式不允许写入");
         if (input == null) return PlaybackProgressApplyResult.failed((PlaybackProgressInput) null, "请求体不能为空");
-        String error = input.validate();
-        if (!TextUtils.isEmpty(error)) return PlaybackProgressApplyResult.failed(input, error);
+        input.normalize();
         int cid = targetCid(input);
         if (cid <= 0) return PlaybackProgressApplyResult.skipped(input, input.historyKey, "接口不匹配", 0);
-<<<<<<< HEAD
-        String key = input.targetHistoryKey(cid);
-        History local = findLocal(cid, input, key);
-        if (local != null && input.updatedAt <= local.getCreateTime()) {
-=======
         long remoteUpdatedAt = input.updatedAt;
         long deletedAt = PlaybackDeleteTombstoneStore.latest(tombstones, input.configKey, cid,
                 input.historyKey, input.siteKey, input.vodId,
@@ -187,9 +198,12 @@ public final class PlaybackProgressWriter {
                     local == null ? requestedKey : local.getKey(), "stale season progress", freshAt);
         }
         if (seasonMode == null && local != null && input.updatedAt <= local.getCreateTime()) {
->>>>>>> upstream/dev
             return PlaybackProgressApplyResult.skipped(input, local.getKey(), "远端记录不新于本地", local.getCreateTime());
         }
+        // Keep an existing local key when matching a legacy/base history key. This
+        // avoids creating a duplicate `site@@@vod@@@cid` row solely because the
+        // remote payload carries a portable cid-qualified key.
+        String key = local == null ? requestedKey : local.getKey();
         History history = local == null ? new History() : local.copy();
         boolean sameEpisode = isSameEpisode(local, input);
         history.setKey(key);
@@ -211,37 +225,6 @@ public final class PlaybackProgressWriter {
         history.setDuration(input.durationMs);
         applySpeed(history, input.speed, input.speedOverride);
         history.setCreateTime(input.updatedAt);
-<<<<<<< HEAD
-        if (local == null) {
-            AppDatabase.get().getHistoryDao().insertOrUpdate(history);
-            RefreshEvent.history();
-            return PlaybackProgressApplyResult.created(input, history.getKey());
-        }
-        AppDatabase.get().getHistoryDao().insertOrUpdate(history);
-        RefreshEvent.history();
-        return PlaybackProgressApplyResult.updated(input, history.getKey());
-    }
-
-    private static PlaybackProgressApplyResult deleteInternal(PlaybackProgressDeleteInput input) {
-        if (Setting.isIncognito()) return PlaybackProgressApplyResult.failed(input, "隐身模式不允许清理");
-        if (input == null) return PlaybackProgressApplyResult.failed((PlaybackProgressDeleteInput) null, "请求体不能为空");
-        input.normalize();
-        int cid = targetCid(input);
-        if (cid <= 0) return PlaybackProgressApplyResult.skipped(input, input.historyKey, "接口不匹配");
-        HistoryDao dao = AppDatabase.get().getHistoryDao();
-        int affected;
-        String historyKey = input.historyKey;
-        if (input.isAllScope()) {
-            if (!input.confirm) return PlaybackProgressApplyResult.failed(input, "全量清理需要confirm=true");
-            affected = dao.delete(cid);
-            if (affected > 0) RefreshEvent.history();
-            return affected > 0 ? PlaybackProgressApplyResult.deleted(input, "", affected) : PlaybackProgressApplyResult.skipped(input, "", "本地记录不存在");
-        }
-        if (!TextUtils.isEmpty(historyKey)) {
-            affected = dao.delete(cid, historyKey);
-            if (affected > 0) RefreshEvent.history();
-            return affected > 0 ? PlaybackProgressApplyResult.deleted(input, historyKey, affected) : PlaybackProgressApplyResult.skipped(input, historyKey, "本地记录不存在");
-=======
         boolean snapshotOnly = seasonMode == RemoteSeasonUpsertMode.SNAPSHOT_ONLY;
         TmdbSeasonProgressStore.runInTransaction(() -> {
             if (!snapshotOnly) {
@@ -530,25 +513,10 @@ public final class PlaybackProgressWriter {
             addByItem(dao, cid, input, result);
         } else {
             for (History history : dao.findAll(cid)) result.put(history.getKey(), history);
->>>>>>> upstream/dev
         }
-        if (!TextUtils.isEmpty(input.siteKey) && !TextUtils.isEmpty(input.vodId)) {
-            String baseKey = input.siteKey + AppDatabase.SYMBOL + input.vodId;
-            affected = dao.delete(cid, baseKey);
-            affected += dao.deleteByKeyPrefix(cid, baseKey + AppDatabase.SYMBOL);
-            if (affected > 0) RefreshEvent.history();
-            return affected > 0 ? PlaybackProgressApplyResult.deleted(input, baseKey, affected) : PlaybackProgressApplyResult.skipped(input, baseKey, "本地记录不存在");
+        if (input.isSiteScope() && !TextUtils.isEmpty(input.siteKey)) {
+            result.entrySet().removeIf(entry -> !TextUtils.equals(RemoteSyncConfig.normalize(entry.getValue().getSiteKey()), RemoteSyncConfig.normalize(input.siteKey)));
         }
-<<<<<<< HEAD
-        if (!TextUtils.isEmpty(input.siteKey) && (input.isSiteScope() || input.confirm)) {
-            String prefix = input.siteKey + AppDatabase.SYMBOL;
-            affected = dao.deleteByKeyPrefix(cid, prefix);
-            if (affected > 0) RefreshEvent.history();
-            return affected > 0 ? PlaybackProgressApplyResult.deleted(input, prefix, affected) : PlaybackProgressApplyResult.skipped(input, prefix, "本地记录不存在");
-        }
-        if (!TextUtils.isEmpty(input.siteKey)) return PlaybackProgressApplyResult.failed(input, "按站点清理需要scope=site或confirm=true");
-        return PlaybackProgressApplyResult.failed(input, "historyKey、siteKey+vodId或siteKey不能为空");
-=======
         if (!input.isAllScope() && !input.isSiteScope() && TextUtils.isEmpty(input.historyKey)
                 && (TextUtils.isEmpty(input.siteKey) || TextUtils.isEmpty(input.vodId))) result.clear();
         return new ArrayList<>(result.values());
@@ -571,7 +539,6 @@ public final class PlaybackProgressWriter {
         if (!TextUtils.isEmpty(input.historyKey)) return input.historyKey;
         if (!TextUtils.isEmpty(input.siteKey) && !TextUtils.isEmpty(input.vodId)) return input.siteKey + AppDatabase.SYMBOL + input.vodId;
         return "";
->>>>>>> upstream/dev
     }
 
     private static History findLocal(int cid, PlaybackProgressInput input, String key) {

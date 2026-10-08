@@ -79,8 +79,6 @@ public class PreCachePolicyTest {
         assertEquals(3_000, preloadLength(20_000, 3_000, 0, 512));
     }
 
-<<<<<<< HEAD
-=======
     @Test
     public void aheadTargetUsesMostOfDiskBudgetWithoutCrossingIt() {
         assertEquals(300_000, aheadTarget(300_000, -1, 8, 512));
@@ -107,7 +105,6 @@ public class PreCachePolicyTest {
         assertEquals(0, PreCachePolicy.nextRangeDelayMs(false));
     }
 
->>>>>>> upstream/beta
     private static long target(boolean recovery, long remainingMs, double bitrateMbps, double capacityMib) {
         long bitrate = Math.round(bitrateMbps * 1_000_000);
         int capacity = (int) Math.round(capacityMib * 1024 * 1024);
@@ -118,5 +115,11 @@ public class PreCachePolicyTest {
         long bitrate = Math.round(bitrateMbps * 1_000_000);
         long capacity = Math.round(capacityMib * 1024 * 1024);
         return PreCachePolicy.preloadLengthMs(configuredMs, remainingMs, bitrate, capacity);
+    }
+
+    private static long aheadTarget(long configuredMs, long remainingMs, double bitrateMbps, double capacityMib) {
+        long bitrate = Math.round(bitrateMbps * 1_000_000);
+        long capacity = Math.round(capacityMib * 1024 * 1024);
+        return PreCachePolicy.preloadAheadTargetMs(configuredMs, remainingMs, bitrate, capacity);
     }
 }

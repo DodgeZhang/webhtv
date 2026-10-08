@@ -23,6 +23,7 @@ import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.player.AudioPlaybackDiagnostics;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.PlaybackRoute;
+import com.fongmi.android.tv.player.PlaybackResourceClassifier;
 import com.fongmi.android.tv.player.PlaybackTrace;
 import com.fongmi.android.tv.player.codec.CodecCapabilityInspector;
 import com.fongmi.android.tv.player.exo.ExoUtil;
@@ -30,10 +31,6 @@ import com.fongmi.android.tv.player.exo.TrackUtil;
 import com.fongmi.android.tv.player.lut.MpvLutShader;
 import com.fongmi.android.tv.player.lut.LutSetting;
 import com.fongmi.android.tv.player.mpv.MpvConfigStore;
-<<<<<<< HEAD
-import com.fongmi.android.tv.setting.PlayerSetting;
-import com.fongmi.android.tv.setting.MpvPerformanceSetting;
-=======
 import com.fongmi.android.tv.player.mpv.MpvAutoControlPolicy;
 import com.fongmi.android.tv.player.mpv.MpvAutoOutputPolicy;
 import com.fongmi.android.tv.player.mpv.MpvVulkanBackendPolicy;
@@ -41,7 +38,6 @@ import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.MpvPerformanceSetting;
 import com.fongmi.android.tv.setting.PlaybackPerformanceCatalog;
 import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
->>>>>>> upstream/dev
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
 import com.github.catvod.crawler.SpiderDebug;
@@ -276,8 +272,6 @@ public class MpvPlayerEngine implements PlayerEngine {
     }
 
     @Override
-<<<<<<< HEAD
-=======
     public void setVideoAspect(float aspectRatio, boolean stretch) {
         player.setVideoAspect(aspectRatio, stretch);
     }
@@ -329,7 +323,6 @@ public class MpvPlayerEngine implements PlayerEngine {
     }
 
     @Override
->>>>>>> upstream/dev
     public boolean supportsNativeLut() {
         return !isSurfaceDirect();
     }
@@ -357,10 +350,6 @@ public class MpvPlayerEngine implements PlayerEngine {
         surfaceDirectOverride = value;
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
     // 直播等场景会禁用 LUT，此时不能因为全局 LUT 开关而放弃电视直出，
     // 否则与 PlayerManager 的 lutAllowed && LutSetting.isEnabled() 判断相反，
     // 会在启播后多触发一次播放器重建。仅影响下一次 buildConfig()。
@@ -368,7 +357,6 @@ public class MpvPlayerEngine implements PlayerEngine {
         lutAllowed = allowed;
     }
 
->>>>>>> upstream/beta
     public void setVulkanBackendOverride(@Nullable String value) {
         vulkanBackendOverride = value;
     }
@@ -456,7 +444,6 @@ public class MpvPlayerEngine implements PlayerEngine {
         return player.getAutoHlsPreloadRuntimeSnapshot();
     }
 
->>>>>>> upstream/dev
     @Override
     public void setNativeLutShader(MpvLutShader shader) {
         player.setLutShader(shader);
@@ -703,6 +690,11 @@ public class MpvPlayerEngine implements PlayerEngine {
         PlaybackRoute.Resolution current = player.getPlaybackRouteResolution();
         if (current.route() != PlaybackRoute.OTHER) return current;
         return spec == null ? current : spec.getPlaybackRoute();
+    }
+
+    @Override
+    public PlaybackResourceClassifier.Classification getResourceClassification() {
+        return player.getResourceClassification();
     }
 
     @Override
@@ -967,23 +959,25 @@ public class MpvPlayerEngine implements PlayerEngine {
         return message != null && message.startsWith(prefix);
     }
 
+    private DecoderKind decoderKind(String hwdec, boolean observed) {
+        if (!observed) return DecoderKind.UNKNOWN;
+        if (hwdec == null || hwdec.isBlank()) return DecoderKind.SOFTWARE;
+        String value = hwdec.trim().toLowerCase(java.util.Locale.US);
+        return value.equals("no") || value.equals("none") || value.equals("software")
+                ? DecoderKind.SOFTWARE : DecoderKind.HARDWARE;
+    }
+
     private MpvPlayer buildPlayer(Player.Listener listener) {
         MpvPlayer player = new MpvPlayer(App.get(), buildConfig());
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
         player.setInitialOsdSurfaceRequested(initialSubtitleSurfaceRequested);
         player.setInitialTrackSelectionGateRequested(
                 initialSubtitleSurfaceRequested);
         player.setInitialSubtitleTrackId(initialSubtitleTrackId);
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
         if (PlaybackPerformanceSetting.isAuto(
                 PlayerSetting.MPV,
                 PlaybackPerformanceCatalog.PRELOAD)) {
             player.updateAutomaticPreloadControl(true, false, false);
         }
->>>>>>> upstream/dev
         player.setVideoSizeProbeListener(videoSizeProbeListener);
         player.addListener(listener);
         return player;
@@ -1039,28 +1033,20 @@ public class MpvPlayerEngine implements PlayerEngine {
                 .logLevel("all=warn") // Diagnostic verbosity follows DebugLogStore; mpv.conf remains a separate user baseline.
                 .demuxerMaxBytes(getDemuxerMaxBytes())
                 .demuxerMaxBackBytes(getDemuxerMaxBackBytes())
-                .cacheSeconds(getDemuxerReadAheadSeconds())
-                .demuxerReadaheadSeconds(getDemuxerReadAheadSeconds())
+                .cacheSeconds(getCacheTargetSeconds())
+                .demuxerReadaheadSeconds(MpvPlayerConfig.DEFAULT_DEMUXER_READAHEAD_SECONDS)
+                .demuxerHysteresisSeconds(MpvPlayerConfig.DEFAULT_DEMUXER_HYSTERESIS_SECONDS)
                 .rebufferMs(MpvPerformanceSetting.getRebufferMs())
                 .performanceOptionsPriority(MpvPerformanceSetting.isPerformancePriority())
-<<<<<<< HEAD
-=======
                 .automaticCacheTime(PlaybackPerformanceSetting.isAuto(
                         PlayerSetting.MPV,
                         PlaybackPerformanceCatalog.BUFFER_TIME))
                 .automaticHlsVariant(PlaybackPerformanceSetting.isAuto(
                         PlayerSetting.MPV,
                         PlaybackPerformanceCatalog.MPV_HLS_BITRATE))
-<<<<<<< HEAD
->>>>>>> upstream/dev
-=======
                 .deferStartupTrackRefresh(DV7_P81.equals(getDv7HandlingOption()))
-<<<<<<< HEAD
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
-=======
                 .restoreFelAutomaticSubtitles(isDv7FelRequested()
                         && TextUtils.isEmpty(MpvConfigStore.getOptionValue("sid")))
->>>>>>> upstream/beta
                 .option("framedrop", MpvPerformanceSetting.getFrameDropOption())
                 .option("video-sync", MpvPerformanceSetting.getSyncOption())
                 .option("interpolation", MpvPerformanceSetting.isInterpolation() ? "yes" : "no")
@@ -1136,27 +1122,21 @@ public class MpvPlayerEngine implements PlayerEngine {
     }
 
     private long getDemuxerMaxBytes() {
-<<<<<<< HEAD
-=======
         if (PlaybackPerformanceSetting.isAuto(
                 PlayerSetting.MPV,
                 PlaybackPerformanceCatalog.BUFFER_BYTES)) {
             return MpvAutoControlPolicy.MIN_FORWARD_BYTES;
         }
->>>>>>> upstream/dev
         int bytes = PlayerSetting.getBufferBytes(PlayerSetting.MPV);
         return bytes > 0 ? bytes : MpvPlayerConfig.DEFAULT_DEMUXER_BYTES;
     }
 
     private long getDemuxerMaxBackBytes() {
-<<<<<<< HEAD
-=======
         if (PlaybackPerformanceSetting.isAuto(
                 PlayerSetting.MPV,
                 PlaybackPerformanceCatalog.BACK_BUFFER)) {
             return MpvAutoControlPolicy.INITIAL_BACK_BYTES;
         }
->>>>>>> upstream/dev
         if (PlayerSetting.getBackBufferMs(PlayerSetting.MPV) <= 0) return 0;
         long forward = getDemuxerMaxBytes();
         return switch (PlayerSetting.getBackBufferOption(PlayerSetting.MPV)) {
@@ -1168,10 +1148,6 @@ public class MpvPlayerEngine implements PlayerEngine {
     }
 
     private int getDemuxerReadAheadSeconds() {
-<<<<<<< HEAD
-        return Math.min(60, Math.max(15, PlayerSetting.getBuffer(PlayerSetting.MPV) * 3));
-    }
-=======
         return Math.min(120, Math.max(15, PlayerSetting.getBuffer(PlayerSetting.MPV) * 4));
     }
 
@@ -1199,5 +1175,4 @@ public class MpvPlayerEngine implements PlayerEngine {
         if (second <= 0) return first;
         return first > Long.MAX_VALUE - second ? Long.MAX_VALUE : first + second;
     }
->>>>>>> upstream/dev
 }

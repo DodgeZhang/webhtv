@@ -79,7 +79,7 @@ public class Updater implements UpdateTransfer.Callback, UpdateListener {
     private Update beta;
     private Update selected;
     private boolean force;
-    private boolean downloading;
+    private volatile boolean downloading;
     private boolean canceled;
     private int lastProgress = -1;
     private long lastBytes;
@@ -92,6 +92,11 @@ public class Updater implements UpdateTransfer.Callback, UpdateListener {
 
     public static Updater create() {
         return INSTANCE;
+    }
+
+    /** Reports an in-flight APK download so cache cleanup can preserve {@code update.apk}. */
+    public static boolean isDownloading() {
+        return INSTANCE.downloading;
     }
 
     private File getFile() {
@@ -168,13 +173,6 @@ public class Updater implements UpdateTransfer.Callback, UpdateListener {
     }
 
     private Update getUpdate(String channel) {
-<<<<<<< HEAD
-        Update cnb = readUpdate(channel, Github.getCnbAsset(getManifestName(channel)), SOURCE_CNB);
-        Update github = Update.CHANNEL_BETA.equals(channel) ? getGithubBetaUpdate(channel) : getGithubStableUpdate(channel);
-        Update update = newer(cnb, github);
-        attachDownloadFallback(update, cnb, github);
-        return update;
-=======
         String manifestName = getManifestName(channel);
         Update update = readUpdate(channel, Github.getChannelAsset(manifestName), SOURCE_GITHUB);
         if (update.hasManifest()) return update;
@@ -186,7 +184,6 @@ public class Updater implements UpdateTransfer.Callback, UpdateListener {
         update = readUpdate(channel, Github.getGithubLatestAsset(manifestName), SOURCE_GITHUB);
         if (update.hasManifest()) return update;
         return getGithubStableUpdate(channel);
->>>>>>> upstream/dev
     }
 
     private Update getGithubStableUpdate(String channel) {
@@ -279,34 +276,6 @@ public class Updater implements UpdateTransfer.Callback, UpdateListener {
         return update;
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-    private Update newer(Update first, Update second) {
-        if (first == null || !first.hasManifest()) return second == null ? Update.empty(Update.CHANNEL_STABLE) : second;
-        if (second == null || !second.hasManifest()) return first;
-        if (second.code != first.code) return second.code > first.code ? second : first;
-        return compareName(second.name, first.name) > 0 ? second : first;
-    }
-
-    private void attachDownloadFallback(Update selected, Update cnb, Update github) {
-        if (selected == null || cnb == null || github == null) return;
-        if (!cnb.hasManifest() || !github.hasManifest()) return;
-        if (!sameRelease(cnb, github)) return;
-        String fallback = selected == cnb ? github.apkUrl : cnb.apkUrl;
-        if (!TextUtils.isEmpty(fallback) && !fallback.equals(selected.apkUrl)) selected.fallbackApkUrl = fallback;
-    }
-
-    private boolean sameRelease(Update first, Update second) {
-        return first.code == second.code && compareName(first.name, second.name) == 0;
-    }
-
-    private int compareName(String left, String right) {
-        return AppVersion.stripPrefix(left).compareToIgnoreCase(AppVersion.stripPrefix(right));
-    }
-
-=======
->>>>>>> upstream/dev
-=======
     private void parseDownloads(JSONObject object, Update update) {
         JSONObject downloads = object.optJSONObject("downloads");
         JSONObject github = downloads == null ? null : downloads.optJSONObject("github");
@@ -326,7 +295,6 @@ public class Updater implements UpdateTransfer.Callback, UpdateListener {
         if (artifact.isValid() && (apkDigest.isEmpty() || apkDigest.equals(artifact.layerDigest)) && (update.size <= 0 || update.size == artifact.size)) update.oci = artifact;
     }
 
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     private String normalizeText(String text) {
         if (TextUtils.isEmpty(text)) return "";
         return text

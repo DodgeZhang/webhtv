@@ -11,14 +11,10 @@ import com.fongmi.android.tv.utils.Task;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.net.OkHttp;
 
-<<<<<<< HEAD
-import java.util.List;
-=======
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
->>>>>>> upstream/beta
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.Request;
@@ -80,15 +76,6 @@ public final class PlaybackRemoteSyncer {
             if (!ViewingRecordSyncStore.isEnabled()) return PlaybackRemoteSyncResult.failure("观影记录同步未开启");
             if (Setting.isIncognito()) return PlaybackRemoteSyncResult.failure("隐身模式不允许同步");
             if (!config.isUsable()) return PlaybackRemoteSyncResult.failure("远端同步源未完成配置");
-<<<<<<< HEAD
-            String body = fetch(config);
-            List<PlaybackProgressInput> inputs = PlaybackProgressInput.listFromJson(body);
-            if (config.maxItems > 0 && inputs.size() > config.maxItems) inputs = inputs.subList(0, config.maxItems);
-            PlaybackProgressBatchResult batch = PlaybackProgressWriter.applyFromRemoteSync(inputs, config);
-            RefreshEvent.history();
-            SpiderDebug.log("playback-remote-sync", "source=%s fetched=%s applied=%s skipped=%s failed=%s", config.displayName(), batch.total, batch.applied, batch.skipped, batch.failed);
-            return PlaybackRemoteSyncResult.success(batch);
-=======
             int cid = VodConfig.getCid();
             String configKey = PlaybackConfigIdentity.keyForCid(cid);
             PlaybackIdentityResolver.Result identity = PlaybackIdentityResolver.resolve(config, cid);
@@ -133,7 +120,6 @@ public final class PlaybackRemoteSyncer {
             // Do not move incremental cursors past malformed or truncated pages.
             if (!complete || batch.failed > 0) cursors.clear();
             return PlaybackRemoteSyncResult.success(batch, configKey, cursors.get(configKey), cursors);
->>>>>>> upstream/beta
         } catch (Throwable e) {
             String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             SpiderDebug.log("playback-remote-sync", e);
@@ -141,24 +127,17 @@ public final class PlaybackRemoteSyncer {
         }
     }
 
-<<<<<<< HEAD
-    private static String fetch(RemoteSyncConfig config) throws Exception {
-=======
     private static String fetch(RemoteSyncConfig config, String configKey, List<String> aliases) throws Exception {
->>>>>>> upstream/beta
         Request.Builder builder = new Request.Builder().url(config.url).get();
         builder.header("Accept", "application/json");
-        PlaybackHttpHeaders.header(builder, "X-WebHTV-Config-Key", PlaybackConfigIdentity.currentKey());
+        PlaybackHttpHeaders.header(builder, "X-WebHTV-Config-Key", configKey);
         PlaybackHttpHeaders.header(builder, "X-WebHTV-Config-Name", PlaybackConfigIdentity.currentName());
-<<<<<<< HEAD
-=======
         PlaybackHttpHeaders.header(builder, "X-WebHTV-Config-Type", "vod");
         PlaybackHttpHeaders.header(builder, "X-WebHTV-Identity-Version", PlaybackConfigIdentity.IDENTITY_VERSION);
         PlaybackHttpHeaders.header(builder, "X-WebHTV-Address-Match-Version", PlaybackConfigIdentity.ADDRESS_MATCH_VERSION);
         if (aliases != null && !aliases.isEmpty()) PlaybackHttpHeaders.header(builder, "X-WebHTV-Config-Aliases", TextUtils.join(",", aliases));
         PlaybackHttpHeaders.header(builder, "X-WebHTV-Since", config.cursor(configKey));
         if (config.maxItems > 0) builder.header("X-WebHTV-Limit", String.valueOf(config.maxItems));
->>>>>>> upstream/beta
         if (!TextUtils.isEmpty(config.token)) builder.header("X-WebHTV-Token", config.token);
         try (Response response = OkHttp.client(TIMEOUT_MS).newCall(builder.build()).execute()) {
             if (!response.isSuccessful()) throw new IllegalStateException("HTTP " + response.code());

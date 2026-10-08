@@ -1,5 +1,7 @@
 package com.fongmi.android.tv.player.exo;
 
+import com.fongmi.android.tv.player.PlaybackAutoContext;
+import com.fongmi.android.tv.player.PlaybackAutoContextStore;
 import com.fongmi.android.tv.player.PlaybackRoute;
 
 import org.junit.Test;
@@ -10,43 +12,56 @@ import static org.junit.Assert.assertTrue;
 
 public class AutoPreloadPolicyTest {
 
+    private static final PlaybackAutoContext.SessionToken SESSION =
+            new PlaybackAutoContext.SessionToken("p-preload-1", 1);
+    private static final long MEDIA_BITRATE = 10_000_000L;
+
     @Test
-    public void startsWithConservativeSingleThreadBaseline() {
-        AutoPreloadPolicy.Decision decision = evaluate(new AutoPreloadPolicy(), 0, PlaybackRoute.DIRECT_REMOTE_HTTP, 8_000, 10, 0, 0, false);
+    public void unknownEvidenceUsesConservativeSingleThreadRange() {
+        AutoPreloadPolicy.Decision decision = new AutoPreloadPolicy().evaluate(
+                inputs(0, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000,
+                        AutoPreloadPolicy.ThroughputEvidence.unknown(),
+                        AutoPreloadPolicy.SystemEvidence.unknown(),
+                        ForwardBufferTrend.Snapshot.unknown(), false, false));
+
         assertEquals(1, decision.threads());
-        assertEquals(20_000, decision.durationMs());
+        assertEquals(10_000, decision.durationMs());
+        assertEquals("degraded", decision.mode());
         assertTrue(decision.enabled());
     }
 
     @Test
-    public void moderateHeadroomUsesShortDegradedRange() {
-        AutoPreloadPolicy.Decision decision = evaluate(new AutoPreloadPolicy(), 0, PlaybackRoute.DIRECT_REMOTE_HTTP, 10_000, 10, 15, 0, false);
-        assertEquals(1, decision.threads());
-        assertEquals(10_000, decision.durationMs());
+    public void staleSessionImmediatelyPauses() {
+        AutoPreloadPolicy.Inputs input = inputs(
+                0, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000,
+                trustedThroughput(0, 30, 30, 30, 200, false),
+                safeSystem(), stableTrend(0, 20_000), false, false);
+        input = new AutoPreloadPolicy.Inputs(
+                input.session(), false, input.route(), input.bufferedMs(),
+                input.mediaBitrateBitsPerSecond(), input.rebufferCount(), input.loading(),
+                input.trend(), input.throughput(), input.system(), false, false, 0);
+
+        AutoPreloadPolicy.Decision decision = new AutoPreloadPolicy().evaluate(input);
+
+        assertFalse(decision.enabled());
+        assertEquals("session-mismatch", decision.reason());
     }
 
     @Test
-    public void disruptionPausesThenResumesSingleThread() {
+    public void trustedStableEvidencePromotesOneThenTwoThreadsSlowly() {
         AutoPreloadPolicy policy = new AutoPreloadPolicy();
-        policy.disrupt(1_000);
-        assertFalse(evaluate(policy, 10_999, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000, 10, 30, 0, false).enabled());
-        assertEquals(1, evaluate(policy, 11_000, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000, 10, 30, 0, false).threads());
-    }
 
-    @Test
-    public void fastModeRequiresSustainedBufferAndBandwidthHeadroom() {
-        AutoPreloadPolicy policy = new AutoPreloadPolicy();
-        assertEquals(1, evaluate(policy, 0, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000, 10, 30, 0, false).threads());
-        assertEquals(1, evaluate(policy, 29_999, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000, 10, 30, 0, false).threads());
-        AutoPreloadPolicy.Decision fast = evaluate(policy, 30_000, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000, 10, 30, 0, false);
+        assertEquals(1, policy.evaluate(safeInputs(0)).threads());
+        AutoPreloadPolicy.Decision normal = policy.evaluate(safeInputs(20_000));
+        AutoPreloadPolicy.Decision fast = policy.evaluate(safeInputs(30_000));
+
+        assertEquals(1, normal.threads());
+        assertEquals(20_000, normal.durationMs());
         assertEquals(2, fast.threads());
         assertEquals(30_000, fast.durationMs());
     }
 
     @Test
-<<<<<<< HEAD
-    public void externalLoopbackNeverExceedsOneThread() {
-=======
     public void weakEffectiveThroughputImmediatelyPauses() {
         AutoPreloadPolicy.Decision decision = new AutoPreloadPolicy().evaluate(
                 inputs(0, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000,
@@ -315,27 +330,344 @@ public class AutoPreloadPolicyTest {
 
     @Test
     public void unknownAppProxyMediaKeepsPreloadPausedUntilForegroundReserveRecovers() {
->>>>>>> upstream/beta
         AutoPreloadPolicy policy = new AutoPreloadPolicy();
-        evaluate(policy, 0, PlaybackRoute.EXTERNAL_LOOPBACK_PROXY, 30_000, 10, 50, 0, false);
-        assertEquals(1, evaluate(policy, 60_000, PlaybackRoute.EXTERNAL_LOOPBACK_PROXY, 30_000, 10, 50, 0, false).threads());
+        AutoPreloadPolicy.Inputs low = new AutoPreloadPolicy.Inputs(
+                SESSION,
+                true,
+                PlaybackRoute.APP_LOCAL_SERVICE,
+                ExoNetworkGuardBufferPolicy.LOOPBACK_FLOOR_MS - 1,
+                0,
+                1,
+                true,
+                stableTrend(0, ExoNetworkGuardBufferPolicy.LOOPBACK_FLOOR_MS - 1),
+                AutoPreloadPolicy.ThroughputEvidence.unknown(),
+                safeSystem(),
+                false,
+                false,
+                0);
+        AutoPreloadPolicy.Inputs recovered = new AutoPreloadPolicy.Inputs(
+                SESSION,
+                true,
+                PlaybackRoute.APP_LOCAL_SERVICE,
+                ExoNetworkGuardBufferPolicy.LOOPBACK_FLOOR_MS,
+                0,
+                1,
+                true,
+                stableTrend(15_000, ExoNetworkGuardBufferPolicy.LOOPBACK_FLOOR_MS),
+                AutoPreloadPolicy.ThroughputEvidence.unknown(),
+                safeSystem(),
+                false,
+                false,
+                15_000);
+
+        AutoPreloadPolicy.Decision paused = policy.evaluate(low);
+        AutoPreloadPolicy.Decision resumed = policy.evaluate(recovered);
+
+        assertFalse(paused.enabled());
+        assertEquals("foreground-recovery", paused.reason());
+        assertTrue(resumed.enabled());
+        assertEquals(1, resumed.threads());
     }
 
     @Test
-    public void weakBandwidthImmediatelyPausesPreload() {
-        AutoPreloadPolicy policy = new AutoPreloadPolicy();
-        assertFalse(evaluate(policy, 0, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000, 10, 11, 0, false).enabled());
+    public void fastModeFallsBackWhenFrontBufferMarginShrinks() {
+        AutoPreloadPolicy policy = fastPolicy();
+
+        AutoPreloadPolicy.Decision decision = policy.evaluate(inputs(
+                35_000, PlaybackRoute.DIRECT_REMOTE_HTTP, 11_000,
+                trustedThroughput(35_000, 30, 30, 30, 200, false),
+                safeSystem(), stableTrend(35_000, 11_000), false, true));
+
+        assertEquals(1, decision.threads());
+        assertEquals(10_000, decision.durationMs());
+        assertEquals("front-buffer-margin", decision.reason());
     }
 
     @Test
-    public void fastModeFallsBackBeforePlaybackIsAtRisk() {
+    public void externalLoopbackNeverExceedsOneThreadAndNeedsStableBufferForLongRange() {
         AutoPreloadPolicy policy = new AutoPreloadPolicy();
-        evaluate(policy, 0, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000, 10, 30, 0, false);
-        assertEquals(2, evaluate(policy, 30_000, PlaybackRoute.DIRECT_REMOTE_HTTP, 20_000, 10, 30, 0, false).threads());
-        assertEquals(1, evaluate(policy, 35_000, PlaybackRoute.DIRECT_REMOTE_HTTP, 11_999, 10, 30, 0, false).threads());
+        AutoPreloadPolicy.Inputs initial = inputs(
+                0, PlaybackRoute.EXTERNAL_LOOPBACK_PROXY, 20_000,
+                AutoPreloadPolicy.ThroughputEvidence.unknown(), safeSystem(),
+                stableTrend(0, 20_000), false, false);
+        AutoPreloadPolicy.Inputs stable = inputs(
+                20_000, PlaybackRoute.EXTERNAL_LOOPBACK_PROXY, 20_000,
+                AutoPreloadPolicy.ThroughputEvidence.unknown(), safeSystem(),
+                stableTrend(20_000, 20_000), false, false);
+
+        AutoPreloadPolicy.Decision first = policy.evaluate(initial);
+        AutoPreloadPolicy.Decision later = policy.evaluate(stable);
+
+        assertEquals(1, first.threads());
+        assertEquals(10_000, first.durationMs());
+        assertEquals(1, later.threads());
+        assertEquals(40_000, later.durationMs());
     }
 
-    private static AutoPreloadPolicy.Decision evaluate(AutoPreloadPolicy policy, long nowMs, PlaybackRoute route, long bufferedMs, long bitrateMbps, long bandwidthMbps, int rebufferCount, boolean loading) {
-        return policy.evaluate(nowMs, route, bufferedMs, bitrateMbps * 1_000_000, bandwidthMbps * 1_000_000, rebufferCount, loading);
+    @Test
+    public void expiredSystemFactsCannotPromoteFastMode() {
+        PlaybackAutoContextStore store = new PlaybackAutoContextStore();
+        PlaybackAutoContext.SessionToken session = store.beginSession("p-expired-1", 0);
+        PlaybackAutoContext.DeviceFacts device = new PlaybackAutoContext.DeviceFacts(
+                PlaybackAutoContext.Fact.unknown(PlaybackAutoContext.MemoryPressure.UNKNOWN),
+                PlaybackAutoContext.Fact.unknown(PlaybackAutoContext.MemorySnapshot.unknown()),
+                PlaybackAutoContext.Fact.unknown(-1L),
+                PlaybackAutoContext.Fact.withTtl(
+                        PlaybackAutoContext.ThermalState.NOMINAL,
+                        PlaybackAutoContext.ValueSource.SYSTEM_API,
+                        PlaybackAutoContext.Confidence.HIGH, 0, 10),
+                PlaybackAutoContext.Fact.withTtl(
+                        PlaybackAutoContext.PowerState.NORMAL,
+                        PlaybackAutoContext.ValueSource.SYSTEM_API,
+                        PlaybackAutoContext.Confidence.HIGH, 0, 10),
+                PlaybackAutoContext.Fact.withTtl(
+                        PlaybackAutoContext.NetworkCost.UNMETERED,
+                        PlaybackAutoContext.ValueSource.SYSTEM_API,
+                        PlaybackAutoContext.Confidence.HIGH, 0, 10),
+                PlaybackAutoContext.Fact.withTtl(
+                        new PlaybackAutoContext.NetworkSnapshot(
+                                true, true, false, false,
+                                PlaybackAutoContext.NetworkTransport.WIFI,
+                                PlaybackAutoContext.DataSaverState.DISABLED),
+                        PlaybackAutoContext.ValueSource.SYSTEM_API,
+                        PlaybackAutoContext.Confidence.HIGH, 0, 10));
+        assertTrue(store.publishDeviceFacts(session, device, 0));
+        ExoThroughputEstimator.Snapshot throughput = snapshot(
+                session, 20, 30, 30, 30, 200, false);
+
+        AutoPreloadPolicy.Inputs input = AutoPreloadPolicy.Inputs.capture(
+                20,
+                session,
+                PlaybackRoute.DIRECT_REMOTE_HTTP,
+                20_000,
+                MEDIA_BITRATE,
+                0,
+                false,
+                stableTrend(20, 20_000),
+                throughput,
+                store.snapshot(),
+                false,
+                false);
+        AutoPreloadPolicy.Decision decision = new AutoPreloadPolicy().evaluate(input);
+
+        assertEquals(1, decision.threads());
+        assertEquals(10_000, decision.durationMs());
+        assertEquals("system-evidence-unknown", decision.reason());
+    }
+
+    @Test
+    public void restrictiveDecisionComparisonUsesThreadsThenRange() {
+        AutoPreloadPolicy.Decision fast = new AutoPreloadPolicy.Decision(
+                2, 30_000, "fast", "stable-fast");
+        AutoPreloadPolicy.Decision normal = new AutoPreloadPolicy.Decision(
+                1, 20_000, "normal", "stable-normal");
+        AutoPreloadPolicy.Decision shortRange = new AutoPreloadPolicy.Decision(
+                1, 10_000, "degraded", "buffer-declining");
+        AutoPreloadPolicy.Decision paused = new AutoPreloadPolicy.Decision(
+                0, 0, "paused", "metered");
+
+        assertTrue(normal.moreRestrictiveThan(fast));
+        assertTrue(shortRange.moreRestrictiveThan(normal));
+        assertTrue(paused.moreRestrictiveThan(shortRange));
+        assertFalse(fast.moreRestrictiveThan(normal));
+        assertFalse(normal.moreRestrictiveThan(null));
+    }
+
+    private static AutoPreloadPolicy fastPolicy() {
+        AutoPreloadPolicy policy = new AutoPreloadPolicy();
+        policy.evaluate(safeInputs(0));
+        assertEquals(2, policy.evaluate(safeInputs(30_000)).threads());
+        return policy;
+    }
+
+    private static AutoPreloadPolicy.Inputs safeInputs(long nowMs) {
+        return inputs(
+                nowMs,
+                PlaybackRoute.DIRECT_REMOTE_HTTP,
+                20_000,
+                trustedThroughput(nowMs, 30, 30, 30, 200, false),
+                safeSystem(),
+                stableTrend(nowMs, 20_000),
+                false,
+                false);
+    }
+
+    private static AutoPreloadPolicy.Inputs withSystem(
+            long nowMs,
+            AutoPreloadPolicy.SystemEvidence system) {
+        return inputs(
+                nowMs,
+                PlaybackRoute.DIRECT_REMOTE_HTTP,
+                20_000,
+                trustedThroughput(nowMs, 30, 30, 30, 200, false),
+                system,
+                stableTrend(nowMs, 20_000),
+                false,
+                false);
+    }
+
+    private static AutoPreloadPolicy.Inputs inputs(
+            long nowMs,
+            PlaybackRoute route,
+            long bufferedMs,
+            AutoPreloadPolicy.ThroughputEvidence throughput,
+            AutoPreloadPolicy.SystemEvidence system,
+            ForwardBufferTrend.Snapshot trend,
+            boolean memoryPaused,
+            boolean preloadActive) {
+        return new AutoPreloadPolicy.Inputs(
+                SESSION,
+                true,
+                route,
+                bufferedMs,
+                MEDIA_BITRATE,
+                0,
+                false,
+                trend,
+                throughput,
+                system,
+                memoryPaused,
+                preloadActive,
+                nowMs);
+    }
+
+    private static AutoPreloadPolicy.ThroughputEvidence trustedThroughput(
+            long observedAtMs,
+            long effectiveMbps,
+            long shortMbps,
+            long longMbps,
+            int predictionErrorPermille,
+            boolean contended) {
+        return throughput(
+                observedAtMs,
+                effectiveMbps,
+                shortMbps,
+                longMbps,
+                predictionErrorPermille,
+                contended,
+                ExoThroughputPathPolicy.Trust.TRUSTED);
+    }
+
+    private static AutoPreloadPolicy.ThroughputEvidence throughput(
+            long observedAtMs,
+            long effectiveMbps,
+            long shortMbps,
+            long longMbps,
+            int predictionErrorPermille,
+            boolean contended,
+            ExoThroughputPathPolicy.Trust trust) {
+        return new AutoPreloadPolicy.ThroughputEvidence(
+                true,
+                effectiveMbps * 1_000_000L,
+                shortMbps * 1_000_000L,
+                longMbps * 1_000_000L,
+                4,
+                15_000,
+                predictionErrorPermille,
+                PlaybackAutoContext.Confidence.MEDIUM,
+                trust,
+                trust == ExoThroughputPathPolicy.Trust.TRUSTED
+                        ? PlaybackAutoContext.Confidence.MEDIUM
+                        : PlaybackAutoContext.Confidence.LOW,
+                contended,
+                observedAtMs);
+    }
+
+    private static AutoPreloadPolicy.SystemEvidence safeSystem() {
+        return system(
+                true,
+                true,
+                false,
+                false,
+                PlaybackAutoContext.DataSaverState.DISABLED,
+                PlaybackAutoContext.PowerState.NORMAL,
+                PlaybackAutoContext.ThermalState.NOMINAL,
+                PlaybackAutoContext.NetworkTransport.WIFI);
+    }
+
+    private static AutoPreloadPolicy.SystemEvidence system(
+            boolean available,
+            boolean validated,
+            boolean metered,
+            boolean roaming,
+            PlaybackAutoContext.DataSaverState dataSaver,
+            PlaybackAutoContext.PowerState power,
+            PlaybackAutoContext.ThermalState thermal,
+            PlaybackAutoContext.NetworkTransport transport) {
+        PlaybackAutoContext.NetworkCost cost = roaming
+                ? PlaybackAutoContext.NetworkCost.ROAMING
+                : metered
+                ? PlaybackAutoContext.NetworkCost.METERED
+                : PlaybackAutoContext.NetworkCost.UNMETERED;
+        return new AutoPreloadPolicy.SystemEvidence(
+                true,
+                available,
+                validated,
+                metered,
+                roaming,
+                transport,
+                dataSaver,
+                true,
+                cost,
+                true,
+                power,
+                true,
+                thermal);
+    }
+
+    private static ForwardBufferTrend.Snapshot stableTrend(
+            long sampledAtMs,
+            long bufferedMs) {
+        return trend(
+                sampledAtMs,
+                0,
+                bufferedMs,
+                ForwardBufferTrend.Confidence.MEDIUM);
+    }
+
+    private static ForwardBufferTrend.Snapshot trend(
+            long sampledAtMs,
+            long slopeMsPerSecond,
+            long bufferedMs,
+            ForwardBufferTrend.Confidence confidence) {
+        return new ForwardBufferTrend.Snapshot(
+                slopeMsPerSecond,
+                slopeMsPerSecond,
+                slopeMsPerSecond,
+                20_000,
+                5,
+                confidence,
+                bufferedMs,
+                sampledAtMs);
+    }
+
+    private static ExoThroughputEstimator.Snapshot snapshot(
+            PlaybackAutoContext.SessionToken session,
+            long observedAtMs,
+            long effectiveMbps,
+            long shortMbps,
+            long longMbps,
+            int predictionErrorPermille,
+            boolean contended) {
+        return new ExoThroughputEstimator.Snapshot(
+                session,
+                effectiveMbps * 1_000_000L,
+                shortMbps * 1_000_000L,
+                longMbps * 1_000_000L,
+                effectiveMbps * 1_000_000L,
+                4,
+                4,
+                4,
+                12_000,
+                15_000,
+                predictionErrorPermille,
+                PlaybackAutoContext.Confidence.MEDIUM,
+                ExoThroughputPathPolicy.Trust.TRUSTED,
+                PlaybackAutoContext.Confidence.MEDIUM,
+                contended,
+                effectiveMbps * 1_000_000L,
+                ExoThroughputEstimator.Action.HOLD,
+                ExoThroughputEstimator.Reason.STABLE_HOLD,
+                observedAtMs);
     }
 }

@@ -59,18 +59,6 @@ third_party/mpv-native-lock.json
 
 | 组件 | 固定版本 |
 | --- | --- |
-<<<<<<< HEAD
-| 构建框架 | `marlboro-advance/mpv-android@f712d4dcf56c00d04e7dd05e157d953d665a6890` |
-| NDK | `28.2.13676358`（r28c），API 24 |
-| MPV | `94335ab87ab225ca3e36e0faeac831639d3e1d4e`（`0.41.0-878-g94335ab87`） |
-| MediaCodec/Vulkan 互操作 | `FongMi/mpv@fd679c812149fe1f3e246897b1015ae109da7c74`，通过 AImageReader/AHardwareBuffer 保持 GPU 链路 |
-| AImageReader暂态处理 | `third_party/patches/mpv-aimagereader-transient-buffer.patch`，`NO_BUFFER_AVAILABLE`和短暂fence未就绪不再阻塞100ms或触发硬失败 |
-| FFmpeg | `8ae0b34901ba60a802f183ee75a250a9fc3e09a5`（n8.0.3） |
-| libplacebo | `a7a18af88ff0a17c04840dcb3246047bb6b46df3`（7.371.0） |
-| curl | 8.21.0，MbedTLS，HTTP/HTTPS、HTTP/2 |
-| nghttp2 | 1.69.0 |
-| libass | `4a05d8127f525943ebf45fdc6497c9e665947f0d`（0.17.5） |
-=======
 | 构建框架/JNI参考 | `FongMi/mpv-android@99a60ad2141d5ace94453590903c2c6b9a0a2443` |
 | NDK | `29.0.14206865`（r29），API 24 |
 | MPV | `FongMi/mpv@cca559b41ceb0bb7731cf6ef2e1f33276cd30c42`（`0.41.0-940-gcca559b41`） |
@@ -88,18 +76,13 @@ third_party/mpv-native-lock.json
 | 字幕/字体 | libaribcaption 1.1.1、libass、fontconfig 2.18.2、libxml2 2.15.3，全部静态链接 |
 | 光盘/归档 | libbluray 1.4.1、libarchive 3.8.7、libdvdread 7.0.1、libdvdnav 7.0.0 |
 | 字符集/音频 | libiconv 1.19、uchardet 0.0.8、rubberband 4.0.0、FFmpeg AV3A/libarcdav3a |
->>>>>>> upstream/dev
 | dav1d | `54706fc6bc0cdecab7e9593974a4039cc038fca7`（1.5.4） |
 
 其他字体、TLS、Lua 和构建工具版本也在 lock 文件中，不要只修改脚本里的单个组件。
 
 当前 curl 使用 MbedTLS 3.6.7 和 nghttp2 1.69.0，静态链接进 `libmpv.so`，不会给 APK 增加独立 `libcurl.so` 或 `libnghttp2.so`。构建明确关闭 HTTP/3，不包含 ngtcp2、nghttp3 或 quiche。MPV 直接远程 HTTP/HTTPS 可使用 curl 后端；App 本地 HLS 代理、`stream_cb` 和 FFmpeg/lavf 输入仍保留原路径。
 
-<<<<<<< HEAD
-当前 curl 使用 MbedTLS 3.6.5 和 nghttp2 1.69.0，静态链接进 `libmpv.so`，不会给 APK 增加独立 `libcurl.so` 或 `libnghttp2.so`。构建明确关闭 HTTP/3，不包含 ngtcp2、nghttp3 或 quiche。MPV 直接远程 HTTP/HTTPS 可使用 curl 后端；App 本地 HLS 代理、`stream_cb` 和 FFmpeg/lavf 输入仍保留原路径。
-=======
 libass 已启用 fontconfig，fontconfig 及其 libxml2 XML 后端同样静态链接进 `libmpv.so`，不会增加独立 `.so`。App 启动 MPV 时生成内容感知的 `fonts.conf`，只登记设备上可读的 `/system`、`/product`、`/system_ext`、`/vendor` 和 `/odm` 字体目录，并把索引放在 App cache。这样可按字符回退到设备已有中文字体；APK 不携带中文字体资产，媒体或 ASS 自带的字体附件仍由 `embeddedfonts=yes` 使用。
->>>>>>> upstream/dev
 
 ## 主机准备
 
@@ -109,14 +92,14 @@ macOS：
 
 ```bash
 xcode-select --install
-brew install pkg-config
+brew install cmake gperf pkg-config
 ```
 
 Ubuntu/Debian：
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y build-essential git curl file pkg-config python3 python3-venv perl
+sudo apt-get install -y build-essential cmake gperf git curl file pkg-config python3 python3-venv perl
 ```
 
 安装 Android NDK：
@@ -192,16 +175,6 @@ scripts/build_mpv_native.sh --abi arm64-v8a --jobs 8 --work-dir /tmp/webhtv-mpv-
 1. 读取 `third_party/mpv-native-lock.json`。
 2. 检查 NDK revision 和 LLVM 工具。
 3. 在独立 Python venv 中安装固定版本 Meson/Ninja及 MbedTLS 生成工具依赖。
-<<<<<<< HEAD
-4. 下载构建框架和每个固定 commit，初始化 MbedTLS、libplacebo 子模块，并校验 Lua、libunibreak、curl、nghttp2 tar 包 SHA-256。
-5. 对固定 MPV commit 应用锁定的 FongMi Vulkan/MediaCodec 互操作提交，通过 AImageReader/AHardwareBuffer 将 MediaCodec 帧导入 Vulkan；随后应用 `third_party/patches/mpv-stream-cb-disc-controls.patch` 和 `third_party/patches/mpv-aimagereader-transient-buffer.patch`。前者为自定义 Blu-ray ISO stream 暴露光盘时间轴控制，后者把无可用新图像和短暂fence未就绪保持为可恢复暂态。
-6. 按依赖顺序构建 MbedTLS、libunibreak、dav1d、FFmpeg、FreeType、FriBidi、HarfBuzz、libass、Lua、shaderc、libplacebo、nghttp2、curl 和 MPV。
-7. 把 FFmpeg 的文件名、ELF `SONAME` 和 `DT_NEEDED` 从 `libav*`/`libsw*` 等长修改为 `libmv*`/`libmw*`。
-8. 使用 NDK `llvm-strip --strip-unneeded` 处理最终库。
-9. 使用 NDK `llvm-readelf` 检查每个 SONAME、MPV 的完整依赖和 Vulkan 依赖，并检查 MPV/libplacebo/curl 版本字符串、HTTP/2标记、光盘控制补丁及AImageReader暂态补丁标识。
-
-`scripts/verify_mpv_native_assets.sh` 对已提交 assets 执行同类校验，Android Release Action 会在 Gradle 打包四个 APK 前以 `--require-elf` 模式调用它，并确认AImageReader暂态修复已进入两套`libmpv.so`，防止 lock、补丁、arm64/armv7 assets 或静态网络能力不一致的二进制进入 Release。
-=======
 4. 下载构建框架和每个固定 commit，初始化 MbedTLS、FreeType、libplacebo 子模块，并校验所有发行 tar 包 SHA-256。
 5. 对固定 FFmpeg commit 应用 `third_party/patches/ffmpeg-webhtv-proxy-range.patch`，只接受App内部代理写入的精确Range起点标记，使缺少`Content-Range`的206响应仍能按请求偏移重连；它不会制造未知的资源总长度。同时应用 `third_party/patches/ffmpeg-mediacodec-port-starvation.patch`，对 MediaCodec 输入、输出端同时不可用的状态采用短时有界等待，并返回真实解码错误让 mpv 的硬解失败计数触发下一硬解或软解回退，避免把端口永久不可用误判成普通 `EAGAIN` 后无限重试。随后应用 `third_party/patches/ffmpeg-audio-mediacodec-hardware-first.patch`：API 29+ 要求 `isHardwareAccelerated()` 且排除 `isSoftwareOnly()`，旧系统排除已知软件 Codec 名称；没有真实硬件时让该 MediaCodec decoder 初始化失败并交回 mpv 软件后备，不在音频 buffer 热路径增加探测。
 6. 固定 MPV 到 FongMi 完整分支；该分支已经包含 AImageReader OpenGL/Vulkan、sync-fd、HDR/Dolby Vision、双 Surface OSD、直播状态、Android helper scheme，以及直通时保留 SPDIF/IEC61937 载波采样率的 AudioTrack 修复。WebHTV 按以下顺序应用 MPV 补丁：
@@ -226,7 +199,6 @@ scripts/build_mpv_native.sh --abi arm64-v8a --jobs 8 --work-dir /tmp/webhtv-mpv-
 10. 使用 NDK `llvm-readelf` 检查每个 SONAME、MPV 的完整依赖和 Vulkan 依赖，并检查 MPV/libplacebo/curl 版本、HTTP/2、可选 OSD Surface、MediaCodec timestamped release、Vulkan AImageReader/sync-fd 与 `direct/legacy/stable` 后端、Dolby Vision 增强层 Surface 隔离、DV7 HDR10 基底层、AV3A、ARIB/TTML、MMT/TLV、代理 Range 及 Matroska Segment 标记；同时拒绝动态 fontconfig/libxml2 依赖。
 
 `scripts/verify_mpv_native_assets.sh` 对已提交 assets 执行同类校验，Android Release Action 会在 Gradle 打包四个 APK 前以 `--require-elf` 模式调用它，防止 lock、补丁、arm64/armv7 assets 或静态能力不一致的二进制进入 Release。
->>>>>>> upstream/dev
 
 未指定 `--install` 时，输出位于：
 
@@ -349,6 +321,7 @@ bash gradlew :app:assembleMobileArm64_v8aRelease -PfastRelease=true
 - MPV 音频直通在 HDMI 功放链路分别验证 AC3、E-AC3、DTS-HD HRA/MA 与 TrueHD/Atmos，确认功放能锁定格式并亮灯；E-AC3、DTS-HD、TrueHD 日志应保持 IEC61937 的 192 kHz 载波采样率。DTS-HD HRA 保持 stereo carrier，Android 12+ 的 8-channel DTS-HD MA 使用 7.1 carrier；能力探测失败时允许明确回退 PCM，但不得循环重建 AudioTrack。
 - MMT/TLV、TTML/ARIB 字幕、AV3A、Blu-ray/DVD ISO、压缩包播放入口分别做功能回归。
 - 文本字幕、图形字幕以及播放中切换。
+- 使用缺少部分中文字形的 SSA/ASS 字幕确认可逐字回退，不出现 `□`；同时确认媒体内嵌字体仍生效。
 - 播放成功前切换播放器内核。
 - 连续起播、退出、换线路，并检查 crash buffer 中没有 destroyed-mutex。
 - 大型 MKV/REMUX、硬解/软解以及前后台切换。
@@ -360,14 +333,9 @@ bash gradlew :app:assembleMobileArm64_v8aRelease -PfastRelease=true
 | 错误 | 处理 |
 | --- | --- |
 | `missing command: pkg-config` | macOS 安装 `brew install pkg-config`；Debian/Ubuntu 安装 `pkg-config` |
-<<<<<<< HEAD
-| `missing llvm-readelf/readelf` | Linux 安装 `binutils`；macOS 安装 NDK r28c，或设置 `ANDROID_NDK_HOME`/`READELF` |
-| `Android NDK ... not found` | 安装 `ndk;28.2.13676358` 或设置 `ANDROID_NDK_HOME` |
-=======
 | `missing command: cmake` 或 `gperf` | 安装 CMake 与 gperf；CMake 用于 AV3A、ARIB、归档/字符集依赖 |
 | `missing llvm-readelf/readelf` | Linux 安装 `binutils`；macOS 安装 NDK r29，或设置 `ANDROID_NDK_HOME`/`READELF` |
 | `Android NDK ... not found` | 安装 `ndk;29.0.14206865` 或设置 `ANDROID_NDK_HOME` |
->>>>>>> upstream/dev
 | 下载 commit/tar 包失败 | 检查代理；重新执行会复用已校验缓存 |
 | tar 包 `SHA-256 mismatch` | 不要绕过检查；确认下载地址或 lock 是否经过审核 |
 | `libmpv.so does not depend on libvulkan.so` | 构建参数或 libplacebo/shaderc未正确启用 Vulkan |

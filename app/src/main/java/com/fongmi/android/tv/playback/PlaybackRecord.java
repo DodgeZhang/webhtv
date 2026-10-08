@@ -28,6 +28,8 @@ public class PlaybackRecord {
     public String event;
     public String eventId;
     public long timestamp;
+    public String scope;
+    public long deletedAt;
     public String sessionId;
     public String dedupeKey;
     public int cid;
@@ -64,6 +66,7 @@ public class PlaybackRecord {
         this.timestamp = System.currentTimeMillis();
         this.event = "";
         this.eventId = "";
+        this.scope = "";
         this.sessionId = "";
         this.dedupeKey = "";
         this.configKey = "";
@@ -124,8 +127,6 @@ public class PlaybackRecord {
         return record;
     }
 
-<<<<<<< HEAD
-=======
     public static PlaybackRecord deleted(PlaybackProgressDeleteInput input, int cid) {
         PlaybackRecord record = new PlaybackRecord();
         if (input == null) return record;
@@ -164,7 +165,6 @@ public class PlaybackRecord {
         record.tmdbEpisodeNumber = history.getTmdbEpisodeNumber();
     }
 
->>>>>>> upstream/dev
     public PlaybackRecord withEvent(String event) {
         PlaybackRecord record = copy();
         record.event = event == null ? "" : event;
@@ -180,6 +180,8 @@ public class PlaybackRecord {
         if (policy.includes("event")) record.event = event;
         if (policy.includes("eventId")) record.eventId = eventId;
         if (policy.includes("timestamp")) record.timestamp = timestamp;
+        if (policy.includes("scope")) record.scope = scope;
+        if (policy.includes("deletedAt")) record.deletedAt = deletedAt;
         if (policy.includes("sessionId")) record.sessionId = sessionId;
         if (policy.includes("dedupeKey")) record.dedupeKey = dedupeKey;
         if (policy.includes("cid")) record.cid = cid;
@@ -215,10 +217,13 @@ public class PlaybackRecord {
 
     public JsonObject toJson(PlaybackFieldPolicy policy) {
         JsonObject object = new JsonObject();
+        boolean deletion = "playback.deleted".equals(event);
         if (policy.includes("schema")) object.addProperty("schema", schema);
         if (policy.includes("event") && !TextUtils.isEmpty(event)) object.addProperty("event", event);
         if (policy.includes("eventId") && !TextUtils.isEmpty(eventId)) object.addProperty("eventId", eventId);
         if (policy.includes("timestamp")) object.addProperty("timestamp", timestamp);
+        if (policy.includes("scope") && !TextUtils.isEmpty(scope)) object.addProperty("scope", scope);
+        if (policy.includes("deletedAt") && deletedAt > 0) object.addProperty("deletedAt", deletedAt);
         if (policy.includes("sessionId") && !TextUtils.isEmpty(sessionId)) object.addProperty("sessionId", sessionId);
         if (policy.includes("dedupeKey") && !TextUtils.isEmpty(dedupeKey)) object.addProperty("dedupeKey", dedupeKey);
         if (policy.includes("cid")) object.addProperty("cid", cid);
@@ -235,14 +240,6 @@ public class PlaybackRecord {
         if (policy.includes("episodeName")) object.addProperty("episodeName", episodeName);
         if (policy.includes("episodeUrl")) object.addProperty("episodeUrl", episodeUrl);
         if (policy.includes("episodeIndex") && episodeIndex != null) object.addProperty("episodeIndex", episodeIndex);
-<<<<<<< HEAD
-        if (policy.includes("state")) object.addProperty("state", state);
-        if (policy.includes("positionMs")) object.addProperty("positionMs", positionMs);
-        if (policy.includes("durationMs")) object.addProperty("durationMs", durationMs);
-        if (policy.includes("progress")) object.addProperty("progress", progress);
-        if (policy.includes("speed")) object.addProperty("speed", speed);
-        if (policy.includes("completed")) object.addProperty("completed", completed);
-=======
         if (policy.includes("mediaType") && !TextUtils.isEmpty(mediaType)) object.addProperty("mediaType", mediaType);
         if (policy.includes("tmdbId") && tmdbId > 0) object.addProperty("tmdbId", tmdbId);
         if (policy.includes("seasonNumber") && seasonNumber >= 0) object.addProperty("seasonNumber", seasonNumber);
@@ -254,7 +251,6 @@ public class PlaybackRecord {
         if (!deletion && policy.includes("speed")) object.addProperty("speed", speed);
         if (!deletion && policy.includes("speedOverride")) object.addProperty("speedOverride", speedOverride);
         if (!deletion && policy.includes("completed")) object.addProperty("completed", completed);
->>>>>>> upstream/dev
         if (policy.includes("appVersion")) object.addProperty("appVersion", appVersion);
         if (policy.includes("client")) object.addProperty("client", client);
         if (policy.includes("clientKey") && !TextUtils.isEmpty(clientKey)) object.addProperty("clientKey", clientKey);
@@ -267,6 +263,8 @@ public class PlaybackRecord {
         record.event = event;
         record.eventId = eventId;
         record.timestamp = timestamp;
+        record.scope = scope;
+        record.deletedAt = deletedAt;
         record.sessionId = sessionId;
         record.dedupeKey = dedupeKey;
         record.cid = cid;
@@ -305,6 +303,8 @@ public class PlaybackRecord {
         event = "";
         eventId = "";
         timestamp = 0;
+        scope = "";
+        deletedAt = 0;
         sessionId = "";
         dedupeKey = "";
         cid = 0;

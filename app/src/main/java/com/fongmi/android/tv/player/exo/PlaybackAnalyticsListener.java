@@ -1,8 +1,10 @@
 package com.fongmi.android.tv.player.exo;
 
+import android.media.MediaFormat;
 import android.os.SystemClock;
 
 import androidx.annotation.Nullable;
+import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
@@ -13,31 +15,27 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.mediacodec.MediaCodecRenderer;
+import androidx.media3.exoplayer.source.LoadEventInfo;
+import androidx.media3.exoplayer.source.MediaLoadData;
+import androidx.media3.exoplayer.video.VideoFrameMetadataListener;
 
 import com.fongmi.android.tv.setting.ExoPerformanceSetting;
-<<<<<<< HEAD
-=======
 import com.fongmi.android.tv.setting.PlaybackPerformanceCatalog;
 import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
-<<<<<<< HEAD
->>>>>>> upstream/dev
-=======
 import com.fongmi.android.tv.player.PlaybackAutoContext;
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 import com.fongmi.android.tv.player.PlaybackTrace;
+import com.github.catvod.crawler.DebugEventLimiter;
 import com.github.catvod.crawler.SpiderDebug;
 
-public class PlaybackAnalyticsListener implements AnalyticsListener {
+public class PlaybackAnalyticsListener implements AnalyticsListener, VideoFrameMetadataListener {
 
     private static volatile Snapshot snapshot = Snapshot.empty();
     private static volatile String playbackTraceId = PlaybackTrace.NONE;
     private static volatile long totalDroppedFrames;
     private static volatile long lastBandwidthLogMs;
+    private static volatile long lastMediaEstimateLogMs;
     private static volatile boolean loading;
-<<<<<<< HEAD
-    private static final long BANDWIDTH_LOG_INTERVAL_MS = 5_000;
-=======
     private static volatile boolean frameSchedulingExperimentActive;
     private static volatile long seekSequence;
     private static volatile long activeSeekSequence;
@@ -67,23 +65,45 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
             new ExoFrameSchedulingExperimentMetrics();
     private static final ForwardBufferTrend BUFFER_TREND = new ForwardBufferTrend();
     private static final DebugEventLimiter LOADING_LOG_LIMITER = new DebugEventLimiter(1);
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 
     public static Snapshot getSnapshot() {
         return snapshot;
     }
 
     public static void beginSession(String traceId) {
+        beginSession(
+                traceId,
+                ExoFrameSchedulingExperimentPolicy.stableDecision(
+                        false, false, false),
+                ExoDecoderRuntimeSession.OutputConfig.unknown(),
+                "unknown");
+    }
+
+    public static void beginSession(
+            String traceId,
+            ExoFrameSchedulingExperimentPolicy.Decision schedulingDecision,
+            ExoDecoderRuntimeSession.OutputConfig output,
+            String codecQueueMode) {
         reset();
         playbackTraceId = PlaybackTrace.normalize(traceId);
+        frameSchedulingExperimentActive = FRAME_SCHEDULING_METRICS.begin(
+                playbackTraceId,
+                schedulingDecision,
+                output,
+                codecQueueMode,
+                schedulingDecision == null
+                        ? "" : schedulingDecision.deviceDigest(),
+                safeElapsedRealtime());
+        if (frameSchedulingExperimentActive) {
+            ExoFrameSchedulingPerfettoTrace.begin(
+                    playbackTraceId, schedulingDecision);
+        }
     }
 
     public static String getPlaybackTraceId() {
         return playbackTraceId;
     }
 
-<<<<<<< HEAD
-=======
     public static ObservedMediaBitrateEstimator.Estimate getMediaBitrateEstimate() {
         return BITRATE_ESTIMATOR.estimate();
     }
@@ -200,14 +220,15 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
         return ExoThroughputCoordinator.process().snapshot();
     }
 
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     public static void reset() {
+        ExoPerformanceSetting.discardAutoSession(playbackTraceId);
+        ExoPlaybackThresholdCoordinator.process().disrupt(
+                ExoPlaybackThresholdCoordinator.currentSession());
         snapshot = Snapshot.empty();
         totalDroppedFrames = 0;
         lastBandwidthLogMs = 0;
+        lastMediaEstimateLogMs = 0;
         loading = false;
-<<<<<<< HEAD
-=======
         frameSchedulingExperimentActive = false;
         activeSeekSequence = 0;
         seekRequestedAtMs = 0;
@@ -221,17 +242,49 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
         lastSeekVideoFrameAtMs = 0;
         lastSeekVideoPtsUs = 0;
         seekVideoFrameCount = 0;
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
         playbackTraceId = PlaybackTrace.NONE;
+        BITRATE_ESTIMATOR.reset();
+        FRAME_RATE_ESTIMATOR.reset();
+        FRAME_TIMING_METRICS.reset();
+        FRAME_SCHEDULING_METRICS.reset();
+        ExoFrameSchedulingPerfettoTrace.reset();
+        BUFFER_TREND.reset();
+        lastStableBufferTrend = ForwardBufferTrend.Snapshot.unknown();
+        LOADING_LOG_LIMITER.clear();
+        PlaybackCacheMetrics.reset();
+        PlaybackBytePositionDataSource.resetSession();
     }
 
     public static void finishSession(long finalPositionMs) {
         Snapshot finished = snapshot;
+        String finishedTraceId = playbackTraceId;
         if (finished.everReady()) {
             long rebufferTotalMs = finished.rebufferTotalMs();
             if (finished.rebufferStartMs() > 0) rebufferTotalMs += Math.max(0, SystemClock.elapsedRealtime() - finished.rebufferStartMs());
-            long mediaBitrate = ExoPlaybackDiagnostics.combinedBitrate(finished.videoFormat(), finished.audioFormat());
-            ExoPerformanceSetting.recordAutoSession(finished.rebufferCount(), rebufferTotalMs, Math.max(finished.positionMs(), finalPositionMs), mediaBitrate, finished.bandwidthEstimate());
+            ObservedMediaBitrateEstimator.Estimate media = getMediaBitrateEstimate();
+            long mediaBitrate = media.reliable() ? media.bitrateBitsPerSecond() : ExoPlaybackDiagnostics.combinedBitrate(finished.videoFormat(), finished.audioFormat());
+            ExoPerformanceSetting.recordAutoSession(
+                    finishedTraceId,
+                    finished.rebufferCount(),
+                    rebufferTotalMs,
+                    Math.max(finished.positionMs(), finalPositionMs),
+                    mediaBitrate,
+                    finished.bandwidthEstimate());
+        } else {
+            ExoPerformanceSetting.discardAutoSession(finishedTraceId);
+        }
+        ExoFrameSchedulingExperimentMetrics.Snapshot frameScheduling =
+                FRAME_SCHEDULING_METRICS.snapshot(
+                        FRAME_TIMING_METRICS.snapshot(),
+                        finished.droppedFrames(),
+                        finished.rebufferCount());
+        if (frameScheduling.active()) {
+            PlaybackTrace.log(
+                    "exo-frame-ab",
+                    finishedTraceId,
+                    "%s",
+                    frameScheduling.logSummary());
+            ExoFrameSchedulingPerfettoTrace.finish(frameScheduling);
         }
         reset();
     }
@@ -245,9 +298,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
                 .isSeekPending(thresholdSession, now);
         Snapshot previous = snapshot;
         Snapshot next = snapshot.withState(stateName(state), eventTime.currentPlaybackPositionMs, eventTime.totalBufferedDurationMs);
-<<<<<<< HEAD
-        if (state == Player.STATE_BUFFERING && next.everReady() && next.rebufferStartMs() <= 0) next = next.withRebufferStart(now);
-=======
         if (state == Player.STATE_BUFFERING) {
             rememberStableBufferTrend(BUFFER_TREND.snapshot());
             BITRATE_ESTIMATOR.disrupt();
@@ -257,15 +307,10 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
                 next = next.withRebufferStart(now);
             }
         }
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
         if (state != Player.STATE_BUFFERING && next.rebufferStartMs() > 0) next = next.withRebufferEnd(now);
         if (state == Player.STATE_READY) next = next.withEverReady();
-        snapshot = next;
-        if (!SpiderDebug.isEnabled()) return;
         boolean rebufferStarted = previous.rebufferStartMs() <= 0 && next.rebufferStartMs() > 0;
         boolean rebufferEnded = previous.rebufferStartMs() > 0 && next.rebufferStartMs() <= 0;
-<<<<<<< HEAD
-=======
         snapshot = next;
         logSeekState(eventTime, state, now);
         if (rebufferStarted) {
@@ -284,7 +329,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
                     thresholdSession);
         }
         if (!SpiderDebug.isEnabled()) return;
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
         if (rebufferStarted) {
             traceLog("rebuffer start count=%d position=%d buffered=%d loading=%s", next.rebufferCount(), eventTime.currentPlaybackPositionMs, eventTime.totalBufferedDurationMs, loading);
         } else if (rebufferEnded) {
@@ -295,25 +339,72 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
     }
 
     @Override
+    public void onPlayWhenReadyChanged(
+            EventTime eventTime,
+            boolean playWhenReady,
+            @Player.PlayWhenReadyChangeReason int reason) {
+        if (playWhenReady) return;
+        FRAME_TIMING_METRICS.resetReleaseContinuity();
+        FRAME_SCHEDULING_METRICS.observeBoundary(
+                ExoFrameSchedulingExperimentMetrics.Boundary.PAUSE);
+    }
+
+    private static void updateAutoRecovery(Snapshot current, long now) {
+        long totalMs = current.rebufferTotalMs();
+        if (current.rebufferStartMs() > 0) totalMs += Math.max(0, now - current.rebufferStartMs());
+        ObservedMediaBitrateEstimator.Estimate media = getMediaBitrateEstimate();
+        long mediaBitrate = media.reliable() ? media.bitrateBitsPerSecond() : ExoPlaybackDiagnostics.combinedBitrate(current.videoFormat(), current.audioFormat());
+        int previousMs = ExoPerformanceSetting.getAutoSessionRebufferMs();
+        int updatedMs = ExoPerformanceSetting.updateAutoSession(
+                playbackTraceId,
+                current.rebufferCount(),
+                totalMs,
+                current.positionMs(),
+                mediaBitrate,
+                current.bandwidthEstimate());
+        if (updatedMs != previousMs && SpiderDebug.isEnabled()) {
+            traceLog("auto recovery threshold=%dms previous=%dms count=%d total=%dms mediaBitrate=%d bandwidth=%d", updatedMs, previousMs, current.rebufferCount(), totalMs, mediaBitrate, current.bandwidthEstimate());
+        }
+    }
+
+    @Override
     public void onIsLoadingChanged(EventTime eventTime, boolean isLoading) {
         if (loading == isLoading) return;
         loading = isLoading;
-        if (SpiderDebug.isEnabled()) traceLog("loading=%s state=%s position=%d buffered=%d", isLoading, snapshot.state(), eventTime.currentPlaybackPositionMs, eventTime.totalBufferedDurationMs);
+        if (!SpiderDebug.isEnabled()) return;
+        long bufferedMs = Math.max(0, eventTime.totalBufferedDurationMs);
+        long intervalMs = bufferedMs < LOW_BUFFER_LOG_THRESHOLD_MS ? LOW_BUFFER_LOADING_LOG_INTERVAL_MS : LOADING_LOG_INTERVAL_MS;
+        if (!"READY".equals(snapshot.state())) intervalMs = 0;
+        DebugEventLimiter.Decision decision = LOADING_LOG_LIMITER.acquire("loading", SystemClock.elapsedRealtime(), intervalMs);
+        if (!decision.allowed()) return;
+        traceLog("loading=%s state=%s position=%d buffered=%d suppressed=%d", isLoading, snapshot.state(), eventTime.currentPlaybackPositionMs, bufferedMs, decision.suppressedCount());
     }
 
     @Override
     public void onVideoDecoderInitialized(EventTime eventTime, String decoderName, long initializedTimestampMs, long initializationDurationMs) {
         snapshot = snapshot.withVideoDecoder(decoderName);
+        FRAME_SCHEDULING_METRICS.observeDecoder(decoderName);
         if (!SpiderDebug.isEnabled()) return;
         traceLog("video decoder=%s init=%dms", decoderName, initializationDurationMs);
     }
 
     @Override
     public void onVideoInputFormatChanged(EventTime eventTime, Format format, @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
+        Format previousFormat = snapshot.videoFormat();
+        boolean changed = previousFormat != null
+                && !previousFormat.equals(format);
         snapshot = snapshot.withVideoFormat(format);
+        FRAME_RATE_ESTIMATOR.reset();
+        FRAME_TIMING_METRICS.resetReleaseContinuity();
+        if (changed) {
+            FRAME_SCHEDULING_METRICS.observeBoundary(
+                    ExoFrameSchedulingExperimentMetrics.Boundary.FORMAT_CHANGE);
+        }
+        FRAME_SCHEDULING_METRICS.observeFormat(format);
+        BITRATE_ESTIMATOR.updateFormats(snapshot.videoFormat(), snapshot.audioFormat());
         if (!SpiderDebug.isEnabled()) return;
         traceLog("video format mime=%s codecs=%s size=%dx%d fps=%.3f bitrate=%d bitrateSource=%s color=%s", format.sampleMimeType, format.codecs, format.width, format.height, format.frameRate, ExoPlaybackDiagnostics.formatBitrate(format), ExoPlaybackDiagnostics.bitrateSource(format), format.colorInfo);
-        ExoPlaybackDiagnostics.logTrackFormats(snapshot.videoFormat(), snapshot.audioFormat(), ExoUtil.getBufferBudget().effectiveTargetBytes());
+        ExoPlaybackDiagnostics.logTrackFormats(snapshot.videoFormat(), snapshot.audioFormat(), ExoUtil.getEffectiveTargetBufferBytes());
     }
 
     @Override
@@ -326,9 +417,10 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
     @Override
     public void onAudioInputFormatChanged(EventTime eventTime, Format format, @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
         snapshot = snapshot.withAudioFormat(format);
+        BITRATE_ESTIMATOR.updateFormats(snapshot.videoFormat(), snapshot.audioFormat());
         if (!SpiderDebug.isEnabled()) return;
         traceLog("audio format mime=%s codecs=%s channels=%d sampleRate=%d bitrate=%d bitrateSource=%s language=%s", format.sampleMimeType, format.codecs, format.channelCount, format.sampleRate, ExoPlaybackDiagnostics.formatBitrate(format), ExoPlaybackDiagnostics.bitrateSource(format), format.language);
-        ExoPlaybackDiagnostics.logTrackFormats(snapshot.videoFormat(), snapshot.audioFormat(), ExoUtil.getBufferBudget().effectiveTargetBytes());
+        ExoPlaybackDiagnostics.logTrackFormats(snapshot.videoFormat(), snapshot.audioFormat(), ExoUtil.getEffectiveTargetBufferBytes());
     }
 
     @Override
@@ -407,10 +499,28 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
 
     @Override
     public void onDroppedVideoFrames(EventTime eventTime, int droppedFrames, long elapsedMs) {
-        totalDroppedFrames += droppedFrames;
+        long observed = Math.max(0, droppedFrames);
+        totalDroppedFrames = totalDroppedFrames > Long.MAX_VALUE - observed
+                ? Long.MAX_VALUE : totalDroppedFrames + observed;
         snapshot = snapshot.withDroppedFrames(totalDroppedFrames);
         if (!SpiderDebug.isEnabled()) return;
         traceLog("droppedFrames=%d total=%d elapsed=%dms position=%d", droppedFrames, totalDroppedFrames, elapsedMs, eventTime.currentPlaybackPositionMs);
+    }
+
+    @Override
+    public void onVideoFrameProcessingOffset(EventTime eventTime, long totalProcessingOffsetUs, int frameCount) {
+        FRAME_TIMING_METRICS.observeProcessingOffset(
+                totalProcessingOffsetUs,
+                frameCount,
+                frameSchedulingExperimentActive);
+    }
+
+    @Override
+    public void onVideoCodecError(EventTime eventTime, Exception videoCodecError) {
+        FRAME_TIMING_METRICS.observeCodecError(videoCodecError);
+        if (SpiderDebug.isEnabled()) traceLog(
+                "video codec recoverable errorType=%s",
+                videoCodecError == null ? "unknown" : videoCodecError.getClass().getSimpleName());
     }
 
     @Override
@@ -420,9 +530,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
         long now = SystemClock.elapsedRealtime();
         if (now - lastBandwidthLogMs < BANDWIDTH_LOG_INTERVAL_MS) return;
         lastBandwidthLogMs = now;
-<<<<<<< HEAD
-        traceLog("bandwidth=%d loadTime=%dms bytes=%d", bitrateEstimate, totalLoadTimeMs, totalBytesLoaded);
-=======
         ObservedMediaBitrateEstimator.Estimate media = getMediaBitrateEstimate();
         ForwardBufferTrend.Snapshot trend = getBufferTrend();
         ExoThroughputEstimator.Snapshot throughput = getThroughputSnapshot();
@@ -692,20 +799,27 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
                         -1,
                         rebuffering,
                         nowElapsedMs));
->>>>>>> upstream/dev
     }
 
     @Override
     public void onPlayerError(EventTime eventTime, PlaybackException error) {
         String code = PlaybackException.getErrorCodeName(error.errorCode);
         ErrorDetails details = ErrorDetails.from(error);
-        snapshot = snapshot.withError(code, error.getMessage(), details);
+        snapshot = snapshot.withError(code, error.getClass().getSimpleName(), details);
         if (!SpiderDebug.isEnabled()) return;
-        traceLog("error code=%s message=%s details=%s", code, error.getMessage(), details.summary());
+        traceLog("error code=%s errorType=%s details=%s", code, error.getClass().getSimpleName(), details.summary());
     }
 
     private static void traceLog(String format, Object... args) {
         PlaybackTrace.log("playback-metrics", playbackTraceId, format, args);
+    }
+
+    private static long safeElapsedRealtime() {
+        try {
+            return SystemClock.elapsedRealtime();
+        } catch (Throwable ignored) {
+            return 0;
+        }
     }
 
     private static String stateName(int state) {
@@ -718,8 +832,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
         };
     }
 
-<<<<<<< HEAD
-=======
     private static String audioEncodingName(int encoding) {
         return switch (encoding) {
             case C.ENCODING_PCM_16BIT -> "pcm16";
@@ -761,7 +873,6 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
         }
     }
 
->>>>>>> upstream/dev
     public record Snapshot(String state, String videoDecoderName, Format videoFormat, String audioDecoderName, Format audioFormat, long droppedFrames, long positionMs, long bufferedMs, long bandwidthEstimate, int lastLoadTimeMs, long lastLoadBytes, int rebufferCount, long rebufferTotalMs, long rebufferStartMs, boolean everReady, String errorCode, String errorMessage, Format errorFormat, String errorDecoderName, String errorDiagnosticInfo, boolean errorSecureDecoderRequired, String errorCause) {
 
         public static Snapshot empty() {
@@ -817,6 +928,7 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
     private record ErrorDetails(Format format, String decoderName, String diagnosticInfo, boolean secureDecoderRequired, String cause) {
 
         static ErrorDetails from(PlaybackException error) {
+            if (error == null) return new ErrorDetails(null, "", "", false, "");
             Format format = null;
             String decoderName = "";
             String diagnosticInfo = "";
@@ -828,8 +940,7 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
                 diagnosticInfo = init.diagnosticInfo == null ? "" : init.diagnosticInfo;
                 secure = init.secureDecoderRequired;
             }
-            Throwable cause = rootCause(error);
-            return new ErrorDetails(format, decoderName, diagnosticInfo, secure, cause == null ? "" : cause.getClass().getSimpleName() + ": " + cause.getMessage());
+            return new ErrorDetails(format, decoderName, diagnosticInfo, secure, causeTypes(error));
         }
 
         private String summary() {
@@ -838,15 +949,25 @@ public class PlaybackAnalyticsListener implements AnalyticsListener {
     }
 
     private static MediaCodecRenderer.DecoderInitializationException findDecoderInitException(Throwable error) {
+        // Attribute only the primary initialization exception. A single terminal
+        // error may contain several fallback decoders; persisting all of them at
+        // once would turn one playback failure into multiple blacklist samples.
         for (Throwable current = error; current != null; current = current.getCause()) {
             if (current instanceof MediaCodecRenderer.DecoderInitializationException init) return init;
         }
         return null;
     }
 
-    private static Throwable rootCause(Throwable error) {
+    private static String causeTypes(Throwable error) {
+        if (error == null) return "";
+        StringBuilder result = new StringBuilder();
         Throwable current = error;
-        while (current != null && current.getCause() != null) current = current.getCause();
-        return current;
+        int depth = 0;
+        while (current != null && depth++ < 8) {
+            if (result.length() > 0) result.append(" <- ");
+            result.append(current.getClass().getSimpleName());
+            current = current.getCause();
+        }
+        return result.toString();
     }
 }

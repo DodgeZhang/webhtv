@@ -5,13 +5,10 @@ public class PlaybackRemoteSyncResult {
     public boolean success;
     public int fetched;
     public int applied;
+    public int deleted;
     public int skipped;
     public int failed;
     public String message;
-<<<<<<< HEAD
-
-    public static PlaybackRemoteSyncResult success(PlaybackProgressBatchResult batch) {
-=======
     public String configKey;
     public String nextSince;
     public java.util.Map<String, String> cursors;
@@ -31,16 +28,14 @@ public class PlaybackRemoteSyncResult {
     }
 
     public static PlaybackRemoteSyncResult success(PlaybackProgressBatchResult batch, String configKey, String nextSince, java.util.Map<String, String> cursors) {
->>>>>>> upstream/beta
         PlaybackRemoteSyncResult result = new PlaybackRemoteSyncResult();
         result.success = true;
         result.fetched = batch == null ? 0 : batch.total;
         result.applied = batch == null ? 0 : batch.applied;
+        result.deleted = batch == null ? 0 : batch.deleted;
         result.skipped = batch == null ? 0 : batch.skipped;
         result.failed = batch == null ? 0 : batch.failed;
         result.message = "";
-<<<<<<< HEAD
-=======
         result.configKey = configKey == null ? "" : configKey;
         result.nextSince = nextSince == null ? "" : nextSince;
         result.cursors = cursors;
@@ -50,7 +45,6 @@ public class PlaybackRemoteSyncResult {
         result.identityCanonicalKey = "";
         result.identityMatchedBy = "";
         result.identityMessage = "";
->>>>>>> upstream/beta
         return result;
     }
 
@@ -58,8 +52,6 @@ public class PlaybackRemoteSyncResult {
         PlaybackRemoteSyncResult result = new PlaybackRemoteSyncResult();
         result.success = false;
         result.message = message == null ? "" : message;
-<<<<<<< HEAD
-=======
         result.configKey = "";
         result.nextSince = "";
         result.cursors = null;
@@ -69,7 +61,6 @@ public class PlaybackRemoteSyncResult {
         result.identityCanonicalKey = "";
         result.identityMatchedBy = "";
         result.identityMessage = "";
->>>>>>> upstream/beta
         return result;
     }
 }

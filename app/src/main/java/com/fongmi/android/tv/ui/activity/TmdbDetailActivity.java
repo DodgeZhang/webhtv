@@ -9,15 +9,8 @@ import android.content.pm.ActivityInfo;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.content.Intent;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.LinearGradient;
-import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
-import android.graphics.PixelFormat;
 import android.graphics.Rect;
-import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
@@ -154,6 +147,7 @@ import com.fongmi.android.tv.setting.MultiThreadProxySetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.setting.TmdbSitePolicy;
+import com.fongmi.android.tv.theme.ThemeController;
 import com.fongmi.android.tv.title.MediaTitleLearningExample;
 import com.fongmi.android.tv.title.MediaTitleLearningStore;
 import com.fongmi.android.tv.title.MediaTitleParser;
@@ -286,7 +280,6 @@ import java.util.regex.Pattern;
 public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.Listener, Clock.Callback, PlayerGesture.Listener, SubtitlePlaybackSession.Host, TmdbDetailHost {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.getDefault());
-    private static final int FOCUS_STROKE = 0xFFFFD166;
     private static final int FOCUS_STROKE_DP = 3;
     private static final int CHIP_STROKE_DP = 1;
     private static final int CHIP_MAX_WIDTH_DP = 240;
@@ -1975,8 +1968,9 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         binding.overviewToggle.setTextColor(colors.accent);
         binding.episodeEmpty.setTextColor(colors.secondary);
         binding.tmdbStatus.setTextColor(colors.secondary);
-        binding.personalAiReason.setTextColor(modeController.isCinemaStyle() ? 0xE6FFFFFF : colors.secondary);
-        if (modeController.isCinemaStyle()) binding.personalAiReason.setShadowLayer(3f, 0f, 1.5f, 0xCC000000);
+        boolean lightCinemaText = modeController.isCinemaStyle() && !lightTheme;
+        binding.personalAiReason.setTextColor(lightCinemaText ? 0xE6FFFFFF : colors.secondary);
+        if (lightCinemaText) binding.personalAiReason.setShadowLayer(3f, 0f, 1.5f, 0xCC000000);
         else binding.personalAiReason.setShadowLayer(0f, 0f, 0f, 0x00000000);
         tintTmdbSectionTitles(colors);
         styleSourceValue();
@@ -1995,7 +1989,6 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         if (posterAdapter != null) posterAdapter.setLight(lightTheme);
         setDetailAdaptersLight(lightTheme);
         if (modeController.isCinemaStyle()) scheduleBackdropSlide(BACKDROP_SLIDE_DELAY_MS);
-        applyLightCinemaCopyPlate();
     }
 
     private void styleSourceValue() {
@@ -2031,10 +2024,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 binding.personalAiTitle,
                 binding.externalLinksTitle
         };
-        int color = modeController.isCinemaStyle() ? 0xFFFFFFFF : colors.primary;
+        // 光影剧幕的文字色跟随其调色板：深色剧幕是浅字（靠暗投影压住背景图），浅色剧幕是深字。
+        // 此前不分深浅一律强制白字，浅色剧幕恢复白色中间层后白字压白层会直接看不清。
+        boolean lightText = modeController.isCinemaStyle() && !lightTheme;
         for (TextView title : titles) {
-            title.setTextColor(color);
-            if (modeController.isCinemaStyle()) title.setShadowLayer(3f, 0f, 1.5f, 0xCC000000);
+            title.setTextColor(colors.primary);
+            if (lightText) title.setShadowLayer(3f, 0f, 1.5f, 0xCC000000);
             else title.setShadowLayer(0f, 0f, 0f, 0x00000000);
         }
         updateTmdbSeasonActionVisibility();
@@ -2190,7 +2185,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     }
 
     private Drawable cinemaBackdropShade() {
-        if (lightTheme) return TmdbDetailLayoutUtils.colorDrawable(Color.TRANSPARENT);
+        if (lightTheme) return cinemaLightBackdropShade();
         boolean compact = isCompactWidth();
         GradientDrawable horizontal = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, compact ? new int[]{
                 0xEC090B0F, 0xD6090B0F, 0x78090B0F, 0x42090B0F, 0x96090B0F
@@ -2205,16 +2200,26 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         return new LayerDrawable(new Drawable[]{horizontal, vertical});
     }
 
-    private void applyLightCinemaCopyPlate() {
-        if (binding == null || binding.detailInfo == null) return;
-        if (!(lightTheme && isCinemaStyle())) {
-            binding.detailInfo.setBackground(null);
-            binding.detailInfo.setPadding(0, 0, 0, 0);
-            return;
-        }
-        int feather = ResUtil.dp2px(72);
-        binding.detailInfo.setBackground(new LightCinemaCopyPlateDrawable(feather, ResUtil.dp2px(18)));
-        binding.detailInfo.setPadding(ResUtil.dp2px(18), ResUtil.dp2px(18), feather, ResUtil.dp2px(18));
+    /**
+     * 浅色光影剧幕的白色中间层。
+     *
+     * <p>它与深色模式的黑幕同构：都是压在背景图之上、内容之下的全屏渐变层。
+     * 深色剧幕一直是「暗幕 + 浅字」，浅色剧幕此前该层被改成全透明，内容直接浮在
+     * 剧照原图上，文字与 chip 都没有稳定底板，所以既看不清也不像深色模式。
+     */
+    private Drawable cinemaLightBackdropShade() {
+        boolean compact = isCompactWidth();
+        GradientDrawable horizontal = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, compact ? new int[]{
+                0xB8F4F7FA, 0x99F4F7FA, 0x55F4F7FA, 0x24F4F7FA, 0x70F4F7FA
+        } : new int[]{
+                0x99F4F7FA, 0x80F4F7FA, 0x40F4F7FA, 0x1AF4F7FA, 0x55F4F7FA
+        });
+        GradientDrawable vertical = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, compact ? new int[]{
+                0x0AF4F7FA, 0x18F4F7FA, 0x55F4F7FA, 0x99F4F7FA
+        } : new int[]{
+                0x04F4F7FA, 0x0FF4F7FA, 0x3DF4F7FA, 0x70F4F7FA
+        });
+        return new LayerDrawable(new Drawable[]{horizontal, vertical});
     }
 
     private void tintInlineControl(View view) {
@@ -2283,7 +2288,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             return;
         }
         boolean focused = binding.playerPanel.hasFocus() && !hasFocusedChild(inlineControlsView());
-        binding.playerPanel.setStrokeColor(focused ? FOCUS_STROKE : colors.line);
+        binding.playerPanel.setStrokeColor(focused ? focusStroke() : colors.line);
         binding.playerPanel.setStrokeWidth(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : CHIP_STROKE_DP));
     }
 
@@ -2333,7 +2338,12 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private void applyButtonFocus(MaterialButton button, int stroke, boolean focused) {
         button.setStrokeWidth(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : CHIP_STROKE_DP));
-        button.setStrokeColor(ColorStateList.valueOf(focused ? FOCUS_STROKE : stroke));
+        button.setStrokeColor(ColorStateList.valueOf(focused ? focusStroke() : stroke));
+    }
+
+    /** TV 焦点环的唯一代码来源：与 {@code ?attr/tvFocusRing} 同一取值，跟随主题 FOCUS 槽。 */
+    private int focusStroke() {
+        return ThemeController.focusRingColor(this);
     }
 
     private void setEpisodeToolButton(MaterialButton button, ThemeColors colors) {
@@ -2375,7 +2385,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         button.setTextColor(colors.primary);
         button.setIconTint(ColorStateList.valueOf(colors.primary));
         button.setStrokeWidth(focused ? ResUtil.dp2px(FOCUS_STROKE_DP) : (lightCinemaPlate ? ResUtil.dp2px(CHIP_STROKE_DP) : 0));
-        button.setStrokeColor(ColorStateList.valueOf(focused ? FOCUS_STROKE : (lightCinemaPlate ? colors.line : Color.TRANSPARENT)));
+        button.setStrokeColor(ColorStateList.valueOf(focused ? focusStroke() : (lightCinemaPlate ? colors.line : Color.TRANSPARENT)));
     }
 
     private int episodeTitleRestingColor(boolean lightCinemaPlate, ThemeColors colors) {
@@ -2390,7 +2400,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         button.setTextColor(colors.primary);
         button.setIconTint(ColorStateList.valueOf(colors.primary));
         button.setStrokeWidth(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : CHIP_STROKE_DP));
-        button.setStrokeColor(ColorStateList.valueOf(focused ? FOCUS_STROKE : colors.lineStrong));
+        button.setStrokeColor(ColorStateList.valueOf(focused ? focusStroke() : colors.lineStrong));
     }
 
     private void tintTextTree(View view, ThemeColors colors) {
@@ -4428,7 +4438,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         GradientDrawable background = new GradientDrawable();
         background.setColor(modeController.isCinemaStyle() ? TmdbCinemaTheme.palette(lightTheme).ratingChip() : colors.chip);
         background.setCornerRadius(ResUtil.dp2px(10));
-        background.setStroke(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : CHIP_STROKE_DP), focused ? FOCUS_STROKE : colors.line);
+        background.setStroke(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : CHIP_STROKE_DP), focused ? focusStroke() : colors.line);
         row.setBackground(background);
         for (int i = 0; i < row.getChildCount(); i++) {
             View child = row.getChildAt(i);
@@ -7151,7 +7161,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void applyPhotoButtonFocus(MaterialButton button, boolean focused) {
         button.setBackgroundTintList(ColorStateList.valueOf(focused ? 0x33FFFFFF : 0x18FFFFFF));
         button.setStrokeWidth(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : CHIP_STROKE_DP));
-        button.setStrokeColor(ColorStateList.valueOf(focused ? FOCUS_STROKE : 0x4DFFFFFF));
+        button.setStrokeColor(ColorStateList.valueOf(focused ? focusStroke() : 0x4DFFFFFF));
     }
 
     private void showPhotoActionDialog(String url) {
@@ -9646,7 +9656,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         GradientDrawable background = new GradientDrawable();
         background.setCornerRadius(ResUtil.dp2px(4));
         background.setColor(focused ? colors.control : selected ? colors.chipActive : colors.chip);
-        background.setStroke(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : selected ? 2 : CHIP_STROKE_DP), focused ? FOCUS_STROKE : selected ? colors.accent : colors.line);
+        background.setStroke(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : selected ? 2 : CHIP_STROKE_DP), focused ? focusStroke() : selected ? colors.accent : colors.line);
         button.setSelected(selected);
         button.setActivated(selected);
         button.setTextColor(colors.primary);
@@ -9828,8 +9838,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         GradientDrawable background = new GradientDrawable();
         background.setCornerRadius(ResUtil.dp2px(6));
         if (focused) {
-            background.setColor(lightTheme ? 0x1AFFD166 : 0x55FFD166);
-            background.setStroke(ResUtil.dp2px(FOCUS_STROKE_DP), FOCUS_STROKE);
+            background.setColor(ThemeController.focusRingColor(this, lightTheme ? 0.10f : 0.33f));
+            background.setStroke(ResUtil.dp2px(FOCUS_STROKE_DP), focusStroke());
             button.setTextColor(lightTheme ? colors.primary : 0xFFFFFFFF);
         } else if (selected) {
             background.setColor(lightTheme ? 0x1F20B866 : 0x332CC56F);
@@ -9847,8 +9857,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         GradientDrawable background = new GradientDrawable();
         background.setCornerRadius(ResUtil.dp2px(6));
         if (focused) {
-            background.setColor(0x55FFD166);
-            background.setStroke(ResUtil.dp2px(FOCUS_STROKE_DP), FOCUS_STROKE);
+            background.setColor(ThemeController.focusRingColor(this, 0.33f));
+            background.setStroke(ResUtil.dp2px(FOCUS_STROKE_DP), focusStroke());
         } else {
             background.setColor(0x00000000);
         }
@@ -9891,8 +9901,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         int text = focused ? (lightTheme ? colors.primary : 0xFFFFFFFF) : colors.primary;
         button.setTextColor(text);
         button.setIconTint(ColorStateList.valueOf(text));
-        button.setBackgroundTintList(ColorStateList.valueOf(focused ? (lightTheme ? 0x1AFFD166 : 0x55FFD166) : colors.control));
-        button.setStrokeColor(ColorStateList.valueOf(focused ? FOCUS_STROKE : colors.lineStrong));
+        button.setBackgroundTintList(ColorStateList.valueOf(focused ? ThemeController.focusRingColor(this, lightTheme ? 0.10f : 0.33f) : colors.control));
+        button.setStrokeColor(ColorStateList.valueOf(focused ? focusStroke() : colors.lineStrong));
         button.setStrokeWidth(ResUtil.dp2px(focused ? 2 : 1));
     }
 
@@ -11676,13 +11686,47 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         setFollowingButtonsEnabled(false);
         resolveFollowing(tmdb, identityKey, siteKey, vodId, season, existing -> {
             if (isFinishing() || isDestroyed()) return;
-            if (existing != null) {
-                followingActionPending = false;
-                setFollowingButtonsEnabled(true);
-                FollowingActivity.start(this, existing.identityKey);
+            if (isFollowed(existing)) {
+                // 详情页与播放页统一为就地开关：再次点击「已追更」立即取消，绝不跳转追更页。
+                cancelFollowing(identityKey);
                 return;
             }
             addFollowing(tmdb, siteKey, vodId, season, identityKey);
+        });
+    }
+
+    /**
+     * 是否处于「已追更」状态。
+     * <p>
+     * `resolveFollowing` 走 TMDB 身份迁移路径时，为防复活会**故意返回墓碑行**
+     * （`FollowingStore.resolveTmdb` 的墓碑守卫，C9 语义），因此这里不能只用 `!= null`
+     * 判断：否则取消追更后按钮仍显示「已追更」，内联播放中再点只会重复写墓碑、
+     * 永远无法重新追更。墓碑行必须视为未追更，交给 `addFollowing` 走复活路径。
+     */
+    private boolean isFollowed(Following item) {
+        return item != null && !item.isDeleted();
+    }
+
+    /**
+     * 详情页取消追更：写墓碑、取消该条 one-shot 检查，然后立即刷新按钮状态。
+     * <p>
+     * 无论是否处于内联播放，本页都必须就地生效而不是跳转追更页：跳页既会打断播放，
+     * 也会把「取消」这种一步操作变成两步，与播放页（mobile/leanback `VideoActivity`）的
+     * 就地开关语义保持一致（见 `docs/FOLLOW-1-following-updates-design.md` 8.3.1）。
+     */
+    private void cancelFollowing(String identityKey) {
+        FollowingScheduler.cancelNext(this, identityKey);
+        FollowingPlaybackBridge.deleteAsync(identityKey, error -> {
+            followingActionPending = false;
+            if (isFinishing() || isDestroyed()) return;
+            if (error != null) {
+                setFollowingButtonsEnabled(true);
+                Notify.show(error.getMessage());
+                return;
+            }
+            updateFollowingState();
+            FollowingPlaybackBridge.refreshUnreadCountAsync(null);
+            Notify.show(R.string.following_canceled);
         });
     }
 
@@ -11805,7 +11849,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         applyFollowingButtonState(true, false);
         resolveFollowing(tmdb, identityKey, getKeyText(), getIdText(), season, item -> {
             if (generation != followingUiGeneration || isFinishing() || isDestroyed()) return;
-            applyFollowingButtonState(true, item != null);
+            applyFollowingButtonState(true, isFollowed(item));
         });
     }
 
@@ -13071,7 +13115,14 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void setChipState(MaterialButton button, boolean selected) {
         ThemeColors colors = lightTheme ? ThemeColors.light() : ThemeColors.dark();
         button.setTextColor(colors.primary);
-        button.setBackgroundColor(selected ? colors.chipActive : colors.chip);
+        // 必须走 backgroundTint 通道，不能用 setBackgroundColor。
+        // setBackgroundColor 只把颜色写进当前那个 MaterialShapeDrawable 实例，
+        // 而 Material 之后会因 inset/圆角/测量变化重建背景，重建时用的是
+        // backgroundTint 字段（这些代码新建的按钮该字段仍是透明），于是填充被
+        // 悄悄丢回全透明——线路与选集 chip 因此只剩描边、没有底色，压在亮色剧照
+        // 上就看不清。setBackgroundTintList 写的是那个持久字段，重建后依然生效，
+        // 这也是同一页里选集「第 N 季」按钮一直有底色的原因。
+        button.setBackgroundTintList(ColorStateList.valueOf(selected ? colors.chipActive : colors.chip));
         button.setOnFocusChangeListener(null);
         applyChipFocus(button, selected, button.hasFocus(), colors);
         button.setOnFocusChangeListener((view, focused) -> applyChipFocus(button, selected, focused, colors));
@@ -13080,7 +13131,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
     private void applyChipFocus(MaterialButton button, boolean selected, boolean focused, ThemeColors colors) {
         button.setSelected(!Util.isLeanback() || selected || focused);
         button.setStrokeWidth(ResUtil.dp2px(focused ? FOCUS_STROKE_DP : (selected ? 2 : CHIP_STROKE_DP)));
-        button.setStrokeColor(ColorStateList.valueOf(focused ? FOCUS_STROKE : (selected ? colors.accent : colors.line)));
+        button.setStrokeColor(ColorStateList.valueOf(focused ? focusStroke() : (selected ? colors.accent : colors.line)));
     }
 
     private void styleMetaChips() {
@@ -13611,72 +13662,6 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                     palette.play(),
                     palette.backdropShade()
             );
-        }
-    }
-
-    private static final class LightCinemaCopyPlateDrawable extends Drawable {
-        private static final int PLATE = 0xC8FFFFFF;
-        private final int featherPx;
-        private final float radiusPx;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint maskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final PorterDuffXfermode maskMode = new PorterDuffXfermode(PorterDuff.Mode.DST_IN);
-        private int drawnWidth = -1;
-        private int drawnHeight = -1;
-
-        private LightCinemaCopyPlateDrawable(int featherPx, float radiusPx) {
-            this.featherPx = featherPx;
-            this.radiusPx = radiusPx;
-        }
-
-        @Override
-        public void draw(Canvas canvas) {
-            Rect bounds = getBounds();
-            int width = bounds.width();
-            int height = bounds.height();
-            if (width <= 0 || height <= 0) return;
-            if (width != drawnWidth || height != drawnHeight) {
-                drawnWidth = width;
-                drawnHeight = height;
-                float left = Math.min(radiusPx, width * 0.12f);
-                float feather = Math.min(featherPx, width * 0.5f);
-                float solidStart = left / width;
-                float solidEnd = Math.max(solidStart, (width - feather) / width);
-                paint.setShader(new LinearGradient(0f, 0f, width, 0f,
-                        new int[]{0x00FFFFFF, PLATE, 0xB4FFFFFF, 0x00FFFFFF},
-                        new float[]{0f, solidStart, solidEnd, 1f},
-                        Shader.TileMode.CLAMP));
-                float edge = Math.min(radiusPx, height * 0.22f);
-                float edgeStart = edge / height;
-                maskPaint.setShader(new LinearGradient(0f, 0f, 0f, height,
-                        new int[]{0x00FFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00FFFFFF},
-                        new float[]{0f, edgeStart, 1f - edgeStart, 1f},
-                        Shader.TileMode.CLAMP));
-            }
-            canvas.save();
-            canvas.translate(bounds.left, bounds.top);
-            canvas.saveLayer(0f, 0f, width, height, null);
-            paint.setXfermode(null);
-            canvas.drawRect(0f, 0f, width, height, paint);
-            maskPaint.setXfermode(maskMode);
-            canvas.drawRect(0f, 0f, width, height, maskPaint);
-            maskPaint.setXfermode(null);
-            canvas.restore();
-            canvas.restore();
-        }
-
-        @Override
-        public void setAlpha(int alpha) {
-        }
-
-        @Override
-        public void setColorFilter(android.graphics.ColorFilter colorFilter) {
-        }
-
-        @Override
-        @SuppressWarnings("deprecation")
-        public int getOpacity() {
-            return PixelFormat.TRANSLUCENT;
         }
     }
 }

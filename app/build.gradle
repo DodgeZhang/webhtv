@@ -43,13 +43,10 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "String", "BUILD_TIME", "\"${buildTime}\""
         buildConfigField "String", "BUILD_TAG", "\"${releaseTag}\""
-<<<<<<< HEAD
-=======
         buildConfigField "String", "GIT_REVISION", "\"${gitRevision}\""
         buildConfigField "String", "GIT_STATE", "\"${gitState}\""
         buildConfigField "String", "MPV_NATIVE_SOURCES", "\"${mpvSourceRevisions}\""
         buildConfigField "String", "MEDIA3_VERSION", "\"${libs.versions.media3.get()}\""
->>>>>>> upstream/beta
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.fongmi.android.tv.event.EventIndex"]
@@ -199,7 +196,6 @@ dependencies {
     implementation libs.simple.xml
     implementation libs.textdrawable
     implementation libs.tensorflow.lite
-    implementation libs.tink.android
     implementation libs.zxing.core
     leanbackImplementation libs.leanback
     leanbackImplementation libs.androidautosize

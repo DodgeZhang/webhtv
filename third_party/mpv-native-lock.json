@@ -50,20 +50,9 @@
       "version": "1.5.4"
     },
     "ffmpeg": {
-<<<<<<< HEAD
-      "repo": "https://github.com/FFmpeg/FFmpeg.git",
-      "commit": "8ae0b34901ba60a802f183ee75a250a9fc3e09a5",
-      "version": "8.0.3"
-=======
       "repo": "https://github.com/FongMi/FFmpeg.git",
-<<<<<<< HEAD
-      "commit": "04482c8d13ac27b2a9fe93f5d388929eef8af5f4",
-      "version": "9.0-fongmi"
->>>>>>> upstream/dev
-=======
       "commit": "177f090e0503b7e013922ca903bde14b1c375f18",
       "version": "9.0.1-fongmi"
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
     },
     "freetype2": {
       "repo": "https://gitlab.freedesktop.org/freetype/freetype.git",
@@ -81,14 +70,11 @@
       "sha256": "278d03a0a662d00a46178afc64f32535ede2d78c603842b6fd1c55fa9cd44683",
       "version": "1.1.1"
     },
-<<<<<<< HEAD
-=======
     "fontconfig": {
       "repo": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
       "commit": "a4e25ec391d417e4bca052fbfa5cd7ce5f7fd39e",
       "version": "2.18.2"
     },
->>>>>>> upstream/dev
     "fribidi": {
       "repo": "https://github.com/fribidi/fribidi.git",
       "commit": "68162babff4f39c4e2dc164a5e825af93bda9983",

@@ -31,11 +31,8 @@ import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.ui.custom.CustomKeyDownVod;
 import com.fongmi.android.tv.ui.custom.CustomSeekView;
-<<<<<<< HEAD
-=======
 import com.fongmi.android.tv.ui.dialog.PlayerKernelDialog;
 import com.fongmi.android.tv.ui.dialog.PlaybackSpeedDialog;
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 import com.fongmi.android.tv.ui.dialog.SubtitleDialog;
 import com.fongmi.android.tv.ui.dialog.TrackDialog;
 import com.fongmi.android.tv.utils.Clock;
@@ -225,11 +222,6 @@ public class CastActivity extends PlaybackActivity implements CustomKeyDownVod.L
 
     private void onPlayerKernel() {
         if (player().isEmpty()) return;
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-        PlayerKernelDialog.show(this, player().getPlayerType(), this::switchPlayerKernel);
-=======
         PlayerKernelDialog.show(this, player().getPlayerType(), this::switchPlayerKernel, this::onExternalPlayer);
     }
 
@@ -237,7 +229,6 @@ public class CastActivity extends PlaybackActivity implements CustomKeyDownVod.L
         if (player().isEmpty()) return;
         PlayerHelper.choose(this, player().getUrl(), player().getHeaders(), player().isVod(), player().getPosition(), mBinding.widget.title.getText());
         setRedirect(true);
->>>>>>> upstream/beta
     }
 
     private boolean onPlayerKernelLong() {
@@ -247,9 +238,8 @@ public class CastActivity extends PlaybackActivity implements CustomKeyDownVod.L
 
     private void switchPlayerKernel(int type) {
         if (player().isEmpty()) return;
->>>>>>> upstream/dev
         position = player().getPosition();
-        player().togglePlayer();
+        player().switchPlayer(type);
         setPlayerKernel();
         setDecode();
     }

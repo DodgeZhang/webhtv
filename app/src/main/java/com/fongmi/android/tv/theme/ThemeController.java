@@ -6,6 +6,7 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.app.Dialog;
 import android.os.Build;
+import android.util.TypedValue;
 import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -114,7 +115,7 @@ public final class ThemeController {
 
     public static void refresh() {
         boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        current = ThemeResolver.resolve(ThemeMode.SYSTEM, ThemeSeed.NONE, 0, 0, systemDark);
+        current = ThemeResolver.resolve(currentThemeMode(), ThemeSeed.NONE, 0, 0, systemDark);
     }
 
     /**
@@ -138,7 +139,7 @@ public final class ThemeController {
         // compiled table, so the active tokens stay comparable with inflated colours on
         // every flavour (see resolvedDark()).
         boolean systemDark = resolvedDark();
-        ThemeMode themeMode = ThemeMode.SYSTEM;
+        ThemeMode themeMode = currentThemeMode();
         int themeColor = com.fongmi.android.tv.setting.Setting.getThemeColor();
         if (themeColor == -1) {
             return ThemeResolver.resolve(themeMode, ThemeSeed.NONE, 0, 0, profile, null, systemDark);
@@ -174,16 +175,22 @@ public final class ThemeController {
      *
      * <p>{@link #frozenPalette()} must describe the colours inflation produced, and
      * those come from the compiled {@code webhtv_color_*} resources. Resource
-     * selection is not purely a function of uiMode: the TV flavour overrides
-     * {@code values/} with the dark table and ships no light table of its own, so on
-     * a light-mode device its views are dark while a uiMode-derived baseline was
-     * light. Every binder rewrite compares against that baseline exactly, so the
-     * mismatch silently turned the whole TV theme channel into a no-op (measured:
+     * selection is not purely a function of uiMode: a flavour may override
+     * {@code values/} with a fixed table and ship no table of its own for the other
+     * mode. When that happens a uiMode-derived baseline describes colours no inflated
+     * view ever held. Every binder rewrite compares against that baseline exactly, so
+     * the mismatch silently turned the whole TV theme channel into a no-op (measured:
      * probe vs default = 0 changed pixels on TV while the identical probe changed
-     * ~49k pixels on mobile, and switching the device to dark made TV respond).
+     * ~49k pixels on mobile).
      *
      * <p>The compiled table is therefore read from resources whenever it can be
      * identified, and only an unidentifiable palette falls back to the uiMode rule.
+     *
+     * <p>WebHTV no longer ships such an override: the TV flavour used to carry a
+     * permanent dark {@code values/webhtv_tokens.xml} and that file is gone, so both
+     * flavours now resolve the same day/night tables and this method normally agrees
+     * with the uiMode rule. The resource probe is kept because it is what keeps the
+     * baseline honest if a flavour ever pins a palette again.
      */
     private static boolean resolvedDark() {
         boolean systemDark = (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
@@ -195,9 +202,9 @@ public final class ThemeController {
      *
      * <p>When the compiled table is identifiable it is authoritative: it is literally
      * what inflation resolved, so it must win even over an explicit appearance mode.
-     * The TV flavour needs that - its {@code values/} holds the dark table, so a
-     * light-mode device (or a user who picked light) still renders dark views. Only an
-     * unidentifiable palette falls back to the historical mode/uiMode rule.
+     * A flavour that pins {@code values/} to one table needs that - a light-mode device
+     * (or a user who picked light) would otherwise be described by the wrong baseline.
+     * Only an unidentifiable palette falls back to the historical mode/uiMode rule.
      */
     static boolean darkPaletteFor(Boolean compiledDark, ThemeMode mode, boolean systemDark) {
         if (compiledDark != null) return compiledDark;
@@ -313,6 +320,53 @@ public final class ThemeController {
     /** True when the active palette differs from the frozen compiled baseline. */
     public static boolean hasProfileOverrides() {
         return !baseline.equals(current);
+    }
+
+    // ---------------------------------------------------------------- TV focus ring
+
+    /**
+     * The one TV focus-ring colour source, for the code paths that must set a stroke
+     * imperatively (dynamic rows, adapters, drawables built at runtime).
+     *
+     * <p>TV 的焦点环只允许有一个取值源：{@code tv_item_focus_ring}（由
+     * {@code ?attr/tvFocusRing} 提供给 XML 选择器，由本方法提供给代码路径）。此前详情页把
+     * {@code #FFD166} 写死在 Java 里，于是 {@code tv_item_focus_ring} 接线到主题 FOCUS 槽
+     * 之后，同一个 TV 应用里就出现了两种焦点环色：播放页/追更页跟随主题，详情页永远黄色。
+     *
+     * <p><b>主题覆写的传播方式与其它 {@code ?attr/tvFocusRing} 消费者完全一致，本方法不
+     * 额外做一套。</b> {@code ?attr/tvFocusRing} 是编译期静态资源，Android 没有公开 API 能在
+     * 运行时改写已编译的 {@code ?attr/color*}（见 {@link ThemeBinder} 类注释），因此用户覆写
+     * 只能由 {@code ThemeBinder} 在视图树上按基线角色改写生效——实测 MaterialButton 的
+     * stroke 会被改写（seed 改 {@code #00B0FF} 后 {@code #A8C7FA} → {@code #96CCF8}），而
+     * 前景选择器与 MaterialCardView 的歧义描边按 binder 既有边界保持静态。
+     * 本方法因此也返回同一个静态值：若只让代码路径动态取 {@code current().colorFocus()}，
+     * 就会在主题覆写后重新造出「代码路径跟随、选择器不跟随」的两种环色，反而倒退。
+     *
+     * <p>同时这也修正了浅色详情页的可读性缺陷：{@code #FFD166} 画在浅色底板
+     * （cinema {@code #EBE3DA}、chip {@code #F5F8FB}）上只有 1.14–1.35:1，环几乎看不见，
+     * 而主题 FOCUS 槽的浅色取值是 5.03–5.99:1（Resolver 另有 ≥3:1 的对比度门）。
+     */
+    public static int focusRingColor(Context context) {
+        if (context != null) {
+            TypedValue value = new TypedValue();
+            if (context.getTheme().resolveAttribute(R.attr.tvFocusRing, value, true)) {
+                if (value.type >= TypedValue.TYPE_FIRST_COLOR_INT && value.type <= TypedValue.TYPE_LAST_COLOR_INT) {
+                    return value.data;
+                }
+                if (value.resourceId != 0) return ContextCompat.getColor(context, value.resourceId);
+            }
+        }
+        return ContextCompat.getColor(App.get(), R.color.tv_item_focus_ring);
+    }
+
+    /**
+     * The focus-ring colour with an explicit alpha, matching the historical
+     * {@code 0x55FFD166} / {@code 0x1AFFD166} fills now that the hue is theme-driven.
+     */
+    public static int focusRingColor(Context context, float alpha) {
+        int color = focusRingColor(context);
+        int scaled = Math.round(((color >>> 24) & 0xFF) * Math.max(0f, Math.min(1f, alpha)));
+        return (color & 0x00FFFFFF) | (Math.max(0, Math.min(255, scaled)) << 24);
     }
 
     public static ThemeProfile activeProfile() {

@@ -11,6 +11,7 @@ import android.os.IBinder;
 import android.util.Log;
 import android.view.Display;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.WindowManager;
@@ -23,6 +24,7 @@ import androidx.core.content.ContextCompat;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.Format;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import androidx.media3.mpvplayer.MpvPlayer;
@@ -36,23 +38,16 @@ import androidx.media3.ui.PlayerView;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.Result;
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
-=======
 import com.fongmi.android.tv.bean.Sub;
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
 import com.fongmi.android.tv.bean.Vod;
->>>>>>> upstream/beta
 import com.fongmi.android.tv.player.PlaybackAutoContext;
 import com.fongmi.android.tv.player.PlaybackServiceReleasePolicy;
 import com.fongmi.android.tv.player.PlaybackTelemetry;
->>>>>>> upstream/dev
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.VideoAspectMode;
 import com.fongmi.android.tv.player.engine.PlaySpec;
+import com.fongmi.android.tv.player.exo.ExoOutputModeManager;
+import com.fongmi.android.tv.player.exo.ExoOutputModePolicy;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
@@ -61,7 +56,6 @@ import com.fongmi.android.tv.player.exo.subtitle.ExoSubtitleSession;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.subtitle.RealtimeSubtitleController;
 import com.fongmi.android.tv.ui.base.BaseActivity;
-import com.fongmi.android.tv.ui.dialog.AdSkipPromptPresenter;
 import com.fongmi.android.tv.ui.dialog.DiscMenuDialog;
 import com.fongmi.android.tv.ui.dialog.VideoAspectModeDialog;
 import com.fongmi.android.tv.ui.novel.NovelRouter;
@@ -90,20 +84,12 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     private boolean stop;
     private boolean lock;
     private int render = -1;
-<<<<<<< HEAD
-    private int requestedResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
-=======
     private int requestedAspectMode = VideoAspectMode.ORIGINAL;
     private ExoOutputModeManager exoOutputModeManager;
-    private AdSkipPromptPresenter adSkipPromptPresenter;
-<<<<<<< HEAD
->>>>>>> upstream/dev
-=======
     private ExoAssSession attachedAssSession;
     private ExoSubtitleSession attachedSubtitleSession;
     private final com.fongmi.android.tv.player.SurfaceDiagnosticCollector surfaceDiagnostics =
             new com.fongmi.android.tv.player.SurfaceDiagnosticCollector();
->>>>>>> upstream/beta
 
     protected MediaController controller() {
         return mController;
@@ -119,16 +105,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     protected boolean isServiceReady() {
         return mService != null && mService.player() != null && !mService.player().isReleased();
-    }
-
-    private void bindAdAudioPrompt() {
-        if (!isServiceReady() || !isOwner()) return;
-        if (adSkipPromptPresenter == null) adSkipPromptPresenter = new AdSkipPromptPresenter(this);
-        player().bindAdAudioUi(adSkipPromptPresenter);
-    }
-
-    private void unbindAdAudioPrompt() {
-        if (isServiceReady() && isOwner()) player().unbindAdAudioUi();
     }
 
     protected View.OnClickListener guarded(Runnable action) {
@@ -693,8 +669,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             else hideVideoShutter();
             if (player().isNativePlayer()) getExoView().post(this::syncShutter);
         }
-<<<<<<< HEAD
-=======
         publishRenderTarget(getExoView().getVideoSurfaceView());
         ExoAssSession assSession = player().getAssSession();
         if (attachedAssSession != assSession) {
@@ -708,7 +682,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             attachedSubtitleSession = subtitleSession;
         }
         if (attachedSubtitleSession != null) attachedSubtitleSession.attach(getExoView());
->>>>>>> upstream/beta
         onSurfaceAttached();
         logSurfaceState("attach done");
     }
@@ -822,6 +795,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         surfaceDiagnostics.unbind();
         detachAssSurface();
         getExoView().setPlayer(null);
+        if (mService != null) player().publishPlaybackRenderTarget(PlaybackAutoContext.RenderTarget.DETACHED);
     }
 
     private void detachAssSurface() {
@@ -905,6 +879,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         if (!bound) return;
         bound = false;
         if (mService != null) mService.removePlayerCallback(mPlayerCallback);
+        getSeekView().setProgressPlayer(null);
         unbindService(this);
         mService = null;
     }
@@ -1026,11 +1001,8 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         @Override
         public void onPlayerRebuild(Player player, boolean resetVideoSurface) {
             if (isOwner()) {
-<<<<<<< HEAD
-=======
                 nativeOutputPending = player().shouldKeepVideoShutterClosed();
                 getSeekView().setProgressPlayer(player);
->>>>>>> upstream/beta
                 if (resetVideoSurface) resetVideoSurfaceForDecoderSwitch();
                 setRender();
                 applyResizeMode(requestedAspectMode);
@@ -1046,11 +1018,8 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         restorePlaybackKey(savedInstanceState);
         if (!shouldBindPlaybackService()) return;
         ExoUtil.setPlayerView(getExoView());
-<<<<<<< HEAD
-=======
         RealtimeSubtitleController.get().bind(getExoView());
         exoOutputModeManager = new ExoOutputModeManager(getWindow());
->>>>>>> upstream/dev
         if (deferPlaybackServiceBinding()) bindPlaybackServiceAfterFirstFrame();
         else bindPlaybackService();
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-flow", "initView cost=%dms key=%s deferred=%s", System.currentTimeMillis() - start, getPlaybackKey(), deferPlaybackServiceBinding());
@@ -1095,10 +1064,6 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "state changed state=%d %s", state, lifecycleState());
         syncKeepScreenOn();
         if (!isOwner()) return;
-        // Ownership is established after onServiceConnected/onResume have already run, so
-        // the earlier bind attempts were rejected by the isOwner() guard. Bind here too or
-        // the ad-audio runtime never gets a UI and stays deactivated for the whole session.
-        bindAdAudioPrompt();
         syncShutter();
         onStateChanged(state);
     }
@@ -1108,12 +1073,12 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
         if (!isOwner()) return;
         syncShutter();
         logSurfaceState("onVideoSizeChanged size=" + size.width + "x" + size.height + " ratio=" + size.pixelWidthHeightRatio);
+        publishRenderTarget(getExoView().getVideoSurfaceView());
         syncVideoSurfaceSize(size);
+        applyExoOutputMode();
         onSizeChanged(size);
     }
 
-<<<<<<< HEAD
-=======
     private void applyExoOutputMode() {
         if (mService == null || exoOutputModeManager == null) return;
         publishRenderTarget(getExoView().getVideoSurfaceView());
@@ -1201,7 +1166,6 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
                 : new PlaybackAutoContext.DisplayMode(mode.id(), mode.width(), mode.height(), mode.refreshRateMilliHz());
     }
 
->>>>>>> upstream/beta
     @Override
     public void onRenderedFirstFrame() {
         if (isOwner()) onFirstFrameRendered();
@@ -1221,10 +1185,12 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
         mService.setPlaybackForeground(true);
         mService.setNavigationCallback(getNavigationCallback(), activePlaybackKey());
         mService.addPlayerCallback(mPlayerCallback);
+        getSeekView().setProgressPlayer(player().getPlayer());
         player().setLutAllowed(isLutAllowed());
-        bindAdAudioPrompt();
         syncKeepScreenOn();
         player().setDanmakuForeground(true);
+        publishRenderTarget(getExoView().getVideoSurfaceView());
+        applyExoOutputMode();
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-flow", "service connected cost=%dms key=%s", System.currentTimeMillis() - start, getPlaybackKey());
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "service connected %s", lifecycleState());
         onServiceConnected();
@@ -1233,14 +1199,8 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
     @Override
     public void onServiceDisconnected(ComponentName name) {
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "service disconnected name=%s %s", name, lifecycleState());
-<<<<<<< HEAD
-=======
-        unbindAdAudioPrompt();
-        if (adSkipPromptPresenter != null) adSkipPromptPresenter.close();
-        adSkipPromptPresenter = null;
         releaseController();
         getSeekView().setProgressPlayer(null);
->>>>>>> upstream/dev
         mService = null;
         preparedPlaybackKey = null;
     }
@@ -1255,11 +1215,7 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "activity resume %s", lifecycleState());
         playbackExiting = false;
         setRedirect(false);
-<<<<<<< HEAD
-=======
-        bindAdAudioPrompt();
         applyExoOutputMode();
->>>>>>> upstream/dev
         if (shouldReclaim()) {
             detachSurface();
             onReclaim();
@@ -1276,11 +1232,11 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
 
     @Override
     protected void onStop() {
-        unbindAdAudioPrompt();
         if (mService != null) {
             mService.setPlaybackForeground(false);
             if (isOwner()) player().setDanmakuForeground(false);
         }
+        restoreExoOutputMode();
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "activity stop backgroundOff=%s %s", PlayerSetting.isBackgroundOff(), lifecycleState());
         super.onStop();
         if (isOwner() && !isAudioOnly() && shouldPauseOnBackground() && mController != null) mController.pause();
@@ -1297,14 +1253,8 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
         surfaceDiagnostics.unbind();
         detachAssSurface();
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "activity destroy beforeRelease %s", lifecycleState());
-<<<<<<< HEAD
-=======
-        unbindAdAudioPrompt();
-        if (adSkipPromptPresenter != null) adSkipPromptPresenter.close();
-        adSkipPromptPresenter = null;
         RealtimeSubtitleController.get().unbind(getExoView());
         restoreExoOutputMode();
->>>>>>> upstream/dev
         super.onDestroy();
         if (isChangingConfigurations()) {
             if (mService != null) mService.removePlayerCallback(mPlayerCallback);

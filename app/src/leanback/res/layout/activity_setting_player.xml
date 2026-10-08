@@ -27,7 +27,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_render"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -35,7 +35,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="Surface" />
 
@@ -56,7 +56,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_button_config"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -66,7 +66,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="显示 17/19" />
 
@@ -87,20 +87,17 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_exo_4k_compat"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/exo4kCompatText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
                 android:gravity="end"
-<<<<<<< HEAD
-                android:textColor="@color/white"
-=======
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
->>>>>>> upstream/beta
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="关" />
 
@@ -121,7 +118,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_kernel"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -129,7 +126,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="EXO" />
 
@@ -151,7 +148,7 @@
                 android:layout_marginEnd="16dp"
                 android:singleLine="true"
                 android:text="@string/player_mpv_config"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -161,48 +158,12 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="默认" />
 
           </androidx.appcompat.widget.LinearLayoutCompat>
 
-<<<<<<< HEAD
-        <androidx.appcompat.widget.LinearLayoutCompat
-            android:id="@+id/mpvRender"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/selector_item"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:orientation="horizontal">
-
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
-                android:singleLine="true"
-                android:text="@string/player_mpv_render"
-                android:textColor="@color/white"
-                android:textSize="18sp" />
-
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/mpvRenderText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:gravity="end"
-                android:singleLine="true"
-                android:textColor="@color/white"
-                android:textSize="18sp"
-                tools:text="OpenGL" />
-
-        </androidx.appcompat.widget.LinearLayoutCompat>
-
-        <androidx.appcompat.widget.LinearLayoutCompat
-            android:id="@+id/scale"
-=======
           <androidx.appcompat.widget.LinearLayoutCompat
               android:id="@+id/mpvRender"
               android:layout_width="match_parent"
@@ -219,7 +180,7 @@
                   android:layout_marginEnd="16dp"
                   android:singleLine="true"
                   android:text="@string/player_mpv_render"
-                  android:textColor="?attr/colorOnSurface"
+                  android:textColor="?attr/webhtvColorOnWallpaper"
                   android:textSize="18sp" />
 
               <com.google.android.material.textview.MaterialTextView
@@ -229,17 +190,12 @@
                   android:ellipsize="end"
                   android:gravity="end"
                   android:singleLine="true"
-                  android:textColor="?attr/colorOnSurface"
+                  android:textColor="?attr/webhtvColorOnWallpaper"
                   android:textSize="18sp"
                   tools:text="OpenGL" />
 
           </androidx.appcompat.widget.LinearLayoutCompat>
 
-<<<<<<< HEAD
-          <androidx.appcompat.widget.LinearLayoutCompat
-              android:id="@+id/scale"
->>>>>>> upstream/dev
-=======
         <androidx.appcompat.widget.LinearLayoutCompat
             android:id="@+id/blurayMenu"
             android:layout_width="match_parent"
@@ -255,7 +211,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_bluray_menu"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -263,7 +219,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="关" />
 
@@ -271,7 +227,6 @@
 
         <androidx.appcompat.widget.LinearLayoutCompat
             android:id="@+id/scale"
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -285,7 +240,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_scale"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -293,7 +248,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="16:9" />
 
@@ -314,7 +269,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_lut"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -324,7 +279,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="Kodak 2383 · 100%" />
 
@@ -345,7 +300,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_caption"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -353,7 +308,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="預設" />
 
@@ -374,7 +329,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_osd"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -384,7 +339,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="标题、时间、进度" />
 
@@ -405,7 +360,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_buffer"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -414,7 +369,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="1" />
 
@@ -423,7 +378,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:text="@string/times"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
@@ -443,7 +398,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_buffer_bytes"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -453,7 +408,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="128MB" />
 
@@ -474,7 +429,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_back_buffer"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -484,7 +439,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="30秒" />
 
@@ -505,7 +460,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_cache"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -515,7 +470,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="500MB" />
 
@@ -536,7 +491,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -546,7 +501,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="开启" />
 
@@ -567,7 +522,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload_threads"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -577,7 +532,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="1 条" />
 
@@ -598,7 +553,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload_size"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -608,7 +563,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="128MB" />
 
@@ -629,7 +584,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload_time"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -639,15 +594,13 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="120 秒" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 
         <androidx.appcompat.widget.LinearLayoutCompat
-<<<<<<< HEAD
-=======
             android:id="@+id/preloadAhead"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -662,7 +615,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload_ahead"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -672,7 +625,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="5 分钟" />
 
@@ -693,7 +646,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_preload_pause"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -703,14 +656,13 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="始终" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 
         <androidx.appcompat.widget.LinearLayoutCompat
->>>>>>> upstream/beta
             android:id="@+id/autoPlay"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -725,7 +677,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_auto_play"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -735,7 +687,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="开启" />
 
@@ -756,7 +708,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_auto_change"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -766,7 +718,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="开启" />
 
@@ -787,7 +739,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_live_source_fallback"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -797,7 +749,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="开启" />
 
@@ -818,7 +770,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_failure_fallback"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -828,7 +780,7 @@
                 android:ellipsize="end"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="软解后切核心" />
 
@@ -849,7 +801,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_speed"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -858,7 +810,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="1" />
 
@@ -867,7 +819,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:text="@string/times"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
@@ -887,7 +839,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_tunnel"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -895,7 +847,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -916,7 +868,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_music_notification"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -924,7 +876,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="On" />
 
@@ -945,7 +897,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_audio_book_notification"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -953,7 +905,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="On" />
 
@@ -974,7 +926,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_audio_decode"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -982,7 +934,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -1003,7 +955,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_audio_passthrough"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -1011,7 +963,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -1032,7 +984,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_video_decode"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -1040,7 +992,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -1061,7 +1013,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_aac_track"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -1069,7 +1021,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -1090,7 +1042,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_background"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -1098,7 +1050,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="end"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="關" />
 
@@ -1119,7 +1071,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
                 android:text="@string/player_ua"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -1129,7 +1081,7 @@
                 android:ellipsize="middle"
                 android:gravity="end"
                 android:singleLine="true"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="?attr/webhtvColorOnWallpaper"
                 android:textSize="18sp"
                 tools:text="okhttp/4.11.0" />
 

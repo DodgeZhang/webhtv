@@ -29,6 +29,7 @@ import com.fongmi.android.tv.ui.dialog.MpvConfigDialog;
 import com.fongmi.android.tv.ui.dialog.PlaybackPerformanceDialog;
 import com.fongmi.android.tv.ui.dialog.PlayerOsdDialog;
 import com.fongmi.android.tv.ui.dialog.PlayerButtonConfigDialog;
+import com.fongmi.android.tv.ui.dialog.PlayerKernelDialog;
 import com.fongmi.android.tv.ui.dialog.SpeedDialog;
 import com.fongmi.android.tv.ui.dialog.UaDialog;
 import com.fongmi.android.tv.ui.dialog.VideoAspectModeDialog;
@@ -129,6 +130,8 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.preloadThread.setOnClickListener(this::setPreloadThread);
         mBinding.preloadSize.setOnClickListener(this::setPreloadSize);
         mBinding.preloadTime.setOnClickListener(this::setPreloadTime);
+        mBinding.preloadAhead.setOnClickListener(this::setPreloadAhead);
+        mBinding.preloadPause.setOnClickListener(this::setPreloadPause);
         mBinding.autoPlay.setOnClickListener(this::setAutoPlay);
         mBinding.autoChange.setOnClickListener(this::setAutoChange);
         mBinding.liveSourceFallback.setOnClickListener(view -> {
@@ -150,7 +153,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
     }
 
     private void setVisible() {
-        if (PlayerSetting.getBackground() == 2) PlayerSetting.putBackground(1);
         mBinding.caption.setVisibility(PlayerSetting.hasCaption() ? View.VISIBLE : View.GONE);
     }
 
@@ -172,20 +174,12 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
     }
 
     private void setKernel(View view) {
-<<<<<<< HEAD
-        int index = PlayerSetting.nextPlayer(PlayerSetting.getPlayer());
-        mBinding.kernelText.setText(kernel[index]);
-        PlayerSetting.putPlayer(index);
-        setMpvRows();
-        setPerformanceText();
-=======
         PlayerKernelDialog.show(this, PlayerSetting.getPlayer(), index -> {
             mBinding.kernelText.setText(kernel[index]);
             PlayerSetting.putPlayer(index);
             setMpvRows();
             setPerformanceText();
         });
->>>>>>> upstream/dev
     }
 
     private void setScale(View view) {
@@ -205,26 +199,10 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.blurayMenu.setVisibility(visible ? View.VISIBLE : View.GONE);
         mBinding.mpvRender.setVisibility(visible ? View.VISIBLE : View.GONE);
         mBinding.mpvConfigText.setText(MpvConfigStore.summary());
-<<<<<<< HEAD
-        mBinding.mpvRenderText.setText(getMpvRenderText());
-<<<<<<< HEAD
-=======
         mBinding.blurayMenuText.setText(getSwitch(PlayerSetting.isBlurayMenu()));
         mBinding.mpvRenderText.setText(getMpvRenderText());
->>>>>>> upstream/beta
     }
 
-<<<<<<< HEAD
-=======
-    private void setFfmpegModeVisibility() {
-        boolean visible = PlayerSetting.getPlayer() == PlayerSetting.EXO;
-        mBinding.ffmpegMode.setVisibility(visible ? View.VISIBLE : View.GONE);
-=======
-        mBinding.blurayMenuText.setText(getSwitch(PlayerSetting.isBlurayMenu()));
->>>>>>> 2d58d9085640098e3842a859fc3afa15050ac280
-    }
-
->>>>>>> upstream/dev
     private void setMpvRender(View view) {
         int index = (PlayerSetting.getMpvRender() + 1) % mpvRender.length;
         PlayerSetting.putMpvRender(index);
@@ -348,15 +326,47 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         setPerformanceText();
     }
 
+    private void setPreloadAhead(View view) {
+        PreloadSetting.putPreloadAheadSeconds(PreloadSetting.getNextPreloadAheadSeconds());
+        PlaybackPerformanceSetting.markCustom();
+        setPreloadText();
+        setPerformanceText();
+    }
+
+    private void setPreloadPause(View view) {
+        PreloadSetting.putPausePreloadPolicy(PreloadSetting.getNextPausePreloadPolicy());
+        PlaybackPerformanceSetting.markCustom();
+        setPreloadText();
+        setPerformanceText();
+    }
+
     private void setPreloadText() {
         boolean preload = PreloadSetting.isPreload();
         mBinding.preloadText.setText(getSwitch(preload));
         mBinding.preloadThread.setVisibility(preload ? View.VISIBLE : View.GONE);
         mBinding.preloadSize.setVisibility(preload ? View.VISIBLE : View.GONE);
         mBinding.preloadTime.setVisibility(preload ? View.VISIBLE : View.GONE);
+        mBinding.preloadAhead.setVisibility(preload ? View.VISIBLE : View.GONE);
+        mBinding.preloadPause.setVisibility(preload ? View.VISIBLE : View.GONE);
         mBinding.preloadThreadText.setText(getString(R.string.player_preload_threads_value, PreloadSetting.getPreloadThreads()));
         mBinding.preloadSizeText.setText(FileUtil.byteCountToDisplaySize(PreloadSetting.getPreloadSizeBytes()));
         mBinding.preloadTimeText.setText(getString(R.string.player_preload_time_value, PreloadSetting.getPreloadTimeSeconds()));
+        mBinding.preloadAheadText.setText(getPreloadAheadText());
+        mBinding.preloadPauseText.setText(getPreloadPauseText());
+    }
+
+    private String getPreloadAheadText() {
+        int seconds = PreloadSetting.getPreloadAheadSeconds();
+        return seconds == PreloadSetting.WHOLE_MEDIA_AHEAD_SECONDS
+                ? getString(R.string.player_preload_ahead_whole)
+                : getString(R.string.player_preload_ahead_value, seconds / 60);
+    }
+
+    private String getPreloadPauseText() {
+        return getString(switch (PreloadSetting.getPausePreloadPolicy()) {
+            case PreloadSetting.PAUSE_PRELOAD_ALWAYS -> R.string.player_preload_pause_always;
+            default -> R.string.player_preload_pause_wifi;
+        });
     }
 
     private void setAutoPlay(View view) {
@@ -427,6 +437,8 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.preloadThread.setVisibility(View.GONE);
         mBinding.preloadSize.setVisibility(View.GONE);
         mBinding.preloadTime.setVisibility(View.GONE);
+        mBinding.preloadAhead.setVisibility(View.GONE);
+        mBinding.preloadPause.setVisibility(View.GONE);
         mBinding.tunnel.setVisibility(View.GONE);
         mBinding.audioDecode.setVisibility(View.GONE);
         mBinding.audioPassThrough.setVisibility(View.GONE);

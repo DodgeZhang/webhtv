@@ -11,7 +11,6 @@ import com.fongmi.android.tv.remote.RemoteModels.RemoteProfile;
 import com.fongmi.android.tv.utils.LoginStateSync;
 import com.fongmi.android.tv.utils.MpvConfigSync;
 import com.fongmi.android.tv.utils.SyncFiles;
-import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Path;
 import com.google.gson.JsonObject;
 
@@ -64,7 +63,7 @@ public final class RemoteSyncTransfer {
                 if (loginArchive != null) Path.clear(loginArchive.getFile());
             }
         } catch (Throwable e) {
-            SpiderDebug.log("remote", "sync export failed error=%s", e.getMessage());
+            RemoteLog.log("sync export failed error=%s", e.getMessage());
             notifyComplete(profile, command, false, e.getMessage());
             return RemoteCommandResult.failure(e.getMessage());
         }
@@ -97,7 +96,7 @@ public final class RemoteSyncTransfer {
             client.completeSync(string(payload, "completeUrl"), true, "Restore complete", result);
             return RemoteCommandResult.success("Restore complete", result);
         } catch (Throwable e) {
-            SpiderDebug.log("remote", "sync restore failed error=%s", e.getMessage());
+            RemoteLog.log("sync restore failed error=%s", e.getMessage());
             notifyComplete(profile, command, false, e.getMessage());
             return RemoteCommandResult.failure(e.getMessage());
         } finally {
