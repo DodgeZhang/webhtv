@@ -54,8 +54,11 @@ BRANCH="beta"
 # 本仓库独有/有意分歧的路径前缀。白名单内出现的差异不报警。
 # 注意 .codex/scripts/task_guard.sh 在上游同样存在，故只精确放行本仓库自有的同步助手，
 # 以免掩盖 task_guard.sh 的真实分歧。
+# .gitattributes/.gitignore 是本仓库有意定制的仓库级配置（*.sh eol=lf、/plans/ 等），同属有意分歧。
 LOCAL_ONLY_PATTERNS=(
   ".codex/scripts/sync-upstream.sh"
+  ".gitattributes"
+  ".gitignore"
   "docs/cf-"
   "plans/"
   "serverless/playback-identity-fixtures/"
