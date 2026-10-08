@@ -5,8 +5,8 @@
 - 目标：实验室「配置源」设置弹窗（`实验室配置源`）在默认主题下必须可读，并且必须跟随应用主题（深浅色 + 用户主题色）。
 - 允许路径：`app/src/main/java/com/fongmi/android/tv/lab/**`、`app/src/main/res/values/lab_styles.xml`、`app/src/main/res/values/lab_colors.xml`、`app/src/main/res/values-night/lab_colors.xml`、`app/src/test/**`、`docs/**`。
 - 验收标准：默认主题（浅色系统）与深色主题下，弹窗正文/提示/输入框文字与面板对比度 ≥ 4.5:1；设置用户主题色后弹窗面板与文字随之变化（像素级 A/B 非零差异）。
-- 当前状态：实施中。
-- 下一步唯一动作：修改 `Theme.App.Lab.DayNight.Dialog` 使内容与面板同源，并在 `LabActivity.showSettings()` 用该主题上下文 inflate。
+- 当前状态：**已实施、已验证、已交付**。两处修复（弹窗内容与面板同源、下拉列表改用弹窗主题上下文与语义 item 布局）均已落地并通过设备像素实测；随后由 `docs/C50-beta-merge-review-dev1-20261008.md` 记录的合并轮次独立复测复现全部数据，并在该轮修正了本文档 §4.1.1 的两处不实描述（见 §4.1.1 与 §4.4）。
+- 下一步唯一动作：无（PR 由用户决定是否合并）。
 
 ## 1. 现象与证据（2026-10-08，dev1 `192.168.50.3:5555`，mobile arm64 debug）
 
@@ -85,8 +85,28 @@
 | 修复后 · 默认主题 | `#F3EDF7` | `#1A1C1E` | **14.87:1** |
 | 修复后 · 主题模式=深色 | `#212027` | `#E2E2E9` | **12.64:1** |
 
-下拉项现在由 `item_lab_dropdown.xml` 提供（前景 `?attr/colorOnSurface`），
-适配器改用弹窗主题上下文，因此同时跟随深浅色与主题色。
+下拉项现在由 `item_lab_dropdown.xml` 提供（前景 `?attr/colorOnSurface`），适配器改用弹窗主题上下文，
+因此 item 文字与弹出面板来自同一套表并可读。
+
+**边界（2026-10-08 C50 轮次实测修正，此前本文档的说法「同时跟随深浅色与主题色」不成立）**：
+
+- **跟随深浅色：成立**。浅色 item `#1A1C1E`、深色 item `#E2E2E9`，恰为两套 token 表中
+  `webhtv_color_on_surface` 的取值。
+- **跟随用户主题色：不成立**。`ThemeController`/`ThemeBinder` 中没有任何 PopupWindow/ListPopupWindow
+  处理（`rg 'PopupWindow|ListPopupWindow|Popup' app/src/main/java/com/fongmi/android/tv/theme/*.java` 命中 0），
+  `bindDialog()` 只绑定 `dialog.getWindow().getDecorView()`；弹出列表是独立窗口，其面板与 item 视图
+  都不在绑定树内。弹出面板实测在两套模式下恰为 Material 3 编译基线的 `?attr/colorSurfaceContainer`
+  （浅色 `#F3EDF7`、深色 `#211F26`，全区域同色不透明），即编译期取值，运行时主题色不会改写它。
+- 同时修正：`simpleItemLayout`/`simpleItems` 只在 `setSimpleItems()` 路径生效，本实现走的是自定义
+  `ArrayAdapter` + `item_lab_dropdown.xml`，与这两个属性无关；真正起作用的是
+  `MaterialAutoCompleteTextView` 经 `materialThemeOverlay` 取得的
+  `dropDownBackgroundTint`（Material 1.14.0 AAR 实测 = `?attr/colorSurfaceContainer`）与
+  item 布局自身的 `?attr/colorOnSurface`。
+
+面板侧另有 1 处低影响分歧已按 AGENTS.md §2 只记录不修：`Theme.App.Lab.DayNight.Dialog` 未映射
+`colorSurfaceContainer`，故弹出面板取 M3 基线 `#F3EDF7` / `#211F26` 而非应用 token
+`#ECEEF4` / `#1F2428`（两者对比度仅 1.01:1 / 1.04:1，且补齐映射也不会让弹出列表跟随主题色）。
+详见 `docs/C50-beta-merge-review-dev1-20261008.md` 的「发现与处置」。
 
 ### 4.2 静态与单测
 
@@ -97,6 +117,22 @@
 ### 4.3 回滚
 
 `git revert` 本任务提交即可；无数据迁移、无 native/ABI 变更。设备上恢复默认主题只需 设置 → 外观与语言 → 主题色彩 → 恢复默认 → 保存应用（本次验证后已恢复为 `theme_color=-1`、`theme_mode=-1`）。
+
+### 4.4 C50 合并轮次独立复测（2026-10-08 23:52，dev1 `192.168.50.3:5555`）
+
+把远端 `beta` 合入 `dev1` 后重新实测（沿用设备上 2026-10-08 23:21 安装的 mobile arm64 debug 包；
+`lab` 相关源文件与提交逐字节一致，本次合并未触碰）：
+
+| 场景 | 弹窗面板 | 弹窗正文 / hint | 下拉弹出面板 | 下拉 item | 下拉项对比度 |
+| --- | --- | --- | --- | --- | --- |
+| 默认主题（浅色系统） | `#C6D2EA` | `#1A1C1E` / `#44474F` | `#F3EDF7` | `#1A1C1E` | **14.87:1** |
+| `cmd uimode night yes` | `#3C4551` | `#E2E2E9` / `#C4C6D0` | `#211F26` | `#E2E2E9` | **12.64:1** |
+
+- 数值与 §4.1、§4.1.1 逐个复现（弹窗正文对面板：浅色 11.24:1 / 6.11:1，深色 7.53:1 / 5.71:1），
+  说明修复在合并后依然成立。
+- 功能流实测：「配置源」下拉切到「网络 URL」后 URL 输入框出现、文件夹图标隐藏、`确定/取消` 正常，
+  随后点「取消」未写入 `LabConfig`。
+- 设备恢复：`cmd uimode night no`（已核对 `Night mode: no`），未卸载/重装任何包。
 
 ## 5. 回滚
 
