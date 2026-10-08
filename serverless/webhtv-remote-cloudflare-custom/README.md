@@ -34,6 +34,24 @@ new_sqlite_classes = ["WebHTVPlaybackSyncDO"]
 
 不要修改已经发布过的 `v1` migration tag；Cloudflare 升级时只需追加 `v2`。
 
+## 维护提示：合并上游时保护本目录
+
+本目录是仓库的定制版 Worker，上游同名实现位于 `serverless/webhtv-remote-cloudflare`。Cloudflare Workers Builds 的**根目录**必须指向本目录（`serverless/webhtv-remote-cloudflare-custom`），旧路径已不再参与部署。
+
+Git 默认会按文件内容把重命名配对，导致上游对旧路径的改动被静默合并进本目录并触发自动部署。因此本仓库已设置：
+
+```bash
+git config merge.renames false
+```
+
+设置后，上游改动旧路径时会变成显式的 `modify/delete` 冲突，而不是覆盖本目录；合并时删除旧路径即可：
+
+```bash
+git rm -r --force serverless/webhtv-remote-cloudflare
+```
+
+在新克隆中合并上游前，需要重新执行一次上面的 `git config`。Worker 名称、Durable Object 绑定和 migration tag 均未改变，因此本目录改名不影响已同步的数据。
+
 ## 观影记录同步
 
 部署后使用同一个地址同时配置“远端同步源”和“Webhook 上报”：
