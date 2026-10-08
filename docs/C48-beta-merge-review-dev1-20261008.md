@@ -4,8 +4,9 @@
 
 - **目标**：把远端 `beta` 最新代码合入 `dev1`（**远端已移除/回退的提交不得顺带带回**）；复评 dev1 全部已修改代码（含已提交未推送的 `5096941a4`）；发现问题修复并验证通过；循环评审直至通过；然后提交、推送 `dev1`、创建 `dev1 -> beta` 中文 PR（**只创建，不合并**）。
 - **验收标准**：① 合并提交第二父为 `origin/beta` tip `46917be796`；② 远端被回退内容**零复活**；③ beta 增量**零丢失**、dev1 既有改动**零丢失**；④ 双 flavor Java 编译通过；⑤ 双 flavor AndroidTest Java 编译通过；⑥ 双 flavor 全量 JVM 套件零失败；⑦ UI token 门禁相对基线零新增违规；⑧ 净差异只含本分支自身改动；⑨ 提交 + recovery tag；⑩ `dev1` 已推送、PR 已创建且**未合并**。
-- **当前状态**：合并完成（0 冲突）；3 轮评审全部通过（**本任务未修改任何生产代码**）；双 flavor Java/AndroidTest 编译、双 flavor 全量单测、UI token 门禁、零复活/零丢失程序化校验均通过；待 `task_guard.sh finish`。
-- **下一动作**：`task_guard.sh finish` → 推送 `dev1` → `gh pr create`（只创建不合并）。
+- **当前状态**：合并完成（0 冲突）；3 轮评审全部通过（**本任务未修改任何生产代码**）；双 flavor Java/AndroidTest 编译、双 flavor 全量单测、UI token 门禁、零复活/零丢失程序化校验均通过；已提交、已推送、PR #422 已创建且未合并。
+- **交付坐标**：见文末「交付坐标」。
+- **下一动作**：无（任务已收口；PR #422 由用户决定是否合并）。
 
 ## 时间与设备
 
@@ -220,10 +221,11 @@ dev1 相对 beta 的代码净差异行                          : 仅 attachSurf
 | `origin/beta` tip | `46917be7965b7baa0ef75edc2cdeeb41ac411620` |
 | 合并提交 | `b8adf3cc1c9bc0e360823dac467b4da0aae6c9de` |
 | C48 改动 | 1 路径（`docs/` 文档；`app/src` 零改动） |
-| 提交 | 见文末（由 `task_guard.sh finish` 生成） |
-| recovery tag | 见文末（由 `task_guard.sh finish` 生成） |
-| 推送 | `dev1` → `origin/dev1` |
-| PR | `dev1 -> beta`，**OPEN、未合并**（只创建） |
+| 提交 | `87380b5cf76f06b12b5c66948b851450a68bbeda`（文档收口） |
+| recovery tag | `recovery/C48-beta-merge-review-dev1/20261008204055-87380b5cf76f` |
+| 推送 | `dev1` → `origin/dev1`，0 ahead / 0 behind |
+| PR | [#422](https://github.com/Silent1566/webhtv/pull/422) `dev1 → beta`，**OPEN、未合并**（`mergedAt=null`、`state=OPEN`）、MERGEABLE，4 文件 +436 −2 |
+| PR 文件集校验 | `gh api .../pulls/422/files` 分页合计 **4**，与 `git diff --name-only origin/beta HEAD` **逐项一致** |
 
 ## 备注
 
