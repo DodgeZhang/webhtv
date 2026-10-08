@@ -14,7 +14,7 @@ Cloudflare Worker 普通全局变量不能保证两台设备命中同一个运�
 ## 部署
 
 ```bash
-cd serverless/webhtv-remote-cloudflare
+cd serverless/webhtv-remote-cloudflare-custom
 npm install
 cp wrangler.toml.example wrangler.toml
 npm run deploy

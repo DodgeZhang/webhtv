@@ -140,8 +140,8 @@ openssl rand -hex 32
 > Token 用于隔离不同用户的数据：
 > - **填 Token**：你的数据存在独立的命名空间 `user-sha256(Token)`，其他用户无法访问
 > - **留空（无 Token 模式）**：使用公共命名空间 `user-no-token`，与其他所有未填写 Token 的用户共享数据（无隔离，适合个人测试或单用户场景）
-> 
-> ⚠️ 多人使用或有隐私需求的场景，**必须填写自己的 Token**。留空可能导致你的观影记录与他人互相覆盖或暴露。
+>
+⚠️ 多人使用或有隐私需求的场景，**必须填写自己的 Token**。留空可能导致你的观影记录与他人互相覆盖或暴露。
 
 ---
 
@@ -261,7 +261,7 @@ curl 'https://<你的 Worker 域名>/api/playback/sync/status' \
 GUI 模式（直接运行，弹出图形界面输入配置）：
 
 ```bash
-cd serverless/webhtv-remote-cloudflare 
+cd serverless/webhtv-remote-cloudflare-custom
 
 python test_sync.py
 ```
