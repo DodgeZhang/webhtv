@@ -1425,12 +1425,15 @@ public class CustomCspDialog extends BaseAlertDialog {
         int moveItemToIndex(int fromIndex, int toIndex) {
             if (hasSearchQuery() || fromIndex < 0 || toIndex < 0 || fromIndex >= items.size() || toIndex >= items.size()) return -1;
             if (fromIndex == toIndex) return displayPosition(toIndex);
+            int fromPosition = displayPosition(fromIndex);
+            int toPosition = displayPosition(toIndex);
             CustomCspSetting.Item item = items.remove(fromIndex);
             items.add(toIndex, item);
             refreshVisibleIndices();
             markJsonDirty();
-            notifyDataSetChanged();
-            return displayPosition(toIndex);
+            notifyItemMoved(fromPosition, toPosition);
+            notifyItemRangeChanged(Math.min(fromPosition, toPosition), Math.abs(fromPosition - toPosition) + 1);
+            return toPosition;
         }
 
         void remove(int position, View removed) {
@@ -1444,6 +1447,7 @@ public class CustomCspDialog extends BaseAlertDialog {
             refreshVisibleIndices();
             markJsonDirty();
             notifyDataSetChanged();
+            updateModeVisibility();
         }
 
         int itemIndex(int position) {
