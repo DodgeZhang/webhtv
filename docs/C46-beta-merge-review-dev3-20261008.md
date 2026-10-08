@@ -39,6 +39,7 @@
 beta 增量零丢失：f85398d359..origin/beta 的 1 个路径 → 合并树与 origin/beta 逐文件一致（SAME）
 dev3 既有零丢失：c388619629 相对 f85398d359 的 5 个路径 → 合并树与 c388619629 全部 SAME
 合并结果净差异：git diff --cached --name-status origin/beta = 5 个路径，全部为 dev3 自身改动
+（最终推送后的净差异为 6 个：上述 5 个 + 本任务文档 docs/C46-…md）
 ```
 
 净差异（`git diff --cached --stat origin/beta`，1800 行全为新增）：
@@ -53,20 +54,26 @@ dev3 既有零丢失：c388619629 相对 f85398d359 的 5 个路径 → 合并�
 
 ## 用户核心关注点：远端已移除（回退）内容零复活
 
-程序化逐路径比对（不依赖人工目测），并用 `git rev-parse` 固化 ref 以避免 MSYS 把 `origin/beta:path` 误做路径转换：
+程序化逐路径比对（不依赖人工目测），并用 `git rev-parse` 固化 ref 以避免 MSYS 把 `origin/beta:path` 误做路径转换。revert 提交按**主题行（`%s`）以关键词开头**严格识别：
 
 ```text
-全 refs revert-like 提交（Revert/回退/撤销/剔除，忽略大小写） : 258
-其触及唯一路径总数                                        : 1144
-这些路径中「不在 origin/beta 树」的                       : 670
-其中「在合并索引树中存在」= 复活数                         : 0
-合并前 dev3 基线 c388619629 同样扫描的复活数               : 0
-净差异 5 个路径与 revert 路径集的交集                      : 空
+全 refs revert 提交（主题以 Revert/revert/回退/撤销/剔除 开头） : 109
+其触及唯一路径总数                                          : 725
+这些路径中「不在 origin/beta 树」的                         : 601
+其中「在合并索引树中存在」= 复活数                           : 0
+合并前 dev3 基线 c388619629 同样扫描的复活数                 : 0
+净差异 6 个路径与 revert 路径集的交集                        : 空
+HEAD 独有的 Revert 提交 / beta 独有的 Revert 提交             : 0 / 0
 ```
 
-**检测器反证（证明「0 复活」不是空转）**：把一条确实「在 revert 集且不在 beta 树」的路径（`ISSUE_TEMPLATE`）注入伪造的 HEAD 树后，同一 `comm` 解析步骤正确报出该路径；真实 HEAD 树同一步骤输出为空。另用 `git diff --cached --name-only origin/beta` 与 revert 集求交，结果为空，即本次净差异未触及任何被回退路径。
+**检测器反证（证明「0 复活」不是空转）**：把一条确实「在 revert 集且不在 beta 树」的路径（`ISSUE_TEMPLATE`）注入伪造的 HEAD 树后，同一解析步骤正确报出该路径；真实 HEAD 树同一步骤输出为空。另用 `git diff --cached --name-only origin/beta` 与 revert 集求交，结果为空，即本次净差异未触及任何被回退路径。
 
-早期一次扫描曾报出 `.codex/scripts/task_guard.sh`、`.github/workflows/android-release.yml`、`.gitignore` 三条，经复核为 **MSYS 路径转换导致的假阳性**：这三个路径在 `origin/beta` 中确实存在（`git ls-tree origin/beta` 可见），改用 `rev-parse` 固化 ref 后复扫为 0。
+### 两次误报的排除过程（记录以便复现）
+
+| 误报 | 原因 | 排除方式 |
+| --- | --- | --- |
+| `.codex/scripts/task_guard.sh`、`.github/workflows/android-release.yml`、`.gitignore` 三条「复活」 | MSYS 把 `git cat-file -e origin/beta:path` 中的 `/` 当路径分隔符，导致该形式对部分路径报「不存在」 | 改用 `git rev-parse origin/beta` 固化 ref 后用 `git ls-tree` 取树比对，复扫为 0 |
+| `docs/C46-beta-merge-review-dev3-20261008.md` 一条「复活」 | **本任务自己的提交**被误判为 revert 提交：未锚定的 `git log --grep='回退\|revert'` 会匹配提交**正文**，而 5d4a7e8e18 的正文恰好写了「258 个 revert-like 提交、1144 条被触及路径」，`^revert` 因此命中该行 | 改为只匹配主题行（`%s`）并锚定开头；同时交叉复核「显式排除本任务 3 个提交」后复活数为 0，且该文件在 `origin/beta` 从未存在过 |
 
 关键已剔除标志物（沿用 C44 记录）：`SpiderCrashBreadcrumb.java`、`SpiderCrashBreadcrumbTest.java`、`SPIDER-CRASH-DIAG-spider-crash-diagnostics.md` 在合并树中仍为 absent；`ThemeCatalog` = 0、`assets/themes` = 0。
 
@@ -94,7 +101,7 @@ dev3 既有零丢失：c388619629 相对 f85398d359 的 5 个路径 → 合并�
 
 ### 第 3 轮：净差异复核（无必修问题）
 
-- 净差异仅 5 个路径，无 `.tmp/.log/.png` 等临时物；唯一 `console.log` 命中来自 `T4Proxy.js` 的启动横幅（可执行脚本的正常输出，非调试残留）。
+- 净差异仅 5 个功能路径（+ 本任务文档），无 `.tmp/.log/.png` 等临时物；唯一 `console.log` 命中来自 `T4Proxy.js` 的启动横幅（可执行脚本的正常输出，非调试残留）。
 - 全仓冲突标记扫描 0 处；`git diff --check` 与 `git diff --cached --check` 退出码 0。
 - UI token 门禁唯一违规 `app/src/mobile/res/layout/item_following.xml` 相对 `origin/beta` 与合并前 `c388619629` **均逐字节一致**，且不在净差异内 → 既有项，相对基线**零新增**。
 
@@ -149,7 +156,7 @@ dev3 既有零丢失：c388619629 相对 f85398d359 的 5 个路径 → 合并�
 
 ### 既有失败集合归属
 
-本任务**未修改任何生产代码**（净差异 5 个路径全部来自既有 `c388619629`），因此不存在新增回归的可能。UI token 门禁唯一违规项已证明与 `origin/beta` 及合并前 HEAD 逐字节一致。
+本任务**未修改任何生产代码**（净差异中 5 个功能路径全部来自既有 `c388619629`，第 6 个为本任务文档），因此不存在新增回归的可能。UI token 门禁唯一违规项已证明与 `origin/beta` 及合并前 HEAD 逐字节一致。
 
 ## 相邻但未修复（非本次引入，仅报告）
 
