@@ -207,6 +207,47 @@ public class LabSettingsDialogThemeTest {
     }
 
     /**
+     * 下拉菜单必须由 Material 的 AutoCompleteTextView 提供。
+     *
+     * <p>{@code android.widget.AutoCompleteTextView} 不应用
+     * {@code Widget.Material3.AutoCompleteTextView.OutlinedBox}，因此既没有
+     * {@code dropDownBackgroundTint}（= colorSurfaceContainer），也不会把 item 文字交给主题，
+     * 弹出列表落到 {@code @android:layout/simple_dropdown_item_1line} 的 Material 基线字色。
+     * 设备实测（浅色系统、默认主题）：弹出面板 {@code #F3EDF7}，item 文字近白，<b>1.76:1</b>。
+     */
+    @Test
+    public void dropdownUsesTheThemedMaterialAutoComplete() throws Exception {
+        String layout = stripComments(read(LAYOUT));
+        assertTrue("the dropdown must be the Material control so its popup follows the palette",
+                layout.contains("com.google.android.material.textfield.MaterialAutoCompleteTextView"));
+        assertFalse("a plain android.widget.AutoCompleteTextView would drop the themed popup",
+                layout.contains("<AutoCompleteTextView"));
+    }
+
+    /**
+     * 下拉列表项必须用自己的语义布局，且适配器必须用弹窗主题上下文。
+     *
+     * <p>{@code ArrayAdapter} 用自身 context 解析 item 布局。此前用的是
+     * {@code android.R.layout.simple_dropdown_item_1line} + Activity 上下文
+     * （{@code Theme.App.Lab}，固定深色 → 白字），而弹出面板来自日/夜双表：
+     * 浅色系统下实测弹出面板 {@code #F3EDF7}、item 文字近白，<b>1.19:1</b>。
+     */
+    @Test
+    public void dropdownItemsFollowTheDialogPalette() throws Exception {
+        String activity = stripComments(read(ACTIVITY));
+        assertTrue("the adapter must resolve its item layout against the dialog theme",
+                activity.contains("new ArrayAdapter<>(dialogContext, R.layout.item_lab_dropdown, items)"));
+        assertFalse("the framework item layout keeps Material's baseline text colour",
+                activity.contains("android.R.layout.simple_dropdown_item_1line"));
+
+        String item = stripComments(read("src/main/res/layout/item_lab_dropdown.xml"));
+        assertTrue("the dropdown item must take its foreground from the semantic role",
+                item.contains("android:textColor=\"?attr/colorOnSurface\""));
+        assertTrue("the dropdown item must expose the framework list item id",
+                item.contains("@android:id/text1"));
+    }
+
+    /**
      * 角色表必须覆盖布局真正用到的每一条颜色属性。
      *
      * <p>上一条测试只对表内已知角色放行；这条把「表是否漏项」也锁住，

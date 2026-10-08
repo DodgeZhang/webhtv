@@ -378,7 +378,10 @@ public class LabActivity extends AppCompatActivity implements LabPackageAdapter.
         MaterialSwitch navEntry = root.findViewById(R.id.navEntrySwitch);
         navEntryRow.setVisibility(Util.isMobile() ? View.VISIBLE : View.GONE);
         String[] items = {getString(R.string.lab_source_local), getString(R.string.lab_source_url)};
-        dropdown.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, items));
+        // 适配器必须用弹窗主题上下文：ArrayAdapter 用自身 context 解析 item 布局，
+        // 用 Activity 上下文（Theme.App.Lab，固定深色）会让下拉项永远是白字，
+        // 而弹出面板跟着日/夜表走 —— 浅色系统下就是白字浅底，看不见。
+        dropdown.setAdapter(new ArrayAdapter<>(dialogContext, R.layout.item_lab_dropdown, items));
         int source = LabConfig.get().getSource();
         dropdown.setText(items[indexOfSource(source)], false);
         applySourceFields(input, folder, source);

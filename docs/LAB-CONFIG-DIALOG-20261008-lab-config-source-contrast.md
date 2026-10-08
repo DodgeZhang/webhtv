@@ -44,8 +44,10 @@
 | 文件 | 改动 |
 | --- | --- |
 | `app/src/main/res/values/lab_styles.xml` | `Theme.App.Lab.DayNight.Dialog`：新增 `colorSurfaceContainerHigh`（M3 对话框容器色，面板真正取值处）、`colorOnPrimary`、`colorControlNormal/Activated`、`colorOutline/Variant`；`colorPrimary` 由固定 `@color/accent`(#2196F3) 改为语义 `@color/webhtv_color_primary` |
-| `app/src/main/java/com/fongmi/android/tv/lab/LabActivity.java` | `showSettings()` 用 `LayoutInflater.from(new ContextThemeWrapper(this, R.style.Theme_App_Lab_DayNight_Dialog))` inflate `dialog_lab_settings.xml`（此前用 Activity 的 `getLayoutInflater()`）；导入弹窗的“选择离线包文件”文字色由 `R.color.accent` 改为 `R.color.webhtv_color_primary` |
-| `app/src/test/java/com/fongmi/android/tv/lab/LabSettingsDialogThemeTest.java` | 新增 6 条契约测试（源码形态 + 两张 token 表的 4.5:1 对比度门槛） |
+| `app/src/main/java/com/fongmi/android/tv/lab/LabActivity.java` | `showSettings()` 用 `LayoutInflater.from(new ContextThemeWrapper(this, R.style.Theme_App_Lab_DayNight_Dialog))` inflate `dialog_lab_settings.xml`（此前用 Activity 的 `getLayoutInflater()`）；下拉适配器改用弹窗主题上下文 + `R.layout.item_lab_dropdown`（此前 `this` + `android.R.layout.simple_dropdown_item_1line`）；导入弹窗的“选择离线包文件”文字色由 `R.color.accent` 改为 `R.color.webhtv_color_primary` |
+| `app/src/main/res/layout/dialog_lab_settings.xml` | 下拉控件由 `android.widget.AutoCompleteTextView` 改为 `com.google.android.material.textfield.MaterialAutoCompleteTextView`（只有它应用 `dropDownBackgroundTint` 与主题化 item 布局） |
+| `app/src/main/res/layout/item_lab_dropdown.xml` | 新增：下拉列表项布局，前景绑定 `?attr/colorOnSurface`，id 用 `@android:id/text1` |
+| `app/src/test/java/com/fongmi/android/tv/lab/LabSettingsDialogThemeTest.java` | 新增 8 条契约测试（源码形态 + 两张 token 表的 4.5:1 对比度门槛） |
 
 ## 4. 验证
 
@@ -70,13 +72,27 @@
 | 取消/确定按钮文字 | `#0B57D0` | `#8400F0` | 跟随 |
 | 全图差异像素 | — | 46 万+ | 主题色确实作用到该设置页 |
 
-主题色下拉列表（`/tmp/dropdown_dark2.png`，深色 + 默认色）：展开后 `本地配置 / 网络 URL` 两项为浅色文字 `#E2E2E9`，列表面板 `#1F2428`，对比度 ≈ 8:1。
+### 4.1.1 配置源下拉列表（独立缺陷）
+
+首次修复后复测发现弹出列表仍然白字浅底，根因是 `ArrayAdapter` 用 **Activity 上下文**
+（`Theme.App.Lab`，固定深色 → 白字）解析 `android.R.layout.simple_dropdown_item_1line`，
+而弹出面板跟着日/夜表走。同时下拉控件本身用的是普通 `AutoCompleteTextView`，
+不会应用 `Widget.Material3.AutoCompleteTextView.OutlinedBox` 的 `dropDownBackgroundTint`。
+
+| 场景 | 弹出面板 | item 文字 | 对比度 |
+| --- | --- | --- | --- |
+| 修复前 · 默认主题 | `#F3EDF7` | 近白 | **1.19:1** |
+| 修复后 · 默认主题 | `#F3EDF7` | `#1A1C1E` | **14.87:1** |
+| 修复后 · 主题模式=深色 | `#212027` | `#E2E2E9` | **12.64:1** |
+
+下拉项现在由 `item_lab_dropdown.xml` 提供（前景 `?attr/colorOnSurface`），
+适配器改用弹窗主题上下文，因此同时跟随深浅色与主题色。
 
 ### 4.2 静态与单测
 
 - `bash scripts/check_ui_tokens.sh --strict`：`violations=1`，唯一命中 `app/src/mobile/res/layout/item_following.xml`；用 `git stash` 单独回退本任务改动后同一命令仍为 `violations=1` 且命中同一文件 → **HEAD 既存问题，与本次改动无关**（按 AGENTS.md 只记录不修）。`UI_TOKEN_CONTRAST pairs=38 failures=0`。
 - `./gradlew :app:testMobileArm64_v8aDebugUnitTest :app:testLeanbackArm64_v8aDebugUnitTest`：BUILD SUCCESSFUL。
-- 新增 `LabSettingsDialogThemeTest` 6/6 通过；变异检验：把 inflate 换回 `getLayoutInflater()` 并把 `colorPrimary` 改回 `@color/accent` 后，对应 2 条测试立刻转红（`MUTATION-CAUGHT`），恢复后逐字节一致并全绿。
+- 新增 `LabSettingsDialogThemeTest` 8/8 通过；变异检验：把 inflate 换回 `getLayoutInflater()` 并把 `colorPrimary` 改回 `@color/accent` 后，对应 2 条测试立刻转红（`MUTATION-CAUGHT`），恢复后逐字节一致并全绿。
 
 ### 4.3 回滚
 
