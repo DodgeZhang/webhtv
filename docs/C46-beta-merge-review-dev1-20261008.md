@@ -193,8 +193,11 @@ dev1 独有、beta tip 中不存在的非空行                  : 20
 | 任务起始 HEAD | `56ebd07f10529ce014a20c43289ee34feb3b5892` |
 | `origin/beta` tip | `d8daedf86c57d58c18823343d8fc6510319289b9` |
 | C46 改动 | 4 路径（`app/src` 零改动） |
-| 提交 / recovery tag | 见收口提交 |
-| PR | 见收口记录（只创建，不合并） |
+| 提交 | `cd88c907d912d6f728939d6e5c102fb5f9bb655e` |
+| recovery tag | `recovery/C46-beta-merge-review-dev1/20261008164917-cd88c907d912` |
+| 推送 | `dev1` → `origin/dev1`，0 ahead / 0 behind |
+| PR | [#420](https://github.com/Silent1566/webhtv/pull/420) `dev1 → beta`，**OPEN、未合并**（`merged=false`、`merged_at=null`）、MERGEABLE，122 文件 +323 −24844 |
+| PR 文件集校验 | `gh api .../pulls/420/files` 分页合计 **122**，与 `git diff --name-only origin/beta dev1` **逐项一致** |
 
 ## 备注
 
