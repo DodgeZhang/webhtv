@@ -105,7 +105,7 @@ dev3 既有零丢失：c388619629 相对 f85398d359 的 5 个路径 → 合并�
 | 项 | 结果 |
 | --- | --- |
 | `/vod/api?ac=config` | 200，**170 个站源**，每个 `type="4"`、`api` 指回本网关 |
-| Nano 资源回退 `/file/WebHTV/EnvFiles/T4Proxy.js` | 200，19357 字节，sha256 `fff1a438…2443` **与内置 asset 逐字节一致** |
+| Nano 资源回退 `/file/WebHTV/EnvFiles/T4Proxy.js` | 200，19357 字节，sha256 `fff1a438…2443` **与内置 asset 逐字节一致**（分支归属见下方专项验证） |
 | `OPTIONS` / `PUT` / `HEAD` | 204 / 405 / 200，CORS `Access-Control-Allow-Origin: *` |
 | 错误边界 | 未知站源、缺 key、POST 非 JSON 均返回 `{"code":-1,...}`，无内部堆栈 |
 | 真实站源 `csp_PianDan` 首页 | `page/pagecount/limit/total/list/class/filters` 齐全，30 条 + 35 分类 + filters |
@@ -116,6 +116,19 @@ dev3 既有零丢失：c388619629 相对 f85398d359 的 5 个路径 → 合并�
 | 路径形式 `/vod/api/<key>` | 正常返回 161 条 |
 
 **关于 `csp_PianDan` 详情返回空列表**：同一 id 经**既有未改动的** `/spider` 接口（`SpiderApi`）也返回 `data:null`，故为站源自身行为，非本网关缺陷；换 `csp_BiliBili` 后详情/播放全部正常。
+
+### Nano 资源回退分支的专项区分验证
+
+`Nano.java` 的唯一改动是新增「精确 URL 缺文件时回退内置 asset」分支。上述「字节一致」结果本身**不能区分**命中新增回退分支还是命中原有的 `Local` 外置文件分支——设备上 `/storage/emulated/0/WebHTV/EnvFiles/T4Proxy.js` 确实已被 `LabActivity` 同步存在（实测 sha256 与 asset 相同）。因此对同一 URL 做了移走外置文件的可证伪验证（`adb forward tcp:19978 tcp:9978`）：
+
+| 步骤 | 外置文件状态 | HTTP | 结果 |
+| --- | --- | --- | --- |
+| A 基线 | 存在（sha256 `fff1a438…2443`） | 200 / 19357 B | 由 `Local` 外置分支服务，sha256 同 |
+| B **移走外置文件** | 不存在 | 200 / 19357 B | **由新增回退分支服务内置 asset，sha256 `fff1a438…2443` 字节一致 → 回退分支确认生效** |
+| C 写入哨兵内容 | 内容为 `USER_SENTINEL_C46` | 200 / 17 B | 返回哨兵原文，**用户脚本未被覆盖**（「不覆盖用户脚本」语义成立） |
+| D 恢复外置文件 | 已还原 | 200 / 19357 B | sha256 回到 `fff1a438…2443`，设备状态复原 |
+
+该 URL 在改动前会返回 404（`Local.getFile` 抛 `FileNotFoundException`），故 B 步骤的 200 + 内置 asset 字节一致即为新增分支的直接证据。
 
 ## 验证
 
