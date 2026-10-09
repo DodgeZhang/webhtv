@@ -203,6 +203,7 @@ beta 非合并提交总数                                                      
 | N4 | `TtsEngines.systemAvailable()` 用 `queryIntentServices` 探测，而清单**故意**不声明 `<queries>` | 本应用 `targetSdk = 28`（不受 Android 11 包可见性过滤），且清单注释明确说明「Android 9 TV 固件把 `<queries>` 当未知子元素」，改它会破坏目标设备启动 |
 | N5 | 通知小图标使用框架 `android.R.drawable.ic_lock_silent_mode_off` | 真机测试已断言通知真实挂上（`getActiveNotifications()`）并在目标机型显示正常；无失败证据 |
 | N6 | Edge `X-Timestamp` 用 `EEE MMM d yyyy …`（日不补零），参考实现用 `%d`（补零） | 真机 Edge 合成用例通过，服务端当前容忍；属上游非公开协议的既有差异 |
+| N7 | 静态扫描在 `WebReaderActivity` 上报 `Math.random()`（第 128 行 `picNonce`）与 `MD5`（第 640 行图片缓存键） | 两者都在本次改动之外（本次 hunk 从第 1636 行起），`git diff` 证实未被触碰；图片缓存键的 MD5 不用于安全用途 |
 
 ## 验证
 
@@ -291,4 +292,14 @@ bash ./gradlew :app:compileLeanbackArm64_v8aDebugJavaWithJavac :app:compileMobil
 
 ## 交付坐标
 
-（收口时回填。）
+| 项 | 值 |
+| --- | --- |
+| 任务起始 HEAD | `db04c4c8bc3f638980a2983af65170aa09f66439` |
+| `origin/beta` tip | `29d52ab2385702a9350c3099cd94dd4e54c1240f` |
+| 合并提交 | `86e1bfe3ce4edadc874121decf18ed7d99c7e327`（父：`db04c4c8b` + `29d52ab23`） |
+| 修复提交 | `32202da2dee86c388b586262f3d1aede19fdc162`（7 路径：6 修改 + 本任务文档） |
+| recovery tag | `recovery/C52-beta-merge-review-dev1/20261009140947-32202da2dee8`；坐标提交自带 tag |
+| 推送 | `dev1` → `origin/dev1`（`cb8022bf7..32202da2d`，推送后 0 ahead / 0 behind） |
+| PR | [#427](https://github.com/Silent1566/webhtv/pull/427) `dev1 -> beta`，**OPEN、未合并**（`mergedAt=null`、`state=OPEN`、MERGEABLE），27 文件 +5373 −122 |
+| PR 文件集校验 | `gh api .../pulls/427/files` 分页合计 **27**，与 `git diff --name-only origin/beta HEAD` **逐项一致** |
+| 设备 | dev1 机位 `192.168.50.3:5555`（LIO-AN00 / Android 9）；全程 `adb install -r` 覆盖安装，未卸载、未清除应用数据 |
