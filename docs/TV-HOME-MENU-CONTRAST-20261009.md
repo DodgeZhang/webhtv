@@ -42,7 +42,7 @@
 |---|---|---:|---|
 | 用户现场照片 | `F:\temp\orca-paste-1791512481791-…png` | A | 焦点项文字压在蓝色实心胶囊上，肉眼不可读；与设备复核一致 |
 | 本仓库 `adapter_home_menu.xml` / `config_history_text.xml` / `shape_config_history_item_focused.xml` | HEAD `7df98107be` | A（本地） | 焦点文字与焦点填充同为 `?attr/colorPrimary`，这是根因的静态证据 |
-| 本仓库 git 历史 | `0503f8e3cf`（theme revival） | A（本地） | 该提交把 `config_history_text` 的焦点色从历史上的 `@color/white` 改成 `?attr/colorPrimary`；上游原意是白字压在蓝色实心胶囊上（`161b896b25` 之前 `adapter_home_menu.xml` 直接写 `@color/white`） |
+| 本仓库 git 历史 | `161b896b25` / `7e5106e055`（2026-05-30 上游导入）、`0503f8e3cf`（2026-09-14 theme revival）、`1bb72bd709`（2026-09-26） | A（本地） | 上游导入时 `config_history_text` 焦点色是 `@color/white`、`shape_config_history_item_focused` 填充是硬编码 `#2F6FED`，「白字压在蓝色实心胶囊上」的本意与当时实现一致；`0503f8e3cf` 把焦点文字改成 `?attr/colorPrimary`（当时填充仍是 `#2F6FED`），`1bb72bd709` 再把填充由 `#2F6FED` 改成 `?attr/colorPrimary`，两者叠加才成为「同一角色压自身」。`adapter_home_menu.xml` 由 `e95b90d3a8`（2026-08-23）创建、创建即复用共享选择器，历史上从未直接写 `@color/white`（本条原表述有误，已更正，见 §8） |
 | 本仓库 `ThemeBinder` / `ThemeColorIndex` 类注释与 `ThemeBinderContractTest` | HEAD `7df98107be` | A（本地） | 说明「无公开 API 改写已编译的 `?attr`」「共享基线色（白）在角色不一致时保持不动」「`StateListDrawable` 不在改写范围内」，决定了解法与不扩大范围的理由 |
 | 本仓库 `config_history_icon.xml` / `site_item_text.xml` | HEAD `7df98107be` | A（本地） | 同一弹窗家族已有的正确约定：焦点文字/图标取 `colorOnPrimary`；本次沿用而不是新造模型 |
 | `dialog_outlined_button_bg/text.xml` + `dialog_history.xml` | HEAD `7df98107be` | A（本地） | 证明共享的 `config_history_text` 不能直接改成 `colorOnPrimary`：它同时服务于焦点底色为 `primaryContainer` 的描边按钮 |
@@ -119,3 +119,12 @@
 1. `ThemeBinder.bindDrawable()` 不解包 `StateListDrawable`，所以凡是「状态列表内 `<shape>` 填充」的控件在自定义主题下都保持基线色（反之其中的文字会被改写）。本弹窗的胶囊、`adapter_config` 的编辑/删除图标、`dialog_site` 的动作按钮都属此类；证据：本设备（青色主题）焦点胶囊填充实测仍是基线蓝 `#0B57D0`，而同屏弹窗面板已被改写为主题面板色 `#E3E9EA`。修复它属于主题系统范围（`ThemeBinder` + 其契约测试），建议单独建任务。
 2. `app/src/leanback/res/color/site_action_icon.xml` 的焦点项取 `?attr/colorPrimary`，而它服务的 `selector_site_action` 焦点底色同样是 `colorPrimary` 实心填充（`dialog_site` 的站源动作按钮），与本次是同一类缺陷；该弹窗不在用户报告路径上，本次未改。
 3. `config_history_text.xml` 同时服务于「焦点底色为 `colorPrimary` 实心」的旧胶囊与「焦点底色为 `primaryContainer`」的描边按钮，两个消费者对焦点文字的要求相反；本次通过给菜单条目单独建选择器回避，长期建议把两个用途拆开。
+
+## 8. C51 复评更正与再验证（2026-10-09）
+
+复评编号 `docs/C51-beta-merge-review-dev2-20261009.md` 对本文全部事实性引用做了逐条核对，命中 1 处不实描述并已更正：
+
+- **更正**：§2 原表述把「上游设计本意（白字压在 `#2F6FED` 实心胶囊上）」与「`adapter_home_menu.xml` 曾经直接写 `@color/white`」混为一谈。核对 `git log --all --full-history -- app/src/leanback/res/layout/adapter_home_menu.xml` 与 `git show 161b896b25^:<path>`：该布局由 `e95b90d3a8`（2026-08-23）创建、创建即用 `@color/config_history_text`，从未写过 `@color/white`，也不存在于 `161b896b25`（2026-05-30）。根因链更正为：`0503f8e3cf` 把焦点文字由 `@color/white` 改成 `?attr/colorPrimary`（当时填充仍是 `#2F6FED`），`1bb72bd709` 把填充改成 `?attr/colorPrimary`，两者叠加成为同一角色。
+- **再验证**：本次更正只改文档表述，代码与测试零改动（`git diff origin/beta` 仍是本任务的 4 个路径）；C51 独立复算对比度（焦点 6.39 / 7.50、常态 14.73 / 12.14、旧写法 1.00）与 §6.1 一致；`scripts/check_ui_tokens.sh` 与合并前基线逐项相同（violations=1 / hex_layouts=1 / pairs=38 / failures=0 / min=4.28，PASS）；leanback `HomeMenuDialogContrastTest` 3/3、`HomeMenuDialogSourceTest` 5/5、`theme.*` 162 项全部通过。
+- 本文其余引用均逐条核对通过：`ThemeBinder.bindDrawable()` 只解包 `InsetDrawable` 并处理 `GradientDrawable`/`MaterialShapeDrawable`（不含 `StateListDrawable`）；`dialog_outlined_button_bg.xml` 的焦点/按下底色确为 `webhtv_color_primary_container`；`site_action_icon.xml` 焦点色与 `selector_site_action` 焦点填充同为 `?attr/colorPrimary`（§7 第 2 条）。
+- 交付坐标：本修复随 `dev2` 由 C51 的合并提交交付，PR 为 `dev2 → beta`，见 `docs/C51-beta-merge-review-dev2-20261009.md`。
