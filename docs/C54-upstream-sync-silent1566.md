@@ -177,5 +177,14 @@ UI_TOKEN_STATUS   PASS
 
 ## 交付坐标与下一步
 
-- 状态：合并 + 1 冲突解决 + 双 flavor 编译/全量单测零新增回归 + UI token 零新增违规 + 双形态实机主路径通过 + 定向负对照完成。
-- 下一动作：`bash .codex/scripts/task_guard.sh finish --verified "<evidence>" --commit-message "merge: 合并上游 webhtv/webhtv Silent1566 缓存临时文件清理修复与长按一键全清"`，随后由脚本创建本地 annotated recovery tag。**不推送**。
+| 项 | 值 |
+| --- | --- |
+| 合并提交 | `45bffbb860dc22267052c21238e7cf63e8adfd8b`（第二父 `814935ceea6122984607a97f7c33513e5f4f6889`） |
+| Recovery tag | `recovery/C54-upstream-sync-silent1566/20261009170756-45bffbb860dc`（annotated，指向合并提交） |
+| 合并前锚点 | `35a5a63f8a526ca9e6a54d1bf59b941d1f03d840` |
+| 本任务分支 | `dev1`（未推送） |
+| 远端/PR | 未推送任何远端、未创建 PR、未打正式包（按 `AGENTS.md` §6 需显式授权） |
+| 设备收尾 | `192.168.50.3:5555` 已还原测试装置（`home_button` = `0,8,6,1,2,3,4,7`、临时 prefs 备份已删、/sdcard 抓屏与 UI dump 已删），并重新覆盖安装 mobile flavor 与测试前形态一致 |
+
+- 状态：合并完成（1 冲突解决）+ 复评（真实缺陷 0、观察项 4）+ 双 flavor 编译/全量单测零新增回归 + UI token 零新增违规 + 双形态实机主路径与冷启动通过 + 定向负对照完成；已原子提交并打本地恢复 tag。
+- 下一动作（需用户授权后才可执行）：若需把该合并交付到远端，先推送 `dev1` 并创建 PR 到 `beta`（只创建不合并）；若用户要求收口 F1 的调用点级回归锁，则作为独立小任务（例如为 `cleanModule(TEMP_FILES, MODULE)` 增加可注入 cache 的覆盖或用本地既有 Source 锁约定锁定调用点），不在本次合并内扩大改动面。
