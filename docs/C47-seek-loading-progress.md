@@ -40,7 +40,7 @@
 
 结果：圈在同一帧（毫秒级）被自己亮起又收掉，用户「大概率看不到加载中」；而且 `hideProgress()` 会 `Traffic.reset()` 重置计数基线，第二跳（+1000ms）本来才是能算出速度的那一跳，圈既然已经收了，网速永远没机会渲染。
 
-次要缺口：`onStateChanged(STATE_READY)` 无条件 `showPlaybackContent()`；`onControllerReadyReconciled()` 无条件收圈。引擎在 seek 真正生效前的那一次 READY 读数同样会收圈。
+次要缺口：`onStateChanged(STATE_READY)` 无条件 `showPlaybackContent()`；`onControllerReadyReconciled()` 在 mobile 已有覆写且无条件收圈（leanback 此前没有该覆写，`PlaybackActivity` 里是空实现，即完全不会补发收口）。引擎在 seek 真正生效前的那一次 READY 读数同样会收圈。
 
 ## 方案比较
 
@@ -60,7 +60,7 @@
 - 新增 `canHideSeekProgress()`：窗口未开即放行；窗口开着时要求「已过最小可见时长」且「播放器有效、READY、且不在真实加载阻塞中（`!isLoading() || isPlaying()`）」。
 - `hidePlaybackProgressIfStale()`（网速 ticker 的兜底收口）：加同一道闸门。这是症状的直接执行者。
 - `hideSeekProgressIfReady()`（最小可见计时器）：窗口未关时不得收圈；通过闸门才关窗口并收圈。
-- `onStateChanged(STATE_READY)` 与 `onControllerReadyReconciled()`：改走同一道闸门，消除「旧 READY 读数收圈」。
+- `onStateChanged(STATE_READY)` 与 `onControllerReadyReconciled()`：改走同一道闸门，消除「旧 READY 读数收圈」。其中 mobile 是既有覆写改走闸门；**leanback 此前没有该覆写**（基类为空实现），本次为补齐与 mobile 一致的「控制器晚绑定补发收口」而**新增**该覆写，同样受闸门约束（`if (canHideSeekProgress()) showPlaybackContent();`）。
 - `hideProgress()`：任何显式收圈同时关闭窗口，保证窗口不比圈活得久（音频舞台路径也借此自动收口）。
 - `showProgress()`：窗口开着时不摘掉最小可见计时器（BUFFERING 分支那次 `showProgress` 属于 seek 自身）。
 
@@ -90,7 +90,7 @@
 - **实机（模拟器）验收**：设备 `192.168.50.3:5561`（= `emulator-5560`，HD1910，x86_64 + ARM 转译），mobile/arm64-v8a Debug 覆盖安装（签名一致，`-r`，未卸载）。
   - 环境阻塞与排除：安装后 App 启动即崩 `Room IllegalStateException: Migration didn't properly handle: History`（`HomeActivity.initView`）。经只读排查为**设备预存状态**：`PRAGMA user_version=37` 但 `History` 仅 17 列，缺 `MIGRATION_36_37` 应加的 5 列（`typeName/area/actor/director/year`，Room 期望 31 列），且 `tv` 文件时间戳早于本次安装。C47 提交不触碰 `db/`（仅 2 个 VideoActivity + 测试 + 文档），故与本次改动无关。为完成验收把 `databases/tv` 暂时移开让 Room 重建，**验收后已完整还原**。
   - 关键判据纠正：`dumpsys activity top` 报的 `V`/`G` 是视图自身标志，**对 overlay 容器不可靠**（根 `app:id/progress` 为 `G` 时其子 `app:id/traffic` 仍可能显示 `V`）。必须用**根节点** `app:id/progress` 判定覆盖层可见性。
-  - 可复现路径辨析：mobile 的**手势横滑**路径不经过本次改动——`onSeeking()` 会主动 `hideProgress()`，且 `onTouchEnd`/`onSeekEnd` 不调用 `onSeekStarted()`（`onSeekStarted()` 的唯一调用者是 `CustomSeekView`，即进度条）。用户所述「拖拽进度」对应**进度条**路径，验收须用 `app:id/timeBar`（`uiautomator` 实测绝对坐标 `[178,597][794,675]`），不能用横滑代替。
+  - 可复现路径辨析：`onSeekStarted()` 有两个调用点——① 进度条 `CustomSeekView` 的 `onScrubStop`；② `PlaybackActivity.seekTo(long deltaMs)`（`PlaybackActivity.java:477`），后者是相对 seek 入口。两个 flavor 的手势/按键横滑在抬手时都走 `onSeekEnd(time)` → `seekTo(time)`（leanback `VideoActivity:8295`、mobile `VideoActivity:9613`），因此**横滑路径同样会开窗**（拖动期间 `onSeeking()` 先 `hideProgress()` 关窗，抬手后又由 `seekTo → onSeekStarted()` 开窗并按最小可见 1200ms 收尾）。用户所述「拖拽进度」对应**进度条**路径，验收须用 `app:id/timeBar`（`uiautomator` 实测绝对坐标 `[178,597][794,675]`），不能用横滑代替；横滑路径的行为变化属上述「最小可见 1200ms」的既有代价。
   - 进度条拖拽实测（设备端紧循环采样 `app:id/progress`，单次 ~30–160ms）：基线 `G`（隐藏）→ 抬手瞬间 `V`（出现）→ 持续约 1.0–2.0s 后回到 `G`；越过缓冲区拖拽时可见窗口更长（实测 s19–s22 + t1、t2 共约 2s 后干净收口）。与「最小可见 1.2s + 闸门」的预期一致，**未复现「抬手即被收圈」**。
   - 采样精度边界（如实记录）：该实例 `loadavg≈9–12`（x86_64 + ARM 转译 + 软件渲染），`uiautomator dump` 需 ~3.9s、`dumpsys` 读取后取时戳会滞后 150–800ms，因此**无法逐帧分辨 1.2s 窗口的起止**，也无法稳定读到覆盖层内的网速文本（`traffic` 文本在 dump 中不落 `mText`）。故本次**不宣称**「网速观感已逐帧确认」，只宣称：进度条拖拽会立即亮圈并保持到可收口为止，且收口后不残留。
   - 设备已还原：原 APK 重新覆盖安装（sha256 `315e7d03…` 与安装前一致）、`databases/tv` 还原为 `user_version=37` / 17 列、移除全部临时文件；未打正式包（遵守 webhtv 约定）。
