@@ -6,8 +6,8 @@
 - **验收标准**：① 合并提交第二父为 `origin/beta` tip `75735b58f6`；② 远端被回退内容**零复活**；③ beta 增量**零丢失**、dev2 既有改动**零丢失**（逐 blob 一致）；④ 双 flavor 主代码与 AndroidTest Java 编译通过；⑤ 定向回归用例（两个 flavor 的被改动面）零失败；⑥ UI token 门禁相对合并前基线**零新增违规**；⑦ 净差异只含本分支自身改动（4 路径）与任务文档；⑧ 提交 + recovery tag；⑨ `dev2` 已推送、PR 已创建且**未合并**。
 - **lane / scope**：`standard`；`app/`、`docs/`。
 - **任务守卫**：`C51-beta-merge-review-dev2-20261009`；任务开始 HEAD `c5912111a4ab791dc2403a031c91e5e803eb7d02`（相对 `origin/dev2` 领先 8 个提交，但相对与 beta 的合并基点只领先 1 个提交即 `c5912111a4`）；初始工作区干净（0 个受保护脏路径）。
-- **当前状态**：合并完成（**0 冲突**）；3 轮评审完成，**发现并修复 1 个必修问题**（任务文档历史引用不实）；全部验证通过；待 `task_guard.sh finish`。
-- **下一动作**：`task_guard.sh finish` → 推送 `dev2` 与 tag → `gh pr create`（只创建不合并）→ docs-only 收口提交记录坐标。
+- **当前状态**：合并完成（**0 冲突**）；3 轮评审完成，**发现并修复 1 个必修问题**（任务文档历史引用不实）；全部验证通过；合并提交 `1f8fc83369` 与 recovery tag 已生成并推送；PR #426 已创建（OPEN / 未合并）；本文件已由 docs-only 收口提交记录交付坐标。
+- **下一动作**：无（已交付）。
 
 ## 合并台账
 
@@ -136,8 +136,10 @@
 
 | 项 | 值 |
 | --- | --- |
-| 合并提交 | 待 `task_guard.sh finish` 生成 |
-| recovery tag | 待 `finish` 生成 |
-| 分支推送 | 待推送 |
-| PR | 待创建（base `beta` / head `dev2`，只创建不合并） |
-| 本文件提交 | docs-only 收口提交，仅记录以上坐标，不含任何再次构建或验证 |
+| 合并提交 | `1f8fc83369dbd60703b5d72305e507cd3064a6f9`（第一父 `c5912111a4ab791dc2403a031c91e5e803eb7d02`，第二父 `75735b58f6f6eb357a0c0b1574da0c10f8864a4f` = 合并前 `origin/beta` tip） |
+| recovery tag | `recovery/C51-beta-merge-review-dev2-20261009/20261009033846-1f8fc83369db`（annotated；`git ls-remote` 复核该 tag 的 `^{}` 指向 `1f8fc83369`，tag 创建阶段耗时 0s） |
+| 分支推送 | `origin/dev2` = `1f8fc83369`（`git ls-remote` 复核一致；推送后再次复核 `origin/beta` 仍为 `75735b58f6`，未前进） |
+| PR | `#426`：base `beta` / head `dev2` / state `OPEN` / `mergedAt=null` / `mergeable=MERGEABLE` / 非 draft；PR 文件集为 6 项（含本文件）与 `git diff --name-status origin/beta HEAD` 逐项一致 |
+| PR 性质 | **只创建，不合并**（未开启自动合并、未手动合并） |
+| 资源回收 | 末次构建后已执行 `gradlew --no-daemon clean`（`BUILD SUCCESSFUL in 1m 12s`），`app/build`、`catvod/build`、`quickjs/build`、`chaquo/build`、`nodejs/build` 已删除 |
+| 本文件提交 | docs-only 收口提交，仅用于记录以上提交 / tag / PR 坐标，无任何再次构建或验证 |
