@@ -278,9 +278,11 @@ hideProgress() 关闭窗口                           : mobile 1 / leanback 1
 | 最终 `origin/beta` tip | `7df98107befd6bdd49f7aae5c7fc9c1efeb19b34` |
 | 终轮合并树 | `df59dec7687b81ff14b483fe0e130201895c1be6`（= `git merge-tree` 预测） |
 | C49 改动 | 2 路径（`docs/`；`app/src` 零改动） |
-| 提交 / recovery tag | 由 `task_guard.sh finish` 生成（任务 `C49-beta-merge-review-dev4`）；同一坐标同时记录于 PR 描述 |
-| 推送 | `dev4` → `origin/dev4`（含 recovery tag） |
-| PR | `dev4 → beta`，中文描述，**OPEN、未合并**（本任务只创建，不合并） |
+| 合并提交 | `8dd441b1ccc3a65d5486be09de96b6b996e471c1`（父：`1a4110178fc` + `7df98107bef`） |
+| recovery tag | `recovery/C49-beta-merge-review-dev4/20261009023809-8dd441b1ccc3` |
+| 推送 | `dev4` → `origin/dev4`（`2b108243613..8dd441b1ccc`，快进）；recovery tag 已推送 |
+| PR | [#425](https://github.com/Silent1566/webhtv/pull/425) `dev4 → beta`，中文描述，**OPEN、未合并**（`state=OPEN`、`mergedAt=null`、`MERGEABLE`），改动 7 文件 +686 −22 |
+| PR 文件集校验 | `gh api .../pulls/425/files` 合计 **7**，与 `git diff --name-only origin/beta HEAD` **逐项一致** |
 
 ## 备注
 
