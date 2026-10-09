@@ -191,7 +191,16 @@ reader.html：
 - 缺口：9-27 之后的设置与历史记录无法恢复（该备份之后没有更新的备份）。
 - 后续规则：本机真机测试改用 `adb install -r <androidTest apk>` + `adb shell am instrument ...`，避免 `connectedAndroidTest` 卸载应用。
 
-### 6.5 状态
+### 6.5 交付后补强（第二个 guard 会话）
+
+| 项目 | 处理 |
+| --- | --- |
+| 音调控件在在线音源上「拖了没反应」 | 微软 Edge 的 SSML `prosody pitch` 接入真实音调（并把音调纳入缓存键，避免改音调播到旧音频）；百度发音接口没有音调参数，面板在百度/自定义音源上隐藏音调控件。音调→Hz 的映射抽成纯函数 `TtsOptions.pitchOffsetHz`，由单测覆盖含越界夹取 |
+| 拔耳机自动暂停无法被真机测试覆盖 | `ACTION_AUDIO_BECOMING_NOISY` 是**系统保护广播**，应用与 `adb shell am broadcast` 均被拒绝（实测 SecurityException），因此把接收器内的动作抽成 `ReaderTtsService.onAudioBecomingNoisy()`，真机测试驱动同一入口验证「路由丢失 → 自动暂停 → 可继续」；广播注册本身由源码契约测试覆盖 |
+
+补强后的验证：定向 JVM 测试与双 flavor 编译通过；`ReaderTtsDeviceTest` 在同一台设备上仍为 `OK (6 tests)`（其中阅读页端到端用例现在多覆盖「路由丢失暂停 + 继续」）。
+
+### 6.6 状态
 
 - 状态：**已完成**（实现、单测、双 flavor 编译、真机端到端验收全部通过）
 - 未覆盖（记录缺口，不掩盖）：

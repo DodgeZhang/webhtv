@@ -653,7 +653,7 @@ body.comic-active .chapter-drawer .drawer-tab-content { color:var(--reader-color
         <input type="range" class="slider" id="seekTtsSpeed" min="50" max="200" value="100" />
         <span class="val" id="tvTtsSpeed">1.0x</span>
     </div>
-    <div class="setting-row">
+    <div class="setting-row" id="ttsPitchRow">
         <span class="label">音调</span>
         <input type="range" class="slider" id="seekTtsPitch" min="50" max="150" value="100" />
         <span class="val" id="tvTtsPitch">1.0</span>
@@ -1507,6 +1507,10 @@ function ttsRefreshSource(){
     });
     var box = $('ttsEngineBox');
     if(box) box.style.display = ttsSource === 'custom' ? 'flex' : 'none';
+    // 音调只有系统引擎与微软 Edge 支持；百度发音接口没有音调参数，
+    // 与其留一个「拖了没反应」的控件，不如按音源隐藏。
+    var pitchRow = $('ttsPitchRow');
+    if(pitchRow) pitchRow.style.display = (ttsSource === 'system' || ttsSource === 'edge') ? '' : 'none';
     if(ttsSource === 'custom') ttsLoadEngineForm();
     ttsLoadVoices(ttsSource);
 }

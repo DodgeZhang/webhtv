@@ -124,7 +124,7 @@ final class EdgeTtsEngine extends AudioFileTtsEngine {
 
     @Override
     protected String cacheKey(String text) {
-        return "edge|" + options.rate + "|" + voiceId() + "|" + text;
+        return "edge|" + options.rate + "|" + TtsOptions.pitchOffsetHz(options.pitch) + "|" + voiceId() + "|" + text;
     }
 
     private String voiceId() {
@@ -274,7 +274,7 @@ final class EdgeTtsEngine extends AudioFileTtsEngine {
         String timestamp = format.format(new Date());
         String ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='zh-CN'>"
                 + "<voice name='" + voiceId() + "'>"
-                + "<prosody pitch='+0Hz' rate='" + prosodyRate() + "' volume='+0%'>"
+                + "<prosody pitch='" + TtsOptions.pitchOffsetHz(options.pitch) + "' rate='" + prosodyRate() + "' volume='+0%'>"
                 + escapeXml(text)
                 + "</prosody></voice></speak>";
         String message = "X-RequestId:" + requestId

@@ -33,4 +33,15 @@ public final class TtsOptions {
     private static float clamp(float v, float min, float max) {
         return v < min ? min : (v > max ? max : v);
     }
+
+    /**
+     * 面板音调（0.5x–1.5x）→ SSML prosody pitch 的 Hz 偏移。
+     *
+     * 仅微软 Edge 音源支持音调；百度发音接口没有音调参数，
+     * 因此朗读面板只在支持的音源上显示音调控件（见 reader.html 的 ttsRefreshSource）。
+     */
+    public static String pitchOffsetHz(float pitch) {
+        int offset = Math.round((clamp(pitch, PITCH_MIN, PITCH_MAX) - 1f) * 100f);
+        return (offset >= 0 ? "+" : "") + offset + "Hz";
+    }
 }

@@ -80,6 +80,16 @@ public class TtsTextSplitterTest {
     }
 
     @Test
+    public void pitchMapsToSsmlOffset() {
+        assertEquals("+0Hz", TtsOptions.pitchOffsetHz(1.0f));
+        assertEquals("+50Hz", TtsOptions.pitchOffsetHz(1.5f));
+        assertEquals("-50Hz", TtsOptions.pitchOffsetHz(0.5f));
+        // 越界值必须按面板范围夹取，避免把非法 pitch 丢给微软接口
+        assertEquals("-50Hz", TtsOptions.pitchOffsetHz(0.1f));
+        assertEquals("+50Hz", TtsOptions.pitchOffsetHz(9f));
+    }
+
+    @Test
     public void emptyInputProducesNoChunks() {
         assertTrue(TtsTextSplitter.split(null, 20).isEmpty());
         assertTrue(TtsTextSplitter.split(java.util.Collections.emptyList(), 20).isEmpty());

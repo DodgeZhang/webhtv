@@ -328,6 +328,16 @@ public class ReaderTtsDeviceTest {
             assertTrue("通知栏下一段未生效", waitForJs(webView,
                     "ttsParagraph > " + beforeNext, LONG_WAIT_MS));
 
+            // 拔耳机/音频路由丢失：广播本身是系统保护广播（应用与 shell 都发不出），
+            // 因此直接驱动接收器里调用的同一入口，验证「路由丢失 → 自动暂停」的行为。
+            ReaderTtsService service = ReaderTtsService.get();
+            assertNotNull("朗读服务实例缺失", service);
+            service.onAudioBecomingNoisy();
+            assertTrue("拔耳机（音频路由丢失）未自动暂停",
+                    waitForJs(webView, "ttsState === 'paused'", 20_000L));
+            ReaderTtsService.dispatch(context(), ReaderTtsService.ACTION_RESUME, 0);
+            assertTrue("路由丢失暂停后无法继续朗读", waitForJs(webView, "ttsState === 'playing'", 20_000L));
+
             // 章末续读：读完本章后阅读页应自动续读下一章（真实环境由 spider 注入新章）
             String next = new JSONObject()
                     .put("kind", 1)

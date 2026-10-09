@@ -106,7 +106,8 @@ public class ReaderTtsBridgeSourceTest {
 
         assertTrue("朗读服务必须上报前台通知", service.contains("startForeground("));
         assertTrue("朗读服务必须处理音频焦点", service.contains("requestAudioFocus"));
-        assertTrue("朗读服务必须在拔耳机时暂停", service.contains("ACTION_AUDIO_BECOMING_NOISY"));
+        assertTrue("朗读服务必须注册拔耳机广播并在路由丢失时暂停",
+                service.contains("ACTION_AUDIO_BECOMING_NOISY") && service.contains("onAudioBecomingNoisy()"));
     }
 
     @Test

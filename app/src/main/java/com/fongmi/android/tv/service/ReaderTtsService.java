@@ -134,8 +134,7 @@ public class ReaderTtsService extends Service implements ReaderTtsController.Lis
         @Override
         public void onReceive(Context context, Intent intent) {
             if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) {
-                SpiderDebug.log(TAG, "audio becoming noisy, pause read aloud");
-                if (controller != null) controller.pause();
+                onAudioBecomingNoisy();
             }
         }
     };
@@ -232,6 +231,17 @@ public class ReaderTtsService extends Service implements ReaderTtsController.Lis
             startForegroundCompat();
         }
         return START_NOT_STICKY;
+    }
+
+    /**
+     * 音频输出路由丢失（拔耳机/蓝牙断开）→ 自动暂停。
+     *
+     * 保持 public 是为了让真机测试能驱动广播接收器里的同一条路径：
+     * {@code ACTION_AUDIO_BECOMING_NOISY} 是系统保护广播，应用和 shell 都发不出去。
+     */
+    public void onAudioBecomingNoisy() {
+        SpiderDebug.log(TAG, "audio becoming noisy, pause read aloud");
+        if (controller != null) controller.pause();
     }
 
     /* ---------------- 阅读页（WebView）调用入口 ---------------- */
