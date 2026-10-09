@@ -46,6 +46,24 @@ public class HlsAdblockNoticeTest {
     }
 
     @Test
+    public void noticeRoundsToTenthsBeforeChoosingTheUnit() {
+        // 0.1 秒粒度先进位再选单位：59.96 秒必须是「1 分钟」，不能出现自相矛盾的「60.0 秒」。
+        assertEquals("59.9 秒", HlsAdblockNotice.durationText(59.94));
+        assertEquals("1 分钟", HlsAdblockNotice.durationText(59.96));
+        assertEquals("1 分 30 秒", HlsAdblockNotice.durationText(90));
+        assertEquals("已跳过 12 个广告片段，总广告时长 1 分钟", HlsAdblockNotice.message(12, 59.96));
+    }
+
+    @Test
+    public void noticeHidesDurationsBelowTheDisplayGranularity() {
+        assertEquals("", HlsAdblockNotice.durationText(0.04));
+        assertEquals("", HlsAdblockNotice.durationText(0));
+        assertEquals("已跳过 2 个广告片段", HlsAdblockNotice.message(2, 0.04));
+        assertEquals("0.2 秒", HlsAdblockNotice.durationText(0.16));
+        assertEquals("已跳过 2 个广告片段，总广告时长 0.2 秒", HlsAdblockNotice.message(2, 0.16));
+    }
+
+    @Test
     public void everyHlsAdblockChannelUsesTheSharedDurationNotice() throws Exception {
         java.nio.file.Path root = java.nio.file.Paths.get("src", "main", "java");
         java.util.List<java.nio.file.Path> channels = java.util.List.of(
