@@ -18,6 +18,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
+import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.DialogFragment;
 import androidx.viewbinding.ViewBinding;
 
@@ -53,9 +54,11 @@ import com.google.android.material.button.MaterialButton;
 public class CacheManagementDialog extends DialogFragment {
 
     private static final CacheModuleId[] MODULE_ORDER = CacheModuleId.values();
+    private static final String ARG_CLEANUP_MODE = "cleanup_mode";
     private static final float SCREEN_FRACTION = 0.9f;
     private DialogCacheManagementBinding binding;
     private boolean loading;
+    private boolean shortcutStarted;
     private CharSequence resultLine;
     private final java.util.ArrayList<MaterialButton> moduleButtons = new java.util.ArrayList<>();
 
@@ -65,6 +68,32 @@ public class CacheManagementDialog extends DialogFragment {
 
     public static void show(FragmentActivity activity) {
         new CacheManagementDialog().show(activity.getSupportFragmentManager(), null);
+    }
+
+    /**
+     * Opens the panel and immediately runs the settings row's long-press shortcut: every cache the
+     * panel can name is cleared, the way the single-key clear of the pre-split settings row left
+     * them.
+     *
+     * <p>The shortcut keeps that entry's one-key semantics on purpose - the gesture itself is the
+     * deliberate act - but a wipe must not happen invisibly: the panel stays on screen with the
+     * progress line, BACK still requests cancellation, and the released-bytes outcome is rendered in
+     * the same status line every tiered cleanup uses.</p>
+     */
+    public static void showFullCleanup(Fragment fragment) {
+        showFullCleanup(fragment.getChildFragmentManager());
+    }
+
+    public static void showFullCleanup(FragmentActivity activity) {
+        showFullCleanup(activity.getSupportFragmentManager());
+    }
+
+    private static void showFullCleanup(FragmentManager manager) {
+        CacheManagementDialog dialog = new CacheManagementDialog();
+        Bundle arguments = new Bundle();
+        arguments.putString(ARG_CLEANUP_MODE, CacheCleanupMode.FULL.name());
+        dialog.setArguments(arguments);
+        dialog.show(manager, null);
     }
 
     @NonNull
@@ -126,6 +155,18 @@ public class CacheManagementDialog extends DialogFragment {
     public void onStart() {
         super.onStart();
         applyWindowSize();
+        // Started here rather than in onCreateDialog so the panel is already added and every
+        // progress line has somewhere to land. The flag keeps onStart-for-the-second-time from
+        // starting a second run.
+        if (shortcutStarted || !isFullCleanupShortcut()) return;
+        shortcutStarted = true;
+        startCleanup(CacheCleanupMode.FULL);
+    }
+
+    private boolean isFullCleanupShortcut() {
+        Bundle arguments = getArguments();
+        return arguments != null
+                && CacheCleanupMode.FULL.name().equals(arguments.getString(ARG_CLEANUP_MODE));
     }
 
     private void applyWindowSize() {

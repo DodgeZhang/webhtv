@@ -130,6 +130,9 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.size.setOnClickListener(this::setSize);
         mBinding.language.setOnClickListener(this::setLanguage);
         mBinding.cache.setOnClickListener(this::onCache);
+        // Design §15.2: the long press is a shortcut, never the only entry - a plain click still
+        // opens the panel.
+        mBinding.cache.setOnLongClickListener(this::onCacheLongClick);
         mBinding.backup.setOnClickListener(this::onBackup);
         mBinding.enhance.setOnClickListener(this::onEnhance);
         mBinding.player.setOnClickListener(this::onPlayer);
@@ -322,6 +325,22 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
             return;
         }
         CacheManagementDialog.show(this);
+    }
+
+    /**
+     * The settings row's long-press shortcut: clear every cache at once, the way this row behaved
+     * before it opened the cache management panel.
+     *
+     * <p>With cache management switched off the plain click already is that full clear, so the
+     * shortcut reuses it instead of keeping a second copy of the same call.</p>
+     */
+    private boolean onCacheLongClick(View view) {
+        if (!CachePolicyStore.isManagementEnabled()) {
+            onCache(view);
+            return true;
+        }
+        CacheManagementDialog.showFullCleanup(this);
+        return true;
     }
 
     private void onBackup(View view) {
