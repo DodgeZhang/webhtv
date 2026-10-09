@@ -131,4 +131,8 @@ identical=36 drifted=0
 
 | 项目 | 值 |
 | --- | --- |
-| 合并提交 / recovery tag / 推送 / PR | 由完成收口后的**仅文档提交**补记（沿用本仓库既有 `docs(<id>): 记录交付坐标` 约定） |
+| 合并提交 | `08d4b6611802db1f3349aff828df9d08b42c5d69`（第二父 = `35a5a63f8a526ca9e6a54d1bf59b941d1f03d840`，即提交前 `origin/beta` tip） |
+| recovery tag | `recovery/C54-beta-merge-review-dev4/20261009083551-08d4b6611802`（annotated，本地对象 `5a643f19ec`，已推送） |
+| 推送 | `origin/dev4`：`61e483011ed` → `08d4b661180`（fast-forward）；recovery tag 同步推送 |
+| PR | [#429](https://github.com/Silent1566/webhtv/pull/429)（base=`beta`、head=`dev4`、state=OPEN、mergedAt=null、MERGEABLE/CLEAN，**只创建未合并**） |
+| PR 文件集核对 | 5 路径，与 `git diff --name-status origin/beta dev4` 及 GitHub compare API 的 `files` 列表三者一致 |
