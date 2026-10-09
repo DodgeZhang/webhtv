@@ -1,5 +1,6 @@
 package com.fongmi.android.tv.cache;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -36,23 +37,29 @@ public class CacheFullCleanupTest {
         archive.setLastModified(NOW - 60_000L);
         apk.setLastModified(NOW - 60_000L);
 
-        CacheCleanupManager.Outcome outcome =
-                CacheCleanupManager.clearTemporaryFiles(cache, 0L, 0L, false, false, NOW);
+        CacheCleanupManager.Outcome outcome = CacheCleanupManager.clearTemporaryFiles(cache,
+                CacheCleanupManager.explicitRetention(CacheCleanupMode.MODULE, DAY_MS), 0L, false, false, NOW);
 
         assertTrue(outcome.success());
         assertFalse("a fresh sync archive must not survive the row's own button", archive.exists());
         assertFalse("a fresh update download must not survive the row's own button", apk.exists());
     }
 
-    /** The same files stay for a background or tiered run: only an explicit request is immediate. */
+    /**
+     * The same files stay for a background or tiered run: only an explicit request is immediate.
+     *
+     * <p>The window is not written into the test, it is asked of the same decision the cleanup
+     * switch uses, so weakening that decision fails here instead of silently leaving the row's own
+     * button with a 24-hour window again.</p>
+     */
     @Test
     public void backgroundRetentionStillKeepsFreshTemporaryFiles() throws Exception {
         File cache = cacheDir("temp-retained");
         File archive = write(cache, "webhtv-sync-4242.zip", 4096);
         archive.setLastModified(NOW - 60_000L);
 
-        CacheCleanupManager.Outcome outcome =
-                CacheCleanupManager.clearTemporaryFiles(cache, DAY_MS, 0L, false, false, NOW);
+        CacheCleanupManager.Outcome outcome = CacheCleanupManager.clearTemporaryFiles(cache,
+                CacheCleanupManager.explicitRetention(CacheCleanupMode.LIGHT, DAY_MS), 0L, false, false, NOW);
 
         assertTrue(outcome.success());
         assertTrue("an age-windowed run must keep a one-minute-old archive", archive.exists());
@@ -75,6 +82,29 @@ public class CacheFullCleanupTest {
         assertTrue("the running push keeps its archive", pushed.exists());
     }
 
+    /**
+     * The explicit request ignores the age window but not the module's own candidate set: a family
+     * the registry does not claim stays on disk even when nothing is in use.
+     */
+    @Test
+    public void explicitRequestStillOnlyClaimsTheReportedFamily() throws Exception {
+        File cache = cacheDir("temp-foreign");
+        File notes = write(cache, "notes.txt", 256);
+        File partial = write(cache, "attachment.zip.part", 512);
+        File archive = write(cache, "webhtv-sync-4242.zip", 2048);
+        notes.setLastModified(NOW - 60_000L);
+        partial.setLastModified(NOW - 60_000L);
+        archive.setLastModified(NOW - 60_000L);
+
+        CacheCleanupManager.Outcome outcome =
+                CacheCleanupManager.clearTemporaryFiles(cache, 0L, 0L, false, false, NOW);
+
+        assertTrue(outcome.success());
+        assertTrue("a .txt note is not part of the temporary family", notes.exists());
+        assertTrue("a partial download is not part of the temporary family", partial.exists());
+        assertFalse("the module deletes exactly the family it reports", archive.exists());
+    }
+
     /** The sweep removes what no module claims, including the scripts nobody is loading. */
     @Test
     public void sweepRemovesLeftoversAndIdlePluginScripts() throws Exception {
@@ -93,6 +123,26 @@ public class CacheFullCleanupTest {
         assertFalse(idleScript.exists());
         assertTrue("the script of a running loader must survive", activeScript.exists());
         assertTrue("nothing in this scenario is a failure: " + warnings, warnings.isEmpty());
+    }
+
+    /**
+     * Every age-windowed module decides through one shared rule, so the reported defect can not
+     * come back at a single call site. The row's own button (MODULE) and the long-press shortcut
+     * (FULL) are explicit requests; the tiered and automatic runs keep the background window.
+     */
+    @Test
+    public void onlyExplicitRequestsIgnoreTheBackgroundRetentionWindow() {
+        assertTrue(CacheCleanupManager.explicitRequest(CacheCleanupMode.MODULE));
+        assertTrue(CacheCleanupManager.explicitRequest(CacheCleanupMode.FULL));
+        assertFalse(CacheCleanupManager.explicitRequest(CacheCleanupMode.LIGHT));
+        assertFalse(CacheCleanupManager.explicitRequest(CacheCleanupMode.STANDARD));
+        assertFalse(CacheCleanupManager.explicitRequest(CacheCleanupMode.DEEP));
+
+        assertEquals(0L, CacheCleanupManager.explicitRetention(CacheCleanupMode.MODULE, DAY_MS));
+        assertEquals(0L, CacheCleanupManager.explicitRetention(CacheCleanupMode.FULL, DAY_MS));
+        assertEquals(DAY_MS, CacheCleanupManager.explicitRetention(CacheCleanupMode.LIGHT, DAY_MS));
+        assertEquals(DAY_MS, CacheCleanupManager.explicitRetention(CacheCleanupMode.STANDARD, DAY_MS));
+        assertEquals(DAY_MS, CacheCleanupManager.explicitRetention(CacheCleanupMode.DEEP, DAY_MS));
     }
 
     /**

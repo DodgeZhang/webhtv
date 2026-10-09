@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Dialog;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -21,6 +22,7 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.DialogFragment;
 import androidx.viewbinding.ViewBinding;
 
+import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.cache.CacheCenter;
 import com.fongmi.android.tv.cache.CacheCleanupManager;
@@ -38,6 +40,7 @@ import com.fongmi.android.tv.cache.CachePolicyStore;
 import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.cache.CacheSnapshot;
 import com.fongmi.android.tv.databinding.DialogCacheManagementBinding;
+import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
@@ -81,16 +84,33 @@ public class CacheManagementDialog extends DialogFragment {
      */
     public static void cleanEverything() {
         if (CacheCleanupManager.isRunning()) return;
-        Notify.show(R.string.cache_cleanup_full_started);
+        Resources resources = shortcutResources();
+        Notify.show(resources.getString(R.string.cache_cleanup_full_started));
         CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.FULL), "shortcut",
-                result -> Notify.show(describe(result)));
+                result -> Notify.show(describe(result, resources)));
+    }
+
+    /**
+     * The resources the shortcut's toasts resolve their text from.
+     *
+     * <p>{@link Notify} renders through the application context, whose resources carry the system
+     * locale instead of the in-app language the settings screens apply, so a shortcut toast would
+     * otherwise disagree with the panel that reports the identical outcome. Resolving through the
+     * same helper the settings screens use keeps both surfaces in one language.</p>
+     */
+    private static Resources shortcutResources() {
+        return Setting.wrapLanguage(App.get()).getResources();
     }
 
     /**
      * Words a cleanup outcome exactly as the panel's status line does, so the same action reads the
      * same way whether it was started from the panel or from the settings row's shortcut.
+     *
+     * <p>The resources are passed in rather than read globally: the panel renders - and notifies -
+     * through its host context, which carries the in-app language choice, while the shortcut has to
+     * ask for that same choice explicitly.</p>
      */
-    public static String describe(CacheCleanupResult result) {
+    static String describe(CacheCleanupResult result, Resources resources) {
         int message;
         if (result.status() == CacheCleanupStatus.COMPLETED) {
             message = R.string.cache_cleanup_done;
@@ -106,14 +126,14 @@ public class CacheManagementDialog extends DialogFragment {
             message = R.string.cache_cleanup_partial;
         }
         if (result.status() == CacheCleanupStatus.COMPLETED) {
-            return ResUtil.getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
+            return resources.getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
                     result.deletedFiles());
         }
         if (result.status() == CacheCleanupStatus.PARTIAL) {
-            return ResUtil.getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
+            return resources.getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
                     result.deletedFiles(), result.skippedFiles());
         }
-        return ResUtil.getString(message);
+        return resources.getString(message);
     }
 
     @NonNull
@@ -376,7 +396,7 @@ public class CacheManagementDialog extends DialogFragment {
         setCleanupInteractive(true);
         setDismissableWhileIdle(true);
         binding.cancel.setVisibility(android.view.View.GONE);
-        String text = describe(result);
+        String text = describe(result, getResources());
         // The cleanup already finished, so a modal confirmation here would force the user to
         // dismiss an extra dialog for an action that is already done. Notify passively instead
         // and keep the outcome visible in the panel's own status line.

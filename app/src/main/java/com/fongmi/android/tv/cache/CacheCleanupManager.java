@@ -365,9 +365,9 @@ public final class CacheCleanupManager {
                 Glide.get(App.get()).clearDiskCache();
                 yield new Outcome(true, List.of());
             }
-            case PLUGIN_SCRIPTS -> clearPluginCache(now ? 0 : retention,
+            case PLUGIN_SCRIPTS -> clearPluginCache(explicitRetention(mode, retention),
                     Set.copyOf(BaseLoader.get().activePluginKeys()));
-            case TEMP_FILES -> clearTemporaryFiles(cache, now ? 0 : TEMP_RETENTION_MS, limit,
+            case TEMP_FILES -> clearTemporaryFiles(cache, explicitRetention(mode, TEMP_RETENTION_MS), limit,
                     Updater.isDownloading(), ApkUrlPush.isActive(), System.currentTimeMillis());
             case DIAGNOSTIC_LOGS -> outcome(clearDiagnosticLogs());
             case LEGACY_FILES -> clearLegacyPaths(cache, mode);
@@ -389,8 +389,21 @@ public final class CacheCleanupManager {
      * was "released nothing, deleted 0 files" with the reported files still on disk. Files a
      * running transfer is using stay protected in every mode.</p>
      */
-    private static boolean explicitRequest(CacheCleanupMode mode) {
+    static boolean explicitRequest(CacheCleanupMode mode) {
         return mode == CacheCleanupMode.MODULE || mode == CacheCleanupMode.FULL;
+    }
+
+    /**
+     * The age window a deletion helper is handed: an explicit request keeps nothing back, a tiered
+     * or automatic run keeps the background window.
+     *
+     * <p>Every age-windowed module funnels through this single expression so the rule can be
+     * verified without an Android runtime and can not be re-broken at one call site. That is
+     * exactly how the temporary-file row came to report files it would not delete: the row's own
+     * button passed the 24-hour window meant for background runs.</p>
+     */
+    static long explicitRetention(CacheCleanupMode mode, long backgroundRetentionMs) {
+        return explicitRequest(mode) ? 0L : backgroundRetentionMs;
     }
 
     /**
@@ -405,7 +418,7 @@ public final class CacheCleanupManager {
      * deletes a staging directory that the current process is still using.</p>
      */
     private static Outcome clearLegacyPaths(File cache, CacheCleanupMode mode) {
-        long retentionMs = explicitRequest(mode) ? 0 : LEGACY_RETENTION_MS;
+        long retentionMs = explicitRetention(mode, LEGACY_RETENTION_MS);
         boolean success = true;
         ArrayList<String> warnings = new ArrayList<>();
         for (CacheLegacyRules.Rule rule : CacheLegacyRules.rules()) {
