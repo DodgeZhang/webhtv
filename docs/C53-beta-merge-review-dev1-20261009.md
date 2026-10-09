@@ -5,8 +5,8 @@
 - **目标**：把远端 `beta` 最新代码合入 `dev1`（**远端已移除/回退的提交不得顺带带回**）；复评 dev1 全部已修改代码（含**已提交未推送**的 `fe1f725a1`、`72cdec02b`）；发现问题修复并验证通过；循环评审直至通过；然后提交、推送 `dev1`、创建 `dev1 -> beta` 中文 PR（**只创建，不合并**）。
 - **验收标准**：① dev1 必须包含合并时刻的 `origin/beta` tip；② 远端被回退内容**零复活**；③ beta 增量**零丢失**、dev1 既有改动**零丢失**；④ 双 flavor Java 编译通过；⑤ 双 flavor AndroidTest Java 编译通过；⑥ 双 flavor 全量 JVM 套件零失败；⑦ UI token 门禁相对基线零新增违规；⑧ 净差异只含本分支自身改动；⑨ 复评发现的问题已修复并锁定，或已按 AGENTS.md §2 明确记录处置；⑩ 提交 + recovery tag、`dev1` 已推送、PR 已创建且**未合并**。
 - **当前状态**：合并判定完成（`origin/beta` tip `fe1f725a1` 已是 `dev1` HEAD 的父提交，无需新合并提交）；2 轮复评完成；第 1 轮发现 2 个真实缺陷（F1 时长跨单位进位错误、F2 低于显示粒度的时长仍显示「0.0 秒」）并已修复 + 新增锁定用例；双 flavor 编译、双 flavor 全量 JVM 套件（leanback 4131 / mobile 4969，0 失败）、定向 34 项、UI token 门禁全部通过；零复活/零丢失三层证据重算通过。
-- **交付坐标**：见文末「交付坐标」。
-- **下一动作**：guard 原子提交（修复 + 本任务文档）→ 推送 `dev1` → 创建 `dev1 -> beta` 中文 PR（只创建不合并）→ 追加交付坐标文档提交。
+- **交付坐标**：见文末「交付坐标」与「闭环记录」。
+- **下一动作**：无（本任务已闭环：提交 + recovery tag + 推送 `dev1` + PR #428 已创建且未合并）。
 
 ## 时间与设备
 
@@ -247,11 +247,16 @@ UI_TOKEN_STATUS   PASS
 | --- | --- |
 | 任务起始 HEAD | `72cdec02b2b9b335fe5d2acbb9146ca7a927c39d` |
 | `origin/beta` tip | `fe1f725a12925b9d3ce84801f52c9d2a047e26b6`（= `dev1` HEAD 的父提交，无需新合并提交） |
-| 复评修复提交 | 见下方「闭环记录」 |
-| 推送 | `dev1` → `origin/dev1` |
-| PR | 见下方「闭环记录」（**只创建，不合并**） |
+| 复评修复提交 | `926b9d50ca66853d393c7d144b8e9c196a8244f7`（4 路径：`HlsAdblockNotice.java`、`HlsAdblockNoticeTest.java`、`docs/AD-NOTICE-01-ad-notice-total-duration.md`、`docs/C53-beta-merge-review-dev1-20261009.md`） |
+| recovery tag | `recovery/C53-beta-merge-review-dev1/20261009160214-926b9d50ca66`（guard 提交时自动创建，0s）；坐标提交自带 `recovery/C53-beta-merge-review-dev1-coordinates/*` |
+| 推送 | `dev1` → `origin/dev1`：`e44dadffd..926b9d50c`（推送后 `origin/dev1 == dev1 == 926b9d50c`，0 ahead / 0 behind）；坐标提交再推送一次 |
+| PR | [#428](https://github.com/Silent1566/webhtv/pull/428) `dev1 -> beta`，**OPEN、未合并**（`mergedAt=null`、`state=OPEN`、`mergeStateStatus=CLEAN`）；**只创建，未合并** |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/428/files` 分页合计 **9**，与 `git diff --name-only origin/beta HEAD` **逐项一致**（坐标提交只改本任务文档，不改变文件集） |
+| PR 变更规模 | 9 文件 `+485 −11`（修复提交时刻值；坐标提交仅在本任务文档内追加内容） |
 | 设备 | 本轮未使用真机（理由见「时间与设备」） |
 
 ### 闭环记录
 
-（由收尾的文档提交追加：提交 ID、recovery tag、推送结果、PR 编号与文件集校验。）
+- 合并判定：`origin/beta` tip `fe1f725a1` 已是 `dev1` HEAD 的直接父提交，`git merge --no-ff origin/beta` 返回「已经是最新的。」，**无需也无法产生新合并提交**；任务结束前再次 `git fetch origin --prune` 确认 beta 未前进（仍为 `fe1f725a1`），`git merge-base --is-ancestor origin/beta HEAD` 为真。
+- 复评循环：第 1 轮发现 F1/F2 → 修复 + 两条锁定用例 → 第 2 轮复审全部通过 → 收口。
+- 交付：`926b9d50c` 已提交并打 recovery tag → 推送 `dev1` → 创建 PR #428（只创建、未合并）。
