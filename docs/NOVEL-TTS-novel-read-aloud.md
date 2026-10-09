@@ -176,7 +176,7 @@ reader.html：
 
 | 验证 | 命令 | 结果 |
 | --- | --- | --- |
-| 定向 JVM 测试 | `./gradlew :app:testMobileArm64_v8aDebugUnitTest --tests '*Tts*' --tests '*ReaderTts*'` | BUILD SUCCESSFUL（TtsTextSplitter/TtsHttpRule/ReaderTtsBridgeSource 共 28 用例） |
+| 定向 JVM 测试 | `./gradlew :app:testMobileArm64_v8aDebugUnitTest --tests '*Tts*' --tests '*ReaderTts*'` | BUILD SUCCESSFUL（TtsTextSplitter/TtsHttpRule/ReaderTtsBridgeSource 共 29 用例，含音调→Hz 映射） |
 | 双 flavor 编译 | `:app:compileMobileArm64_v8aDebugJavaWithJavac`、`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` | 均通过 |
 | 打包安装 | `bash scripts/build_arm64_debug_install.sh` | ✅ 安装成功（`com.silent.android.webhtv`） |
 | 真机验收（联网） | `adb -s 192.168.50.3:5555 shell am instrument -w -e class com.fongmi.android.tv.tts.ReaderTtsDeviceTest com.silent.android.webhtv.test/androidx.test.runner.AndroidJUnitRunner` | `OK (6 tests)`：百度引擎合成+播放推进、微软 Edge 引擎合成+播放推进、系统引擎无引擎时给出可操作错误、定时到点真的停播、阅读页端到端（含后台继续朗读、通知栏暂停/继续/下一段、章末续读下一章、停止后服务退出） |
