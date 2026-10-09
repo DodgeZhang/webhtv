@@ -5,8 +5,8 @@
 - **目标**：把远端 `beta` 最新代码合入 `dev1`（**远端已移除/回退的提交不得顺带带回**）；复评 dev1 全部已修改代码（含**已提交未推送**的 7 个提交，PR 内容即缓存「临时文件清理」+「长按一键全清」功能）；发现问题修复并验证通过；循环评审直至通过；然后提交、推送 `dev1`、创建 `dev1 -> beta` 中文 PR（**只创建，不合并**）。
 - **验收标准**：① `dev1` 必须包含合并时刻的 `origin/beta` tip；② 远端被回退内容**零复活**；③ beta 增量**零丢失**、dev1 既有改动**零丢失**；④ 双 flavor Java 编译通过；⑤ 双 flavor AndroidTest Java 编译通过；⑥ 双 flavor 全量 JVM 套件零失败且增量可解释；⑦ UI token 门禁相对基线零新增违规；⑧ 净差异只含本分支自身改动；⑨ 复评发现的问题已修复并锁定（或按 `AGENTS.md` §2 明确记录处置）；⑩ 提交 + recovery tag、`dev1` 已推送、PR 已创建且**未合并**。
 - **当前状态**：合并完成（无冲突，`MERGE_HEAD` = beta tip）；2 轮复评完成；第 1 轮发现 **1 个真问题**（F1：缓存缺陷的**调用点级回归锁缺失**，产物在 JVM 层可原样复发而不被发现）并已修复 + 补 1 例锁定用例（负对照双向验证）；双 flavor 编译、双 flavor 全量 JVM 套件（leanback 650/4140、mobile 726/4980，0 失败）、UI token 门禁全部通过；零复活/零丢失四层证据通过。
-- **交付坐标**：见文末「交付坐标」。
-- **下一动作**：`bash .codex/scripts/task_guard.sh finish` 原子提交（合并提交 + recovery tag）→ 推送 `dev1` → 创建 PR 到 `beta` → 回填坐标。
+- **交付坐标**：见文末「交付坐标」与「闭环记录」（合并提交 `447934222b88`、recovery tag、推送 `dev1`、PR #430 已创建且未合并）。
+- **下一动作**：无（本任务已闭环：提交 + recovery tag + 推送 `dev1` + PR #430 已创建且未合并）。
 
 ## 时间与设备
 
@@ -279,9 +279,19 @@ UI_TOKEN_STATUS   PASS
 | --- | --- |
 | 任务起始 HEAD | `92ad7c69d13b1dbcb541f39bb9f87687f559bade` |
 | `origin/beta` tip | `7e51768d881a725754dd68321ab802680ea30e1c`（= 合并提交第二父） |
-| 合并结果树 | `0d68f90990fb6d9c3d03c5f523f9ffe22567863c` |
-| 合并提交 | 待 `task_guard.sh finish` 生成（回填见下） |
-| recovery tag | 待 `finish` 生成 |
-| 推送 | 待推送 `dev1` → `origin/dev1` |
-| PR | 待创建（`dev1 -> beta`，只创建不合并） |
-| 设备 | 本轮未使用真机（理由见「时间与设备」） |
+| 合并结果树 | `0d68f90990fb6d9c3d03c5f523f9ffe22567863c`（重做合并复现同一树） |
+| 合并提交 | `447934222b88934720b387225d7d561e781108ac`（`rev-list --parents` 实测 = `92ad7c69d` + `7e51768d8`，确为 merge commit） |
+| recovery tag | `recovery/C55-beta-merge-review-dev1/20261009175202-447934222b88`（annotated，指向合并提交，0s） |
+| 各任务守卫 | `C55-beta-merge-review-dev1`（standard，`start` 在任何编辑之前，base HEAD `92ad7c69d`）；坐标守卫 `C55-beta-merge-review-dev1-coordinates`（quick-fix，scope `docs`，base HEAD `447934222`） |
+| 推送 | `dev1` → `origin/dev1`：`6bb920372..447934222`；推送后 `git rev-parse origin/dev1` == `git rev-parse dev1` == `447934222b88934720b387225d7d561e781108ac`（0 ahead / 0 behind）；坐标提交再推一次 |
+| PR | [#430](https://github.com/Silent1566/webhtv/pull/430) `dev1 -> beta`，**OPEN、未合并**（`mergedAt=null`、`state=OPEN`、`mergeable=MERGEABLE`、`mergeStateStatus=CLEAN`）；**只创建，未合并** |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/430/files --paginate` 合计 **14**，与 `git diff --name-only origin/beta HEAD` **逐项一致**（`diff` 无输出） |
+| PR 变更规模 | 14 文件 `+1140 −49` |
+| 设备 | 本轮未使用真机（理由见「时间与设备」）；`192.168.50.3:5555` 的既有包未受影响 |
+
+### 闭环记录
+
+- **合并判定**：合并前 `git merge-base --is-ancestor origin/beta HEAD` 为**假**（dev1 缺少 beta 的 4 个提交），故本轮产生真实合并提交；`git merge --no-commit --no-ff origin/beta` 返回「自动合并进展顺利」且 **0 冲突**，`MERGE_HEAD=7e51768d8`，`git write-tree=0d68f909`，与四层证据所用树同一。收尾前 `git fetch origin --prune` 复核 beta 未前进（仍 `7e51768d8`），`git merge-base --is-ancestor origin/beta HEAD` 为**真**。
+- **意外与恢复**：收口前一次 `git add -A && git reset` 的预检把 `MERGE_HEAD` 一并清除（`git reset` 会清理合并状态）。已按「先把 5 个 beta 路径还原为 HEAD 内容 + 删除 2 个 beta 新增文档（内容保存在 beta tip，无丢失）→ 重跑同一条 `git merge --no-commit --no-ff origin/beta`」恢复，恢复后 `git write-tree` 与恢复前**完全相同的 `0d68f909`**，且本人改动 3 个文件 `sha256sum -c` 逐一 OK；最终提交 `rev-list --parents` 实测为两个父提交，合并语义未被削弱。预检此后改为 `git add` 后立即 `git diff --cached --check`、不再使用 `git reset`。
+- **复评循环**：第 1 轮发现 F1（调用点级回归锁缺失）→ 补源码守卫用例 + 两向变异验证 → 第 2 轮复审全部通过 → 收口。
+- **交付**：`447934222` 已提交并带 recovery tag → 推送 `dev1`（`6bb920372..447934222`）→ 创建 PR #430（只创建、未合并）→ 本坐标提交再推送一次（PR 自动更新）。
