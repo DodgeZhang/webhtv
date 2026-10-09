@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -166,6 +167,74 @@ public class CacheFullCleanupTest {
         assertTrue("the running updater keeps its download", apk.exists());
         assertFalse(leftover.exists());
         assertFalse("the skipped files must be reported: " + warnings, warnings.isEmpty());
+    }
+
+    /**
+     * Locks the two decisions the reported defects actually live at, not the helpers they call.
+     *
+     * <p>This class hands {@code clearTemporaryFiles} whichever window it wants to exercise, and
+     * {@code sweepResidual} is called directly, so the call sites inside {@code CacheCleanupManager}
+     * are never executed: reverting the temporary-file row to the 24-hour background window - the
+     * exact code path the user reported as "released nothing, deleted 0 files" - leaves every other
+     * test in this class green, and reverting the full-clean dispatch turns the long-press shortcut
+     * back into a tiered run. That is how both defects shipped.
+     *
+     * <p>The call sites can not be reached from a JVM test (they resolve
+     * {@code App.get().getCacheDir()}, {@code Updater.isDownloading()} and the player state), so
+     * they are locked the way this repository locks its other Android-only call sites: by reading
+     * the production source and asserting the decision is made by the shared rule instead of being
+     * written at the call site.</p>
+     */
+    @Test
+    public void everyCleanupCallSiteUsesTheSharedRule() throws Exception {
+        String source = productionSource();
+
+        // 1. The long-press shortcut must dispatch to the full clean, not to a tiered module loop.
+        String run = method(source, "private static void run(CacheCleanupPlan plan, String reason,");
+        assertTrue("FULL must select the full-clean path: " + run,
+                run.contains("if (plan.mode() == CacheCleanupMode.FULL) {"));
+        assertTrue("FULL must still reach cleanEverything", run.contains("cleanEverything(plan, progress)"));
+
+        // 2. Each age-windowed module must take its window from the shared rule.
+        String execution = method(source, "private static Outcome executeCleanup(CacheModuleId id, CacheCleanupMode mode)");
+        assertTrue("the module loop must ask the shared rule once: " + execution,
+                execution.contains("boolean now = explicitRequest(mode);"));
+        assertTrue(execution.contains("case LYRICS -> now"));
+        assertTrue(execution.contains("case KARAOKE -> now"));
+        assertTrue(execution.contains("case EPG -> now ? outcome(EpgParser.clearCache())"));
+        assertTrue(execution.contains("case PLUGIN_SCRIPTS -> clearPluginCache(explicitRetention(mode, retention),"));
+        assertTrue(execution.contains("case TEMP_FILES -> clearTemporaryFiles(cache, explicitRetention(mode, TEMP_RETENTION_MS), limit,"));
+        assertTrue(execution.contains("case LEGACY_FILES -> clearLegacyPaths(cache, mode);"));
+        assertFalse("the window must not be compared to a single mode again: " + execution,
+                execution.contains("== CacheCleanupMode.MODULE"));
+
+        String legacy = method(source, "private static Outcome clearLegacyPaths(File cache, CacheCleanupMode mode)");
+        assertTrue(legacy.contains("long retentionMs = explicitRetention(mode, LEGACY_RETENTION_MS);"));
+
+        // 3. No call site may pass a background window as a literal. This is the assertion that
+        //    fails if the temporary-file row is ever reverted to the 24-hour window.
+        for (String raw : (execution + legacy).split("\n")) {
+            String line = raw.trim();
+            if (line.startsWith("//") || line.startsWith("*")) continue;
+            if (!line.contains("TEMP_RETENTION_MS") && !line.contains("LEGACY_RETENTION_MS")) continue;
+            assertTrue("a retention window is decided at the call site instead of by explicitRetention: "
+                    + line, line.contains("explicitRetention("));
+        }
+    }
+
+    private static String method(String source, String signature) {
+        int start = source.indexOf(signature);
+        assertTrue("missing production method: " + signature, start >= 0);
+        int end = source.indexOf("\n    }\n", start);
+        assertTrue("unterminated production method: " + signature, end > start);
+        return source.substring(start, end);
+    }
+
+    private static String productionSource() throws Exception {
+        Path relative = Path.of("app", "src", "main", "java", "com", "fongmi", "android", "tv",
+                "cache", "CacheCleanupManager.java");
+        Path path = Files.exists(relative) ? relative : Path.of("..").resolve(relative).normalize();
+        return Files.readString(path, StandardCharsets.UTF_8).replace("\r\n", "\n");
     }
 
     private static File write(File dir, String name, int size) throws Exception {
