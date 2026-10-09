@@ -724,6 +724,7 @@
     <string name="cache_cleanup_not_allowed">该缓存由所属模块管理，不能直接删除。</string>
     <string name="cache_cleanup_failed">缓存清理失败</string>
     <string name="cache_cleanup_cancelled">缓存清理已取消</string>
+    <string name="cache_cleanup_full_started">正在清理全部缓存…</string>
     <string name="cache_module_exo">Exo 播放缓存</string>
     <string name="cache_module_mpv_hls">MPV HLS/ISO 分片</string>
     <string name="cache_module_mpv_demuxer">MPV demuxer 预载</string>

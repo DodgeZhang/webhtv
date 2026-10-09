@@ -726,6 +726,7 @@
     <string name="cache_cleanup_not_allowed">This cache is managed by its owner and cannot be removed directly.</string>
     <string name="cache_cleanup_failed">Cache cleanup failed</string>
     <string name="cache_cleanup_cancelled">Cache cleanup cancelled</string>
+    <string name="cache_cleanup_full_started">Cleaning all cache…</string>
     <string name="cache_module_exo">Exo playback cache</string>
     <string name="cache_module_mpv_hls">MPV HLS/ISO segments</string>
     <string name="cache_module_mpv_demuxer">MPV demuxer preload</string>

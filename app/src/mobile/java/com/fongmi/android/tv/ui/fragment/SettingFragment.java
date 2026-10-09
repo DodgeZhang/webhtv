@@ -326,14 +326,16 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
      * before it opened the cache management panel.
      *
      * <p>With cache management switched off the plain click already is that full clear, so the
-     * shortcut reuses it instead of keeping a second copy of the same call.</p>
+     * shortcut reuses it instead of keeping a second copy of the same call. With it switched on the
+     * cleanup runs in the background and reports itself through a notification; the row re-reads
+     * itself when the cleanup publishes its change.</p>
      */
     private boolean onCacheLongClick(View view) {
         if (!CachePolicyStore.isManagementEnabled()) {
             onCache(view);
             return true;
         }
-        CacheManagementDialog.showFullCleanup(this);
+        CacheManagementDialog.cleanEverything();
         return true;
     }
 

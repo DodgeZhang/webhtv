@@ -18,7 +18,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
-import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.DialogFragment;
 import androidx.viewbinding.ViewBinding;
 
@@ -54,11 +53,9 @@ import com.google.android.material.button.MaterialButton;
 public class CacheManagementDialog extends DialogFragment {
 
     private static final CacheModuleId[] MODULE_ORDER = CacheModuleId.values();
-    private static final String ARG_CLEANUP_MODE = "cleanup_mode";
     private static final float SCREEN_FRACTION = 0.9f;
     private DialogCacheManagementBinding binding;
     private boolean loading;
-    private boolean shortcutStarted;
     private CharSequence resultLine;
     private final java.util.ArrayList<MaterialButton> moduleButtons = new java.util.ArrayList<>();
 
@@ -71,29 +68,52 @@ public class CacheManagementDialog extends DialogFragment {
     }
 
     /**
-     * Opens the panel and immediately runs the settings row's long-press shortcut: every cache the
-     * panel can name is cleared, the way the single-key clear of the pre-split settings row left
-     * them.
+     * Runs the settings row's long-press shortcut: every cache the panel can name is cleared the way
+     * the single-key clear of the pre-split settings row left them, and the outcome is reported as a
+     * notification.
      *
-     * <p>The shortcut keeps that entry's one-key semantics on purpose - the gesture itself is the
-     * deliberate act - but a wipe must not happen invisibly: the panel stays on screen with the
-     * progress line, BACK still requests cancellation, and the released-bytes outcome is rendered in
-     * the same status line every tiered cleanup uses.</p>
+     * <p>The panel deliberately stays closed. This entry re-creates a gesture from before the cache
+     * management split, and that one-key clear never opened a screen either: holding the key is the
+     * deliberate act, the cleanup runs in the background, and the settings row re-reads itself once
+     * the cleanup publishes its change. Opening the panel here turned a one-key action into "open a
+     * screen, then watch it", and put a cancel button in front of an action the user had just
+     * confirmed by holding the key.</p>
      */
-    public static void showFullCleanup(Fragment fragment) {
-        showFullCleanup(fragment.getChildFragmentManager());
+    public static void cleanEverything() {
+        if (CacheCleanupManager.isRunning()) return;
+        Notify.show(R.string.cache_cleanup_full_started);
+        CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.FULL), "shortcut",
+                result -> Notify.show(describe(result)));
     }
 
-    public static void showFullCleanup(FragmentActivity activity) {
-        showFullCleanup(activity.getSupportFragmentManager());
-    }
-
-    private static void showFullCleanup(FragmentManager manager) {
-        CacheManagementDialog dialog = new CacheManagementDialog();
-        Bundle arguments = new Bundle();
-        arguments.putString(ARG_CLEANUP_MODE, CacheCleanupMode.FULL.name());
-        dialog.setArguments(arguments);
-        dialog.show(manager, null);
+    /**
+     * Words a cleanup outcome exactly as the panel's status line does, so the same action reads the
+     * same way whether it was started from the panel or from the settings row's shortcut.
+     */
+    public static String describe(CacheCleanupResult result) {
+        int message;
+        if (result.status() == CacheCleanupStatus.COMPLETED) {
+            message = R.string.cache_cleanup_done;
+        } else if (result.status() == CacheCleanupStatus.CANCELLED) {
+            message = R.string.cache_cleanup_cancelled;
+        } else if (result.status() == CacheCleanupStatus.FAILED) {
+            message = R.string.cache_cleanup_failed;
+        } else if (result.status() == CacheCleanupStatus.NOT_ALLOWED) {
+            message = R.string.cache_cleanup_not_allowed;
+        } else if (result.status() == CacheCleanupStatus.DEFERRED) {
+            message = R.string.cache_cleanup_deferred;
+        } else {
+            message = R.string.cache_cleanup_partial;
+        }
+        if (result.status() == CacheCleanupStatus.COMPLETED) {
+            return ResUtil.getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
+                    result.deletedFiles());
+        }
+        if (result.status() == CacheCleanupStatus.PARTIAL) {
+            return ResUtil.getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
+                    result.deletedFiles(), result.skippedFiles());
+        }
+        return ResUtil.getString(message);
     }
 
     @NonNull
@@ -155,18 +175,6 @@ public class CacheManagementDialog extends DialogFragment {
     public void onStart() {
         super.onStart();
         applyWindowSize();
-        // Started here rather than in onCreateDialog so the panel is already added and every
-        // progress line has somewhere to land. The flag keeps onStart-for-the-second-time from
-        // starting a second run.
-        if (shortcutStarted || !isFullCleanupShortcut()) return;
-        shortcutStarted = true;
-        startCleanup(CacheCleanupMode.FULL);
-    }
-
-    private boolean isFullCleanupShortcut() {
-        Bundle arguments = getArguments();
-        return arguments != null
-                && CacheCleanupMode.FULL.name().equals(arguments.getString(ARG_CLEANUP_MODE));
     }
 
     private void applyWindowSize() {
@@ -368,26 +376,7 @@ public class CacheManagementDialog extends DialogFragment {
         setCleanupInteractive(true);
         setDismissableWhileIdle(true);
         binding.cancel.setVisibility(android.view.View.GONE);
-        int message;
-        if (result.status() == CacheCleanupStatus.COMPLETED) {
-            message = R.string.cache_cleanup_done;
-        } else if (result.status() == CacheCleanupStatus.CANCELLED) {
-            message = R.string.cache_cleanup_cancelled;
-        } else if (result.status() == CacheCleanupStatus.FAILED) {
-            message = R.string.cache_cleanup_failed;
-        } else if (result.status() == CacheCleanupStatus.NOT_ALLOWED) {
-            message = R.string.cache_cleanup_not_allowed;
-        } else if (result.status() == CacheCleanupStatus.DEFERRED) {
-            message = R.string.cache_cleanup_deferred;
-        } else {
-            message = R.string.cache_cleanup_partial;
-        }
-        String text = result.status() == CacheCleanupStatus.COMPLETED
-                ? getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()), result.deletedFiles())
-                : result.status() == CacheCleanupStatus.PARTIAL
-                ? getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
-                result.deletedFiles(), result.skippedFiles())
-                : getString(message);
+        String text = describe(result);
         // The cleanup already finished, so a modal confirmation here would force the user to
         // dismiss an extra dialog for an action that is already done. Notify passively instead
         // and keep the outcome visible in the panel's own status line.
