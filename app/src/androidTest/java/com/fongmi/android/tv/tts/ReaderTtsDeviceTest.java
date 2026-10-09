@@ -159,6 +159,15 @@ public class ReaderTtsDeviceTest {
             // 暂停 / 继续
             controller.pause();
             assertTrue(source + " 暂停未生效", waitUntil(10_000L, () -> "paused".equals(probe.state)));
+            // 暂停必须真的没声音（后面用它作为「暂停中改语速不能出声」的基线）
+            assertTrue(source + " 暂停后仍有音频在播放", waitUntil(5_000L, () -> !isAudioActive()));
+            // 暂停中改语速：平台文档明确「已 prepared 的播放器用非零速度调 setPlaybackParams
+            // 等价于 start()」，因此这里绝不能把暂停中的朗读拖响。
+            controller.setRate(1.5f);
+            SystemClock.sleep(2_000L);
+            assertTrue(source + " 暂停中改语速把音频拖响了（setPlaybackParams 非零速度等价 start()）",
+                    !isAudioActive());
+            assertEquals(source + " 暂停中改语速改变了朗读状态", "paused", probe.state);
             controller.resume();
             assertTrue(source + " 继续未生效", waitUntil(15_000L, () -> "playing".equals(probe.state)));
 
@@ -359,10 +368,16 @@ public class ReaderTtsDeviceTest {
                             "DATA.title === '第二章 朗读验收' && ttsState === 'playing'", LONG_WAIT_MS));
             assertTrue("续读后仍应有高亮跟随", waitForJs(webView,
                     "document.querySelectorAll('.tts-highlight').length === 1", 30_000L));
+            // 续读不是「停播」：停播时撤下的朗读通知必须随下一章重新挂上
+            assertTrue("续读后朗读通知未重新挂上",
+                    waitUntil(15_000L, ReaderTtsDeviceTest::hasReadAloudNotification));
 
             evalJs(webView, "document.getElementById('btnTtsStop').click(); 'ok'");
             assertTrue("停止未回传 UI", waitForJs(webView, "ttsState === 'stopped'", 20_000L));
             assertTrue("退出朗读后服务必须停止", waitUntil(15_000L, () -> !ReaderTtsService.isRunning()));
+            // 停播后通知栏不能残留朗读控制条（服务销毁时也必须清掉）
+            assertTrue("停播后通知栏残留朗读通知",
+                    waitUntil(15_000L, () -> !hasReadAloudNotification()));
         }
     }
 

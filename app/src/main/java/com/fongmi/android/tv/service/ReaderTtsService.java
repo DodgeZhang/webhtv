@@ -349,6 +349,12 @@ public class ReaderTtsService extends Service implements ReaderTtsController.Lis
         }
         abandonFocus();
         releaseWakeLock();
+        // 兜住退出路径上的残留通知：任何原因导致服务销毁时都清掉朗读通知条
+        try {
+            android.app.NotificationManager manager = (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (manager != null) manager.cancel(NOTIFY_ID);
+        } catch (Throwable ignore) {
+        }
         super.onDestroy();
     }
 
@@ -362,7 +368,8 @@ public class ReaderTtsService extends Service implements ReaderTtsController.Lis
 
     @Override
     public void onTtsState(String state, int paragraph, int total, String message, String title) {
-        if (ReaderTtsController.STATE_STOPPED.equals(state)) {
+        boolean stopped = ReaderTtsController.STATE_STOPPED.equals(state);
+        if (stopped) {
             // 章节读完（或用户停播）：先给阅读页留出「续读下一章」的窗口，再自行结束
             abandonFocus();
             stopForegroundCompat();
@@ -383,7 +390,10 @@ public class ReaderTtsService extends Service implements ReaderTtsController.Lis
             startForegroundCompat();
             acquireWakeLock();
         }
-        updateNotification(state, paragraph, total, message, title);
+        // 停播时通知已被 stopForegroundCompat 撤掉，不能再 notify：
+        // 否则通知栏会残留一条标题写着「正在朗读」的失效控制条，
+        // 而且服务随后退出也不会把它清掉（用户只能手动划掉）。
+        if (!stopped) updateNotification(state, paragraph, total, message, title);
         WebCallback callback = webCallback;
         if (callback != null) callback.onTtsState(state, paragraph, total, message, title);
     }

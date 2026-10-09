@@ -121,6 +121,23 @@ public class ReaderTtsBridgeSourceTest {
         assertTrue("章末必须通知上层续读", controller.contains("listener.onTtsChapterEnd()"));
     }
 
+    @Test
+    public void readAloudControlBridgesDispatchToTheMainThread() throws Exception {
+        String activity = read("app/src/main/java/com/fongmi/android/tv/ui/web/WebReaderActivity.java");
+        String[] names = {"ttsStart", "ttsPause", "ttsResume", "ttsToggle", "ttsPrev", "ttsNext",
+                "ttsSeek", "ttsSetRate", "ttsSetPitch", "ttsSetVoice", "ttsSetTimer", "ttsStop"};
+        for (String name : names) {
+            int start = activity.indexOf("public void " + name + "(");
+            assertTrue("朗读桥缺少方法: " + name, start >= 0);
+            int end = activity.indexOf("@JavascriptInterface", start);
+            String body = activity.substring(start, end > start ? end : activity.length());
+            // @JavascriptInterface 方法跑在 WebView 的 JavaBridge 线程，而控制器/前台服务
+            // 要求主线程语义（引擎回调、前台通知、MediaPlayer 都在主线程），必须显式切回主线程。
+            assertTrue("朗读桥 " + name + " 没有切回主线程（控制器状态会与主线程引擎回调并发）",
+                    body.contains("postToService(") || body.contains("runOnUiThread("));
+        }
+    }
+
     private static String read(String path) throws Exception {
         // 单测工作目录随 Gradle 版本落在仓库根或 app/ 模块目录，两种都兼容
         Path direct = Path.of(path);

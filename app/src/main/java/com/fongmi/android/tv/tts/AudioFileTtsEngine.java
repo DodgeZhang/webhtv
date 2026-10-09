@@ -138,6 +138,9 @@ abstract class AudioFileTtsEngine implements TtsEngine {
         if (mp != null) {
             try {
                 mp.start();
+                // 暂停期间改过语速的话在此补上：平台文档说明已 prepared 的播放器
+                // 用非零速度调 setPlaybackParams 等价于 start()，因此不会重置进度
+                applyRate(mp);
                 return;
             } catch (Throwable e) {
                 SpiderDebug.log(TAG, "resume failed, replay current %s", e.getMessage());
@@ -158,14 +161,20 @@ abstract class AudioFileTtsEngine implements TtsEngine {
     public void setRate(float rate) {
         options = options.withRate(rate);
         MediaPlayer mp = player;
-        if (mp != null) {
-            try {
-                android.media.PlaybackParams params = mp.getPlaybackParams();
-                params.setSpeed(options.rate);
-                mp.setPlaybackParams(params);
-            } catch (Throwable e) {
-                SpiderDebug.log(TAG, "setRate failed %s", e.getMessage());
-            }
+        // 暂停中不能直接改播放器速率：平台文档明确「已 prepared 的播放器用非零速度
+        // 调 setPlaybackParams 等价于 start()」，会让界面显示「已暂停」时突然出声。
+        // 暂停期间只更新 options，恢复播放时由 resume() 补上（后续片段也会走新语速）。
+        if (mp != null && !paused) applyRate(mp);
+    }
+
+    /** 把当前语速应用到已 prepared 的播放器。 */
+    private void applyRate(MediaPlayer mp) {
+        try {
+            android.media.PlaybackParams params = mp.getPlaybackParams();
+            params.setSpeed(options.rate);
+            mp.setPlaybackParams(params);
+        } catch (Throwable e) {
+            SpiderDebug.log(TAG, "setRate failed %s", e.getMessage());
         }
     }
 

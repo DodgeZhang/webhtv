@@ -1633,13 +1633,19 @@ public class WebReaderActivity extends AppCompatActivity {
             }
             com.fongmi.android.tv.tts.TtsOptions options =
                     new com.fongmi.android.tv.tts.TtsOptions(rate, pitch, voice);
-            ReaderTtsService.setPendingStart(new ReaderTtsService.StartRequest(
-                    source, options, rule, paragraphs, index, timer, title));
-            ReaderTtsService.setPendingWebCallback(ttsWebCallback);
-            ReaderTtsService service = ReaderTtsService.get();
-            if (service != null) service.setWebCallback(ttsWebCallback);
-            Intent intent = new Intent(this, ReaderTtsService.class).setAction(ReaderTtsService.ACTION_START);
-            androidx.core.content.ContextCompat.startForegroundService(this, intent);
+            final com.fongmi.android.tv.tts.TtsEngineConfig startRule = rule;
+            final ReaderTtsService.StartRequest request = new ReaderTtsService.StartRequest(
+                    source, options, startRule, paragraphs, index, timer, title);
+            // 下发任务同样回主线程：控制器/服务要求主线程语义（见 postToService 的注释），
+            // 在主线程内「先登记任务再 startForegroundService」也让这次交接天然有序。
+            runOnUiThread(() -> {
+                ReaderTtsService.setPendingStart(request);
+                ReaderTtsService.setPendingWebCallback(ttsWebCallback);
+                ReaderTtsService service = ReaderTtsService.get();
+                if (service != null) service.setWebCallback(ttsWebCallback);
+                Intent intent = new Intent(this, ReaderTtsService.class).setAction(ReaderTtsService.ACTION_START);
+                androidx.core.content.ContextCompat.startForegroundService(this, intent);
+            });
         } catch (Throwable e) {
             SpiderDebug.log(TAG, "ttsStart failed %s", e.getMessage());
             pushTtsError("朗读启动失败：" + e.getMessage());
@@ -1658,71 +1664,79 @@ public class WebReaderActivity extends AppCompatActivity {
         evalJs("window.__onTtsState && window.__onTtsState(" + jsSafe(json.toString()) + ");");
     }
 
+    /**
+     * 朗读控制桥统一回主线程执行。
+     *
+     * {@code @JavascriptInterface} 方法在 WebView 的 JavaBridge 线程被调用，而朗读控制器与
+     * 前台服务都要求主线程语义（引擎回调也一律经 {@code onMain} 归一到主线程：下游要改
+     * MediaPlayer、起/停前台通知、向 WebView 注入脚本）。若直接在 JS 线程改控制器状态，
+     * 就会与主线程的引擎回调并发：既可能读到被 {@code stop()} 换成空表的队列（控制器里
+     * size 与 get 的竞态），也会让 startForeground/通知更新发生在非主线程。
+     */
+    private void postToService(java.util.function.Consumer<ReaderTtsService> action) {
+        runOnUiThread(() -> {
+            ReaderTtsService service = ReaderTtsService.get();
+            if (service != null) action.accept(service);
+        });
+    }
+
     @JavascriptInterface
     public void ttsPause() {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.pauseReadAloud();
+        postToService(ReaderTtsService::pauseReadAloud);
     }
 
     @JavascriptInterface
     public void ttsResume() {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.resumeReadAloud();
+        postToService(ReaderTtsService::resumeReadAloud);
     }
 
     @JavascriptInterface
     public void ttsToggle() {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.toggleReadAloud();
+        postToService(ReaderTtsService::toggleReadAloud);
     }
 
     @JavascriptInterface
     public void ttsPrev() {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.prevParagraph();
+        postToService(ReaderTtsService::prevParagraph);
     }
 
     @JavascriptInterface
     public void ttsNext() {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.nextParagraph();
+        postToService(ReaderTtsService::nextParagraph);
     }
 
     @JavascriptInterface
     public void ttsSeek(int paragraph) {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.seekParagraph(paragraph);
+        postToService(service -> service.seekParagraph(paragraph));
     }
 
     @JavascriptInterface
     public void ttsSetRate(float rate) {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.setRate(rate);
+        postToService(service -> service.setRate(rate));
     }
 
     @JavascriptInterface
     public void ttsSetPitch(float pitch) {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.setPitch(pitch);
+        postToService(service -> service.setPitch(pitch));
     }
 
     @JavascriptInterface
     public void ttsSetVoice(String voice) {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.setVoice(voice);
+        postToService(service -> service.setVoice(voice));
     }
 
     @JavascriptInterface
     public void ttsSetTimer(int minutes) {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.setTimer(minutes);
+        postToService(service -> service.setTimer(minutes));
     }
 
     @JavascriptInterface
     public void ttsStop() {
-        ReaderTtsService service = ReaderTtsService.get();
-        if (service != null) service.shutdown();
-        else ReaderTtsService.stopAndQuit();
+        runOnUiThread(() -> {
+            ReaderTtsService service = ReaderTtsService.get();
+            if (service != null) service.shutdown();
+            else ReaderTtsService.stopAndQuit();
+        });
     }
 
     @Override

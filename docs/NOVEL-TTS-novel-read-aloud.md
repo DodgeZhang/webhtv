@@ -97,7 +97,7 @@
 - `HttpTtsEngine extends AudioFileTtsEngine`：OkHttp GET/POST（`TtsHttpRule`），校验 `contentType` 为音频前缀，否则读错误体上报。
 - `EdgeTtsEngine extends AudioFileTtsEngine`：OkHttp WebSocket + `Sec-MS-GEC`（R5），复用一个 socket 串行合成，失败重连一次。
 - `BuiltinTtsEngines`：内置「百度在线语音」（`https://fanyi.baidu.com/gettts?lan=zh&text={{java.encodeURI(speakText)}}&spd={{speakSpeed}}&source=web`，`speakSpeed` 映射 `clamp(round(rate*5),1,7)`）与「微软 Edge 语音」（音色 8 个中文 Neural）。两者均**只依赖网络，不需 Key**。
-- `ReaderTtsController`：段落/分句队列 + 游标 + 状态机（idle/playing/paused/stopped/error）+ 定时 + 音频焦点（`AudioFocusRequestCompat`，`AUDIOFOCUS_LOSS` 暂停，`LOSS_TRANSIENT` 暂停并在 `GAIN` 恢复）+ `ACTION_AUDIO_BECOMING_NOISY` 暂停；对外 `Listener.onState/onParagraph/onChapterEnd/onVoices`。
+- `ReaderTtsController`：段落/分句队列 + 游标 + 状态机（idle/playing/paused/stopped/error）+ 定时 + 音频焦点（`AudioFocusRequestCompat`，`AUDIOFOCUS_LOSS`/`LOSS_TRANSIENT`/`LOSS_TRANSIENT_CAN_DUCK` 一律让出焦点并暂停；让出后**不自动恢复**，由用户在面板/通知栏手动继续）+ `ACTION_AUDIO_BECOMING_NOISY` 暂停；对外 `Listener.onState/onParagraph/onChapterEnd/onVoices`。
 - `service/ReaderTtsService`：前台服务（`mediaPlayback`），持有 controller，构建通知（上一段/播放暂停/下一段/停止/定时），`stopSelf` 时释放引擎与缓存；`static get()` 供 Activity 访问（沿用本地既有模式 R10）。
 
 JS 桥（`WebReaderActivity`）：
