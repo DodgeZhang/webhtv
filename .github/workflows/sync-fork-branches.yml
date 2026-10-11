@@ -1,0 +1,105 @@
+name: Sync Fork Branches
+
+# 把上游 Silent1566/webhtv 的 main / beta 同步到本仓库同名分支。
+#
+# 本仓库的 main/beta 是上游的纯镜像（定制内容保存在 sync 分支），因此这里用"镜像"语义：
+# 只有目标分支不存在上游之外的本地提交时才覆盖；一旦发现本地提交就直接失败并列出它们，
+# 避免自动流程冲掉人工改动。上游 force-push 改写历史导致误报时，可手动 workflow_dispatch
+# 勾选 force 放行。
+#
+# 注意：跨仓库没有 push webhook 可用，这里靠定时轮询，所以上游更新后最多有一个轮询间隔的延迟。
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "目标分支存在上游之外的提交时仍覆盖（会丢弃这些提交）"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-fork-branches
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPOSITORY: Silent1566/webhtv
+
+jobs:
+  sync:
+    name: Sync ${{ matrix.branch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [main, beta]
+
+    steps:
+      # persist-credentials 关掉，推送凭据完全由下一步显式指定，避免 checkout 留下的
+      # extraheader 把 PAT 覆盖回 GITHUB_TOKEN。
+      - name: Checkout fork branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # 默认用 GITHUB_TOKEN，但它触发的 push 不会再触发其它 workflow。
+      # 如果同步后需要让本仓库的 android-release / delayed-dev-promotion 等流程也跟着跑，
+      # 就配置一个带 repo 权限的 PAT 到 secrets.SYNC_FORK_TOKEN。
+      - name: Configure push credentials
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_FORK_TOKEN }}
+          DEFAULT_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          token="${SYNC_TOKEN:-${DEFAULT_TOKEN}}"
+          git remote set-url origin "https://x-access-token:${token}@github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Mirror upstream branch
+        env:
+          BRANCH: ${{ matrix.branch }}
+          FORCE: ${{ github.event.inputs.force || 'false' }}
+        run: |
+          set -euo pipefail
+
+          git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git" 2>/dev/null || true
+          git fetch --no-tags --prune upstream "+refs/heads/${BRANCH}:refs/remotes/upstream/${BRANCH}"
+
+          local_sha="$(git rev-parse HEAD)"
+          upstream_sha="$(git rev-parse "upstream/${BRANCH}")"
+
+          if [ "$local_sha" = "$upstream_sha" ]; then
+            echo "${BRANCH} 已与上游一致（${local_sha:0:12}），无需同步。"
+            exit 0
+          fi
+
+          if git merge-base --is-ancestor "$local_sha" "upstream/${BRANCH}"; then
+            echo "${BRANCH} 可直接快进到 ${upstream_sha:0:12}。"
+          else
+            local_only="$(git rev-list --count "upstream/${BRANCH}..HEAD")"
+            if [ "$FORCE" != "true" ]; then
+              echo "::error title=目标分支存在本地提交::${BRANCH} 有 ${local_only} 个上游之外的提交，已跳过以免覆盖。"
+              git log --oneline "upstream/${BRANCH}..HEAD" | head -20
+              exit 1
+            fi
+            echo "${BRANCH} 与上游已分叉，按 force=true 覆盖 ${local_only} 个本地提交。"
+          fi
+
+          git reset --hard "upstream/${BRANCH}"
+          git push origin "HEAD:refs/heads/${BRANCH}" \
+            --force-with-lease="refs/heads/${BRANCH}:${local_sha}"
+
+          {
+            echo "## 分支同步：${BRANCH}"
+            echo
+            echo "- 上游仓库：\`${UPSTREAM_REPOSITORY}\`"
+            echo "- 同步前：\`${local_sha:0:12}\`"
+            echo "- 同步后：\`${upstream_sha:0:12}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
