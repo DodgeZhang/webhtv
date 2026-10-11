@@ -117,11 +117,23 @@ vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
 
 ## 7. 修复方向（尚未实施）
 
-1. ~~**修复 Git 云盘 / 远程信任崩溃**~~ ✅ **已完成**：`GitCloudDialog.input()` 与 `RemoteTrustDialog.input()` 的 `View.IMPORTANT_FOR_AUTOFILL_NO` 调用改为 `ViewCompat.setImportantForAutofill(view, ...)`。验证：`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` + `:app:compileMobileArm64_v8aDebugJavaWithJavac` BUILD SUCCESSFUL；`javap` 确认字节码改为 `invokestatic androidx/core/view/ViewCompat.setImportantForAutofill`；lint `NewApi` 中该 2 条 error 消失（254 → 252 errors）；`scripts/build_arm64_debug_install.sh --flavor leanback --abi arm64-v8a` 打包并覆盖安装到 dev1 设备，冷启动无 `NoSuchMethodError` 崩溃。
+1. ~~**修复 Git 云盘 / 远程信任崩溃**~~ ✅ **已完成**：`GitCloudDialog.input()` 与 `RemoteTrustDialog.input()` 的 `View.IMPORTANT_FOR_AUTOFILL_NO` 调用改为 `ViewCompat.setImportantForAutofill(view, ...)`。验证：`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` + `:app:compileMobileArm64_v8aDebugJavaWithJavac` BUILD SUCCESSFUL；`javap` 确认字节码改为 `invokestatic androidx/core/view/ViewCompat.setImportantForAutofill`；lint `NewApi` 中该 2 条 error 消失（254 → 252 errors）；`scripts/build_arm64_debug_install.sh --flavor leanback --abi arm64-v8a` 打包并覆盖安装到 dev1 设备，冷启动无 `NoSuchMethodError` 崩溃；**并实机点开「Git 云盘」弹窗成功渲染（标题「Silent1566 · 请选择仓库」与仓库列表均出现），整个会话 `FATAL EXCEPTION` 计数为 0**，证明修复路径真实可用。
 2. **恢复 MPV 在 API 24–27 可用**（唯一能真正恢复“最低支持安卓 7”的路径）：重建 mpv 原生库，使 `libmpv.so` 不再直接引用 Vulkan 1.1 core 入口。可选做法：以 `VK_NO_PROTOTYPES` + `vkGetInstanceProcAddr` 运行时解析（Android 上扩展入口可通过 `vkGetInstanceProcAddr` 获得，即使 loader 未导出 ELF 符号），或让 mpv/libplacebo 在 Vulkan 1.0 loader 上完全走 `VK_KHR_get_physical_device_properties2` 的函数指针路径。注意：仅去掉 `-z now` 无效——`System.load()` 本身即 `RTLD_NOW`。此改动属上游播放器依赖范畴，需按 `AGENTS.md` §8 先做设计研究并获得批准。
 3. **MpdSanitizer**（可选、低风险）：改用 `StringBuffer` 重载（API 1 即有）或在 API < 34 上走 `Matcher.appendReplacement(StringBuffer, ...)` 分支。
 4. **LabRunner/LabTerminalActivity**（可选）：为 `Process#isAlive`/`destroyForcibly` 加 API 26 分支（低版本用 `exitValue()` 探测 + `destroy()`）。
 5. **UI 提示**（可选）：在 API < 28 时于内核选择处显式标注“MPV 需要 Android 9+”，避免用户误判为故障。
+
+## 7.1 发布包（Release/apk/mobile-arm64_v8a.apk）54 个原生库全量复核
+
+对发布 APK 内全部 54 个 `.so` 逐个比对 API 24/26/28 平台 stub 导出符号，仅 3 个命中：
+
+| 库 | 绑定 | 结论 |
+| --- | --- | --- |
+| `assets/mpv-libs/arm64-v8a/libmpv.so` | `BIND_NOW` | 6 个 Vulkan 1.1 core 符号需 API ≥ 28 → Android 7/8 无法加载（已回退 Exo） |
+| `lib/arm64-v8a/libexo_dovi_renderer.so` | `BIND_NOW` | 4 个符号需 API ≥ 26，但 Java 侧 `ExoDv5Native` 有 `SDK_INT < 26` 守卫，不会 dlopen |
+| `assets/libmitv.so` | 否 | 缺的是 ARM EABI 软浮点/异常符号（`__aeabi_*`、`_Unwind_*`），由设备 libc/libgcc 在运行时提供，非 API 级问题 |
+
+其余 51 个库（`libc++_shared`、`libmv*`/`libmw*`/`libplayer`、`libexo_ass`、`libijk*`、`libsherpa-onnx-jni`、`libtensorflowlite_jni`、`libquickjs-android-wrapper`、`libavif_android`、`libdovi_android`、`libjpa`、`libxl_*`、`librtmp-jni`、`libpl_droidsonroids_gif`、`libmedia3ext`、`libavcodec/libavutil/libswscale/libswresample`、Chaquopy 全部 `lib*_python`/`libpython3.10`）无 API 26+ 的 GLOBAL 未定义符号。
 
 ## 8. 排查证据与可复现命令
 
