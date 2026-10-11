@@ -241,6 +241,9 @@ UI_TOKEN_STATUS   PASS
 | 工作区 | `git status --porcelain` 仅 `.scratch-goal/`（受保护脏路径，未提交） |
 | PR 状态 | `state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=9`、`baseRefName=beta`、`headRefName=dev1` |
 | PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/436/files --jq '.[].filename' \| sort` 与 `git diff --name-only origin/beta HEAD \| sort` **逐项一致**（9 项，diff 无输出） |
-| 守卫会话 | 主会话 `C61-beta-merge-review-dev1-20261011`（standard）已 finished；本坐标会话（quick-fix，scope `docs`）完成后不再有 active 会话 |
+| 守卫会话 | 主会话 `C61-beta-merge-review-dev1-20261011`（standard）、坐标会话 `…-coords` 与订正会话 `…-coords2`（quick-fix，scope `docs`）均已 finished；`.codex/task-state/current` 不存在（无 active 会话） |
+| 收尾复核远端 | `git fetch origin --prune` 后 `git ls-remote origin refs/heads/beta` 仍为 `00ad80114fa971c32de3a74f072e33714b9f488e`，且 `git merge-base --is-ancestor origin/beta HEAD` 仍为**真**（合并基点未被推进） |
+| 临时资源清理 | `/tmp/c61/**` 已删除 |
 
 - 本次交付只创建 PR，未执行任何合并操作（`mergedAt=null`）。
+- **本任务闭环完成。** 三项用户要求均已满足：① 合并远端 beta 最新代码且远端已移除/回退的内容**零复活**；② 复评全部已修改代码（含 2 个已提交未推送提交）并修复 2 项真实缺陷、2 轮评审通过；③ 提交（双父合并提交 + recovery tag）、推送 `dev1`、创建 PR #436（中文描述、只创建未合并）。
