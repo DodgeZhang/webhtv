@@ -1,0 +1,19 @@
+name: Sync Fork Main & Beta
+on:
+  schedule:
+    - cron: '*/10 * * * *' # 每10分钟检查上游
+  workflow_dispatch: # 手动触发
+
+jobs:
+  sync-branches:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # 一个分支失败，不打断另一个
+      matrix:
+        branch: [main, beta]
+    steps:
+      - name: Sync branch ${{ matrix.branch }} from upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh repo sync DodgeZhang/webhtv --source Silent1566/webhtv --branch ${{ matrix.branch }}
