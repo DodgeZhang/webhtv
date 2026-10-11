@@ -2,7 +2,7 @@
 
 - 排查日期：2026-10-11（CST）
 - 排查对象：`dev1` 工作区 HEAD `8ed903ac2`（分支 `dev1`），工作区干净（除既有未跟踪 `.scratch-goal/`）
-- 结论：**构建/安装/依赖层仍声明并实际满足 API 24；但内置 MPV 播放内核在 Android 7.0/7.1（以及 8.0/8.1）上无法加载**。因此“最低支持安卓 7”目前只对 Exo/IJK/系统内核成立，MPV 内核在 API < 28 上不可用（不崩溃，走回退）。
+- 结论：**构建/安装/依赖层仍声明并实际满足 API 24；依赖、Python/Node 运行时、脱糖、签名、原生库对齐全部合规**。排查中确认并修复了 3 个真实缺陷（其中 2 个在 Android 7 上会直接崩溃）；**剩余唯一硬缺口是内置 MPV 播放内核在 Android 7.0/7.1（以及 8.0/8.1）上无法加载**。因此“最低支持安卓 7”目前只对 Exo/IJK/系统内核成立，MPV 内核在 API < 28 上不可用（不崩溃，走回退）。
 
 ## 1. 声明的支持范围
 
@@ -91,7 +91,7 @@ vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
 | `org.jupnp` 3.0.4 `DOMParser.escape()`（同样的 API 34 `StringBuilder` 重载） | 三方库缺陷，同类问题；仅在 jUPnP 内部走 `escape()` 路径时触发（DLNA/投屏相关） |
 | `hook-release.aar`（`Hook extends PackageManager`，引用 API 26 的 `ChangedPackages`/`SharedLibraryInfo`/`VersionedPackage`） | 与 API 级别无关的既有 AAR 缺陷：`Hook` 继承 `PackageManager` 但**未实现任何抽象方法**（javap 实测 0 个方法），且引用了 API 26 类型；仅在迅雷/电视直播内核路径被 `TVBus.init()` 使用，包在 `try/catch (Exception ignored)` 内 |
 
-结论：Java 层**存在一个会在 Android 7 上崩溃的主流程缺陷**（Git 云盘 / 远程信任设置弹窗的 `setImportantForAutofill`），以及若干静默失效项（Lab 实验台、MPD 清洗）；其余 API 26+ 调用均有 SDK 判断或 `catch (Throwable)` 兜底。
+结论：Java 层原本有 **3 个真实缺陷**（Git 云盘/远程信任弹窗崩溃、Lab 实验台启动崩溃、MPD 清洗静默失效），均已修复；其余 API 26+ 调用均有 SDK 判断或 `catch (Throwable)` 兜底。
 
 ### 5.1 修正：先前误判
 
