@@ -2,10 +2,10 @@ name: Sync Fork Branches
 
 # 把上游 Silent1566/webhtv 的 main / beta 同步到本仓库同名分支。
 #
-# 本仓库的 main/beta 是上游的纯镜像（定制内容保存在 sync 分支），因此这里用"镜像"语义：
-# 只有目标分支不存在上游之外的本地提交时才覆盖；一旦发现本地提交就直接失败并列出它们，
-# 避免自动流程冲掉人工改动。上游 force-push 改写历史导致误报时，可手动 workflow_dispatch
-# 勾选 force 放行。
+# 默认用"合并"语义（与 GitHub 自带的 Sync fork 一致）：把上游提交合并进本仓库同名分支，
+# 本地提交（比如本工作流自身、以及后续加在 main 上的本地文件）都会被保留。上游重写历史
+# 或与本地改动冲突时会中止，把问题留在日志里由人工处理，绝不静默丢弃。
+# 需要把目标分支变成上游的纯镜像（丢弃本地提交）时，手动 workflow_dispatch 勾选 force。
 #
 # 注意：跨仓库没有 push webhook 可用，这里靠定时轮询，所以上游更新后最多有一个轮询间隔的延迟。
 
@@ -61,8 +61,11 @@ jobs:
           set -euo pipefail
           token="${SYNC_TOKEN:-${DEFAULT_TOKEN}}"
           git remote set-url origin "https://x-access-token:${token}@github.com/${GITHUB_REPOSITORY}.git"
+          # 合并提交需要身份，checkout 不会自动配置。
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Mirror upstream branch
+      - name: Merge upstream branch
         env:
           BRANCH: ${{ matrix.branch }}
           FORCE: ${{ github.event.inputs.force || 'false' }}
@@ -79,22 +82,30 @@ jobs:
             echo "${BRANCH} 已与上游一致（${local_sha:0:12}），无需同步。"
             exit 0
           fi
-
-          if git merge-base --is-ancestor "$local_sha" "upstream/${BRANCH}"; then
-            echo "${BRANCH} 可直接快进到 ${upstream_sha:0:12}。"
-          else
-            local_only="$(git rev-list --count "upstream/${BRANCH}..HEAD")"
-            if [ "$FORCE" != "true" ]; then
-              echo "::error title=目标分支存在本地提交::${BRANCH} 有 ${local_only} 个上游之外的提交，已跳过以免覆盖。"
-              git log --oneline "upstream/${BRANCH}..HEAD" | head -20
-              exit 1
-            fi
-            echo "${BRANCH} 与上游已分叉，按 force=true 覆盖 ${local_only} 个本地提交。"
+          if git merge-base --is-ancestor "$upstream_sha" HEAD; then
+            echo "${BRANCH} 已包含上游全部提交，无需同步。"
+            exit 0
           fi
 
-          git reset --hard "upstream/${BRANCH}"
-          git push origin "HEAD:refs/heads/${BRANCH}" \
-            --force-with-lease="refs/heads/${BRANCH}:${local_sha}"
+          if [ "$FORCE" = "true" ]; then
+            echo "force=true：把 ${BRANCH} 覆盖为上游 ${upstream_sha:0:12}，丢弃 ${local_sha:0:12} 上的本地提交。"
+            git reset --hard "$upstream_sha"
+            git push origin "HEAD:refs/heads/${BRANCH}" \
+              --force-with-lease="refs/heads/${BRANCH}:${local_sha}"
+          else
+            if git merge-base --is-ancestor "$local_sha" "$upstream_sha"; then
+              echo "${BRANCH} 快进到 ${upstream_sha:0:12}。"
+              git merge --ff-only "$upstream_sha"
+            else
+              echo "${BRANCH} 本地有提交，与上游 ${upstream_sha:0:12} 合并（保留本地提交）。"
+              if ! git merge --no-edit "$upstream_sha"; then
+                git merge --abort || true
+                echo "::error title=上游合并冲突::${BRANCH} 合并上游 ${upstream_sha:0:12} 时冲突，需要人工处理。"
+                exit 1
+              fi
+            fi
+            git push origin "HEAD:refs/heads/${BRANCH}"
+          fi
 
           {
             echo "## 分支同步：${BRANCH}"
