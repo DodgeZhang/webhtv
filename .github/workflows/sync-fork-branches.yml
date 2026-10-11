@@ -1,0 +1,20 @@
+name: Sync Fork Main & Beta
+on:
+  schedule:
+    - cron: '*/10 * * * *' # 每10分钟轮询一次上游
+  workflow_dispatch: # 支持手动点按钮触发
+
+jobs:
+  sync-branches:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [main, beta] # 需要同步的两个分支，在这里写
+    steps:
+      - name: Sync ${{ matrix.branch }} from upstream
+        uses: repo-sync/github-sync@v2
+        with:
+          upstream_repository: Silent1566/webhtv
+          target_repository: DodgeZhang/webhtv
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ matrix.branch }}
