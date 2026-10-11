@@ -72,11 +72,11 @@ public class PlayerSettingsContrastTest {
     public void relatedTvRowsUseSemanticSurfacePairs() throws Exception {
         assertContains("src/leanback/res/layout/adapter_vod.xml", "android:textColor=\"?attr/webhtvColorOnWallpaper\"", "TV history episode remarks must stay readable on the wallpaper-backed card");
         assertContains("src/leanback/res/drawable/shape_ad_rule_card.xml", "?attr/colorSurfaceContainerHigh", "ad-rule cards must use the active surface token");
-        assertContains("src/leanback/res/drawable/selector_ad_stats_item.xml", "?attr/colorSurfaceContainerHigh", "ad-stat rows must use the active surface token");
-        assertContains("src/leanback/res/drawable/selector_exit_confirm_secondary.xml", "?attr/colorPrimary", "exit secondary controls must expose a themed focus ring");
+        assertContains("src/leanback/res/drawable/selector_ad_stats_item.xml", "@dimen/webhtv_focus_ring_width", "ad-stat rows must use the unified focus-ring width");
+        assertContains("src/leanback/res/drawable/selector_exit_confirm_secondary.xml", "@dimen/webhtv_focus_ring_width", "exit secondary controls must use the unified focus-ring width");
         assertContains("src/main/res/drawable/selector_dialog_surface_row.xml", "?attr/colorOutlineVariant", "shared dialog rows must use semantic outline");
-        assertContains("src/main/res/color/following_button_primary_text.xml", "?attr/colorOnPrimary", "following primary actions must use the paired foreground");
-        assertContains("src/main/res/color/following_button_secondary_text.xml", "?attr/colorOnPrimary", "following focused actions must use the paired foreground");
+        assertContains("src/main/res/color/following_button_primary_text.xml", "@color/webhtv_color_on_primary", "following primary actions must use the paired foreground");
+        assertContains("src/main/res/color/following_button_secondary_text.xml", "@color/webhtv_color_on_primary", "following focused actions must use the paired foreground");
         assertContains("src/main/res/drawable/shape_login_state_badge.xml", "?attr/colorPrimaryContainer", "login-state badges must use the active primary container");
         assertContains("src/main/java/com/fongmi/android/tv/ui/dialog/CustomCspDialog.java", "ThemeController.current()", "custom CSP dialog must use the active palette");
         assertFalse("custom CSP dialog must not retain fixed light input colors", read("src/main/java/com/fongmi/android/tv/ui/dialog/CustomCspDialog.java").contains("Color.WHITE"));
