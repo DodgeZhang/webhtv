@@ -195,11 +195,13 @@ cmd /c gradlew.bat --no-daemon --continue \
 | 任务起始 HEAD | `97c7ae68abd9be76d2bdd1d79e34d93a9f6925ae` |
 | 阶段一 `origin/beta` tip | `fb4fd7d99ca1547ea624f3d5f1b7f3cd81b880a5` |
 | **提交时 `origin/beta` tip（权威）** | `3148f030df9784be7b14fc924364c304980ff9ab` |
-| 阶段一提交（文档） | `c27f34b9506875873ebafcceab9f6785f8510f3d` |
+| 阶段一提交（文档） | `c27f34b9506875873ebafcceab9f6785f8510f3d`（单父 = `97c7ae68ab`） |
 | 阶段一 recovery tag | `recovery/C58-beta-merge-review-dev2/20261011034817-c27f34b95068` |
-| 阶段二合并提交 | 见「闭环记录」 |
-| 阶段二 recovery tag | 见「闭环记录」 |
-| 推送 | `git push origin dev2`（两次快进）+ tag 推送 |
+| **阶段二合并提交** | `8f20fab65aa2986b984b7848d948f102005bfb38`（两个父：`c27f34b950` + `3148f030df`） |
+| 阶段二合并结果树 | `c681b54ccfcb24a30043a80df24933736735dce6`（== `git merge-tree --write-tree` 自动合并结果树） |
+| 阶段二 recovery tag | `recovery/C58-beta-merge-dev2-beta434/20261011035739-8f20fab65aa2` |
+| 坐标补记提交 | 见「闭环记录」 |
+| 推送 | `git push origin dev2`（快进）+ 两个 tag 推送 |
 | PR | `dev2 -> beta`，中文正文，**只创建未合并** |
 
 ## 闭环记录
@@ -207,4 +209,7 @@ cmd /c gradlew.bat --no-daemon --continue \
 - 2026-10-11 11:48（Asia/Shanghai）：阶段一。`git fetch` 后确认 `origin/beta` tip `fb4fd7d99c` 即 `dev2` HEAD 的父提交 ⇒ **无需合并**；2 轮复评未发现必修缺陷，未改生产代码；`task_guard.sh finish` 生成文档提交 `c27f34b9506875873ebafcceab9f6785f8510f3d` + recovery tag `recovery/C58-beta-merge-review-dev2/20261011034817-c27f34b95068`；`git push origin dev2` = `34a93e243f..c27f34b950`（快进）+ tag 推送成功。
 - 2026-10-11 12:0x：**推送后发现 beta 前进**（`git ls-remote` = `3148f030df`，PR #434 dev1 主题族 11 提交）⇒ 以新 tip 重新合入：`git merge --no-commit --no-ff origin/beta`（0 冲突，`MERGE_HEAD` = `3148f030df`），索引树 `c681b54c` == `git merge-tree --write-tree` 自动结果树；复评第 3 轮通过（增量与本次改动零交集、零复活、dev2 内容逐字节未变）。
 - 2026-10-11 12:4x：阶段二重新验证：4 个编译目标任务 BUILD SUCCESSFUL；leanback **4174 / 8 失败 / 7 类**、mobile **4989 / 7 失败 / 6 类**，失败类集合与文档基线同族（0 新增失败）；`PlaybackOwnershipSourceTest` 双 flavor **18/18**，两条新增用例 PASSED。
-- 待续（同一轮内完成）：`task_guard.sh finish` 生成合并提交 + recovery tag → 文档坐标补记提交 → `git push origin dev2` + tag → `gh pr create --base beta --head dev2`（**未合并**）→ 校验 PR 文件集与 `git diff --name-only origin/beta HEAD` 逐项一致。
+- 2026-10-11 11:57（Asia/Shanghai）：阶段二合并提交 `8f20fab65aa2986b984b7848d948f102005bfb38` + recovery tag `recovery/C58-beta-merge-dev2-beta434/20261011035739-8f20fab65aa2`；`git rev-list --parents -n1 8f20fab65a` 校验为**两个父**（`c27f34b950` + `3148f030df`）且第二父 == 提交时 beta tip，`MERGE_HEAD` 已清空，工作区干净。
+- 2026-10-11 11:57：`git ls-remote origin refs/heads/beta` 复核 beta 未再前进（`3148f030df`，本合并已含该 tip）。
+- 2026-10-11 11:58：坐标补记提交（本文件更新）；`git push origin dev2` + 两个 recovery tag 推送。
+- 2026-10-11 11:59：`gh pr create --base beta --head dev2` 创建 PR（**未合并**，`mergedAt=null`）；PR 文件集校验：与本地 `git diff --name-only origin/beta HEAD` 逐项一致。
