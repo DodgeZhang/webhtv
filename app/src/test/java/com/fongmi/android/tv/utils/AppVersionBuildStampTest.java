@@ -54,6 +54,19 @@ public class AppVersionBuildStampTest {
     }
 
     @Test
+    public void stampsOfDifferentLengthsAreStillOrdered() {
+        String minuteInstall = "v5.6.0-beta-202610091755";
+        String secondInstall = "v5.6.0-beta-20261009175522";
+
+        assertFalse("An older minute stamp must not look newer than a second-resolution install",
+                AppVersion.isNewer(secondInstall, "v5.6.0-202609221328"));
+        assertTrue(AppVersion.isNewer(secondInstall, "v5.6.0-20261009175530"));
+        assertTrue(AppVersion.isNewer(minuteInstall, "v5.6.0-20261009175530"));
+        assertFalse("The same minute without seconds is not a later build",
+                AppVersion.isNewer(secondInstall, minuteInstall));
+    }
+
+    @Test
     public void tagsWithoutAComparableStampKeepTheHistoricalBehavior() {
         assertTrue(AppVersion.isNewer("5.6.0", "5.6.1"));
         assertFalse(AppVersion.isNewer("5.6.0", "5.6.0"));

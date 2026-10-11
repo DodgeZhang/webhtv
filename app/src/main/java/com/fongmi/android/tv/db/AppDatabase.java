@@ -206,8 +206,10 @@ public abstract class AppDatabase extends RoomDatabase {
      * same {@code versionCode} but different entities hit exactly that state, and because the
      * failure happens while the database is being opened it also breaks every later launch that
      * touches it. Nothing in the app can catch it at the call sites, so it is handled while the
-     * connection is opened: the unreadable database files are quarantined instead of deleted and a
-     * fresh database is created, which keeps the app usable and leaves the original file on disk.
+     * connection is opened: the database is moved aside so the original file survives for manual
+     * recovery (its {@code -wal}/{@code -shm}/{@code -journal} sidecars are cleared, and a file that
+     * cannot be moved is deleted, because the rebuild needs the path free) and a fresh database is
+     * created, which keeps the app usable.
      *
      * <p>Only Room's identity failure is recovered. Any other open failure is rethrown unchanged.
      */
@@ -295,7 +297,10 @@ public abstract class AppDatabase extends RoomDatabase {
         return false;
     }
 
-    /** Moves the unreadable database aside so the rebuild starts clean without losing the original. */
+    /**
+     * Moves the unreadable database aside so the rebuild starts clean while the original file stays
+     * on disk; only a file that cannot be moved is deleted.
+     */
     static void quarantine(SupportSQLiteOpenHelper.Configuration configuration, String name) {
         File file = databaseFile(configuration, name);
         File directory = file == null ? null : file.getParentFile();

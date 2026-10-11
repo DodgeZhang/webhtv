@@ -117,6 +117,16 @@ return AppVersion.isNewer(name);                    // 同版本号：仅按构�
 
 本任务与上游播放器依赖合并计划（`docs/upstream-player-dependency-merge-assessment-2026-08-20.md`）无关，不涉及 Exo/MPV/common 任何阶段，未改动任何上游依赖、锁文件或原生产物。ID 取 C 家族下一个空闲号（`C59` 在文档与评估索引中均未被占用）。
 
+## 复评补充（C61，2026-10-11）
+
+合并 `origin/beta` 后对 dev1 全部已修改代码（含本任务的已提交未推送提交）复评时，在本任务新增的 `AppVersion.isNewer(current, target)` 中发现一处真实缺陷 **F1** 并已修复：
+
+- 原文 `if (targetStamp.length() != currentStamp.length()) return true;` 把「长度不同的两个**可用**时间戳」当成不可比较，直接判定目标为更新。负对照实测：14 位秒级时间戳的装机版本会把**更早**的 12 位时间戳渠道包判为更新（`isNewer("v5.6.0-beta-20261009175522", "v5.6.0-202609221328") = true`），与 `BUILD_STAMP` 的 `\d{12,14}` 以及 `buildStamp()` javadoc 声明的 `yyyyMMddHHmm[ss]` 相矛盾，且方向是「自动降级」。
+- 修复：新增 `STAMP_LENGTH = 14` 与 `padStamp()`，把分钟级时间戳补齐为该分钟的第 0 秒后比较；只有真正缺失时间戳时才回退到历史语义。锁定用例 `AppVersionBuildStampTest#stampsOfDifferentLengthsAreStillOrdered`。
+- CI 发布标签固定为 12 位（`.github/workflows/android-release.yml` 的 `TAG_PATTERN` 与 `app/build.gradle` 的 `buildTimestamp` 均为 `yyyyMMddHHmm`），因此本任务原有的 12/12 位结论与实机验证结论不受影响；修复只关闭了跨长度这一条降级路径。
+
+详见 `docs/C61-beta-merge-review-dev1-20261011.md` 的 F1 与「验证」章节。
+
 ## 改动文件
 
 | 文件 | 改动 |

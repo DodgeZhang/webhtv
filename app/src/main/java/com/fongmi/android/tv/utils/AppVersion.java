@@ -14,6 +14,9 @@ public final class AppVersion {
      */
     private static final Pattern BUILD_STAMP = Pattern.compile("(?<!\\d)(\\d{12,14})(?!\\d)");
 
+    /** Width of {@code yyyyMMddHHmmss}; the widest stamp {@link #BUILD_STAMP} can return. */
+    private static final int STAMP_LENGTH = 14;
+
     private AppVersion() {
     }
 
@@ -40,7 +43,9 @@ public final class AppVersion {
      * "different tag" as "newer" made an older package look installable over a newer one, so the
      * app kept offering a downgrade and the two channels overwrote each other in a loop.
      *
-     * <p>Tags without a usable stamp keep the historical "different means update" behavior.
+     * <p>Tags without a usable stamp keep the historical "different means update" behavior. Two
+     * usable stamps are always ordered against each other, also when one carries seconds and the
+     * other does not; only a missing stamp falls back to "different means update".
      */
     public static boolean isNewer(String current, String target) {
         String currentTag = stripPrefix(current);
@@ -49,8 +54,17 @@ public final class AppVersion {
         String currentStamp = buildStamp(currentTag);
         String targetStamp = buildStamp(targetTag);
         if (currentStamp.isEmpty() || targetStamp.isEmpty()) return true;
-        if (targetStamp.length() != currentStamp.length()) return true;
-        return targetStamp.compareTo(currentStamp) > 0;
+        return padStamp(targetStamp).compareTo(padStamp(currentStamp)) > 0;
+    }
+
+    /**
+     * Widens a {@code yyyyMMddHHmm} stamp to {@code yyyyMMddHHmmss} so two stamps of different
+     * lengths stay comparable; a minute stamp means second zero of that minute.
+     */
+    private static String padStamp(String stamp) {
+        StringBuilder padded = new StringBuilder(stamp);
+        while (padded.length() < STAMP_LENGTH) padded.append('0');
+        return padded.toString();
     }
 
     /** Returns the trailing build stamp ({@code yyyyMMddHHmm[ss]}) of a release tag, or {@code ""}. */

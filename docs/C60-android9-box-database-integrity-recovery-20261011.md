@@ -97,6 +97,12 @@ bash scripts/build_arm64_debug_install.sh --flavor leanback --abi arm64-v8a --se
 - "两个不同来源的构建各自把 `VERSION` 设为 48 导致 identity 冲突"的**源头**未追查（本任务只做应用侧兜底）；建议后续在发布流程中确保同一发布线只有一个构建来源。
 - 隔离副本按时间保留 2 份，未做容量统计；数据库为 KB~MB 级，风险可忽略。
 
+## 复评补充（C61，2026-10-11）
+
+合并 `origin/beta` 后复评时，在本任务的注释中发现一处真实缺陷 **F2** 并已修复（**行为零改动**）：`IntegrityRecoveringOpenHelperFactory` 的 javadoc 与 `quarantine()` 的 javadoc 原文称「不可读的数据库文件被保全而非删除、原文件留在磁盘上」，但实现中 `-wal/-shm/-journal` 会被清理，且 `renameTo` 失败时会删除主库文件（否则重建无法落盘）。两处注释已改为如实描述「主库改名保全 + 边车文件清理 + 无法改名时删除」。
+
+本任务的代码行为、真机四种场景结论、聚焦用例结论均不受影响（`AppDatabaseIntegrityRecoverySourceTest` 4 例在合并后复跑仍全绿）。详见 `docs/C61-beta-merge-review-dev1-20261011.md` 的 F2 与「复评记录」章节。
+
 ## 与既有任务的关系
 
 本任务与上游播放器依赖合并计划（`docs/upstream-player-dependency-merge-assessment-2026-08-20.md`）无关，不涉及 Exo/MPV/common 任何阶段，未改动任何上游依赖、锁文件或原生产物。与 `C59` 构成同一用户反馈的**两个独立原子改动**（按 `AGENTS.md` §6 分别提交）。
