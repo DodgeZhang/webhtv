@@ -129,7 +129,22 @@ gradlew.bat --no-daemon clean
 
 已停止 Gradle daemon，`clean` 成功，并删除本轮临时日志；未生成正式包，不卸载或安装模拟器包。
 
-## 5. 回滚与交付
+## 6. 交付坐标
+
+| 项 | 值 |
+| --- | --- |
+| 第一次合并提交（已推送） | `e0c067cba71c51b55058f365b7d85646e00e808e`（第二父旧 beta `fb4fd7d99ca1547ea624f3d5f1b7f3cd81b880a5`） |
+| 最终合并提交（双父） | `3e657bef0d978e8155803f2b19904b0a3e5a88cd`（第一父 `e0c067cba71c51b55058f365b7d85646e00e808e`；第二父 `8ed903ac2a75bf76b46ab04e17059a30070d4b63` = 最终 beta tip） |
+| recovery tag | `recovery/beta-sync-review-dev4-20261011-r2/20261011082700-3e657bef0d97` |
+| 第一次 recovery tag | `recovery/beta-sync-review-dev4-20261011/20261011033932-e0c067cba71c` |
+| 推送 | `git push origin dev4` → `e0c067cba71..3e657bef0d9  dev4 -> dev4`；recovery tag 推送成功 |
+| PR | [#437](https://github.com/Silent1566/webhtv/pull/437)（`dev4` → `beta`，**只创建，未合并**） |
+| PR 状态校验 | `state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=29`、`baseRefName=beta`、`headRefName=dev4` |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/437/files --jq '.[].filename' \| sort` 与 `git diff --name-only origin/beta HEAD \| sort` **逐项一致**（29/29） |
+| 收尾复核 | `git merge-base --is-ancestor origin/beta HEAD` 为真；`MERGE_HEAD` 已清除；`git status --porcelain` 干净；无残留 Gradle daemon |
+| 远端 beta | `git ls-remote origin refs/heads/beta` = `8ed903ac2a75bf76b46ab04e17059a30070d4b63`，与合并第二父一致 |
+
+## 7. 回滚与交付
 
 - 回滚：对最终 merge commit 执行 `git revert -m 1 <merge-commit>`，恢复到 `e0c067cba71c51b55058f365b7d85646e00e808e`。
 - 无数据库迁移、网络协议、ABI、native、Release 产物或用户偏好格式变化。
