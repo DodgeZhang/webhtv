@@ -8,13 +8,14 @@ jobs:
   sync-branches:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        branch: [main, beta] # 需要同步的两个分支，在这里写
+        branch: [main, beta] # 需要同步的两个分支
     steps:
       - name: Sync ${{ matrix.branch }} from upstream
         uses: repo-sync/github-sync@v2
         with:
-          upstream_repository: Silent1566/webhtv
-          target_repository: DodgeZhang/webhtv
+          source_repo: Silent1566/webhtv
+          source_branch: ${{ matrix.branch }}
+          destination_branch: ${{ matrix.branch }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ matrix.branch }}
