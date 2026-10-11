@@ -77,6 +77,10 @@ public class PlayerSettingsContrastTest {
         assertContains("src/main/res/drawable/selector_dialog_surface_row.xml", "?attr/colorOutlineVariant", "shared dialog rows must use semantic outline");
         assertContains("src/main/res/color/following_button_primary_text.xml", "?attr/colorOnPrimary", "following primary actions must use the paired foreground");
         assertContains("src/main/res/color/following_button_secondary_text.xml", "?attr/colorOnPrimary", "following focused actions must use the paired foreground");
+        assertContains("src/main/res/drawable/shape_login_state_badge.xml", "?attr/colorPrimaryContainer", "login-state badges must use the active primary container");
+        assertContains("src/main/java/com/fongmi/android/tv/ui/dialog/CustomCspDialog.java", "ThemeController.current()", "custom CSP dialog must use the active palette");
+        assertFalse("custom CSP dialog must not retain fixed light input colors", read("src/main/java/com/fongmi/android/tv/ui/dialog/CustomCspDialog.java").contains("Color.WHITE"));
+        assertFalse("custom CSP dialog must not retain fixed Google light row colors", read("src/main/java/com/fongmi/android/tv/ui/dialog/CustomCspDialog.java").contains("#E8F0FE"));
     }
 
     @Test
