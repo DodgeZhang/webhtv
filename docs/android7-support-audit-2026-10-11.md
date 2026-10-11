@@ -1,0 +1,135 @@
+# Android 7（API 24/25）最低支持能力全面排查
+
+- 排查日期：2026-10-11（CST）
+- 排查对象：`dev1` 工作区 HEAD `8ed903ac2`（分支 `dev1`），工作区干净（除既有未跟踪 `.scratch-goal/`）
+- 结论：**构建/安装/依赖层仍声明并实际满足 API 24；但内置 MPV 播放内核在 Android 7.0/7.1（以及 8.0/8.1）上无法加载**。因此“最低支持安卓 7”目前只对 Exo/IJK/系统内核成立，MPV 内核在 API < 28 上不可用（不崩溃，走回退）。
+
+## 1. 声明的支持范围
+
+| 项 | 值 | 证据 |
+| --- | --- | --- |
+| `minSdk` | 24（Android 7.0） | `gradle/libs.versions.toml:4`，`app/build.gradle:39`，其余 4 个模块同源 |
+| `targetSdk` | 28 | `gradle/libs.versions.toml:5` |
+| `compileSdk` | 37 | `gradle/libs.versions.toml:6` |
+| 合并后清单 | `minSdkVersion="24"` | `app/build/intermediates/packaged_manifests/leanbackArm64_v8aDebug/.../AndroidManifest.xml` |
+| APK 签名 | 仅 v2（v1=false） | `apksigner verify -v`；Android 7.0 支持 v2，可安装 ✔ |
+| 打包方式 | `extractNativeLibs="false"` + `.so` Stored + zipalign 4 页对齐 | `zipalign -c -p -v 4` = Verification successful ✔ |
+
+## 2. 依赖最低版本（全部 ≤ 24，无冲突）
+
+解析 191 个模块，逐个读取 AAR 清单 `minSdkVersion`：
+
+- 最高：`androidx.webkit:webkit:1.16.0` → **24**（正好等于我们的下限）
+- 次高：`androidx.core:core:1.18.0`、`androidx.lifecycle:*:2.10.0`、`androidx.media:media:1.8.0`、`androidx.work:work-runtime:2.11.2`、`com.google.android.material:material:1.14.0`、`androidx.room:room-runtime:2.8.4`、`com.suyashbelekar:exoplayerhdrutils:0.4.0` → 23
+- 本地 AAR：`thunder-release.aar` 24、`hook-release.aar` 24、`tvbus-release.aar` 24、`jianpian-release.aar` 21、`forcetech-release.aar` 21
+- 本地 maven：`media3-*:1.11.0-alpha01-fongmi` → 23
+- **没有任何依赖要求 > 24**（否则 manifest merger 会直接报错，构建无法产出 minSdk=24 的清单）
+
+## 3. 原生库逐符号排查（NDK r29 各 API 级 stub 对照）
+
+方法：对每个随包发布的 `.so`，用 `llvm-readelf --dyn-syms` 取出 **GLOBAL UND**（弱引用不算）符号，再与 `$NDK/.../sysroot/usr/lib/<triple>/{24,26,28}/` 平台 stub 的导出符号集对照。此 stub 由 AOSP 各 API 级符号表生成，等价于“该 API 级设备上平台库是否导出此符号”。
+
+覆盖范围：APK 内 30 个 `.so`（arm64-v8a）+ `jniLibs`/mpv 资源/v7a 资源（armeabi-v7a）。
+
+### 3.1 唯一硬阻塞：`libmpv.so`
+
+两个 ABI 的 `app/src/<abi>/assets/mpv-libs/<abi>/libmpv.so` 都直接引用 6 个 **Vulkan 1.1 core** 入口：
+
+```text
+vkGetPhysicalDeviceProperties2        vkGetPhysicalDeviceFormatProperties2
+vkGetPhysicalDeviceImageFormatProperties2
+vkGetPhysicalDeviceQueueFamilyProperties2
+vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
+```
+
+- 平台 `libvulkan.so` 导出情况：API 24/25/26/27 = **不导出**；API 28 起 = 导出（NDK stub 24/26/27 各 148 个符号、28 起 182 个）。
+- AOSP 权威标注：`platform/frameworks/native/vulkan/libvulkan/libvulkan.map.txt` 对上述符号标注 `# introduced=28`（Android 9）。即 Android 7/8 的 loader 根本不导出这些名字。
+- 绑定方式：`libmpv.so` 同时带 `DT_FLAGS = SYMBOLIC BIND_NOW` 与 `DT_FLAGS_1 = NOW`（即时绑定），且 Java 侧用 `System.load()`（`Runtime.nativeLoad` 走 `RTLD_NOW`）。**缺符号 = 加载失败**，不是延迟到调用才失败。
+- 实测（真机 bionic 复现机制）：用 API 24 的 x86_64 `libvulkan.so` stub 作为平台库、构造一个带 `BIND_NOW` 且引用 `vkGetPhysicalDeviceProperties2` 的探针库，在 API 28 设备上得到
+  `dlopen failed: cannot locate symbol "vkGetPhysicalDeviceProperties2" referenced by ".../libprobe.so"`；
+  换回真实平台 `libvulkan.so`（API 28，有该符号）立即加载成功。即失败原因确为“该符号在平台库中不存在”，与 BIND_NOW 组合即为硬失败。
+- 应用侧表现：`is/xyz/mpv/MPVLib.ensureLoaded()` 在 `LOAD_ORDER` 中 `System.load(libmpv.so)` 抛错，被 `catch (Throwable)` 捕获 → `loadError` 记录 → 返回 false。`MpvPlayer.ensureInitialized()` 抛 `IOException`。**不崩溃**，由 `PlayerManager.fallbackPlayer()` 按 `EXO → IJK → MPV → 系统` 顺序回退。因此 Android 7 上：App 可用，但 MPV 内核（含 FEL/DV7、Vulkan 输出、蓝光菜单等全部 MPV 专属能力）不可用。
+
+### 3.2 已被守卫拦截：`libexo_dovi_renderer.so`
+
+`app/src/main/cpp/CMakeLists.txt` 的 `exo_dovi_renderer` 使用 `AHardwareBuffer_describe`、`AImageReader_newWithUsage`、`AImage_getHardwareBuffer`、`ANativeWindow_toSurface`（均为 API 26+，因 `app/build.gradle:57` 传 `-DANDROID_PLATFORM=android-26` 才会链接成功），且带 BIND_NOW。
+
+但 Java 侧在加载前即按 SDK 拦截：`ExoDv5Native.loadLibrary()` / `probe()` 先判断 `Build.VERSION.SDK_INT < ExoDv5GpuMappingPolicy.MIN_GPU_MAPPING_API`（= 26）直接返回 `api-below-26`，**不会** `System.loadLibrary`。故 API 24/25 上不会触发 dlopen 失败；DV5 渲染器在 Android 7 上按设计不可用。
+
+### 3.3 其余原生库全部通过
+
+`libexo_ass.so`、`libijkplayer.so`、`libijkffmpeg.so`、`libijksdl.so`、`libsherpa-onnx-jni.so`、`libtensorflowlite_jni.so`、`libquickjs-android-wrapper.so`、`libavif_android.so`、`libdovi_android.so`、`libjpa.so`、`libxl_stat.so`、`libxl_thunder_sdk.so`、`librtmp-jni.so`、`libpl_droidsonroids_gif.so`、`libmedia3ext.so`、`libavcodec/libavutil/libswscale/libswresample.so`、Chaquopy 全部 `lib*_python.so`/`libpython3.10.so`、mpv 的 `libc++_shared/libmv*/libmw*/libplayer.so` —— 均无 API 26+ 的 GLOBAL 未定义符号（`memfd_create`、`getentropy` 等属弱引用，不阻塞加载）。
+
+32 位侧：`app/src/main/jniLibs/armeabi-v7a/*` 5 个库与 `app/src/armeabi_v7a/assets/mpv-libs/armeabi-v7a/*` 结论与 arm64 一致（`libmpv.so` 同样命中 6 个 Vulkan 1.1 符号）。
+注：`third_party/exo-ass-native/prebuilt/` 只有 `arm64-v8a`，v7a 包没有 `libexo_ass.so`（与 Android 版本无关的既有 ABI 覆盖问题）。
+
+## 4. 运行时按需下载组件
+
+- **Chaquopy/Python**：`com.chaquo.python` 17.0.0 插件内置字符串 `minSdk version 24 or higher`，即其下限恰为 24，与项目一致 ✔。随包 Python 原生库无 API 26+ 符号 ✔。
+- **nodejs-mobile（猫源）**：`NodeLib.VERSION = v18.20.4`，运行时下载。实测下载官方 `nodejs-mobile-v18.20.4-android.zip` 并逐符号分析 `bin/{arm64-v8a,armeabi-v7a}/libnode.so`：仅依赖 `libc++_shared/libc/libdl/liblog/libm`，**无任何 API 26/28 专属符号**（缺的 122 个符号全是 `std::__ndk1::` C++ ABI 符号，由 APK 自带 `libc++_shared.so` 提供）✔。
+
+## 5. Java/Kotlin 框架 API 排查
+
+`./gradlew :app:lintLeanbackArm64_v8aDebug` → 报告 `app/build/reports/lint-results-leanbackArm64_v8aDebug.txt`，其中 `NewApi` 52 处（23 处 API 26、13 处 API 29、1 处 API 31、10 处 API 34 等）。
+
+逐条核实结果：
+
+| 位置 | 结论 |
+| --- | --- |
+| `PlayerManager$AudioFocusApi26`、`PlaybackSystemConditionMonitor$Api29Thermal`、`MpvAudioCapabilities.supportsDirect` | 均在 API 隔离内部类中，调用点有 `SDK_INT >= O/Q/S` 判断 ✔ 安全 |
+| `ReaderTtsService`/`LabRuntimeService` 的 `NotificationChannel`、`NodeService.startForegroundCompat` | 有 `SDK_INT >= O/Q` 判断 ✔ 安全 |
+| `FollowingNotifier`/`Notify` | 用 AndroidX `NotificationChannelCompat`（内部按 API 降级）✔ 安全 |
+| `ContextCompat.startForegroundService`、`NotificationManagerCompat` | AndroidX 兼容层 ✔ 安全 |
+| `ChineseText`（`android.icu.text.Transliterator`，API 29） | 外层 `try/catch (Throwable)`，失败返回原文 ✔ 安全降级 |
+| `ExoFrameSchedulingPerfettoTrace`（`Trace.setCounter/endAsyncSection`，API 29） | 整体 `try/catch (Throwable ignored)` ✔ 安全降级（AndroidX `TraceCompat` 亦有同款 API 隔离） |
+| `MpvPlayer.requestSurfaceFrameRate`（`Surface.setFrameRate`，API 31） | `try/catch (Throwable)` ✔ 安全降级 |
+| `CacheScheduler`（`JobInfo.Builder#setRequiresBatteryNotLow`，API 26） | 外层 `try/catch (Throwable ignored)`，仅跳过省电条件 ✔ 不崩溃 |
+| `GitCloudDialog:2163`/`RemoteTrustDialog:3090`（`View#setImportantForAutofill`，API 26） | **真实缺陷（已实机验证，已修复）**：`TextInputEditText`/`AppCompatEditText`/`EditText`/`TextView` 均未声明该方法，运行时反射解析到 `android.view.View#setImportantForAutofill`（API 26，实机 API 28 上 `getMethod(...).getDeclaringClass()` = `android.view.View`）。调用点位于 `GitCloudDialog.buildView()→input()` 与 `RemoteTrustDialog.input()`，而两者在对话框创建链路上被无条件调用且无 try/catch → **Android 7 上打开「Git 云盘」或「远程信任」设置弹窗会抛 `NoSuchMethodError` 崩溃**（手机版 `SettingEnhanceFragment` 与 TV 版 `SettingEnhanceActivity` 均可达）。已改用 `ViewCompat.setImportantForAutofill(view, ...)`（内部 `SDK_INT < 26` 提前返回，API ≥ 26 委托到同一个 `View#setImportantForAutofill`，行为零变化）✔ 已修复 |
+| `WebViewClient#onRenderProcessGone`（API 26 回调，`RenderProcessGoneDetail` 类为 API 26） | 覆写方法在 API < 26 上不会被系统调用；`detail.didCrash()` 的 `RenderProcessGoneDetail` 类级 `since=26`，但 ART 惰性解析 + 该回调仅在 API ≥ 26 触发 → 无崩溃风险（`CatWebActivity`/`WebReaderActivity`/`HomeWebController` 三处一致） |
+| `LabRunner`/`LabTerminalActivity`（`Process#isAlive`/`destroyForcibly`，API 26） | **未守卫**。`LabAutoStart.start()` 在 `App.startBackgroundServicesNow()` 中无条件启动（3 秒后后台线程执行 `LabProcManager.recover()`、`LabConfig.get().loadSync()`，随后对每个已安装条目调用 `LabRunner.isRunning()`）。若 Android 7 上存在已安装/自动执行条目，`Process#isAlive` 会抛 `NoSuchMethodError`；该调用点在 `LabAutoStart` 的 `try/catch (Exception)` 之外？——`isRunning()` 自身无 try，但其上层 `LabAutoStart` 循环体在 `try { ... } catch (Exception ignored)` 内 → 被吞掉。`LabRunner`/`LabTerminalActivity` 是实验台（Lab）功能，非主流程。**风险：Lab 实验台功能在 Android 7 上不可用（异常被吞，功能静默失效）** |
+| `MpdSanitizer`（`Matcher#appendReplacement/appendTail` 的 `StringBuilder` 重载，**API 34**） | **真实缺陷，与 Android 7 无关但同属 API 下限问题**：`desugar_jdk_libs_nio` 2.1.5 不含 regex 回移植（jar 内无 `regex` 包），D8 也未改写该调用；debug 与 Release APK 的 dex 均保留 `appendReplacement:(Ljava/lang/StringBuilder;...)`。真机实测（API 28）调用 `MpdSanitizer.sanitize()` 直接抛 `NoSuchMethodError: No virtual method appendReplacement(Ljava/lang/StringBuilder;Ljava/lang/String;)`。该路径被 `Source.fetch()` 的 `try/catch (Exception)` 捕获 → 返回未处理 URL。影响：MPD 清洗（frameRate/AdaptationSet id 修复、YouTube jar MPD 处理）在 API < 34 设备上静默失效 |
+| `org.jupnp` 3.0.4 `DOMParser.escape()`（同样的 API 34 `StringBuilder` 重载） | 三方库缺陷，同类问题；仅在 jUPnP 内部走 `escape()` 路径时触发（DLNA/投屏相关） |
+| `hook-release.aar`（`Hook extends PackageManager`，引用 API 26 的 `ChangedPackages`/`SharedLibraryInfo`/`VersionedPackage`） | 与 API 级别无关的既有 AAR 缺陷：`Hook` 继承 `PackageManager` 但**未实现任何抽象方法**（javap 实测 0 个方法），且引用了 API 26 类型；仅在迅雷/电视直播内核路径被 `TVBus.init()` 使用，包在 `try/catch (Exception ignored)` 内 |
+
+结论：Java 层**存在一个会在 Android 7 上崩溃的主流程缺陷**（Git 云盘 / 远程信任设置弹窗的 `setImportantForAutofill`），以及若干静默失效项（Lab 实验台、MPD 清洗）；其余 API 26+ 调用均有 SDK 判断或 `catch (Throwable)` 兜底。
+
+### 5.1 修正：先前误判
+
+排查过程中我曾把 `GitCloudDialog:2163` / `RemoteTrustDialog:3090` 误判为“Material 内部有 SDK 判断”，后经逐层 `javap` 验证：`TextInputEditText → AppCompatEditText → EditText → TextView` 四层均**未声明** `setImportantForAutofill`，最终落到 `android.view.View`（`api-versions.xml` 标注 `since=26`）；实机（API 28）反射也确认 `declaring class = android.view.View`。该误判已在本文中更正，教训是：**lint 报的 `NewApi` 不能靠“库可能有覆盖”推测否定，必须验证声明类**。
+
+## 6. 最终结论
+
+| 能力 | Android 7.0/7.1（API 24/25） |
+| --- | --- |
+| 安装/启动 | ✔ 可安装（minSdk 24、v2 签名）、依赖全部满足 |
+| Exo 内核（含 libexo_ass 字幕、ijk） | ✔ 可用 |
+| IJK / 系统内核 | ✔ 可用 |
+| 猫源（nodejs-mobile 运行时下载） | ✔ 可用（libnode.so 无 API 26+ 依赖） |
+| Python 爬虫（Chaquopy 3.10） | ✔ 可用（插件下限 24） |
+| DLNA/投屏（jUPnP） | △ 基本可用；`DOMParser.escape()` 存在 API 34 缺陷（三方库，全平台 API<34 一致） |
+| Git 云盘 / 远程信任设置弹窗 | ✔ **已修复**（原为 `View#setImportantForAutofill` 未守卫崩溃，现改用 API 隔离的 `ViewCompat`） |
+| **MPV 内核** | ✘ **不可用**（`libmpv.so` 需 API 28 的 Vulkan 1.1 入口 + BIND_NOW 即时绑定 → dlopen 失败，自动回退 Exo） |
+| DV5 独立渲染器 | ✘ 设计上要求 API 26+（Java 侧守卫拦截，不崩溃） |
+| Lab 实验台 | △ `Process#isAlive/destroyForcibly`（API 26）未守卫，异常被吞 → 功能静默失效 |
+| MPD 清洗 | ✘ API < 34 全平台静默失效（`Matcher` API 34 重载，非 Android 7 专属） |
+
+**直接回答“还能不能支持安卓 7”**：安装、启动、Exo/IJK 播放、猫源、Python 爬虫这些主干能力仍可在 Android 7 上运行；但存在两类真实缺陷：（1）项目最核心的高级播放能力（MPV 内核，含 FEL/DV7、Vulkan 输出、蓝光菜单）在 Android 7/8 上**已经不能工作**（Vulkan 1.1 入口直到 Android 9/API 28 才由平台 `libvulkan.so` 导出）；（2）Git 云盘 / 远程信任设置弹窗在 Android 7 上会因 `View#setImportantForAutofill`（API 26）抛 `NoSuchMethodError` 而崩溃。因此现状**不能算“最低支持安卓 7”**。
+
+## 7. 修复方向（尚未实施）
+
+1. ~~**修复 Git 云盘 / 远程信任崩溃**~~ ✅ **已完成**：`GitCloudDialog.input()` 与 `RemoteTrustDialog.input()` 的 `View.IMPORTANT_FOR_AUTOFILL_NO` 调用改为 `ViewCompat.setImportantForAutofill(view, ...)`。验证：`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` + `:app:compileMobileArm64_v8aDebugJavaWithJavac` BUILD SUCCESSFUL；`javap` 确认字节码改为 `invokestatic androidx/core/view/ViewCompat.setImportantForAutofill`；lint `NewApi` 中该 2 条 error 消失（254 → 252 errors）；`scripts/build_arm64_debug_install.sh --flavor leanback --abi arm64-v8a` 打包并覆盖安装到 dev1 设备，冷启动无 `NoSuchMethodError` 崩溃。
+2. **恢复 MPV 在 API 24–27 可用**（唯一能真正恢复“最低支持安卓 7”的路径）：重建 mpv 原生库，使 `libmpv.so` 不再直接引用 Vulkan 1.1 core 入口。可选做法：以 `VK_NO_PROTOTYPES` + `vkGetInstanceProcAddr` 运行时解析（Android 上扩展入口可通过 `vkGetInstanceProcAddr` 获得，即使 loader 未导出 ELF 符号），或让 mpv/libplacebo 在 Vulkan 1.0 loader 上完全走 `VK_KHR_get_physical_device_properties2` 的函数指针路径。注意：仅去掉 `-z now` 无效——`System.load()` 本身即 `RTLD_NOW`。此改动属上游播放器依赖范畴，需按 `AGENTS.md` §8 先做设计研究并获得批准。
+3. **MpdSanitizer**（可选、低风险）：改用 `StringBuffer` 重载（API 1 即有）或在 API < 34 上走 `Matcher.appendReplacement(StringBuffer, ...)` 分支。
+4. **LabRunner/LabTerminalActivity**（可选）：为 `Process#isAlive`/`destroyForcibly` 加 API 26 分支（低版本用 `exitValue()` 探测 + `destroy()`）。
+5. **UI 提示**（可选）：在 API < 28 时于内核选择处显式标注“MPV 需要 Android 9+”，避免用户误判为故障。
+
+## 8. 排查证据与可复现命令
+
+- 依赖下限：`./gradlew :app:dependencies --configuration leanbackArm64_v8aDebugRuntimeClasspath`
+- Lint：`./gradlew :app:lintLeanbackArm64_v8aDebug` → `app/build/reports/lint-results-leanbackArm64_v8aDebug.txt`
+- 符号对照：
+  `$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf --dyn-syms -W <so>` 对比
+  `$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/{24,26,28}/*.so`
+- AOSP 标注：`https://android.googlesource.com/platform/frameworks/native/+/refs/heads/main/vulkan/libvulkan/libvulkan.map.txt`（`vkGetPhysicalDeviceProperties2; # introduced=28` 等）
+- 真机复现：API 28 设备上以 API 24 `libvulkan.so` stub 替换平台库后 dlopen 带 `BIND_NOW` 的探针库 → `dlopen failed: cannot locate symbol "vkGetPhysicalDeviceProperties2"`
+- 运行时验证（设备 API 28）：`MpdSanitizer.sanitize()` → `NoSuchMethodError: appendReplacement(Ljava/lang/StringBuilder;...)`
