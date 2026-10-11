@@ -131,7 +131,7 @@ vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
 | --- | --- | --- |
 | `assets/mpv-libs/arm64-v8a/libmpv.so` | `BIND_NOW` | 6 个 Vulkan 1.1 core 符号需 API ≥ 28 → Android 7/8 无法加载（已回退 Exo） |
 | `lib/arm64-v8a/libexo_dovi_renderer.so` | `BIND_NOW` | 4 个符号需 API ≥ 26，但 Java 侧 `ExoDv5Native` 有 `SDK_INT < 26` 守卫，不会 dlopen |
-| `assets/libmitv.so` | 否 | 缺的是 ARM EABI 软浮点/异常符号（`__aeabi_*`、`_Unwind_*`），由设备 libc/libgcc 在运行时提供，非 API 级问题 |
+| `assets/libmitv.so` | 否 | **既存的 ABI 异常，与 Android 版本无关**：该库是 32 位 ARM（EABI5，`file` 实测），却被打进了 **arm64-v8a** 包；其未定义符号是 ARM 编译器运行时（`__aeabi_ddiv`、`_Unwind_Complete` 等），由平台在 32 位进程运行时提供（不在任何 sysroot stub 里，属正常）。`BIND_NOW=false`，且它由三方 AAR（`forcetech-release.aar` 同时带 `jni/armeabi-v7a/libmitv.so`）提供，非本项目代码 |
 
 其余 51 个库（`libc++_shared`、`libmv*`/`libmw*`/`libplayer`、`libexo_ass`、`libijk*`、`libsherpa-onnx-jni`、`libtensorflowlite_jni`、`libquickjs-android-wrapper`、`libavif_android`、`libdovi_android`、`libjpa`、`libxl_*`、`librtmp-jni`、`libpl_droidsonroids_gif`、`libmedia3ext`、`libavcodec/libavutil/libswscale/libswresample`、Chaquopy 全部 `lib*_python`/`libpython3.10`）无 API 26+ 的 GLOBAL 未定义符号。
 
