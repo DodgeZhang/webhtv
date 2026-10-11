@@ -330,6 +330,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="toolbar">
         <input type="text" id="searchInput" class="search-input" placeholder="搜索影片、站点...">
         <button class="btn" id="refreshBtn" onclick="loadData()">🔄 刷新</button>
+        <button class="btn" onclick="confirmMergeByName()">🧩 同名合并</button>
         <button class="btn btn-danger" onclick="confirmClearAll()">🗑️ 清空全部</button>
       </div>
     </div>
@@ -1093,6 +1094,55 @@ async function deleteRecord(historyKey, siteKey, vodId) {
     showToast(res.deletedRows > 0 ? '删除成功（已同步删除指令到设备）' : '服务端未找到该记录，已刷新', 'success');
     loadData();
   } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+}
+
+// 同名合并 — 同一接口空间内按影片名精确分组，只保留更新时间最新的一条。
+// 影片名和 TMDB 身份都只在 payload 里，服务端用 json_extract 分组；同一组内若出现
+// 两个不同的 (tmdbId, seasonNumber)，判定为同名不同片/不同季，整组跳过不再删除。
+// 这里先 dryRun 预览可合并组数、待删条数与已跳过的组，确认后才真正执行。每删一条
+// 都会写 item 墓碑，其它设备下次同步会一并删除本地同一条记录，而不是又推回来。
+async function confirmMergeByName() {
+  try {
+    const preview = await fetchJSON('/api/playback/sync/maintenance', {
+      method: 'POST',
+      body: JSON.stringify({ op: 'adminMergeByName', configKey: state.configKey, dryRun: true })
+    });
+    const plan = preview.plan || [];
+    const skipped = preview.skipped || [];
+    if (!preview.mergedGroups) {
+      showToast('没有可合并的同名记录' + (skipped.length ? '（' + skipped.length + ' 组因 TMDB 身份不同已跳过）' : ''), 'info');
+      return;
+    }
+    const sample = plan.slice(0, 8).map((g) => escape(g.name) + '（-' + g.drop.length + '）').join('、');
+    const skippedText = skipped.length
+      ? '<p style="color: var(--warning);">另有 <strong>' + skipped.length + '</strong> 组同名但 TMDB 身份不同，已判定为同名不同片/不同季并自动跳过：'
+        + skipped.slice(0, 5).map((g) => escape(g.name)).join('、') + (skipped.length > 5 ? ' …' : '') + '</p>'
+      : '';
+    showModal(\`
+      <h3>🧩 同名合并（每组只留最新）</h3>
+      <p>当前接口下按<strong>影片名精确相同</strong>分组，可合并 <strong>\${preview.mergedGroups}</strong> 组，将删除 <strong>\${preview.droppedRows}</strong> 条较旧的记录，每组保留更新时间最新的一条。</p>
+      \${skippedText}
+      <p>剩余同名（缺 TMDB 信息、翻拍等）仍会被合并，可能丢掉其中一条的进度，请先确认下面的预览：</p>
+      <p style="color: var(--text-muted);">\${sample}\${plan.length > 8 ? ' …' : ''}</p>
+      <p style="color: var(--warning);">删除会写入删除指令并同步到设备；被删的来源若继续观看，会以新进度重新出现。</p>
+      <div class="modal-actions">
+        <button class="btn" onclick="hideModal()">取消</button>
+        <button class="btn btn-danger" onclick="mergeByName()">确认合并</button>
+      </div>
+    \`);
+  } catch (e) { showToast('预览失败: ' + e.message, 'error'); }
+}
+
+async function mergeByName() {
+  hideModal();
+  try {
+    const res = await fetchJSON('/api/playback/sync/maintenance', {
+      method: 'POST',
+      body: JSON.stringify({ op: 'adminMergeByName', configKey: state.configKey, dryRun: false })
+    });
+    showToast('已合并 ' + (res.mergedGroups || 0) + ' 组，删除 ' + (res.droppedRows || 0) + ' 条较旧记录（删除指令将同步到设备）', 'success');
+    loadData();
+  } catch (e) { showToast('合并失败: ' + e.message, 'error'); }
 }
 
 // 清空全部 — 发送 scope=all 的删除墓碑，并注销该接口的身份（与行内「清除并注销」一致）

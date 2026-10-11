@@ -9,6 +9,7 @@ import {
   groupRegisteredIdentities,
   mergeIdentityRegistry,
   planAutoMergeGroups,
+  planNameMerge,
   resolveWithAutoMerge
 } from '../src/playback-sync.js';
 import { IDENTITY_SCHEMA, identityRegistryKey, normalizeIdentityRegistry } from '../../playback-identity-fixtures/identity.js';
@@ -273,6 +274,46 @@ test('planAutoMergeGroups picks the member with the most records as the target',
   const counts = new Map([['key-a', 3], ['key-b', 9], ['solo-key', 5]]);
   const plans = planAutoMergeGroups(registry, (key) => counts.get(key) || 0);
   assert.deepEqual(plans, [{ target: 'key-b', sources: ['key-a'] }]);
+});
+
+test('planNameMerge keeps only the newest row per exact vodName', () => {
+  const groups = planNameMerge([
+    { itemKey: 'woog\n1', vodName: '战争鸽子', updatedAt: 100, seq: 1 },
+    { itemKey: 'hunhan\n9', vodName: '战争鸽子', updatedAt: 300, seq: 2 },
+    { itemKey: 'x\n3', vodName: '战争鸽子', updatedAt: 300, seq: 7 },
+    { itemKey: 'woog\n2', vodName: '白夜追凶', updatedAt: 500, seq: 3 },
+    { itemKey: 'y\n4', vodName: '', updatedAt: 900, seq: 8 },
+    { itemKey: 'y\n5', vodName: '   ', updatedAt: 900, seq: 9 }
+  ]);
+  // Only the duplicated name forms a group; uniques and empty names are ignored.
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].name, '战争鸽子');
+  // Equal updatedAt is broken by the newer seq, so the newest write survives.
+  assert.equal(groups[0].keep.itemKey, 'x\n3');
+  assert.deepEqual(groups[0].drop.map((row) => row.itemKey), ['hunhan\n9', 'woog\n1']);
+});
+
+test('planNameMerge leaves a bucket alone when TMDB identities disagree', () => {
+  const groups = planNameMerge([
+    // Same series name, two different seasons: the shared name is a coincidence,
+    // so the whole bucket is skipped instead of deleting the wrong season.
+    { itemKey: 'a\n1', vodName: '物怪', updatedAt: 100, seq: 1, tmdbId: 9, seasonNumber: 3 },
+    { itemKey: 'b\n2', vodName: '物怪', updatedAt: 200, seq: 2, tmdbId: 9, seasonNumber: 1 },
+    // An identical identity on two sources stays mergeable, and a row that never
+    // matched TMDB neither forms nor contradicts one, so it does not block it.
+    { itemKey: 'c\n3', vodName: '战争鸽子', updatedAt: 300, seq: 3, tmdbId: 7, seasonNumber: -1 },
+    { itemKey: 'd\n4', vodName: '战争鸽子', updatedAt: 400, seq: 4, tmdbId: 7, seasonNumber: -1 },
+    { itemKey: 'e\n5', vodName: '战争鸽子', updatedAt: 500, seq: 5 }
+  ]);
+  assert.equal(groups.length, 2);
+  const guarded = groups.find((group) => group.name === '物怪');
+  assert.deepEqual(guarded.identities, ['9#3', '9#1']);
+  assert.equal(guarded.keep, null);
+  assert.deepEqual(guarded.drop, []);
+  const merged = groups.find((group) => group.name === '战争鸽子');
+  assert.deepEqual(merged.identities, []);
+  assert.equal(merged.keep.itemKey, 'e\n5');
+  assert.deepEqual(merged.drop.map((row) => row.itemKey), ['d\n4', 'c\n3']);
 });
 
 test('resolveWithAutoMerge re-submits confirm_required with confirm automatically', async () => {

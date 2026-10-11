@@ -536,6 +536,7 @@ export class WebHTVPlaybackSyncDO {
     if (op === 'adminSplitIdentity') return this.runAdminSplitIdentity(request, body, configType);
     if (op === 'adminMoveRows') return this.runAdminMoveRows(body, configType);
     if (op === 'adminClearSpace') return this.runAdminClearSpace(request, body, configType);
+    if (op === 'adminMergeByName') return this.runAdminMergeByName(request, body, configType);
     throw playbackHttpError(400, 'Unknown maintenance op');
   }
 
@@ -711,6 +712,84 @@ export class WebHTVPlaybackSyncDO {
       await this.runUnregisterAfterClear(request, configType, configKey, result);
     }
     return playbackJson(result);
+  }
+
+  // WebHTV adaptation (dashboard): «同名合并» — keep only the newest row per
+  // exact vodName inside ONE stored space. The same film watched through two
+  // source sites owns two item_keys (`siteKey\nvodId`), so it shows up twice in
+  // the dashboard and in each device history. Manual and space-scoped on
+  // purpose: an ingest-time auto-merge would add a name scan to every webhook
+  // and would be undone the moment the dropped source is played again. Every
+  // dropped row gets an item tombstone in the same transaction, so the other
+  // devices delete their local copy instead of pushing it straight back.
+  // dryRun defaults to true: the dashboard previews the plan, then confirms.
+  async runAdminMergeByName(request, body, configType) {
+    const submittedConfigKey = requireConfigKey(request, body);
+    const configKey = await this.resolvePlaybackConfigKey(
+      request, submittedConfigKey, configType, requestAliases(request, body)
+    );
+    const storageConfigKey = scopedConfigKey(configType, configKey);
+    // One pass over the space reads only the grouping/ordering columns; vodName
+    // and the TMDB identity live in the payload JSON, so they are extracted in
+    // SQLite rather than parsed per row in JS.
+    const rows = this.sql.exec(`
+      SELECT item_key, site_key, vod_id, history_key, updated_at, seq,
+             COALESCE(json_extract(payload, '$.vodName'), '') AS vod_name,
+             COALESCE(json_extract(payload, '$.tmdbId'), 0) AS tmdb_id,
+             json_extract(payload, '$.seasonNumber') AS season_number
+        FROM playback_items
+       WHERE config_key = ?
+    `, storageConfigKey).toArray().map((row) => ({
+      itemKey: row.item_key,
+      siteKey: row.site_key,
+      vodId: row.vod_id,
+      historyKey: row.history_key,
+      updatedAt: Number(row.updated_at || 0),
+      seq: Number(row.seq || 0),
+      vodName: row.vod_name,
+      tmdbId: Number(row.tmdb_id || 0),
+      seasonNumber: Number(row.season_number)
+    }));
+    const groups = planNameMerge(rows);
+    const mergeable = groups.filter((group) => group.keep);
+    const skipped = groups.filter((group) => !group.keep)
+      .map((group) => ({ name: group.name, identities: group.identities }));
+    const plan = mergeable.map((group) => ({
+      name: group.name,
+      keep: group.keep.itemKey,
+      drop: group.drop.map((row) => row.itemKey)
+    }));
+    const droppedRows = plan.reduce((sum, group) => sum + group.drop.length, 0);
+    if (body.dryRun !== false) {
+      return playbackJson({
+        ok: true, op: 'adminMergeByName', configType, dryRun: true,
+        scannedRows: rows.length, mergedGroups: mergeable.length,
+        droppedRows, skippedGroups: skipped.length, skipped, plan
+      });
+    }
+    const deletedAt = Date.now();
+    const deletedRows = this.state.storage.transactionSync(() => {
+      let removed = 0;
+      for (const group of mergeable) {
+        for (const row of group.drop) {
+          const payload = JSON.stringify(compactObject({
+            scope: 'item', siteKey: row.siteKey, vodId: row.vodId,
+            historyKey: row.historyKey, deletedAt, origin: 'dashboard-merge'
+          }));
+          this.upsertAdminTombstone(storageConfigKey, `item\n${row.itemKey}`, 'item',
+            row.historyKey, row.siteKey, row.vodId, deletedAt, payload);
+          removed += Number(this.sql.exec(
+            'DELETE FROM playback_items WHERE config_key = ? AND item_key = ?',
+            storageConfigKey, row.itemKey
+          ).rowsWritten || 0);
+        }
+      }
+      return removed;
+    });
+    return playbackJson({
+      ok: true, op: 'adminMergeByName', configType, dryRun: false,
+      scannedRows: rows.length, mergedGroups: mergeable.length, droppedRows: deletedRows, skippedGroups: skipped.length, skipped, plan
+    });
   }
 
   // Read-only registry dump for diagnosing wrong identity bindings: every
@@ -1899,6 +1978,46 @@ function portableItemKey(historyKey, siteKey, vodId) {
 function historyParts(historyKey) {
   const parts = String(historyKey || '').split('@@@');
   return { siteKey: parts[0] || '', vodId: parts[1] || '' };
+}
+
+// WebHTV adaptation: group one space's records by their EXACT vodName, then
+// decide per group. Rows without a name are never grouped and a group of one is
+// not reported. A group whose TMDB identities disagree is reported with
+// keep: null — the shared name is then a coincidence (remake, movie vs series,
+// another season) and deleting a row would drop the wrong progress. Rows
+// without an identity neither form nor contradict one, so a source that never
+// matched TMDB stays mergeable instead of silently escaping the merge. Pure
+// function so both rules are testable without a Durable Object; the caller owns
+// the tombstones and the deletes.
+export function planNameMerge(rows) {
+  const byName = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const name = cleanString(row && row.vodName, 2048);
+    if (!name) continue;
+    const list = byName.get(name);
+    if (list) list.push(row);
+    else byName.set(name, [row]);
+  }
+  const groups = [];
+  for (const [name, list] of byName) {
+    if (list.length < 2) continue;
+    const identities = new Set();
+    for (const row of list) {
+      const tmdbId = Math.trunc(Number(row && row.tmdbId) || 0);
+      if (tmdbId <= 0) continue;
+      const season = Number(row.seasonNumber);
+      identities.add(`${tmdbId}#${Number.isInteger(season) && season >= 0 ? season : -1}`);
+    }
+    if (identities.size > 1) {
+      groups.push({ name, identities: [...identities], keep: null, drop: [] });
+      continue;
+    }
+    const [keep, ...drop] = list.slice().sort((a, b) =>
+      (Number(b.updatedAt || 0) - Number(a.updatedAt || 0)) || (Number(b.seq || 0) - Number(a.seq || 0))
+    );
+    groups.push({ name, identities: [], keep, drop });
+  }
+  return groups;
 }
 
 function positiveTimestamp(value, fallback) {
