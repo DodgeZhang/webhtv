@@ -173,10 +173,11 @@ bash ./gradlew \
 
 | 来源 | 增量 | 说明 |
 | --- | --- | --- |
-| C59 新增 | +12 | `AppVersionBuildStampTest` 8（7 + 本轮新增 1）、`UpdateOrderingTest` 5；其中 `AppVersionBuildStampTest` 替换了 C58 之后被移除的旧类计数，净值见下 |
-| C60 新增 | +4 | `AppDatabaseIntegrityRecoverySourceTest` 4 |
-| 合并带入的 beta 用例 | +3 | dev2 `97c7ae68a` 在 `app/src/test`（**两 flavor 共享**）给 `PlaybackOwnershipSourceTest` 新增 3 例，故两个 flavor 同步 +3 |
-| 合计 | **+19** | 12 + 4 + 3 |
+| C59（已提交未推送） | +12 | `AppVersionBuildStampTest` 7 + `UpdateOrderingTest` 5 |
+| C60（已提交未推送） | +4 | `AppDatabaseIntegrityRecoverySourceTest` 4 |
+| 合并带入的 beta 用例 | +2 | dev2 `97c7ae68a` 在 `app/src/test`（**两 flavor 共享**）给 `PlaybackOwnershipSourceTest` 新增 2 例 |
+| 本轮 C61 的 F1 锁定用例 | +1 | `AppVersionBuildStampTest#stampsOfDifferentLengthsAreStillOrdered` |
+| 合计 | **+19** | 12 + 4 + 2 + 1 = 19 |
 
 （C58 基线 4172 / 4987 取自 `docs/C58-beta-merge-review-dev1-20261011.md` 的表格；两个 flavor 差值一致，说明新增用例全部落在两 flavor 共享的 `app/src/test`，与「Robolectric 只装在 leanback 变体」无关。）
 
