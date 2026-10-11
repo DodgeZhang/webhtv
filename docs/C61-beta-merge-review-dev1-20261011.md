@@ -4,9 +4,9 @@
 
 - **目标**：把远端 `beta` 最新代码合入 `dev1`（**远端已移除/回退的提交不得顺带带回**）；复评 dev1 全部已修改代码（含**已提交未推送**的 C59/C60 两个提交）；发现问题修复并验证通过；循环评审直至通过；然后提交、推送 `dev1`、创建 `dev1 -> beta` 中文 PR（**只创建，不合并**）。
 - **验收标准**：① `dev1` 必须包含合并时刻的 `origin/beta` tip（真实双父合并提交）；② 远端被移除/回退内容**零复活**、beta 增量**零丢失**、dev1 既有改动**零丢失**；③ 双 flavor Java 编译 + 双 flavor AndroidTest Java 编译通过；④ 双 flavor 全量 JVM 套件零失败且增量可解释；⑤ UI token 门禁相对基线零新增违规；⑥ 复评发现的问题已修复并锁定（或按 `AGENTS.md` §2 明确记录处置）；⑦ 提交 + recovery tag、`dev1` 已推送、PR 已创建且**未合并**，PR 文件集与 `git diff --name-only origin/beta HEAD` 逐项一致。
-- **当前状态**：合并完成（0 冲突，`MERGE_HEAD` = beta tip，尚未提交）；复评 **2 轮**完成；第 1 轮发现 **2 项真实缺陷**（F1 跨长度时间戳误判为「更新」、F2 注释与实现矛盾）并已修复，第 2 轮复审通过；双 flavor 编译 + AndroidTest 编译 + 双 flavor 全量 JVM 套件（leanback 4191/0、mobile 5006/0）+ UI token 门禁全部通过；零复活/零丢失证据通过。
+- **当前状态**：合并完成（0 冲突，`MERGE_HEAD` = beta tip）；复评 **2 轮**完成；第 1 轮发现 **2 项真实缺陷**（F1 跨长度时间戳误判为「更新」、F2 注释与实现矛盾）并已修复，第 2 轮复审通过；双 flavor 编译 + AndroidTest 编译 + 双 flavor 全量 JVM 套件（leanback 4191/0、mobile 5006/0）+ UI token 门禁全部通过；零复活/零丢失证据通过；**已提交（双父合并提交 `8b54e0e97` + recovery tag）、已推送 `dev1`、已创建 PR #436（未合并）**。
 - **交付坐标**：见文末「交付坐标」与「闭环记录」。
-- **下一动作**：`task_guard.sh finish`（生成双父合并提交 + recovery tag）→ 推送 `dev1` → 创建 PR 到 `beta`。
+- **下一动作**：无（本任务闭环；PR 由用户决定是否合并）。
 
 ## 时间与设备
 
@@ -222,11 +222,24 @@ UI_TOKEN_STATUS   PASS
 
 | 项 | 值 |
 | --- | --- |
-| 合并提交 | 见「闭环记录」 |
-| recovery tag | 见「闭环记录」 |
-| 推送 | 见「闭环记录」 |
-| PR | 见「闭环记录」 |
+| 合并提交（双父） | `8b54e0e97c0a4e93d60d4453d55f36b2f1eedef0` |
+| 第一父（合并前 dev1） | `56372b7dbac436f88b34225e714adedb3854d0fa` |
+| 第二父（= 当时的 beta tip） | `00ad80114fa971c32de3a74f072e33714b9f488e` |
+| recovery tag | `recovery/C61-beta-merge-review-dev1-20261011/20261011140009-8b54e0e97c0a` |
+| 推送 | `git push origin dev1` → `5ad9025f9..8b54e0e97  dev1 -> dev1`；`git rev-parse origin/dev1` == `git rev-parse dev1` == `8b54e0e97c0a4e93d60d4453d55f36b2f1eedef0` |
+| PR | [#436](https://github.com/Silent1566/webhtv/pull/436)（`dev1` → `beta`，**只创建，未合并**） |
 
 ## 闭环记录
 
-- 待 `task_guard.sh finish` 完成后回填：合并提交 SHA（必须为**双父**，第二父 = `00ad80114fa971c32de3a74f072e33714b9f488e`）、recovery tag、`git push origin dev1` 结果、PR 编号与文件集校验结果。
+| 复核项 | 结果 |
+| --- | --- |
+| `git rev-list --parents -n1 <合并提交>` | `8b54e0e97c0a… 56372b7dba… 00ad80114fa…` → **两个父**，第二父 == 当时的 beta tip（beta 侧提交未被当成 dev1 自己的提交） |
+| `git merge-base --is-ancestor origin/beta HEAD`（收尾） | **真** |
+| `MERGE_HEAD` | 已被 `git commit` 清除（`.git/MERGE_HEAD` 不存在） |
+| `git diff --diff-filter=D --name-status origin/beta HEAD` | 空 |
+| 工作区 | `git status --porcelain` 仅 `.scratch-goal/`（受保护脏路径，未提交） |
+| PR 状态 | `state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=9`、`baseRefName=beta`、`headRefName=dev1` |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/436/files --jq '.[].filename' \| sort` 与 `git diff --name-only origin/beta HEAD \| sort` **逐项一致**（9 项，diff 无输出） |
+| 守卫会话 | 主会话 `C61-beta-merge-review-dev1-20261011`（standard）已 finished；本坐标会话（quick-fix，scope `docs`）完成后不再有 active 会话 |
+
+- 本次交付只创建 PR，未执行任何合并操作（`mergedAt=null`）。
