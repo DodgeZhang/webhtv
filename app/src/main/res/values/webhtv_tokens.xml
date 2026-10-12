@@ -112,5 +112,25 @@
         ThemeContractTest freezes that contract at exactly 49 entries.
     -->
     <color name="webhtv_on_wallpaper_variant">#CCFFFFFF</color>
+    <!--
+        卡片角标（进度 / 片源 / 年份）的底色。
+
+        这三个角标此前是 leanback 独有的裸十六进制（#177535 / #F44336 / #2196F3，
+        均带 0.7 透明度），既不在 token 体系内、也无法随主题变化；手机端早就是语义色
+        （bg_remark/bg_site/bg_year 分别取 ?attr/colorSecondaryContainer /
+        ?attr/colorErrorContainer / ?attr/colorSurfaceVariant），只有 TV 端落后。
+
+        更要紧的是透明度带来的可读性问题：角标上的文字恒为 ?attr/webhtvColorOnWallpaper
+        （纯白），而 0.7 的底色叠在**浅色海报**上会被提亮到白字只剩约 2.0–3.7:1。
+        海报内容不受控，所以这里改为**不透明**取值，使白字对比度与海报无关：
+
+            进度 #177535 → 5.78:1    片源 #C62828 → 5.62:1    年份 #1565C0 → 5.74:1
+
+        三者都刻意保持原有色相（绿/红/蓝各自承载一种语义），只把明度压到 4.5:1 门槛以下。
+        取值与明暗模式无关：角标画在海报上，与页面调色板无关。
+    -->
+    <color name="webhtv_color_badge_progress">#177535</color>
+    <color name="webhtv_color_badge_site">#C62828</color>
+    <color name="webhtv_color_badge_year">#1565C0</color>
     <dimen name="webhtv_focus_scale">1.0</dimen>
 </resources>

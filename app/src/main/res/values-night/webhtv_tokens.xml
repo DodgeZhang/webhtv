@@ -111,5 +111,12 @@
         随明暗切换。派生依据与对比度核算见 values/webhtv_tokens.xml 的同名条目。
     -->
     <color name="webhtv_on_wallpaper_variant">#CCFFFFFF</color>
+    <!--
+        卡片角标底色，与日间表同值：角标画在海报上，与页面调色板无关，因此不需要随明暗切换。
+        取值依据与对比度核算见 values/webhtv_tokens.xml 的同名条目。
+    -->
+    <color name="webhtv_color_badge_progress">#177535</color>
+    <color name="webhtv_color_badge_site">#C62828</color>
+    <color name="webhtv_color_badge_year">#1565C0</color>
     <dimen name="webhtv_focus_scale">1.1</dimen>
 </resources>
