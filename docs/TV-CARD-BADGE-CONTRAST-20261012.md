@@ -6,8 +6,9 @@
 - 允许路径：`app/src/main/res/values{,-night}/webhtv_tokens.xml`、`app/src/leanback/res/color/bg_{remark,site,year}.xml`、`app/src/leanback/res/layout/activity_home.xml`、`app/src/testLeanback/java/com/fongmi/android/tv/ui/activity/TvCardBadgeContrastTest.java`（新增）、本文件。
 - 保护面：任务开始时工作树仅 `.design-evidence/` 未跟踪（预存脏路径 0 个）；分支 `dev4`，HEAD `aa722e43736`。
 - 验收：① 三个角标色表不再含裸十六进制、不再带 alpha、不再引用 `?attr`；② 三个 token 在两张表同值；③ 白字对"合成到纯白海报后的角标底色" ≥4.5:1（新增测试固化）；④ 角标文字仍走 `?attr/webhtvColorOnWallpaper`；⑤ 定向 JVM 测试全绿；⑥ 分配模拟器 `192.168.50.3:5561` 前后对照。
-- 回滚：撤销本任务原子提交即可回到裸十六进制 + 0.7 透明；无数据迁移。
-- 下一步唯一动作：跑定向测试与 5561 前后对照（见 §6）。
+- 回滚：撤销本任务原子提交即可回到裸十六进制 + 0.7 透明与 24sp 时钟；无数据迁移。
+- 交付坐标：提交 `3e87e8364de`（dev4），recovery tag `recovery/TV-CARD-BADGE-CONTRAST-20261012/20261012151138`；未推送。
+- 下一步唯一动作：无（TV-2 已交付）。下一批建议 TV-3（焦点与动效统一：`webhtv_focus_scale` 单一来源），或先补 §7.4 的扫描根缺口。
 
 ## 1. 现象与根因
 
