@@ -174,7 +174,9 @@ public class ThemeContractTest {
         // 51 → 54：新增 webhtv_color_badge_{progress,site,year}（卡片角标底色，
         // 见 docs/TV-CARD-BADGE-CONTRAST-20261012.md）。它们不属于 ThemeTokens 的 49 项
         // 角色契约，只是同一命名族里的固定语义色，与 webhtv_on_wallpaper 同类。
-        assertEquals(54, colors.size());
+        // 54 → 55：新增 webhtv_color_on_wallpaper_error（壁纸上的错误前景色，
+        // 见 docs/TV-ERROR-STATE-20261012.md），同理不属于角色契约。
+        assertEquals(55, colors.size());
         for (RecordComponent component : ThemeTokens.class.getRecordComponents()) {
             if (!component.getType().equals(int.class)) continue;
             String name = component.getName();

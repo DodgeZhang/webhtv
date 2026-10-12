@@ -1670,6 +1670,9 @@
 
     <!-- Error -->
     <string name="error_config_get">配置取得失败</string>
+    <!-- 内容源加载失败时的错误态：设计文档 §9.9 要求「错误色 + 原因 + 重试动作」。 -->
+    <string name="error_config_load">内容源加载失败</string>
+    <string name="error_retry">重试</string>
     <string name="error_play_next">已经是最后一集了！</string>
     <string name="error_play_prev">已经是第一集了！</string>
     <string name="error_play_parse">播放地址解析失败</string>

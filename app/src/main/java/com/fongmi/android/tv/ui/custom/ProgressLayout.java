@@ -20,7 +20,7 @@ public class ProgressLayout extends RelativeLayout {
     private static final String TAG_PROGRESS = "ProgressLayout.TAG_PROGRESS";
 
     public enum State {
-        CONTENT, PROGRESS, EMPTY
+        CONTENT, PROGRESS, EMPTY, ERROR
     }
 
     private List<View> mContentViews;
@@ -30,6 +30,10 @@ public class ProgressLayout extends RelativeLayout {
     private int mEmptyDescriptionRes;
     private int mEmptyActionRes;
     private OnClickListener mEmptyActionListener;
+    private int mErrorTitleRes;
+    private CharSequence mErrorReason;
+    private int mErrorRetryRes;
+    private OnClickListener mErrorRetryListener;
     private State mState;
 
     public ProgressLayout(Context context) {
@@ -88,10 +92,16 @@ public class ProgressLayout extends RelativeLayout {
         // mobile 版没有 description/action 两个控件，而本类在 main 源集。直接引用 binding
         // 字段会让 mobile 编译失败；这里按 id 查找并对缺失做空值守卫，于是 TV 端拿到完整空态、
         // 手机端保持原样（传进来的内容会被静默忽略）。
+        View illustration = mEmptyView.findViewById(R.id.illustration);
         TextView title = mEmptyView.findViewById(R.id.text);
         TextView description = mEmptyView.findViewById(R.id.description);
         TextView action = mEmptyView.findViewById(R.id.action);
-        if (title != null && mEmptyTitleRes != 0) title.setText(mEmptyTitleRes);
+        // 从错误态回到空态时要把外观复原：插画显示、标题回到常规前景色。
+        if (illustration != null) illustration.setVisibility(VISIBLE);
+        if (title != null) {
+            title.setTextColor(themeColor(R.attr.webhtvColorOnWallpaper));
+            if (mEmptyTitleRes != 0) title.setText(mEmptyTitleRes);
+        }
         if (description != null) {
             if (mEmptyDescriptionRes != 0) {
                 description.setText(mEmptyDescriptionRes);
@@ -111,6 +121,80 @@ public class ProgressLayout extends RelativeLayout {
                 action.setVisibility(GONE);
             }
         }
+    }
+
+    /**
+     * 进入错误态：设计文档 §9.9「错误态：错误色 + 原因 + 重试动作」。
+     *
+     * <p>复用空态的三个槽位（标题 / 解释 / 主动作），只做两处区分：标题改用
+     * {@code ?attr/webhtvColorOnWallpaperError}，并隐藏插画——空态那张"空箱子"表达的是
+     * "这里没有内容"，用在错误上会误导。
+     *
+     * <p>原因正文刻意**不**用错误色：错误前景色在壁纸上是 4.11:1（只够 Display 档大字号），
+     * 而原因是 16sp 正文，需要 4.5:1；它沿用空态的次级壁纸前景色。
+     *
+     * @param titleRes 错误标题；传 0 沿用当前标题
+     * @param reasonRes 失败原因；传 0 不显示
+     * @param retryRes 重试按钮文案；传 0 或不传监听器则不显示按钮
+     * @param retry 重试动作
+     */
+    public void showError(int titleRes, int reasonRes, int retryRes, OnClickListener retry) {
+        showError(titleRes, reasonRes == 0 ? null : getContext().getString(reasonRes), retryRes, retry);
+    }
+
+    /**
+     * 同上，但原因来自运行时字符串（例如服务端返回的 message）。
+     */
+    public void showError(int titleRes, CharSequence reason, int retryRes, OnClickListener retry) {
+        mErrorTitleRes = titleRes;
+        mErrorReason = reason;
+        mErrorRetryRes = retryRes;
+        mErrorRetryListener = retry;
+        // 已经在错误态时 switchState 会提前返回，但重试再次失败需要刷新原因文案，
+        // 所以这里显式重放一次。
+        if (mState == State.ERROR) applyErrorContent();
+        else switchState(State.ERROR);
+    }
+
+    public boolean isError() {
+        return mState == State.ERROR;
+    }
+
+    private void applyErrorContent() {
+        if (mEmptyView == null) return;
+        View illustration = mEmptyView.findViewById(R.id.illustration);
+        TextView title = mEmptyView.findViewById(R.id.text);
+        TextView description = mEmptyView.findViewById(R.id.description);
+        TextView action = mEmptyView.findViewById(R.id.action);
+        if (illustration != null) illustration.setVisibility(GONE);
+        if (title != null) {
+            title.setTextColor(themeColor(R.attr.webhtvColorOnWallpaperError));
+            if (mErrorTitleRes != 0) title.setText(mErrorTitleRes);
+        }
+        if (description != null) {
+            if (mErrorReason != null && mErrorReason.length() > 0) {
+                description.setText(mErrorReason);
+                description.setVisibility(VISIBLE);
+            } else {
+                description.setVisibility(GONE);
+            }
+        }
+        if (action != null) {
+            if (mErrorRetryRes != 0 && mErrorRetryListener != null) {
+                action.setText(mErrorRetryRes);
+                action.setOnClickListener(mErrorRetryListener);
+                action.setVisibility(VISIBLE);
+            } else {
+                action.setOnClickListener(null);
+                action.setVisibility(GONE);
+            }
+        }
+    }
+
+    /** 解析主题属性里的颜色值；未赋值时返回 {@code 0}（透明），调用方自行决定是否使用。 */
+    private int themeColor(int attr) {
+        android.util.TypedValue value = new android.util.TypedValue();
+        return getContext().getTheme().resolveAttribute(attr, value, true) ? value.data : 0;
     }
 
     private void ensureProgressView() {
@@ -194,6 +278,16 @@ public class ProgressLayout extends RelativeLayout {
                 break;
             case EMPTY:
                 ensureEmptyView();
+                // 从错误态过来时要把外观复原（插画显示、标题回到常规前景色），
+                // 所以进 EMPTY 时重新应用一次空态内容。
+                applyEmptyContent();
+                mEmptyView.setVisibility(VISIBLE);
+                if (mProgressView != null) mProgressView.setVisibility(GONE);
+                setContentVisibility(false);
+                break;
+            case ERROR:
+                ensureEmptyView();
+                applyErrorContent();
                 mEmptyView.setVisibility(VISIBLE);
                 if (mProgressView != null) mProgressView.setVisibility(GONE);
                 setContentVisibility(false);
