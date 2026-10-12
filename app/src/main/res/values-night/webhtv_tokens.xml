@@ -118,5 +118,4 @@
     <color name="webhtv_color_badge_progress">#177535</color>
     <color name="webhtv_color_badge_site">#C62828</color>
     <color name="webhtv_color_badge_year">#1565C0</color>
-    <dimen name="webhtv_focus_scale">1.1</dimen>
 </resources>

@@ -132,5 +132,16 @@
     <color name="webhtv_color_badge_progress">#177535</color>
     <color name="webhtv_color_badge_site">#C62828</color>
     <color name="webhtv_color_badge_year">#1565C0</color>
-    <dimen name="webhtv_focus_scale">1.0</dimen>
+    <!--
+        电视端焦点缩放动画时长（毫秒）。
+
+        这是 TV 焦点缩放的**唯一时长来源**。改动前各站点各自写死 90 / 100 / 120 / 150ms，
+        同一个"聚焦"手势在不同列表里有四种手感。
+
+        时长与明暗模式无关，所以只声明在 values/：它和颜色不同，不是配色属性。
+        缩放的倍率不在这里——它由 ThemeTokens.focusScale() 提供（见 TvFocusScale），
+        原先此处另有一个恒不被读取的 <dimen name="webhtv_focus_scale">，属于同一语义的
+        第二份声明，已随本次统一删除。
+    -->
+    <integer name="webhtv_focus_scale_duration">150</integer>
 </resources>
