@@ -241,6 +241,7 @@ public class PlayerManager implements ParseCallback {
     private boolean lutWarmupRefreshRequested;
     private boolean lutWarmupReloadPreviewPending;
     private boolean hardDecodeSwitchRetryArmed;
+    private boolean softDecodeFallbackAttempted;
     private boolean lutAllowed = true;
     private boolean mpvAutoOutputEvaluated;
     private boolean mpvAutoOutputFrameReady;
@@ -1359,6 +1360,51 @@ public class PlayerManager implements ParseCallback {
         }
         rebuildPlayer(resetVideoSurface);
         setMediaItem();
+    }
+
+    /**
+     * ExoPlayer reports a video track that no registered renderer can decode as an
+     * unsupported subtype and then drops it, so playback continues with audio and
+     * subtitles only while the cover image stays on screen. Hard decode registers
+     * hardware decoders exclusively, which makes that state unavoidable on a device
+     * without a hardware decoder for the codec. Nothing reports an error, so the
+     * state is answered here with one software fallback per playback request.
+     */
+    private void maybeFallbackToSoftDecode(Tracks tracks) {
+        if (softDecodeFallbackAttempted) return;
+        if (engine == null || !isExo() || !engine.isHard()) return;
+        if (!PlaybackPerformanceSetting.isDecoderFallbackEnabled()) return;
+        if (!hasUndecodableVideoTrack(tracks)) return;
+        softDecodeFallbackAttempted = true;
+        PlaybackTrace.log("switch-decode", playbackTrace.current(), "auto software fallback: no decodable video track");
+        App.post(this::fallbackToSoftDecode);
+    }
+
+    private void fallbackToSoftDecode() {
+        if (engine == null || !engine.isHard()) return;
+        hardDecodeSwitchRetryArmed = false;
+        beginPlaybackTrace("switch-decode-auto");
+        engine.setDecode(PlayerEngine.SOFT);
+        if (engine instanceof ExoPlayerEngine exo) {
+            exo.prepareFrameSchedulingForNextPlayback();
+        }
+        rebuildPlayer(false);
+        setMediaItem();
+    }
+
+    /** True when the source carries video tracks but not one of them can be decoded. */
+    private static boolean hasUndecodableVideoTrack(Tracks tracks) {
+        if (tracks == null || tracks.isEmpty()) return false;
+        boolean hasVideo = false;
+        for (Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_VIDEO) continue;
+            for (int i = 0; i < group.length; i++) {
+                hasVideo = true;
+                if (group.isTrackSelected(i)) return false;
+                if (group.getTrackSupport(i) == C.FORMAT_HANDLED) return false;
+            }
+        }
+        return hasVideo;
     }
 
     public void switchDecode(PlaySpec freshSpec, long position, float speed, boolean repeat) {
@@ -5149,6 +5195,7 @@ public class PlayerManager implements ParseCallback {
         retry = 0;
         localProxyRetry = 0;
         hardDecodeSwitchRetryArmed = false;
+        softDecodeFallbackAttempted = false;
         setMediaItem(timeout);
     }
 
@@ -5175,6 +5222,7 @@ public class PlayerManager implements ParseCallback {
         retry = 0;
         localProxyRetry = 0;
         hardDecodeSwitchRetryArmed = false;
+        softDecodeFallbackAttempted = false;
         parseJob = ParseJob.create(this).start(result, useParse);
     }
 
@@ -7598,6 +7646,7 @@ public class PlayerManager implements ParseCallback {
             publishPlaybackTelemetry();
             applyLutForCurrentItem();
             scheduleMpvAutoOutputEvaluation();
+            maybeFallbackToSoftDecode(tracks);
         }
 
         @Override

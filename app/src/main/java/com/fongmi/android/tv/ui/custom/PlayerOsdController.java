@@ -353,8 +353,9 @@ public class PlayerOsdController {
         String frameTiming = player.isExo() ? summarizeFrameTiming() : "";
         PlayerEngine.VideoPlaybackDetails videoDetails =
                 player.getVideoPlaybackDetails();
+        VideoTrackState videoTrack = getVideoTrackState(player);
         String videoText = summarizeVideo(video, player,
-                snapshot.videoDecoderName(), getVideoTrackState(player),
+                snapshot.videoDecoderName(), videoTrack,
                 videoDetails);
         AudioTrackState audioTrack = getAudioTrackState(player);
         AudioPlaybackDiagnostics.Snapshot audioDetails = player.getAudioPlaybackDiagnostics();
@@ -385,7 +386,7 @@ public class PlayerOsdController {
                 TextUtils.isEmpty(frameTiming) ? "" : row("帧调度", frameTiming),
                 row("播放", playback),
                 row("配置", playerText),
-                row("结论", getDiagnosis(player, snapshot, video, audioTrack, audioDetails, localSource)));
+                row("结论", getDiagnosis(player, snapshot, video, videoTrack, audioTrack, audioDetails, localSource)));
         String extra = join("\n",
                 row("设备", getDeviceText()),
                 row("系统", getSystemText()),
@@ -396,12 +397,18 @@ public class PlayerOsdController {
         return new DiagnosticsText(main, extra);
     }
 
-    private String getDiagnosis(PlayerManager player, PlaybackAnalyticsListener.Snapshot snapshot, Format video, AudioTrackState audioTrack, AudioPlaybackDiagnostics.Snapshot audioDetails, boolean localSource) {
+    private String getDiagnosis(PlayerManager player, PlaybackAnalyticsListener.Snapshot snapshot, Format video, VideoTrackState videoTrack, AudioTrackState audioTrack, AudioPlaybackDiagnostics.Snapshot audioDetails, boolean localSource) {
         if (audioDetails.runtimeState() == AudioPlaybackDiagnostics.RuntimeState.FAILED) return "音频链路失败，先看音频和错误行";
         if (isDecodeError(snapshot) && player.isHardDecode()) return "硬件解码失败：设备可能不支持该视频编码、分辨率、帧率或规格";
         if (!TextUtils.isEmpty(snapshot.errorCode())) return "播放器报错，先看错误行";
         if (audioTrack.hasTracks() && audioTrack.isUnsupported()) return "音频轨不支持：" + summarizeAudioFormat(audioTrack.format()) + " / " + supportText(audioTrack.support());
         if (player.isExo() && audioTrack.hasTracks() && !audioTrack.selected() && snapshot.audioFormat() == null && player.getPlaybackState() == androidx.media3.common.Player.STATE_READY) return "已发现音轨但未选中，可能无声";
+        // A video track without any usable decoder is dropped silently: playback
+        // keeps advancing with audio and subtitles only, so nothing else in this
+        // panel would flag it and the verdict would read as healthy.
+        if (videoTrack.hasTracks() && !videoTrack.selected() && isUnsupportedSupport(videoTrack.support())) return player.isHardDecode()
+                ? "视频轨无可用解码器：设备缺少该编码的硬解支持，请切软解或更换资源"
+                : "视频轨无可用解码器：请更换资源";
         if (!localSource) {
             long mediaBitrate = getMediaBitrate(video, snapshot.audioFormat() != null ? snapshot.audioFormat() : audioTrack.format());
             long availableBitrate = snapshot.bandwidthEstimate() > 0 ? snapshot.bandwidthEstimate() : lastSpeedKBps * 1024 * 8;

@@ -1039,7 +1039,12 @@ public class ExoUtil {
                 if (mimeType == null || !mimeType.startsWith("video/")) return infos;
                 List<MediaCodecInfo> hardwareInfos = new ArrayList<>();
                 for (MediaCodecInfo info : infos) if (info.hardwareAccelerated) hardwareInfos.add(info);
-                return hardwareInfos;
+                // Hardware decoders stay the first choice, but a device without any
+                // hardware decoder for this codec must not end up with an empty
+                // decoder list: ExoPlayer would report the whole video track as an
+                // unsupported subtype, drop it, and keep playing audio only.
+                // Platform software decoders are the last resort in that case.
+                return hardwareInfos.isEmpty() ? infos : hardwareInfos;
             };
         }
 
