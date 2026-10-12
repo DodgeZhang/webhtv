@@ -1077,6 +1077,15 @@ public class PlayerManager implements ParseCallback {
         return false;
     }
 
+    private static boolean hasHandledTrack(Tracks tracks, int type) {
+        if (tracks == null || tracks.isEmpty()) return false;
+        for (Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != type) continue;
+            for (int i = 0; i < group.length; i++) if (group.getTrackSupport(i) == C.FORMAT_HANDLED) return true;
+        }
+        return false;
+    }
+
     private static Sub firstSubtitleSub(List<Sub> subs) {
         if (subs == null) return null;
         for (Sub sub : subs) if (sub != null && !TextUtils.isEmpty(sub.getUrl())) return sub;
@@ -1872,25 +1881,18 @@ public void resetTrack(int type) {
         App.post(this::fallbackToSoftDecode);
     }
 
-    /** True when hard decode cannot serve the video track with a hardware decoder. */
+    /**
+     * True when hard decode cannot serve the video track with a hardware decoder. The video track
+     * playback actually selected decides whenever a renderer selected one, and the whole-set
+     * "nothing is decodable at all" state is the only other proof. A container may carry several
+     * video track groups, so an undecodable or software-only group that is not the one playing is
+     * not evidence that the playing track has no hardware path.
+     */
     private static boolean needsSoftDecode(Tracks tracks) {
         if (tracks == null || tracks.isEmpty()) return false;
-        for (Tracks.Group group : tracks.getGroups()) {
-            if (group.getType() != C.TRACK_TYPE_VIDEO) continue;
-            if (group.length == 0) continue;
-            Format decodable = firstDecodableVideoFormat(group);
-            if (decodable == null) return true;
-            if (!ExoUtil.hasHardwareVideoDecoder(decodable.sampleMimeType)) return true;
-        }
-        return false;
-    }
-
-    private static Format firstDecodableVideoFormat(Tracks.Group group) {
-        for (int i = 0; i < group.length; i++) {
-            if (group.isTrackSelected(i)) return group.getTrackFormat(i);
-            if (group.getTrackSupport(i) == C.FORMAT_HANDLED) return group.getTrackFormat(i);
-        }
-        return null;
+        Format selected = getSelectedFormat(tracks, C.TRACK_TYPE_VIDEO);
+        if (selected != null) return !ExoUtil.hasHardwareVideoDecoder(selected.sampleMimeType);
+        return hasTrack(tracks, C.TRACK_TYPE_VIDEO) && !hasHandledTrack(tracks, C.TRACK_TYPE_VIDEO);
     }
 
     private void fallbackToSoftDecode() {

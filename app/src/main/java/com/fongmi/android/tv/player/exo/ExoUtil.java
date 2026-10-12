@@ -387,6 +387,17 @@ public class ExoUtil {
     }
 
     /**
+     * The one definition of "this decoder is the hardware path" for the video side, matching
+     * {@link ExoAudioCodecSelector}'s predicate. A decoder can report itself as
+     * hardware-accelerated while the platform still marks it software-only; treating that as
+     * hardware would leave the session on a software decoder while the OSD reports hard decode,
+     * which is exactly the state this whole check exists to detect.
+     */
+    static boolean isHardwareDecoder(MediaCodecInfo info) {
+        return info.hardwareAccelerated && !info.softwareOnly;
+    }
+
+    /**
      * False only for the one state that proves hard decode has no hardware video
      * path: the platform lists decoders for this mime and every one of them is
      * software, so the session would silently run on a platform software decoder
@@ -406,10 +417,18 @@ public class ExoUtil {
      * </ul>
      */
     public static boolean hasHardwareVideoDecoder(String mimeType) {
+        return hasHardwareVideoDecoder(MediaCodecSelector.DEFAULT, mimeType);
+    }
+
+    /**
+     * The same query against an explicit selector, so the predicate can be driven by the selector
+     * the MediaCodec renderers were built with and stays unit-testable without a device.
+     */
+    static boolean hasHardwareVideoDecoder(MediaCodecSelector selector, String mimeType) {
         if (mimeType == null || !mimeType.startsWith("video/")) return true;
         List<MediaCodecInfo> infos;
         try {
-            infos = MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, false, false);
+            infos = selector.getDecoderInfos(mimeType, false, false);
         } catch (androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException e) {
             // A failed query must never change the user-visible decode mode.
             return true;
@@ -417,7 +436,7 @@ public class ExoUtil {
         // No platform decoder for this mime: another renderer may still own the format.
         if (infos.isEmpty()) return true;
         for (MediaCodecInfo info : infos) {
-            if (info.hardwareAccelerated) return true;
+            if (isHardwareDecoder(info)) return true;
         }
         return false;
     }
@@ -1193,13 +1212,19 @@ public class ExoUtil {
                 List<MediaCodecInfo> infos = mediaCodecSelector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
                 if (mimeType == null || !mimeType.startsWith("video/")) return infos;
                 List<MediaCodecInfo> hardwareInfos = new ArrayList<>();
-                for (MediaCodecInfo info : infos) if (info.hardwareAccelerated) hardwareInfos.add(info);
+                for (MediaCodecInfo info : infos) if (isHardwareDecoder(info)) hardwareInfos.add(info);
                 // Hardware decoders stay the first choice, but a device without any
                 // hardware decoder for this codec must not end up with an empty
                 // decoder list: ExoPlayer would report the whole video track as an
                 // unsupported subtype, drop it, and keep playing audio only.
-                // Platform software decoders are the last resort in that case.
-                return hardwareInfos.isEmpty() ? infos : hardwareInfos;
+                // Platform software decoders are the last resort in that case, and
+                // only while the user leaves 「解码器兜底」 on: that switch is what
+                // authorizes the automatic software path, and PlayerManager reads
+                // the same switch before it moves the session to soft decode. With
+                // the switch off the list stays hardware-only, the track is reported
+                // unsupported, and the OSD tells the user to switch manually instead
+                // of letting a software decoder frame under a hard-decode label.
+                return hardwareInfos.isEmpty() && PlaybackPerformanceSetting.isDecoderFallbackEnabled() ? infos : hardwareInfos;
             };
         }
 

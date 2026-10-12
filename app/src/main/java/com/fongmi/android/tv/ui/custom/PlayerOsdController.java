@@ -506,10 +506,11 @@ public class PlayerOsdController {
         if (player.isExo() && audioTrack.hasTracks() && !audioTrack.selected() && snapshot.audioFormat() == null && player.getPlaybackState() == androidx.media3.common.Player.STATE_READY) return "已发现音轨但未选中，可能无声";
         // A video track without any usable decoder is dropped silently: playback
         // keeps advancing with audio and subtitles only, so nothing else in this
-        // panel would flag it and the verdict would read as healthy.
-        if (videoTrack.hasTracks() && !videoTrack.selected() && isUnsupportedSupport(videoTrack.support())) return player.isHardDecode()
-                ? "视频轨无可用解码器：设备缺少该编码的硬解支持，请切软解或更换资源"
-                : "视频轨无可用解码器：请更换资源";
+        // panel would flag it and the verdict would read as healthy. "Handled" is
+        // the test rather than the unsupported codes alone: EXCEEDS_CAPABILITIES
+        // drops the track the same way, and it is one of the two states
+        // PlayerManager.needsSoftDecode reacts to.
+        if (videoTrack.hasTracks() && !videoTrack.selected() && !videoTrack.isHandled()) return videoDiagnosis(player, videoTrack);
         if (!localSource) {
             long mediaBitrate = getMediaBitrate(video, snapshot.audioFormat() != null ? snapshot.audioFormat() : audioTrack.format());
             long availableBitrate = snapshot.bandwidthEstimate() > 0 ? snapshot.bandwidthEstimate() : lastSpeedKBps * 1024 * 8;
@@ -535,6 +536,19 @@ public class PlayerOsdController {
         if (player.isExo() && audioTrack.hasTracks() && snapshot.audioFormat() == null) return "正在等待音频轨信息";
         if (audioTrack.hasTracks() || audioDetails.runtimeState() == AudioPlaybackDiagnostics.RuntimeState.PENDING) return "音频输出状态待确认";
         return "正常";
+    }
+
+    /**
+     * The verdict for a video track no renderer can decode. The support code is spelled out the
+     * way the audio rows and the video summary row already do it, and an encrypted track does not
+     * get the "switch to software decode" advice: no decoder choice fixes a DRM rejection.
+     */
+    private String videoDiagnosis(PlayerManager player, VideoTrackState videoTrack) {
+        String support = supportText(videoTrack.support());
+        if (videoTrack.support() == C.FORMAT_UNSUPPORTED_DRM) return "视频轨" + support + "，加密轨请更换资源";
+        return player.isHardDecode()
+                ? "视频轨无可用解码器：" + support + "，请切软解或更换资源"
+                : "视频轨无可用解码器：" + support + "，请更换资源";
     }
 
     private String getSystemGpuText() {

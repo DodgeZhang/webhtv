@@ -1,14 +1,17 @@
 # E-SP9：Exo 硬解模式无硬件解码器时的处理策略
 
-状态：合同已由 `C65` 修订（2026-10-12，Asia/Shanghai）。下方 2026-09-20 的回滚记录作为历史保留，不再是当前合同。
+状态：合同已由 `C65` 修订（2026-10-12，Asia/Shanghai），口径已由 `C66` 细化（2026-10-13，Asia/Shanghai；见 `docs/C66-beta-merge-review-dev3-20261013.md`）。下方 2026-09-20 的回滚记录作为历史保留，不再是当前合同。
 
-## 修订后的合同（2026-10-12，`C65-player-hwdec-auto-soft-fallback-merge-20261012`）
+## 修订后的合同（2026-10-12 `C65`，2026-10-13 `C66` 细化）
 
 用户在 2026-10-12 明确批准合并 `webhtv/webhtv` 分支 `Silent1566`（`590942503addf2db6b921875432f642221eb8f1f`）的 3 个提交，并同步修订本任务此前记录的「绝对禁止自动切软解」合同。修订后的口径：
 
 - 视频解码模式仍以人工切换为准；自动回落是**唯一且收窄的例外**。
 - 例外只覆盖两种**经证实**的状态：`MediaCodecSelector.DEFAULT` 列出该视频 mime 且**全部为软件解码器**；或整组视频轨没有任何可解码轨道。平台不声明该 mime（空列表，例如非原生 Dolby Vision 设备上的 `video/dolby-vision`，由 `ExoDv5GpuRenderer` 与 Dolby Vision HDR10 回退渲染器改写为 `video/hevc` 接管）**不算证据**，不改变解码模式。
+- 「硬件解码器」的判据是 `hardwareAccelerated && !softwareOnly`（与 `ExoAudioCodecSelector.priority` 一致）：平台允许解码器同时上报 `isHardwareAccelerated() == true` 与 `isSoftwareOnly() == true`，只看前者会把软解误判成硬解通路。
+- 「经证实」只对**在播的那条视频轨**成立：容器可以带多条视频轨，未在播且不可解码的分组不是证据。只有在没有任何选中轨、且整组视频轨都没有 `FORMAT_HANDLED` 轨道时才走第二条。
 - 触发前提是 `PlaybackPerformanceSetting` 的「解码器兜底」开启（默认开），每次播放最多自动回落一次，并写入 `switch-decode-auto` 播放轨迹。
+- 该开关同时约束 `ExoUtil.getVideoCodecSelector` 的平台软解兜底：关闭时硬解候选保持只有硬件，视频轨如实报不支持并由 OSD 结论行引导人工切软解，**不允许**软解顶着「硬解」标签出帧。
 - 仅适用于 Exo 硬解。MPV 硬解禁止自动软解、音频独立回退、以及 `CompatFfmpegVideoRendererSourceTest` 的「硬解不注册 FFmpeg 视频回退」断言均保持不变。
 - 与 2026-09-20 被回滚的 `4a9f0fd14d` 的差别：当时是硬解模式**无条件注册** `CompatFfmpegVideoRenderer(systemDecoderFallbackOnly=true)` 由 FFmpeg 直接接管出帧；现在是 `ExoUtil.getVideoCodecSelector` 在 MediaCodec 层保留平台软解兜底，再由 `PlayerManager.needsSoftDecode` 判定无硬件通路后**显式把整次播放切到软解模式**，使 OSD 与诊断面板显示的模式与实际一致，而不是让 FFmpeg 在「硬解」标签下出帧。
 

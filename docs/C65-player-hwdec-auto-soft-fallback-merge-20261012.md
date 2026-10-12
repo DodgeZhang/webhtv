@@ -1,5 +1,7 @@
 # C65 · 合并 webhtv/webhtv 分支 Silent1566 的硬解自动软解回落并修订解码合同
 
+状态：机制已由 `C66`（2026-10-13）复评并修订，见 `docs/C66-beta-merge-review-dev3-20261013.md` §3。本文件保留当时的合并与决策记录。
+
 - 任务 ID：`C65-player-hwdec-auto-soft-fallback-merge-20261012`
 - 分支：`dev3`；合并前 tip = `37bca767373804c381ffbe3e8f565ebf33b4b281`
 - 合并对象：`webhtv/webhtv` 分支 `Silent1566` = `590942503addf2db6b921875432f642221eb8f1f`（同一提交也是该仓库 `refs/pull/148/head`）
@@ -90,3 +92,16 @@ merge-base = `814935ceea6122984607a97f7c33513e5f4f6889`（dev3 祖先，2026-10-
 - 2026-10-12：同步修订 `E-SP9`、`C-AVS3` 与评估索引。
 - 2026-10-12：Leanback ARM64 Java 编译通过（5m57s）；解码模式定向测试 9/9 通过（1m21s）。设备复测未执行，原因与边界见第 5 节。
 - 环境注记：本机 `bash` 指向 WSL 且不可用（`HCS_E_SERVICE_NOT_AVAILABLE`），guard 改用 `G:\Git\bin\bash.exe` 执行；Gradle 用 `gradlew.bat`（`JAVA_HOME` = JDK 21）。
+
+## 后续修订（C66，2026-10-13）
+
+`C66-beta-merge-review-dev3-20261013` 复评本轮 4 个已提交未推送的提交后，修正了 4 处实现并补齐了 `AGENTS.md` §8 要求的 best-practice 依据：
+
+| 编号 | 修订 |
+| --- | --- |
+| F1 | `ExoUtil.getVideoCodecSelector` 的平台软解兜底原本不受「解码器兜底」开关约束，开关关闭时会让软解顶着硬解标签出帧；现与 `PlayerManager.maybeFallbackToSoftDecode` 共用同一开关 |
+| F2 | 硬解判据由 `hardwareAccelerated` 改为 `hardwareAccelerated && !softwareOnly`，与仓库既有 `ExoAudioCodecSelector.priority` 一致；依据是 Media3 自身注释 `codecInfo.isHardwareAccelerated() != codecInfo.isSoftwareOnly() is not necessarily true` |
+| F3 | `needsSoftDecode` 由「任一视频分组缺硬件通路即回落」改为「由选中轨决定，或整组视频轨都不可解码」，并复用 `getSelectedFormat`/`hasTrack` |
+| F4 | OSD「视频轨无可用解码器」结论行改用 `!isHandled()`（覆盖 `EXCEEDS_CAPABILITIES`）、带上 `supportText`，并对 DRM 不支持单独给建议 |
+
+best-practice 证据表（含上游 Media3 源码行号）、方案比较、回归锁与验证见 `docs/C66-beta-merge-review-dev3-20261013.md` §4–§6。本文件的合并范围、冲突解决、契约修订与回滚锚点均不受影响。
