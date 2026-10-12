@@ -137,4 +137,5 @@
 - 2026-10-13：从仓库锁定的 Media3 源码 jar 取得 E1/E2 一手证据（`web_search` 端点 401，改用仓库内一手来源）。
 - 2026-10-13：完成 F1–F5 修复 + 还原评估索引 BOM；Leanback ARM64 编译与 6 个测试类 28 例全绿（35s）。
 - 2026-10-13：零复活/零丢失三层证据完成（缺失 0、逐字节一致 5042、revert 交集 6 条全为样板行）。
+- 2026-10-13：交付坐标——修正提交 `434fb60fe88c5958a4aa27a5d9a50b0bdc9b11ac`，恢复 tag `recovery/C66-beta-merge-review-dev3-20261013/20261012163803-434fb60fe88c`，已推送 `origin/dev3`；PR [#442](https://github.com/Silent1566/webhtv/pull/442)（base `beta`，9 个文件，只创建不合并）。
 - 环境注记：本机 `bash` 指向 WSL 且不可用，guard 用 `G:\Git\bin\bash.exe` 执行；Gradle 用 `gradlew.bat`（`JAVA_HOME` = JDK 21）。本机环境变量 `GIT_CONFIG_COUNT=2` 缺 `GIT_CONFIG_KEY_*`，所有 git 命令前需清空该变量。
