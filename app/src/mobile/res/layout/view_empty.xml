@@ -22,4 +22,40 @@
         android:textColor="?attr/webhtvColorOnWallpaper"
         android:textSize="16sp" />
 
+    <!--
+        解释与主动作两个槽位：设计文档 §9.9 要求空态是「标题 + 解释 + 一个主动作」。
+
+        手机端本轮**只补槽位、不改观感**（两者默认 GONE，且目前没有任何手机端宿主调用
+        ProgressLayout.setEmptyContent）。之所以必须在这里也声明，是因为 ProgressLayout 在
+        main 源集、而 view_empty.xml 是分 flavor 的：缺少这两个 id 会让手机端编译不过。
+        手机端的字号档位与文案接入留给手机批次（§6.2 手机 Display 为 32–40sp）。
+    -->
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/description"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:maxWidth="320dp"
+        android:textColor="?attr/webhtvColorOnWallpaperVariant"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/action"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_marginTop="20dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:gravity="center"
+        android:minWidth="120dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:singleLine="true"
+        android:textColor="?attr/webhtvColorOnWallpaper"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
 </androidx.appcompat.widget.LinearLayoutCompat>

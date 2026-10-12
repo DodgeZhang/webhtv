@@ -42,6 +42,10 @@
     <string name="keep">Keep</string>
     <string name="keep_add">Added</string>
     <string name="keep_del">Removed</string>
+    <!-- 收藏页空态：设计文档 §9.9 要求「标题 + 解释 + 一个主动作」。 -->
+    <string name="keep_empty_title">Nothing saved yet</string>
+    <string name="keep_empty_description">Press Keep on any detail page and it will show up here.</string>
+    <string name="keep_empty_action">Browse Vod</string>
     <string name="exit_confirm_title">Exit app</string>
     <string name="exit_confirm_message">The app, playback, and background services will stop.</string>
     <string name="exit_confirm_playing_message">Playback is active. Background playback keeps it playing; Exit completely stops playback and background services.</string>

@@ -8,6 +8,7 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.Product;
+import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.bean.Keep;
@@ -38,8 +39,29 @@ public class KeepActivity extends BaseActivity implements KeepAdapter.OnClickLis
 
     @Override
     protected void initView(Bundle savedInstanceState) {
+        setEmptyContent();
         setRecyclerView();
         getKeep();
+    }
+
+    /**
+     * 空态内容：设计文档 §9.9 要求「标题 + 解释 + 一个主动作」。
+     *
+     * <p>收藏页是最典型的空态——用户第一次进来时列表必为空，此前的实现只有一句
+     * {@code error_empty}（「这里什麽都没有」），既不解释为什么空，也不给出下一步。
+     */
+    private void setEmptyContent() {
+        mBinding.progressLayout.setEmptyContent(
+                R.string.keep_empty_title,
+                R.string.keep_empty_description,
+                R.string.keep_empty_action,
+                view -> goHome());
+    }
+
+    /** 空态主按钮：回点播首页去挑一部。与 LiveActivity/VideoActivity 的回首页写法一致。 */
+    private void goHome() {
+        startActivity(new Intent(this, HomeActivity.class).addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
     }
 
     private void setRecyclerView() {
@@ -84,7 +106,12 @@ public class KeepActivity extends BaseActivity implements KeepAdapter.OnClickLis
     @Override
     public void onItemDelete(Keep item) {
         mAdapter.remove(item.delete(), () -> {
-            if (mAdapter.getItemCount() == 0) mAdapter.setDelete(false);
+            int count = mAdapter.getItemCount();
+            if (count == 0) mAdapter.setDelete(false);
+            // 删除路径此前不驱动状态：删掉最后一项后只剩一个空 RecyclerView，用户看到的是一片
+            // 空白，连空态都不出现（实机复现）。这里走与首次加载同一条 showContent(true, size)
+            // 分支，count 为 0 时即进入 EMPTY 态。
+            mBinding.progressLayout.showContent(true, count);
         });
     }
 
