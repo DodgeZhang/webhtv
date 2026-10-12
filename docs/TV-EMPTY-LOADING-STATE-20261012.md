@@ -6,8 +6,9 @@
 - 允许路径：`app/src/leanback/res/layout/view_empty.xml`、`app/src/leanback/res/layout/view_progress.xml`、`app/src/leanback/res/drawable/shape_empty_action_focused.xml`（新增）、`app/src/leanback/res/drawable/selector_empty_action.xml`（新增）、`app/src/mobile/res/layout/view_empty.xml`（仅补两个默认隐藏的槽位，见 §4.6）、`app/src/main/java/com/fongmi/android/tv/ui/custom/ProgressLayout.java`、`app/src/leanback/java/com/fongmi/android/tv/ui/activity/KeepActivity.java`、`app/src/main/res/values{,-zh-rCN,-zh-rTW}/strings.xml`、`app/src/testLeanback/java/com/fongmi/android/tv/ui/activity/TvStateSurfaceContractTest.java`（新增）、本文件。
 - 保护面：任务开始时工作树仅 `.design-evidence/` 未跟踪（预存脏路径 0 个）；分支 `dev4`，HEAD `7c26d331001`。
 - 验收：① 空态声明标题/解释/主动作三个槽位且后两者默认 GONE；② 标题字号落在电视 Display 档；③ 三个元素走壁纸语义角色、无裸色；④ 主按钮可聚焦且焦点环取**应用表面族**；⑤ 加载指示器不再写死颜色；⑥ `ProgressLayout.setEmptyContent` 对 flavor 差异做空值守卫；⑦ 收藏页接入且按钮有真实动作；⑧ 定向测试全绿 + 5561 真机空态对照。
-- 回滚：撤销本任务原子提交即可回到「单行 16sp 空态 + 写死白色指示器」；无数据迁移。
-- 下一步唯一动作：跑定向测试与 5561 真机空态对照（见 §6）。
+- 回滚：撤销本任务原子提交即可回到「单行 16sp 空态 + 写死白色指示器 + 删空后空白页」；无数据迁移。
+- 交付坐标：提交 `61483311b4d`（dev4），recovery tag `recovery/TV-EMPTY-LOADING-STATE-20261012/20261012232534`；未推送。
+- 下一步唯一动作：无（TV-4 已交付）。下一批建议处理 §7.1 的错误态（需先新增"壁纸上的错误前景色"角色），或按 §7.3 逐宿主接入空态解释与动作。
 
 ## 1. 现象与根因
 
