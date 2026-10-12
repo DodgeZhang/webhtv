@@ -53,6 +53,7 @@ import com.fongmi.android.tv.player.exo.ExoNetworkGuardController;
 import com.fongmi.android.tv.player.exo.ExoNetworkGuardEligibility;
 import com.fongmi.android.tv.player.exo.ExoRtspLiveLagController;
 import com.fongmi.android.tv.player.exo.ExoRtspLiveLagPolicy;
+import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.player.exo.ForwardBufferTrend;
 import com.fongmi.android.tv.player.exo.PlaybackAnalyticsListener;
 import com.fongmi.android.tv.player.ijk.IjkBufferController;
@@ -1363,21 +1364,44 @@ public class PlayerManager implements ParseCallback {
     }
 
     /**
-     * ExoPlayer reports a video track that no registered renderer can decode as an
-     * unsupported subtype and then drops it, so playback continues with audio and
-     * subtitles only while the cover image stays on screen. Hard decode registers
-     * hardware decoders exclusively, which makes that state unavoidable on a device
-     * without a hardware decoder for the codec. Nothing reports an error, so the
-     * state is answered here with one software fallback per playback request.
+     * Hard decode registers hardware decoders exclusively, so on a device without a
+     * hardware decoder for the stream's codec the session runs on platform software
+     * decoders while the OSD still reports hardware decode, and the soft-decode
+     * tuning plus the matching renderer set stay inactive. Two states are answered
+     * here with one software switch per playback request: a video track that no
+     * renderer can decode, and a video track whose codec has no hardware decoder.
+     * ExoPlayer drops the first kind silently and keeps playing audio and subtitles
+     * over the cover image, so neither state is visible as an error.
      */
     private void maybeFallbackToSoftDecode(Tracks tracks) {
         if (softDecodeFallbackAttempted) return;
         if (engine == null || !isExo() || !engine.isHard()) return;
         if (!PlaybackPerformanceSetting.isDecoderFallbackEnabled()) return;
-        if (!hasUndecodableVideoTrack(tracks)) return;
+        if (!needsSoftDecode(tracks)) return;
         softDecodeFallbackAttempted = true;
-        PlaybackTrace.log("switch-decode", playbackTrace.current(), "auto software fallback: no decodable video track");
+        PlaybackTrace.log("switch-decode", playbackTrace.current(), "auto software mode: hard decode has no hardware video path");
         App.post(this::fallbackToSoftDecode);
+    }
+
+    /** True when hard decode cannot serve the video track with a hardware decoder. */
+    private static boolean needsSoftDecode(Tracks tracks) {
+        if (tracks == null || tracks.isEmpty()) return false;
+        for (Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_VIDEO) continue;
+            if (group.length == 0) continue;
+            Format decodable = firstDecodableVideoFormat(group);
+            if (decodable == null) return true;
+            if (!ExoUtil.hasHardwareVideoDecoder(decodable.sampleMimeType)) return true;
+        }
+        return false;
+    }
+
+    private static Format firstDecodableVideoFormat(Tracks.Group group) {
+        for (int i = 0; i < group.length; i++) {
+            if (group.isTrackSelected(i)) return group.getTrackFormat(i);
+            if (group.getTrackSupport(i) == C.FORMAT_HANDLED) return group.getTrackFormat(i);
+        }
+        return null;
     }
 
     private void fallbackToSoftDecode() {
@@ -1390,21 +1414,6 @@ public class PlayerManager implements ParseCallback {
         }
         rebuildPlayer(false);
         setMediaItem();
-    }
-
-    /** True when the source carries video tracks but not one of them can be decoded. */
-    private static boolean hasUndecodableVideoTrack(Tracks tracks) {
-        if (tracks == null || tracks.isEmpty()) return false;
-        boolean hasVideo = false;
-        for (Tracks.Group group : tracks.getGroups()) {
-            if (group.getType() != C.TRACK_TYPE_VIDEO) continue;
-            for (int i = 0; i < group.length; i++) {
-                hasVideo = true;
-                if (group.isTrackSelected(i)) return false;
-                if (group.getTrackSupport(i) == C.FORMAT_HANDLED) return false;
-            }
-        }
-        return hasVideo;
     }
 
     public void switchDecode(PlaySpec freshSpec, long position, float speed, boolean repeat) {

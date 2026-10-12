@@ -314,6 +314,24 @@ public class ExoUtil {
         return decode != PlayerEngine.SOFT && PlayerSetting.isAudioPrefer(PlayerSetting.EXO);
     }
 
+    /**
+     * True when the platform exposes a hardware decoder for this video mime. Hard
+     * decode registers hardware decoders exclusively, so a false result means the
+     * session would silently run on platform software decoders instead.
+     */
+    public static boolean hasHardwareVideoDecoder(String mimeType) {
+        if (mimeType == null || !mimeType.startsWith("video/")) return true;
+        try {
+            for (MediaCodecInfo info : MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, false, false)) {
+                if (info.hardwareAccelerated) return true;
+            }
+        } catch (androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException e) {
+            // A failed query must never change the user-visible decode mode.
+            return true;
+        }
+        return false;
+    }
+
     public static CaptionStyleCompat getCaptionStyle() {
         return PlayerSetting.isCaption() ? CaptionStyleCompat.createFromCaptionStyle(((CaptioningManager) App.get().getSystemService(Context.CAPTIONING_SERVICE)).getUserStyle()) : new CaptionStyleCompat(Color.WHITE, Color.TRANSPARENT, Color.TRANSPARENT, CaptionStyleCompat.EDGE_TYPE_OUTLINE, Color.BLACK, null);
     }
