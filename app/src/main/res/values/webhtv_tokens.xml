@@ -88,5 +88,29 @@
         ThemeBaseWiringTest freezes that property.
     -->
     <color name="webhtv_on_wallpaper">#FFFFFF</color>
+    <!--
+        Secondary foreground for content drawn straight on the app wallpaper.
+
+        Before this role the TV surface had exactly one wallpaper foreground
+        (webhtv_on_wallpaper = #FFFFFF), so every label, value and metadata line was
+        pure white and only font size separated a title from its own subtitle. The
+        reason was recorded in TvFocusRingContractTest: ?attr/colorOnSurfaceVariant
+        measured 1.35:1 on the dark card band, so the only readable choice was white.
+
+        The substrate is what made that true, so the fix is paired with it: the card
+        band (shape_vod_name) now paints 40% black instead of 20%, and 80% white on
+        that band measures 6.99:1 - higher than the 6.89:1 the flat white it replaces
+        measured on the old band. On the unchanged 20% band used by the settings rows
+        the same value still measures 5.12:1, so one role serves both hosts.
+
+        Both numbers assume the mid-dark built-in walls. A translucent band over an
+        arbitrary user wallpaper cannot be guaranteed globally; that residual risk is
+        the same one already recorded for the following-page panels (阶段 H2).
+
+        The name deliberately avoids the webhtv_color_ prefix for the same reason as
+        webhtv_on_wallpaper above: ThemeTokens models the Material role contract and
+        ThemeContractTest freezes that contract at exactly 49 entries.
+    -->
+    <color name="webhtv_on_wallpaper_variant">#CCFFFFFF</color>
     <dimen name="webhtv_focus_scale">1.0</dimen>
 </resources>

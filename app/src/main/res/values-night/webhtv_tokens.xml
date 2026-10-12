@@ -106,5 +106,10 @@
         ThemeBaseWiringTest freezes that property.
     -->
     <color name="webhtv_on_wallpaper">#FFFFFF</color>
+    <!--
+        壁纸上的次级前景，与日间表同值：壁纸本身两张表里都是深色，所以这一角色不需要
+        随明暗切换。派生依据与对比度核算见 values/webhtv_tokens.xml 的同名条目。
+    -->
+    <color name="webhtv_on_wallpaper_variant">#CCFFFFFF</color>
     <dimen name="webhtv_focus_scale">1.1</dimen>
 </resources>

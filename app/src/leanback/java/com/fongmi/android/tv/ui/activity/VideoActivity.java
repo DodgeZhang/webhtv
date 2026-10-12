@@ -2934,9 +2934,23 @@ private boolean runtimeSourceOnly;
     }
 
     private void setText(TextView view, int resId, String text) {
-        if (TextUtils.isEmpty(text) && !TextUtils.isEmpty(view.getText())) return;
+        if (TextUtils.isEmpty(text)) {
+            // 值缺失时必须清掉文本，不能只置 GONE：带标签的字段渲染出来的是
+            // getString(resId, "")，也就是 "导演：" 这种非空字符串，随后
+            // setVideoDetailsVisible() 按 !getText().isEmpty() 又把它翻回 VISIBLE，
+            // 于是详情页出现只有标签、没有内容的空行（用户截图所见）。
+            // 保留旧文本则会在换集后泄漏上一条目的元数据，同样靠清空消掉。
+            //
+            // resId == 0（remark）不走这条：它的文本可能由 TMDB 集数信息经另一条路径单独写入，
+            // 无条件清空会把那条路径的结果抹掉，因此保留原来的"空值不覆盖已有文本"语义。
+            if (resId > 0) {
+                if (!TextUtils.isEmpty(view.getText())) view.setText(null);
+                view.setVisibility(View.GONE);
+            }
+            return;
+        }
         String value = resId > 0 ? getString(resId, text) : text;
-        view.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
+        view.setVisibility(View.VISIBLE);
         if (TextUtils.equals(view.getText(), value)) return;
         view.setText(Sniffer.buildClickable(value, this::clickableSpan), TextView.BufferType.SPANNABLE);
         view.setLinkTextColor(MDColor.YELLOW_500);
