@@ -6,8 +6,8 @@
 - **允许路径**：`app/`、`docs/`；任务开始时工作区干净，**0 个预先存在脏路径**。
 - **分支与回滚锚点**：`dev4`；第一父 `4c5f4dc842126a079922c74bbeccceab0004733e`（本地已提交未推送 tip）。
 - **合并第二父（本轮 beta 权威 tip）**：`92a0ca0bbe50da70768b7245ed6dd17a51bffcea`。
-- **当前状态**：自动合并无冲突、0 未解决冲突；已完成后述三轮代码评审，未发现必修缺陷；双 flavor 定向 JVM 测试全绿（leanback 192 例、mobile 180 例，0 failure / 0 error，见 §5.1）；待提交合并、打 recovery tag、推送并开 PR。
-- **下一动作**：提交合并提交（双父），创建 `recovery/beta-sync-review-dev4-20261012/<ts>-<short>`，推送 `dev4` 与该 tag，创建保持 OPEN 的中文 beta PR。
+- **当前状态**：已交付。自动合并无冲突、0 未解决冲突；三轮代码评审未发现必修缺陷；双 flavor 定向 JVM 测试全绿（leanback 192 例、mobile 180 例，0 failure / 0 error，见 §5.1）；合并提交、recovery tag、推送与 PR #439 均已完成，PR 保持 OPEN。
+- **下一动作**：无（已交付）。
 
 ## 1. 合并台账
 
@@ -137,7 +137,18 @@ BUILD SUCCESSFUL in 32s   (122 actionable tasks: 10 executed, 112 up-to-date)
 
 ## 6. 交付坐标
 
-（本节在提交/推送/开 PR 后回填。）
+| 项 | 值 |
+| --- | --- |
+| 合并提交（双父） | `a25ac9dd72d5ca0252242de67221451ddeaafd20`（第一父 `4c5f4dc842126a079922c74bbeccceab0004733e`；第二父 `92a0ca0bbe50da70768b7245ed6dd17a51bffcea` = beta tip） |
+| recovery tag | `recovery/beta-sync-review-dev4-20261012/20261012130131-a25ac9dd72d5` |
+| 推送 | `git push origin dev4` → `4b35e0720c1..a25ac9dd72d  dev4 -> dev4`；recovery tag 推送成功 |
+| PR | [#439](https://github.com/Silent1566/webhtv/pull/439)（`dev4` → `beta`，**只创建，未合并**） |
+| PR 状态校验 | `state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=6`、`baseRefName=beta`、`headRefName=dev4` |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/439/files` 与 `git diff --name-only origin/beta HEAD` **逐项一致**（6/6） |
+| 收尾复核 | `git merge-base --is-ancestor origin/beta HEAD` 为真；`MERGE_HEAD` 已清除；`git status --porcelain` 干净 |
+| 远端 tip | `git ls-remote origin refs/heads/beta` = `92a0ca0bbe50da70768b7245ed6dd17a51bffcea`（与合并第二父一致）；`refs/heads/dev4` = `a25ac9dd72d5ca0252242de67221451ddeaafd20` |
+
+> 环境说明：本会话无可用 bash（仅 WSL `bash.exe`，`LxssManager`/`vmcompute` 未运行，返回 `HCS_E_SERVICE_NOT_AVAILABLE`），`.codex/scripts/task_guard.sh` 无法执行。按其意图手工执行：仅暂存本任务声明范围内的路径（合并索引 + 本文件）、原子提交、创建本地带注释 recovery tag。
 
 ## 7. 回滚
 
