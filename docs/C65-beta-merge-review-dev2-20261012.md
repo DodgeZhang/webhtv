@@ -98,5 +98,10 @@
 ## 6. Recovery anchor
 
 - 目标：把 `origin/beta` 最新合入 `dev2`（不回退已移除提交）、复评 dev2 已提交未推送改动、验证通过后提交并推送、开 PR 到 beta。
-- 状态：合并已完成（内容中性，索引树哈希证实）；复评 1 轮通过，未发现缺陷；定向测试通过。
-- 下一步（唯一动作）：提交合并 commit → 打 recovery tag → 推送 `dev2` → 创建 PR 到 beta（只创建，不合并）。
+- 状态：**已闭环**。合并内容中性（索引树哈希证实）；复评 1 轮通过、未发现缺陷；定向测试 13/13 通过；已提交、已推送、PR 已创建（只创建未合并）。
+- 交付坐标：
+  - 合并提交：`b6c36bdf1a37fa7d4334efe20c1cd20672f32450`（双父：`c0ba017885` + `37bca76737`）
+  - 恢复标签（本地）：`recovery/C65-beta-merge-review-dev2-20261012/20261012160732-b6c36bdf1a37`
+  - 推送：`origin/dev2` 快进 `8b5f8e9026..b6c36bdf1a`
+  - PR：[#441](https://github.com/Silent1566/webhtv/pull/441)（`dev2` → `beta`，OPEN / MERGEABLE，只创建不合并）
+- 下一步：无。
