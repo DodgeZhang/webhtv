@@ -71,7 +71,7 @@ vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
 
 ## 5. Java/Kotlin 框架 API 排查
 
-`./gradlew :app:lintLeanbackArm64_v8aDebug` → 报告 `app/build/reports/lint-results-leanbackArm64_v8aDebug.txt`，其中 `NewApi` 52 处（23 处 API 26、13 处 API 29、1 处 API 31、10 处 API 34 等）。
+`./gradlew :app:lintLeanbackArm64_v8aDebug` → 报告 `app/build/reports/lint-results-leanbackArm64_v8aDebug.txt`。修复后该报告为 236 errors，其中 `NewApi` 33 处（17 处 API 26、1 处 API 27、13 处 API 29、1 处 API 31、1 处 API 33）；本轮三处修复共移除 18 条 `NewApi`（`ViewCompat` 2 + `Process#isAlive` 6 + `Matcher` API 34 重载 10），故修复前为 **51 处**（25 处 API 26、1 处 API 27、13 处 API 29、1 处 API 31、1 处 API 33、10 处 API 34）。（C62 复评订正：原文写作「52 处（23 处 API 26…）」，与报告自身 254 → 252 → 246 → 236 逐级减少 18 条、以及当前报告实测的 33 条不一致。）
 
 逐条核实结果：
 
@@ -88,7 +88,7 @@ vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
 | `GitCloudDialog:2163`/`RemoteTrustDialog:3090`（`View#setImportantForAutofill`，API 26） | **真实缺陷（已实机验证，已修复）**：`TextInputEditText`/`AppCompatEditText`/`EditText`/`TextView` 均未声明该方法，运行时反射解析到 `android.view.View#setImportantForAutofill`（API 26，实机 API 28 上 `getMethod(...).getDeclaringClass()` = `android.view.View`）。调用点位于 `GitCloudDialog.buildView()→input()` 与 `RemoteTrustDialog.input()`，而两者在对话框创建链路上被无条件调用且无 try/catch → **Android 7 上打开「Git 云盘」或「远程信任」设置弹窗会抛 `NoSuchMethodError` 崩溃**（手机版 `SettingEnhanceFragment` 与 TV 版 `SettingEnhanceActivity` 均可达）。已改用 `ViewCompat.setImportantForAutofill(view, ...)`（内部 `SDK_INT < 26` 提前返回，API ≥ 26 委托到同一个 `View#setImportantForAutofill`，行为零变化）✔ 已修复 |
 | `WebViewClient#onRenderProcessGone`（API 26 回调，`RenderProcessGoneDetail` 类为 API 26） | 覆写方法在 API < 26 上不会被系统调用；`detail.didCrash()` 的 `RenderProcessGoneDetail` 类级 `since=26`，但 ART 惰性解析 + 该回调仅在 API ≥ 26 触发 → 无崩溃风险（`CatWebActivity`/`WebReaderActivity`/`HomeWebController` 三处一致） |
 | `LabRunner`/`LabTerminalActivity`（`Process#isAlive`/`destroyForcibly`，API 26） | **真实缺陷（已修复）**：`LabRunner.isRunning()/runningCount()/runningKeys()` 在 `LabAutoStart`（`App` 启动后 3 秒无条件执行）、`LabPackageAdapter.running()`、`LabCommandAdapter.onBindViewHolder()`、`LabDetailActivity.anyRunning()`、`LabRuntimeService` 中调用。`NoSuchMethodError` 继承自 `Error` 而非 `Exception`，所以 `LabAutoStart` 的 `catch (Exception ignored)` **捕不住**，会沿后台线程抛到 `ThreadGroup` → 进程崩溃。触发条件：用户已安装实验台条目（`LabEnv.installed(item)` 为真且条目带 `commands`）。已新增 `LabRunner.isAlive(Process)`（用 `exitValue()`/`IllegalThreadStateException`，API 1，语义等价，已用 JVM 探针验证）并替换全部 6 处调用；`LabRunner.stop()` 里的 `destroyForcibly` 原本就有 `catch (Throwable)` 兜底 ✔ 已修复 |
-| `MpdSanitizer`（`Matcher#appendReplacement/appendTail` 的 `StringBuilder` 重载，**API 34**） | **真实缺陷（已实机复现并修复）**：`desugar_jdk_libs_nio` 2.1.5 不含 regex 回移植（jar 内无 `regex` 包），D8 也未改写该调用；debug 与 Release APK 的 dex 均保留 `appendReplacement:(Ljava/lang/StringBuilder;...)`。真机实测（API 28，修复前）调用 `MpdSanitizer.sanitize()` 抛 `NoSuchMethodError`。该路径被 `Source.fetch()` 的 `try/catch (Exception)` 捕获 → 静默返回未处理 URL。影响：MPD 清洗（frameRate/AdaptationSet id 修复、YouTube jar MPD 处理）在 **API < 34 全平台**静默失效。已改用 `StringBuffer` 重载（API 1），实机重测两个触发路径均返回 `changed=true` ✔ 已修复 |
+| `MpdSanitizer`（`Matcher#appendReplacement/appendTail` 的 `StringBuilder` 重载，**API 34**） | **真实缺陷（已实机复现并修复）**：`desugar_jdk_libs_nio` 2.1.5 不含 regex 回移植（jar 内无 `regex` 包），D8 也未改写该调用；debug 与 Release APK 的 dex 均保留 `appendReplacement:(Ljava/lang/StringBuilder;...)`。真机实测（API 28，修复前）调用 `MpdSanitizer.sanitize()` 抛 `NoSuchMethodError`。该异常继承 `Error`：`MpdSanitizer.sanitize()` 自身的 `catch (Exception e)` 捕不到，`Source.fetch()` 的 `catch (Exception)` 也只包住 `extractor.fetch(result)`（`Source.java:100-104`）、并不覆盖紧随其后的 `MpdSanitizer.sanitize(fetched)`（`Source.java:110`）。因此修复前的失败模式是**上抛 `NoSuchMethodError`**（调用链上典型兜底如 `SiteApi.playerContent` 的 `catch (Exception)` 同样拦不住 `Error`），不是「静默返回未处理 URL」。触发条件：MPD 中确实存在需要清洗的项（`appendReplacement` 只在命中非法值时调用，且 `removed[i] == 0` 会提前 `return xml`），干净 MPD 不受影响。影响：MPD 清洗（frameRate/AdaptationSet id 修复、YouTube jar MPD 处理）在 **API < 34 全平台**不可用（命中即抛错）。**（C62 复评订正）**已改用 `StringBuffer` 重载（API 1），实机重测两个触发路径均返回 `changed=true` ✔ 已修复 |
 | `org.jupnp` 3.0.4 `DOMParser.escape()`（同样的 API 34 `StringBuilder` 重载） | 三方库缺陷，同类问题；仅在 jUPnP 内部走 `escape()` 路径时触发（DLNA/投屏相关） |
 | `hook-release.aar`（`Hook extends PackageManager`，引用 API 26 的 `ChangedPackages`/`SharedLibraryInfo`/`VersionedPackage`） | 与 API 级别无关的既有 AAR 缺陷：`Hook` 继承 `PackageManager` 但**未实现任何抽象方法**（javap 实测 0 个方法），且引用了 API 26 类型；仅在迅雷/电视直播内核路径被 `TVBus.init()` 使用，包在 `try/catch (Exception ignored)` 内 |
 
@@ -112,7 +112,7 @@ vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
 | **MPV 内核** | ✘ **不可用**（`libmpv.so` 需 API 28 的 Vulkan 1.1 入口 + BIND_NOW 即时绑定 → dlopen 失败，自动回退 Exo） |
 | DV5 独立渲染器 | ✘ 设计上要求 API 26+（Java 侧守卫拦截，不崩溃） |
 | Lab 实验台（已安装条目时） | ✔ **已修复**（原为 `Process#isAlive` API 26，且 `NoSuchMethodError` 是 `Error`，`LabAutoStart` 的 `catch (Exception)` 拦不住） |
-| MPD 清洗 | ✔ **已修复**（原为 `Matcher` API 34 重载，在 API < 34 全平台静默失效；现改用 API 1 的 `StringBuffer` 重载） |
+| MPD 清洗 | ✔ **已修复**（原为 `Matcher` API 34 重载，在 API < 34 命中即抛 `NoSuchMethodError`；现改用 API 1 的 `StringBuffer` 重载） |
 
 **直接回答“还能不能支持安卓 7”**：安装、启动、Exo/IJK 播放、猫源、Python 爬虫这些主干能力仍可在 Android 7 上运行；本轮已修复 3 个真实缺陷（Git 云盘/远程信任弹窗崩溃、Lab 实验台启动崩溃、MPD 清洗静默失效），其中前两个是 Android 7 上会直接崩溃的。但现状仍**不能算完整“最低支持安卓 7”**，剩余唯一硬缺口是：项目最核心的高级播放能力（**MPV 内核**，含 FEL/DV7、Vulkan 输出、蓝光菜单）在 Android 7.0–8.1（API 24–27）上无法加载（Vulkan 1.1 入口直到 Android 9/API 28 才由平台 `libvulkan.so` 导出），会静默回退到 Exo/IJK。
 
@@ -120,7 +120,7 @@ vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
 
 1. ~~**修复 Git 云盘 / 远程信任崩溃**~~ ✅ **已完成**：`GitCloudDialog.input()` 与 `RemoteTrustDialog.input()` 的 `View.IMPORTANT_FOR_AUTOFILL_NO` 调用改为 `ViewCompat.setImportantForAutofill(view, ...)`。验证：`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` + `:app:compileMobileArm64_v8aDebugJavaWithJavac` BUILD SUCCESSFUL；`javap` 确认字节码改为 `invokestatic androidx/core/view/ViewCompat.setImportantForAutofill`；lint `NewApi` 中该 2 条 error 消失（254 → 252 errors）；`scripts/build_arm64_debug_install.sh --flavor leanback --abi arm64-v8a` 打包并覆盖安装到 dev1 设备，冷启动无 `NoSuchMethodError` 崩溃；**并实机点开「Git 云盘」弹窗成功渲染（标题「Silent1566 · 请选择仓库」与仓库列表均出现），整个会话 `FATAL EXCEPTION` 计数为 0**，证明修复路径真实可用。
 2. **恢复 MPV 在 API 24–27 可用**（唯一能真正恢复“最低支持安卓 7”的路径）：重建 mpv 原生库，使 `libmpv.so` 不再直接引用 Vulkan 1.1 core 入口。可选做法：以 `VK_NO_PROTOTYPES` + `vkGetInstanceProcAddr` 运行时解析（Android 上扩展入口可通过 `vkGetInstanceProcAddr` 获得，即使 loader 未导出 ELF 符号），或让 mpv/libplacebo 在 Vulkan 1.0 loader 上完全走 `VK_KHR_get_physical_device_properties2` 的函数指针路径。注意：仅去掉 `-z now` 无效——`System.load()` 本身即 `RTLD_NOW`。此改动属上游播放器依赖范畴，需按 `AGENTS.md` §8 先做设计研究并获得批准。
-3. ~~**LabRunner/LabTerminalActivity**~~ ✅ **已完成**：新增 `LabRunner.isAlive(Process)`（基于 `exitValue()`/`IllegalThreadStateException`，API 1，语义等价）并替换全部 6 处 `Process#isAlive()`。验证：JVM 探针确认语义等价；`javap` 确认编译后类中 `java/lang/Process;.isAlive` 调用为 0；`:app:testLeanbackArm64_v8aDebugUnitTest` 全套 9197 个用例 0 失败；lint 对应 NewApi error 消失（252 → 246）；设备冷启动（会触发 `LabAutoStart`）进程存活且 `FATAL EXCEPTION`/`NoSuchMethodError` 计数为 0。
+3. ~~**LabRunner/LabTerminalActivity**~~ ✅ **已完成**：新增 `LabRunner.isAlive(Process)`（基于 `exitValue()`/`IllegalThreadStateException`，API 1，语义等价）并替换全部 6 处 `Process#isAlive()`。验证：JVM 探针确认语义等价；`javap` 确认编译后类中 `java/lang/Process;.isAlive` 调用为 0；`:app:testLeanbackArm64_v8aDebugUnitTest` 4191 个用例 0 失败（该轮 18:19 实测 XML：655 suites / 4191 tests / 0 failures / 2 skipped；原文把两 flavor 合计的 9197 写成该单任务用例数，且 mobile flavor 该轮未重跑，C62 已双 flavor 重跑，见 §10）；lint 对应 NewApi error 消失（252 → 246）；设备冷启动（会触发 `LabAutoStart`）进程存活且 `FATAL EXCEPTION`/`NoSuchMethodError` 计数为 0。
 4. ~~**MpdSanitizer**~~ ✅ **已完成**：5 处 `appendReplacement` + 5 处 `appendTail` 全部改用 `StringBuffer`（API 1）重载（与 `LabRunner.expandNested()` 既有写法一致）。验证：`javap` 确认编译后类中 API 34 的 `StringBuilder` 重载为 0、`StringBuffer` 重载为 5+5；lint 对应 error 消失（246 → 236）；**设备实机重测两个触发路径（invalid-frameRate / invalid-adaptationSetId）均返回 `changed=true` 且不再抛 `NoSuchMethodError`**。
 5. **UI 提示**（可选）：在 API < 28 时于内核选择处显式标注“MPV 需要 Android 9+”，避免用户误判为故障。
 
@@ -199,3 +199,19 @@ NEW  ViewCompat call returned without touching the API-26 method -> SAFE on API 
 ### 9.4 一处方法论提醒
 
 在 x86 + houdini 翻译设备上，用 `app_process`（x86 进程）加载 ARM 库时会看到 `undefined symbol: _ZNSt3__115basic_stringbuf...` 这类 **houdini 伪影**（`St3__1` 是设备 x86 系统库如 `libart.so` 的命名空间，而 NDK 产物用 `St6__ndk1`）。改用设备自带的 ARM linker（`armload` 探针）后即得到真实的 `vkGetPhysicalDeviceQueueFamilyProperties2` 报错。排查翻译设备上的原生库问题时应优先使用**目标架构的 linker**，不要被翻译层报错误导。
+
+## 10. C62 复评补充（2026-10-12）
+
+本轮（记录见 `docs/C62-beta-merge-review-dev1-20261012.md`）合并远端 `beta` 后复评本文改动，做三件事：
+
+1. **补齐回归锁**（本文三处修复原先只有 JVM/实机探针证据，未提交任何用例；本仓既有约定是源码守卫用例）：
+   - `app/src/test/java/com/fongmi/android/tv/lab/LabRunnerProcessCompatTest`（2 例）：`LabRunner.isAlive(Process)` 的存活/已终止/`null` 语义，以及 `LabRunner.java`/`LabTerminalActivity.java` 不得再出现 `Process#isAlive()`、必须走 `exitValue()` 探针。
+   - `app/src/test/java/com/fongmi/android/tv/player/extractor/MpdSanitizerMatcherMethodContractTest`（2 例）：`MpdSanitizer` 的 5 次 `appendReplacement` + 5 次 `appendTail` 目标变量必须是 `StringBuffer`（API 1 重载），并验证该重载仍能正确改写文本。
+   - `app/src/test/java/com/fongmi/android/tv/compat/Android7ApiCompatContractTest`（2 例）：两个弹窗只能经 `ViewCompat.setImportantForAutofill` 调用（不得直接调 `View#setImportantForAutofill`）；并全仓扫描 `app/src/main/java`（33 处 matcher append）确认没有任何 `appendReplacement/appendTail` 目标声明为 `StringBuilder`。
+   - **变异验证**（改回缺陷形态必须转红，实测）：`StringBuffer output → StringBuilder output`、`ViewCompat.setImportantForAutofill → edit.setImportantForAutofill`、`LabRunner.isAlive → process.isAlive`、`isAlive(null) → true` 四处变异同时存在时，上述 3 个用例类共 6 例中 **4 例转红**（`everyMatcherAppendUsesTheApi1StringBufferOverload`、`autofillCallsGoThroughTheApiIsolatedCompatLayer`、`labSourcesProbeThroughExitValueInsteadOfTheApi26Call`、`probeTreatsOnlyATerminatedProcessAsDead`）；恢复后全绿。
+2. **订正 §5 的两处不准确表述**：`NewApi` 计数（51 处 / 25 处 API 26，而非 52 / 23），以及 `MpdSanitizer` 的影响机制（上抛 `NoSuchMethodError`，而非「被 `catch (Exception)` 捕获后静默返回未处理 URL」）。
+3. **订正 §7 的用例数口径**：`9197` 是两 flavor 合计（leanback 4191 + mobile 5006），不是 `:app:testLeanbackArm64_v8aDebugUnitTest` 单任务用例数；且该轮 mobile flavor 未重跑（其 `test-results` 目录停留在改动前的 13:57 产物）。
+
+C62 合并 `origin/beta`（`af9a18fa4`）后双 flavor 全量 JVM 套件实测：leanback **4203**（0 failures / 0 errors / 2 skipped）、mobile **5018**（0 failures / 0 errors / 2 skipped），相对 C61 基线（4191 / 5006）各 **+12** = 本文三处修复的 6 个锁定用例 + beta 侧 PR#437 带入的 6 个用例（`PlayerSettingsContrastTest` 5 + `PlayerDisplaySettingSyncTest` +1）。
+
+> 说明：本文的 Android 7 实机结论（§9）未被本轮改动影响——C62 只新增测试与文档，未改动任何生产代码。
