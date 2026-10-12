@@ -315,19 +315,37 @@ public class ExoUtil {
     }
 
     /**
-     * True when the platform exposes a hardware decoder for this video mime. Hard
-     * decode registers hardware decoders exclusively, so a false result means the
-     * session would silently run on platform software decoders instead.
+     * False only for the one state that proves hard decode has no hardware video
+     * path: the platform lists decoders for this mime and every one of them is
+     * software, so the session would silently run on a platform software decoder
+     * while the OSD still reports hard decode. Every other answer is "not proven",
+     * because the user-visible decode mode must never change on a guess:
+     *
+     * <ul>
+     *   <li>a null or non-video mime is not this check's business;
+     *   <li>a failed query keeps the current mode;
+     *   <li>an empty decoder list means the platform does not declare this mime at
+     *       all, which is exactly how the app's own renderers see a format they
+     *       handle by rewriting its mime: the DV5 GPU renderer and the Dolby Vision
+     *       HDR10 fallback both decode {@code video/dolby-vision} through the HEVC
+     *       decoder, and that mime has no platform decoder on a device without
+     *       native Dolby Vision. An empty list is therefore not evidence of a
+     *       software fallback.
+     * </ul>
      */
     public static boolean hasHardwareVideoDecoder(String mimeType) {
         if (mimeType == null || !mimeType.startsWith("video/")) return true;
+        List<MediaCodecInfo> infos;
         try {
-            for (MediaCodecInfo info : MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, false, false)) {
-                if (info.hardwareAccelerated) return true;
-            }
+            infos = MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, false, false);
         } catch (androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException e) {
             // A failed query must never change the user-visible decode mode.
             return true;
+        }
+        // No platform decoder for this mime: another renderer may still own the format.
+        if (infos.isEmpty()) return true;
+        for (MediaCodecInfo info : infos) {
+            if (info.hardwareAccelerated) return true;
         }
         return false;
     }
@@ -1036,8 +1054,14 @@ public class ExoUtil {
                         dolbyVisionPlaybackState));
             } catch (Throwable ignored) {
             }
-            // Video decode mode is explicit: hardware mode must never register
-            // a software fallback, including for AVS3. Audio has its own policy.
+            // Video decode mode is explicit for extension renderers: hardware mode
+            // must never register an FFmpeg video fallback, including for AVS3.
+            // getVideoCodecSelector is the one deliberate exception, and only at the
+            // MediaCodec level: it keeps a platform software decoder as the last
+            // resort so the track stays alive instead of being dropped. PlayerManager
+            // reads that state as "hard decode has no hardware video path" and moves
+            // the session to soft decode, so the two must stay consistent.
+            // Audio has its own policy.
             if (videoRenderMode == EXTENSION_RENDERER_MODE_OFF) return;
             try {
                 out.add(getExtensionRendererIndex(videoRenderMode, videoPrefer, out), buildFfmpegVideoRenderer(allowedVideoJoiningTimeMs, eventHandler, eventListener));
