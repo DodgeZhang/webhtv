@@ -2,6 +2,7 @@
 
 - 排查日期：2026-10-11（CST）
 - 排查对象：`dev1` 工作区 HEAD `8ed903ac2`（分支 `dev1`），工作区干净（除既有未跟踪 `.scratch-goal/`）
+- **真实设备实证**：2026-10-12 在 `192.168.50.3:5587`（**Android 7.1.2 / API 25 / x86 + houdini ARM 翻译 / 32 位**）上完成端到端验证，坐实本文核心结论（详见 §9）
 - 结论：**构建/安装/依赖层仍声明并实际满足 API 24；依赖、Python/Node 运行时、脱糖、签名、原生库对齐全部合规**。排查中确认并修复了 3 个真实缺陷（其中 2 个在 Android 7 上会直接崩溃）；**剩余唯一硬缺口是内置 MPV 播放内核在 Android 7.0/7.1（以及 8.0/8.1）上无法加载**。因此“最低支持安卓 7”目前只对 Exo/IJK/系统内核成立，MPV 内核在 API < 28 上不可用（不崩溃，走回退）。
 
 ## 1. 声明的支持范围
@@ -145,3 +146,56 @@ vkCreateSamplerYcbcrConversion        vkDestroySamplerYcbcrConversion
 - AOSP 标注：`https://android.googlesource.com/platform/frameworks/native/+/refs/heads/main/vulkan/libvulkan/libvulkan.map.txt`（`vkGetPhysicalDeviceProperties2; # introduced=28` 等）
 - 真机复现：API 28 设备上以 API 24 `libvulkan.so` stub 替换平台库后 dlopen 带 `BIND_NOW` 的探针库 → `dlopen failed: cannot locate symbol "vkGetPhysicalDeviceProperties2"`
 - 运行时验证（设备 API 28）：`MpdSanitizer.sanitize()` → `NoSuchMethodError: appendReplacement(Ljava/lang/StringBuilder;...)`
+
+## 9. 真实 Android 7 设备实证（192.168.50.3:5587，API 25）
+
+前文所有结论均基于「符号分析 + API 28 设备模拟」。2026-10-12 接入真实 Android 7.1.2 设备后完成如下端到端验证，**结论全部成立**。
+
+### 9.1 MPV 硬阻塞（决定性 A/B 对照）
+
+把 APK 内真实的 v7a `libmpv.so` 推到设备，用**设备自带的 ARM linker** 直接 dlopen（`RTLD_NOW`）：
+
+```text
+# 真实 Android 7.1.2 (API 25)
+$ LD_LIBRARY_PATH=/data/local/tmp/armtest ./armload libmpv.so
+FAILED: dlopen failed: cannot locate symbol "vkGetPhysicalDeviceQueueFamilyProperties2"
+        referenced by "/data/local/tmp/armtest/libmpv.so"...
+
+# 同一条命令、同一个 libmpv.so，在 Android 9 (API 28) 上
+OK: /data/local/tmp/armtest/libmpv.so
+```
+
+同时直接读取**设备自身的** `libvulkan.so`（非 NDK stub）：
+
+| 文件 | 架构 | 导出符号总数 | 上述 6 个 Vulkan 1.1 符号 |
+| --- | --- | --- | --- |
+| `/system/lib/arm/libvulkan.so` | ARM 32-bit (Android 25) | 193 | **全部 0** |
+| `/system/lib/libvulkan.so` | x86 32-bit (Android 25) | 191 | **全部 0** |
+
+控制实验（排除误判）：
+- 同探针在 API 28 设备上 → `RESULT=OK`（证明探针本身有效）
+- 不带 Vulkan 依赖的探针在 API 25 上 → `RESULT=OK`（证明不是环境普遍性问题）
+- 构造的 x86-32 探针库（`DT_NEEDED libvulkan.so` + `BIND_NOW` + `UND vkGetPhysicalDeviceProperties2`）在 API 25 上 → `cannot locate symbol "vkGetPhysicalDeviceProperties2"`
+
+### 9.2 已修复缺陷在真机上的 A/B 实证
+
+在 API 25 设备上直接对比修复前后调用的 API 可用性：
+
+```text
+SDK_INT=25
+OLD  View#setImportantForAutofill MISSING -> java.lang.NoSuchMethodException: setImportantForAutofill [int]
+NEW  ViewCompat.setImportantForAutofill exists -> OK
+NEW  ViewCompat call returned without touching the API-26 method -> SAFE on API 25
+```
+
+即：**修复前在安卓 7 上必然崩溃，修复后安全**（`ViewCompat` 的 `SDK_INT < 26` 提前返回在真机上得到验证）。
+
+### 9.3 真机安装与运行
+
+- 构建/安装：`bash scripts/build_arm64_debug_install.sh --flavor leanback --abi armeabi-v7a --serial 192.168.50.3:5587` → BUILD SUCCESSFUL，覆盖安装成功（160M APK）
+- 冷启动（含 `LabAutoStart` +3s 路径）：进程存活，`FATAL EXCEPTION` / `NoSuchMethodError` 计数 **0**
+- 打开「增强功能」设置页：正常渲染，无崩溃
+
+### 9.4 一处方法论提醒
+
+在 x86 + houdini 翻译设备上，用 `app_process`（x86 进程）加载 ARM 库时会看到 `undefined symbol: _ZNSt3__115basic_stringbuf...` 这类 **houdini 伪影**（`St3__1` 是设备 x86 系统库如 `libart.so` 的命名空间，而 NDK 产物用 `St6__ndk1`）。改用设备自带的 ARM linker（`armload` 探针）后即得到真实的 `vkGetPhysicalDeviceQueueFamilyProperties2` 报错。排查翻译设备上的原生库问题时应优先使用**目标架构的 linker**，不要被翻译层报错误导。
