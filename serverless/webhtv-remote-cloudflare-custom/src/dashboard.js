@@ -161,6 +161,11 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   .time-cell .relative { color: var(--text-muted); }
   .completed-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--success-bg); color: var(--success); }
   .playing-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--warning-bg); color: var(--warning); }
+  tr.locate-old td { background: var(--danger-bg); }
+  tr.locate-keep td { background: var(--success-bg); }
+  .locate-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-left: 6px; }
+  .locate-tag-old { background: var(--danger-bg); color: var(--danger); }
+  .locate-tag-keep { background: var(--success-bg); color: var(--success); }
   .deleted-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--danger-bg); color: var(--danger); }
 
   .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
@@ -330,7 +335,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="toolbar">
         <input type="text" id="searchInput" class="search-input" placeholder="搜索影片、站点...">
         <button class="btn" id="refreshBtn" onclick="loadData()">🔄 刷新</button>
-        <button class="btn" onclick="confirmMergeByName()">🧩 同名合并</button>
+        <button class="btn" id="locateBtn" onclick="locateSameName()">🔍 同名定位</button>
         <button class="btn btn-danger" onclick="confirmClearAll()">🗑️ 清空全部</button>
       </div>
     </div>
@@ -381,7 +386,9 @@ const state = {
   search: '',
   filtered: [],
   sortKey: 'updatedAt',
-  sortDir: 'desc'
+  sortDir: 'desc',
+  // 同名定位结果：null = 未定位；否则 { keys:Set<itemKey>, role:Map<itemKey,'keep'|'old'>, groups, older }
+  locate: null
 };
 
 // ============ 登录与凭证管理 ============
@@ -958,8 +965,19 @@ function applyFilter() {
       (r.siteName || '').toLowerCase().includes(q)
     );
   }
+  // 同名定位模式下再收窄到「参与同名分组的那几条」，方便逐一核对。
+  if (state.locate) {
+    state.filtered = state.filtered.filter(r => state.locate.keys.has(recordItemKey(r)));
+  }
   applySort();
   state.page = 1;
+}
+
+// 与后端 portableItemKey 对齐：有 siteKey+vodId 就用它，否则退回 historyKey。
+// 注意本文件整体位于一个模板字符串内，运行时代码里的换行必须写成 \\n。
+function recordItemKey(r) {
+  if (r && r.siteKey && r.vodId) return r.siteKey + '\\n' + r.vodId;
+  return 'history\\n' + ((r && r.historyKey) || '');
 }
 
 // 排序：点击列头切换排序字段和方向
@@ -1034,10 +1052,15 @@ function renderRecords() {
     const duration = r.durationMs ? formatDuration(r.durationMs) : '-';
     const position = r.positionMs ? formatDuration(r.positionMs) : '-';
     const time = r.updatedAt || r.updated_at || 0;
+    // 同名定位：标出该行在分组里的角色，只用于视觉定位，不改变任何数据。
+    const role = state.locate ? state.locate.role.get(recordItemKey(r)) : null;
+    const rowClass = role === 'old' ? 'locate-old' : (role === 'keep' ? 'locate-keep' : '');
+    const locateTag = !role ? '' : '<span class="locate-tag locate-tag-' + (role === 'old' ? 'old' : 'keep') + '">'
+      + (role === 'old' ? '同名·较旧（请手动删除）' : '同名·保留最新') + '</span>';
     return \`
-      <tr>
+      <tr class="\${rowClass}">
         <td>
-          <div class="vod-name">\${escape(r.vodName || '未知影片')}</div>
+          <div class="vod-name">\${escape(r.vodName || '未知影片')}\${locateTag}</div>
           <div class="vod-meta">\${escape(r.episodeName || '')} · \${position} / \${duration}</div>
         </td>
         <td><span class="site-badge">\${escape(r.siteKey || '-')}</span></td>
@@ -1096,12 +1119,15 @@ async function deleteRecord(historyKey, siteKey, vodId) {
   } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
 }
 
-// 同名合并 — 同一接口空间内按影片名精确分组，只保留更新时间最新的一条。
-// 影片名和 TMDB 身份都只在 payload 里，服务端用 json_extract 分组；同一组内若出现
-// 两个不同的 (tmdbId, seasonNumber)，判定为同名不同片/不同季，整组跳过不再删除。
-// 这里先 dryRun 预览可合并组数、待删条数与已跳过的组，确认后才真正执行。每删一条
-// 都会写 item 墓碑，其它设备下次同步会一并删除本地同一条记录，而不是又推回来。
-async function confirmMergeByName() {
+// 同名定位 — 只扫描并定位同名记录，绝不合并、绝不下发删除指令。
+// 为什么取消自动合并：服务端「同名合并」写出的 item 墓碑与「手动删除单条」完全同形
+// （同为 scope:item + siteKey/vodId），客户端无法区分；而 APP 自带 TMDB 聚合时，聚合卡片
+// 依赖的底层来源行由客户端自己决定，未必等于服务端 updated_at 里「较新」的那条。自动删掉
+// 「较旧」那条就可能删掉卡片依赖的来源，导致本机或其它设备连最新进度一起丢失。定位后由
+// 用户自行核对、按行内 🗑️ 手动删除，才是已被验证安全的路径。
+// 数据来源仍是 adminMergeByName 的 dryRun 扫描：该分支只读不写，不会改动任何记录。
+async function locateSameName() {
+  if (state.locate) { clearLocate(); return; }
   try {
     const preview = await fetchJSON('/api/playback/sync/maintenance', {
       method: 'POST',
@@ -1109,40 +1135,45 @@ async function confirmMergeByName() {
     });
     const plan = preview.plan || [];
     const skipped = preview.skipped || [];
-    if (!preview.mergedGroups) {
-      showToast('没有可合并的同名记录' + (skipped.length ? '（' + skipped.length + ' 组因 TMDB 身份不同已跳过）' : ''), 'info');
+    if (!plan.length) {
+      showToast('没有可定位的同名记录' + (skipped.length ? '（' + skipped.length + ' 组因身份不同已跳过）' : ''), 'info');
       return;
     }
-    const sample = plan.slice(0, 8).map((g) => escape(g.name) + '（-' + g.drop.length + '）').join('、');
-    const skippedText = skipped.length
-      ? '<p style="color: var(--warning);">另有 <strong>' + skipped.length + '</strong> 组同名但 TMDB 身份不同，已判定为同名不同片/不同季并自动跳过：'
-        + skipped.slice(0, 5).map((g) => escape(g.name)).join('、') + (skipped.length > 5 ? ' …' : '') + '</p>'
-      : '';
-    showModal(\`
-      <h3>🧩 同名合并（每组只留最新）</h3>
-      <p>当前接口下按<strong>影片名精确相同</strong>分组，可合并 <strong>\${preview.mergedGroups}</strong> 组，将删除 <strong>\${preview.droppedRows}</strong> 条较旧的记录，每组保留更新时间最新的一条。</p>
-      \${skippedText}
-      <p>剩余同名（缺 TMDB 信息、翻拍等）仍会被合并，可能丢掉其中一条的进度，请先确认下面的预览：</p>
-      <p style="color: var(--text-muted);">\${sample}\${plan.length > 8 ? ' …' : ''}</p>
-      <p style="color: var(--warning);">删除会写入删除指令并同步到设备；被删的来源若继续观看，会以新进度重新出现。</p>
-      <div class="modal-actions">
-        <button class="btn" onclick="hideModal()">取消</button>
-        <button class="btn btn-danger" onclick="mergeByName()">确认合并</button>
-      </div>
-    \`);
-  } catch (e) { showToast('预览失败: ' + e.message, 'error'); }
+    const keys = new Set();
+    const role = new Map();
+    let keepCount = 0;
+    for (const group of plan) {
+      if (group.keep) { role.set(group.keep, 'keep'); keys.add(group.keep); keepCount++; }
+      for (const key of (group.drop || [])) { role.set(key, 'old'); keys.add(key); }
+    }
+    state.locate = { keys: keys, role: role, groups: plan.length, older: keys.size - keepCount };
+    // 定位时清空搜索框，避免旧搜索词把候选行挡在列表外。
+    state.search = '';
+    const search = document.getElementById('searchInput');
+    if (search) search.value = '';
+    applyFilter();
+    renderRecords();
+    updateLocateButton();
+    scrollToRecords();
+    showToast('已定位 ' + plan.length + ' 组同名记录，其中 ' + state.locate.older + ' 条较旧项。请核对后按行内 🗑️ 手动删除（本按钮不会自动删除）', 'info');
+  } catch (e) { showToast('定位失败: ' + e.message, 'error'); }
 }
 
-async function mergeByName() {
-  hideModal();
-  try {
-    const res = await fetchJSON('/api/playback/sync/maintenance', {
-      method: 'POST',
-      body: JSON.stringify({ op: 'adminMergeByName', configKey: state.configKey, dryRun: false })
-    });
-    showToast('已合并 ' + (res.mergedGroups || 0) + ' 组，删除 ' + (res.droppedRows || 0) + ' 条较旧记录（删除指令将同步到设备）', 'success');
-    loadData();
-  } catch (e) { showToast('合并失败: ' + e.message, 'error'); }
+// 退出同名定位，恢复完整列表（不触碰任何数据）。
+function clearLocate() {
+  state.locate = null;
+  applyFilter();
+  renderRecords();
+  updateLocateButton();
+  showToast('已退出同名定位', 'info');
+}
+
+// 按钮在「定位 / 退出定位」之间切换文案与样式。
+function updateLocateButton() {
+  const btn = document.getElementById('locateBtn');
+  if (!btn) return;
+  btn.textContent = state.locate ? '✖ 退出定位' : '🔍 同名定位';
+  btn.className = state.locate ? 'btn btn-danger' : 'btn';
 }
 
 // 清空全部 — 发送 scope=all 的删除墓碑，并注销该接口的身份（与行内「清除并注销」一致）
