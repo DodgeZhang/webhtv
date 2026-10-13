@@ -931,6 +931,14 @@ app/src/main/res/values/attrs.xml           （仅增加必要的 WebHTV 语义 
    - 对 `Theme.WebHTV.LightDialog`、`Widget.WebHTV.LightDialog` 的回归失败；
    - 验证 token 配对对比度。
 
+   **在 Windows / 无可用 bash 的主机上改用 `python scripts/check_ui_tokens.py`（2026-10-13 补）。**
+
+   两者是同一个门槛的两个入口：`.sh` 是权威定义，`.py` 是它的等价移植（CLI、五项检查、输出行、退出码全部对齐）。之所以需要它——`.sh` 把全部检查体放在内嵌的 `python3` heredoc 里，真正依赖 bash 的只有参数解析与 `git rev-parse`；在没有可用 bash 的主机上（Windows + WSL 服务不可用）该门槛**根本无法运行**，于是它在相当长一段 UI 工作里**静默地没有被执行过**，期间有固定色被引入而无人拦下。
+
+   验证等价性的方式：`--strict` 下两者输出同一组 `UI_TOKEN_*` 行；并做过负向测试（临时注入一个 `#174EA6` → 立刻 `UI_TOKEN_VIOLATION` + `UI_TOKEN_STATUS FAIL` + 退出码 1，还原后 `violations=0`）。
+
+   常用形式：`python scripts/check_ui_tokens.py --strict`（等价于 `.sh --strict`）；`--baseline` 关 strict、`--stage B|C|D|E|F` 自动开 strict，与原脚本一致。
+
 ### 13.2 视觉场景矩阵
 
 | 场景 | 手机 | 电视 | 重点 |
