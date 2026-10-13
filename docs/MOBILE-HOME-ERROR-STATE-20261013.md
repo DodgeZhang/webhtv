@@ -7,7 +7,8 @@
 - 保护面：任务开始时工作树仅 `.design-evidence/` 未跟踪（预存脏路径 0 个）；分支 `dev4`，HEAD `bf81ad59ca2`。
 - 验收：① `StateEvent` 有 ERROR 且带失败原因；② 首页失败发 ERROR 而不是 EMPTY，崩溃重启那次仍保持 EMPTY；③ `VodFragment` 渲染错误态（错误色标题 + 原因 + 重试）与空态（三件套）；④ 两者都复用 `homeContent()`，不新写加载路径；⑤ 状态浮层在 PROGRESS/CONTENT 时收起；⑥ `testMobile` 定向测试全绿 + 真机（启动时断网）看到错误态。
 - 回滚：撤销本任务原子提交即可回到「失败后一片空白」；无数据迁移。
-- 下一步唯一动作：无（本批已交付）。
+- 交付坐标：提交 `f2f65ff3cf0`（dev4），recovery tag `recovery/MOBILE-HOME-ERROR-STATE-20261013/20261013115707`；未推送。
+- 下一步唯一动作：无（本批已交付）。后续候选见 §7。
 
 ## 1. 现象与根因
 
