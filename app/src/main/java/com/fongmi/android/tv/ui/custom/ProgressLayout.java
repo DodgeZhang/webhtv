@@ -264,6 +264,7 @@ public class ProgressLayout extends RelativeLayout {
     public void switchState(State state) {
         if (mState == state) return;
         mState = state;
+        applyScrim(state);
         switch (state) {
             case CONTENT:
                 if (mEmptyView != null) mEmptyView.setVisibility(GONE);
@@ -292,6 +293,31 @@ public class ProgressLayout extends RelativeLayout {
                 if (mProgressView != null) mProgressView.setVisibility(GONE);
                 setContentVisibility(false);
                 break;
+        }
+    }
+
+    /**
+     * 空态/错误态给浮层加 scrim，其余状态清掉。
+     *
+     * <p><b>为什么必须加。</b>设计文档 §5.3 要求「图片上的文字必须有 scrim/gradient」、
+     * §5.4 要求「所有内容表面必须有不透明或可控的 surface 层」。而空态/错误态的文字此前
+     * **直接压在壁纸（一张图）上、没有任何 scrim**——这违反那两条，不只是对比度差一点。
+     *
+     * <p>而且靠调色无解：实测壁纸合成亮度 L=0.1217/0.1476/0.2019，正文（16sp）门槛 4.5:1，
+     * 80% 白文字只有 4.61/4.08/3.30:1；**即使换成纯白，最亮壁纸上限也只有 4.17:1**，
+     * 即 4.5:1 物理上不可达。加 scrim 后（overlay_dark ≈32% 黑）为 6.02/5.43/4.53:1，全部达标。
+     *
+     * <p>加在 {@code ProgressLayout} 自身而不是 {@code view_empty.xml} 的内容块上：
+     * 空态视图是**居中摆放的 wrap_content 内容块**（{@code centerParams()}），
+     * 给它加背景会变成"文字后面一块小方框"；本类是 match_parent 的宿主层，盖的是整屏。
+     *
+     * <p>PROGRESS 态刻意**不加**：它是短暂的加载瞬间，加 scrim 会让页面闪一下暗。
+     */
+    private void applyScrim(State state) {
+        if (state == State.EMPTY || state == State.ERROR) {
+            setBackgroundColor(themeColor(R.attr.webhtvColorOverlayDark));
+        } else {
+            setBackground(null);
         }
     }
 
