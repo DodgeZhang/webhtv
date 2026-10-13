@@ -338,9 +338,27 @@ FollowingWorkStartupSourceTest 3 / FollowingUiSourceTest 15 / BackupFollowingTes
 
 | 项 | 值 |
 | --- | --- |
-| 合并提交（双父） | 本任务 `task_guard.sh finish` 生成的提交 = `dev1` HEAD（精确值由收尾的坐标会话补齐） |
+| 合并提交（双父） | `9d58d40588af6d5466f7b39f144db9af6c58e723` |
 | 第一父（合并前 dev1） | `bc756d1d7a114ce91acc206245c391a39403b3ff` |
 | 第二父（= 合并时刻 beta tip） | `a51e4085f53e76cba64614b32f6cdf62267c5e0a` |
-| recovery tag | `recovery/C67-beta-merge-review-dev1-20261013/<时间戳>-<提交前 12 位>`（精确值由坐标会话补齐） |
-| 推送 | 待执行（`git push origin dev1`） |
-| PR | 待创建（`dev1` → `beta`，**只创建，不合并**） |
+| recovery tag | `recovery/C67-beta-merge-review-dev1-20261013/20261013033852-9d58d40588af` |
+| 推送 | `git push origin dev1` → `04b32d4e14..9d58d40588  dev1 -> dev1`；`git rev-parse origin/dev1` == `git rev-parse dev1` == `9d58d40588af6d5466f7b39f144db9af6c58e723` |
+| PR | [#443](https://github.com/Silent1566/webhtv/pull/443)（`dev1` → `beta`，**只创建，未合并**） |
+
+## 闭环记录
+
+| 复核项 | 结果 |
+| --- | --- |
+| `git rev-list --parents -n1 9d58d40588` | `9d58d40588af6d5466f7b39f144db9af6c58e723 bc756d1d7a114ce91acc206245c391a39403b3ff a51e4085f53e76cba64614b32f6cdf62267c5e0a` → **两个父**，第二父 == 合并时刻 beta tip（beta 侧提交没有被当成 dev1 自己的提交） |
+| `git merge-base --is-ancestor origin/beta HEAD`（收尾） | **真** |
+| `MERGE_HEAD` | 已被 `git commit` 清除（`.git/MERGE_HEAD` 不存在） |
+| `git diff --diff-filter=D --name-status origin/beta HEAD` | 空 |
+| `git diff --name-status origin/beta HEAD` | 7 路径（2 修改 + 5 新增：manifest、`FollowingScheduler.java`、`FollowingWorkInitializer.java`、`FollowingWorkManager.java`、`FollowingWorkStartupSourceTest.java`、`docs/WORKMANAGER-DIRECT-BOOT-20261012.md`、本文件） |
+| 工作区 | `git status --porcelain` 为空 |
+| PR 状态 | `state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=7`、`baseRefName=beta`、`headRefName=dev1` |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/443/files --jq '.[].filename' \| sort` 与 `git diff --name-only origin/beta HEAD \| sort` **逐项一致**（7 项，`Compare-Object` 无输出） |
+| 守卫会话 | 主会话 `C67-beta-merge-review-dev1-20261013`（standard）与坐标会话 `C67-beta-merge-review-dev1-20261013-coords`（quick-fix，scope `docs`） |
+| 临时资源 | `%TEMP%\c67work\**`（gradle 日志、AAR 解包、变异日志、PR 正文临时文件）按任务范围清理 |
+
+- 本次交付只创建 PR，未执行任何合并操作。
+- **本任务闭环完成。** 三项用户要求均已满足：① 合并远端 beta 最新代码且远端已移除/回退的内容**零复活**；② 复评全部已修改代码（含已提交未推送的 WorkManager 直启修复）并修复 3 项真实问题、2 轮评审通过；③ 提交（双父合并提交 + recovery tag）、推送 `dev1`、创建 PR（中文描述、只创建未合并）。
