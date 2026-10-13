@@ -83,6 +83,9 @@ public class KeepActivity extends BaseActivity implements KeepAdapter.OnClickLis
         mBinding.recycler.setHasFixedSize(true);
         mBinding.recycler.setLayoutManager(new GridLayoutManager(this, Product.getColumn(this)));
         mBinding.recycler.setAdapter(mAdapter = new KeepAdapter(this));
+        // 列表数量变化后统一驱动状态机（BaseDiffAdapter 的钩子）：注册一次，之后无论从哪条
+        // 路径改动列表（单条删除、删除全部、刷新）状态都会跟着列表走，宿主不可能再忘。
+        mAdapter.setOnCountChanged(count -> mBinding.progressLayout.showContent(true, count));
         mBinding.recycler.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
@@ -97,7 +100,6 @@ public class KeepActivity extends BaseActivity implements KeepAdapter.OnClickLis
 
     private void getKeep() {
         mAdapter.setItems(Keep.getVod(), () -> {
-            mBinding.progressLayout.showContent(true, mAdapter.getItemCount());
             mBinding.recycler.post(this::updateMarquee);
         });
     }
@@ -136,11 +138,7 @@ public class KeepActivity extends BaseActivity implements KeepAdapter.OnClickLis
 
     private void onDelete() {
         if (mAdapter.isDelete()) {
-            new WebHtvAlertDialogBuilder(this).setTitle(R.string.dialog_delete_record).setMessage(R.string.dialog_delete_keep).setNegativeButton(R.string.dialog_negative, null).setPositiveButton(R.string.dialog_positive, (dialog, which) -> {
-                mAdapter.clear();
-                // 清空后必须驱动状态机，否则整页留白（与单条删除同款缺陷）。
-                mBinding.progressLayout.showContent(true, mAdapter.getItemCount());
-            }).show();
+            new WebHtvAlertDialogBuilder(this).setTitle(R.string.dialog_delete_record).setMessage(R.string.dialog_delete_keep).setNegativeButton(R.string.dialog_negative, null).setPositiveButton(R.string.dialog_positive, (dialog, which) -> mAdapter.clear()).show();
         } else if (mAdapter.getItemCount() > 0) {
             mAdapter.setDelete(true);
         }
@@ -187,12 +185,9 @@ public class KeepActivity extends BaseActivity implements KeepAdapter.OnClickLis
     @Override
     public void onItemDelete(Keep item) {
         mAdapter.remove(item.delete(), () -> {
-            int count = mAdapter.getItemCount();
-            if (count == 0) mAdapter.setDelete(false);
-            // 删除路径此前不驱动状态机：删掉最后一项后只剩一个空 RecyclerView，用户看到的
-            // 是一片空白，连空态都不出现（与电视端此前同款缺陷）。这里走与首次加载同一条
-            // showContent(true, size) 分支，count 为 0 时即进入 EMPTY 态。
-            mBinding.progressLayout.showContent(true, count);
+            // 状态由 BaseDiffAdapter 的 setOnCountChanged 钩子统一驱动，这里不再手写——
+            // 「手写」正是此前漏掉删除全部那条路径的原因。
+            if (mAdapter.getItemCount() == 0) mAdapter.setDelete(false);
             mBinding.recycler.post(this::updateMarquee);
         });
     }

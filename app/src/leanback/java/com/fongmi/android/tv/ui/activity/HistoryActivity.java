@@ -72,6 +72,9 @@ public class HistoryActivity extends BaseActivity implements HistoryAdapter.OnCl
         mBinding.recycler.setHasFixedSize(true);
         mBinding.recycler.setItemAnimator(null);
         mBinding.recycler.setAdapter(mAdapter = new HistoryAdapter(this));
+        // 列表数量变化后统一驱动状态机（BaseDiffAdapter 的钩子）：注册一次，之后无论从哪条
+        // 路径改动列表（单条删除、删除全部、刷新）状态都会跟着列表走，宿主不可能再忘。
+        mAdapter.setOnCountChanged(count -> mBinding.progressLayout.showContent(true, count));
         mBinding.recycler.setLayoutManager(new GridLayoutManager(this, Product.getColumn()));
         mBinding.recycler.addItemDecoration(new SpaceItemDecoration(Product.getColumn(), 16));
     }
@@ -80,7 +83,6 @@ public class HistoryActivity extends BaseActivity implements HistoryAdapter.OnCl
         int position = focusedPosition();
         History focused = position < 0 || position >= mAdapter.getItemCount() ? null : mAdapter.getItem(position);
         mAdapter.setItems(History.getForDisplay(), () -> {
-            mBinding.progressLayout.showContent(true, mAdapter.getItemCount());
             if (mAdapter.getItemCount() == 0) mAdapter.setDelete(false);
             else if (focused != null) restoreFocus(reposition(focused, position));
         });
@@ -129,7 +131,6 @@ public class HistoryActivity extends BaseActivity implements HistoryAdapter.OnCl
         // diff 挂起时 holder 的绑定下标会失效，退回当前聚焦位置（遥控下点击必然带焦点）
         int target = position >= 0 ? position : focusedPosition();
         mAdapter.remove(item.deleteDisplayItem(), () -> {
-            mBinding.progressLayout.showContent(true, mAdapter.getItemCount());
             if (mAdapter.getItemCount() == 0) mAdapter.setDelete(false);
             else restoreFocus(FocusRestorer.nextPosition(target, mAdapter.getItemCount(), Product.getColumn()));
         });

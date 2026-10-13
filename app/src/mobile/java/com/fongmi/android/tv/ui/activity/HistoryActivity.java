@@ -83,6 +83,9 @@ public class HistoryActivity extends BaseActivity implements HistoryAdapter.OnCl
         mBinding.recycler.setHasFixedSize(true);
         mBinding.recycler.setLayoutManager(new GridLayoutManager(this, column));
         mBinding.recycler.setAdapter(mAdapter = new HistoryAdapter(this));
+        // 列表数量变化后统一驱动状态机（BaseDiffAdapter 的钩子）：注册一次，之后无论从哪条
+        // 路径改动列表（单条删除、删除全部、刷新）状态都会跟着列表走，宿主不可能再忘。
+        mAdapter.setOnCountChanged(count -> mBinding.progressLayout.showContent(true, count));
         mBinding.recycler.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
@@ -97,7 +100,6 @@ public class HistoryActivity extends BaseActivity implements HistoryAdapter.OnCl
 
     private void getHistory() {
         mAdapter.setItems(History.getForDisplay(), (hasChange) -> {
-            mBinding.progressLayout.showContent(true, mAdapter.getItemCount());
             if (hasChange) mBinding.recycler.scrollToPosition(0);
             mBinding.recycler.post(this::updateMarquee);
         });
@@ -137,12 +139,7 @@ public class HistoryActivity extends BaseActivity implements HistoryAdapter.OnCl
 
     private void onDelete() {
         if (mAdapter.isDelete()) {
-            new WebHtvAlertDialogBuilder(this).setTitle(R.string.dialog_delete_record).setMessage(Setting.isGlobalHistoryEnabled() ? R.string.dialog_delete_global_history : R.string.dialog_delete_history).setNegativeButton(R.string.dialog_negative, null).setPositiveButton(R.string.dialog_positive, (dialog, which) -> {
-                mAdapter.clear();
-                // 清空后必须驱动状态机，否则整页留白（实机确认：删空后什么都没有）。
-                // 与单条删除是同一条 showContent(true, size) 分支。
-                mBinding.progressLayout.showContent(true, mAdapter.getItemCount());
-            }).show();
+            new WebHtvAlertDialogBuilder(this).setTitle(R.string.dialog_delete_record).setMessage(Setting.isGlobalHistoryEnabled() ? R.string.dialog_delete_global_history : R.string.dialog_delete_history).setNegativeButton(R.string.dialog_negative, null).setPositiveButton(R.string.dialog_positive, (dialog, which) -> mAdapter.clear()).show();
         } else if (mAdapter.getItemCount() > 0) {
             mAdapter.setDelete(true);
         }
@@ -168,12 +165,7 @@ public class HistoryActivity extends BaseActivity implements HistoryAdapter.OnCl
     @Override
     public void onItemDelete(History item) {
         mAdapter.remove(item.deleteDisplayItem(), () -> {
-            int count = mAdapter.getItemCount();
-            if (count == 0) mAdapter.setDelete(false);
-            // 删除路径此前不驱动状态机：删掉最后一条后只剩一个空 RecyclerView，用户看到的
-            // 是一片空白，连空态都不出现（与收藏页同款缺陷）。这里走与首次加载同一条
-            // showContent(true, size) 分支，count 为 0 时即进入 EMPTY 态。
-            mBinding.progressLayout.showContent(true, count);
+            if (mAdapter.getItemCount() == 0) mAdapter.setDelete(false);
             mBinding.recycler.post(this::updateMarquee);
         });
     }

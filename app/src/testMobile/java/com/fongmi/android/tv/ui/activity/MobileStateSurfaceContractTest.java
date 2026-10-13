@@ -121,16 +121,19 @@ public class MobileStateSurfaceContractTest {
     /**
      * 删除路径必须驱动状态机。
      *
-     * <p>与电视端此前同款缺陷（本仓库已出现三次：电视端收藏页、手机端收藏页、手机端历史页）：
-     * `onItemDelete` 只退出删除模式，从不调用 `showContent(true, size)`，于是用户删掉最后一条后
-     * 看到的是**一片空白**——连空态都不出现。
+     * <p>与电视端此前同款缺陷（本仓库共出现 5 处，跨两个 flavor）：`onItemDelete` 只退出删除模式，
+     * 从不驱动状态机，于是删掉最后一条后**一片空白**——连空态都不出现。
+     *
+     * <p>本批已把"驱动状态机"收敛到 `BaseDiffAdapter.OnCountChanged` 钩子（宿主注册一次，
+     * 之后任何路径改动列表都会自动跟上），所以这里断言的是**钩子已注册**，而不是某个回调里
+     * 手写了一行 `showContent`——后者正是当初会漏的原因。
      */
     @Test
     public void deletePathDrivesTheStateMachineSoTheEmptyStateIsReachable() throws Exception {
         for (String[] host : EMPTY_HOSTS) {
-            String handler = methodBody(read(host[0]), host[2]);
-            assertTrue(host[0] + " 的删除回调必须驱动状态机，否则删空后是一片空白而不是空态",
-                    handler.contains("showContent(true,"));
+            String source = withoutJavaComments(read(host[0]));
+            assertTrue(host[0] + " 必须注册 OnCountChanged 钩子（删除路径靠它驱动状态机）",
+                    source.contains("mAdapter.setOnCountChanged(count -> mBinding.progressLayout.showContent(true, count))"));
         }
     }
 
@@ -148,18 +151,19 @@ public class MobileStateSurfaceContractTest {
      * 「删除全部」也必须驱动状态机。
      *
      * <p>实机验证时发现：点工具栏 🗑 确认清空后整页留白——{@code mAdapter.clear()} 同样不驱动
-     * 状态机。这是本仓库同款缺陷的第 4/5 例（电视端历史页也有一处，见任务文档 §7.1）。
+     * 状态机。这已收敛到 `BaseDiffAdapter.OnCountChanged` 钩子，因此这里断言
+     * {@code clear()} 之后**不再**有手写调用、而钩子已注册。
      */
     @Test
     public void deleteAllAlsoDrivesTheStateMachine() throws Exception {
         for (String[] host : EMPTY_HOSTS) {
             String source = withoutJavaComments(read(host[0]));
-            assertFalse(host[0] + " 的「删除全部」不得只调 mAdapter.clear() 而不驱动状态机",
-                    source.contains("mAdapter.clear()).show()"));
-            int at = source.indexOf("mAdapter.clear();");
+            assertTrue(host[0] + " 必须注册 OnCountChanged 钩子（删除全部靠它驱动状态机）",
+                    source.contains("mAdapter.setOnCountChanged("));
+            int at = source.indexOf("mAdapter.clear()");
             assertTrue(host[0] + " 必须有「删除全部」路径", at > 0);
-            String after = source.substring(at, Math.min(source.length(), at + 300));
-            assertTrue(host[0] + " 的「删除全部」之后必须驱动状态机", after.contains("showContent(true,"));
+            String after = source.substring(at, Math.min(source.length(), at + 140));
+            assertFalse(host[0] + " 的 mAdapter.clear() 之后不得再手写状态驱动", after.contains("showContent(true,"));
         }
     }
 

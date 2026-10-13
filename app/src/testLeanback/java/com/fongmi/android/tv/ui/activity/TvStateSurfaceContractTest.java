@@ -155,15 +155,14 @@ public class TvStateSurfaceContractTest {
      */
     @Test
     public void deletePathDrivesTheStateMachineSoTheEmptyStateIsReachable() throws Exception {
+        // 「驱动状态机」已收敛到 BaseDiffAdapter 的 OnCountChanged 钩子（宿主注册一次，
+        // 之后任何路径改动列表都会自动跟上），所以这里断言**钩子已注册**，而不是某个回调里
+        // 手写了一行 showContent——后者正是当初会漏掉「删除全部」的原因。
+        // 收敛契约见 app/src/test/java/.../ui/adapter/ListStateConvergenceContractTest.java。
         for (String source : new String[]{KEEP_ACTIVITY,
                 "app/src/leanback/java/com/fongmi/android/tv/ui/activity/HistoryActivity.java"}) {
-            String body = read(source);
-            int delete = body.indexOf("public void onItemDelete(");
-            assertTrue(source + " 必须有 onItemDelete", delete > 0);
-            int end = body.indexOf("\n    }", delete);
-            String handler = body.substring(delete, end > 0 ? end : body.length());
-            assertTrue(source + " 的删除回调必须驱动状态机，否则删空后是一片空白而不是空态",
-                    handler.contains("showContent(true,"));
+            assertTrue(source + " 必须注册 OnCountChanged 钩子（删除路径靠它驱动状态机）",
+                    read(source).contains("mAdapter.setOnCountChanged(count -> mBinding.progressLayout.showContent(true, count))"));
         }
     }
 
