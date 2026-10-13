@@ -1655,7 +1655,7 @@ private boolean runtimeSourceOnly;
     private void setupIntroSkipConfirmListener() {
         mIntroSkipPlayback.setSkipConfirmListener((segment, action) -> {
             if (mIntroSkipConfirmDialog != null && mIntroSkipConfirmDialog.isShowing()) return false;
-            mIntroSkipConfirmDialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            mIntroSkipConfirmDialog = new WebHtvAlertDialogBuilder(this)
                 .setTitle(R.string.intro_skip_confirm_title)
                 .setMessage(IntroSkipKinds.confirmMessage(segment))
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> action.run())
@@ -3766,7 +3766,7 @@ private boolean runtimeSourceOnly;
     private void onQuality() {
         Result result = mViewModel.getPlayer().getValue();
         if (result == null || !result.getUrl().isMulti()) return;
-        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        new WebHtvAlertDialogBuilder(this)
                 .setTitle(R.string.detail_quality)
                 .setSingleChoiceItems(getQualityItems(result), result.getUrl().getPosition(), (dialog, which) -> {
                     dialog.dismiss();
