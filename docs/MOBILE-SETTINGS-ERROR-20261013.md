@@ -7,7 +7,8 @@
 - 保护面：任务开始时工作树仅 `.design-evidence/` 未跟踪（预存脏路径 0 个）；分支 `dev4`，HEAD `72e817d1ac5`。
 - 验收：① 两个 Fragment 的 `setError` 同时换错误色与实心深底、且不复用跟随调色板的 `colorError`；② 成功路径经 `setSummary` 复位颜色与底材；③ 没有绕过复位的直接 `setText`；④ 取值 TextView 在布局里原本无背景（复位安全的前提）；⑤ 底材是实心色且在 main 源集共用；⑥ `testMobile` 定向测试全绿；⑦ 电视端不受影响。
 - 回滚：撤销本任务原子提交即可回到「错误与正常取值同色」；无数据迁移。
-- 下一步唯一动作：无（本批已交付）。
+- 交付坐标：提交 `615de468aca`（dev4，git 识别为 drawable 的 rename），recovery tag `recovery/MOBILE-SETTINGS-ERROR-20261013/20261013111634`；未推送。
+- 下一步唯一动作：无（本批已交付）。后续候选见 §7。
 
 ## 1. 现象与根因
 
