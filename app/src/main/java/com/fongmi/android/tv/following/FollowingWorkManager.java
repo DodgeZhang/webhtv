@@ -53,9 +53,11 @@ public final class FollowingWorkManager {
 
     synchronized void start(Context context) {
         Context app = context.getApplicationContext();
+        // ACTION_USER_UNLOCKED is never replayed, so the state is re-checked after registering;
+        // an unlock that lands inside the registration window would otherwise be lost for this process.
         if (!isUserUnlocked(app)) {
             registerUnlockReceiver(app);
-            return;
+            if (!isUserUnlocked(app)) return;
         }
         unregisterUnlockReceiver();
         try {

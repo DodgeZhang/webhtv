@@ -35,15 +35,26 @@
 
 ## 验证记录
 
-- RED：独立 JUnit 运行 `FollowingWorkStartupSourceTest`，2 项均按预期失败：默认 initializer 未移除、调度器仍直接取 WorkManager。临时 class 输出已删除。
+- RED：独立 JUnit 运行 `FollowingWorkStartupSourceTest`（当时该类只有 2 个用例），2 项均按预期失败：默认 initializer 未移除、调度器仍直接取 WorkManager。临时 class 输出已删除。
 - GREEN：离线执行 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugUnitTestJavaWithJavac`，均通过；随后执行 `:app:processLeanbackArm64_v8aDebugUnitTestManifest`，通过。
-- GREEN：执行 `:app:testLeanbackArm64_v8aDebugUnitTest --tests com.fongmi.android.tv.following.FollowingWorkStartupSourceTest --offline --no-daemon`，通过；XML 报告 `tests=2 skipped=0 failures=0 errors=0`。
+- GREEN：执行 `:app:testLeanbackArm64_v8aDebugUnitTest --tests com.fongmi.android.tv.following.FollowingWorkStartupSourceTest --offline --no-daemon`，通过。
+- **口径订正（C67 复评，2026-10-13）**：本行原记「XML 报告 `tests=2 skipped=0 failures=0 errors=0`」，与提交信息「3/3 passed」及入库产物的 3 个 `@Test` 互相矛盾。C67 在合并后的树上重跑，JUnit XML 实测 `tests=3 failures=0 errors=0 skipped=0`，以该实测为准。
 - GREEN：最终合并 manifest 已确认 `androidx.work.WorkManagerInitializer` 不存在，仅保留 `FollowingWorkInitializer`、应用 Startup、Emoji、Lifecycle、OkHttp、ProfileInstaller 初始化项。
 - 环境边界：完整 Robolectric 行为测试曾因 Gradle 任务 5 分钟无结果而超时，之后未重复同一完整任务；一个早期测试草稿因 API 不匹配已删除。没有真实盒子修复后实测，不能声称设备现场已验证。
 - 清理：超时任务后确认没有残留测试任务进程，只有正常 Gradle daemon；临时日志、jar、编译输出按任务范围清理。
 
+## C67 复评补充（2026-10-13）
+
+合并 `origin/beta`（`a51e4085f5`）后对本次修复做第二轮复评，改动与证据记在 `docs/C67-beta-merge-review-dev1-20261013.md`。三处修正：
+
+1. **F1（实现缺陷，已修）**：`FollowingWorkManager.start()` 在 `!isUserUnlocked(app)` 分支注册解锁接收器后**直接 return**，没有像本文档 §方案比较 所称的那样「重新检查状态关闭注册竞态」。`ACTION_USER_UNLOCKED` 不会重放，解锁若落在 `isUserUnlocked()` 判定与 `registerUnlockReceiver()` 完成之间，本进程已排队的调度/取消会永久丢失。已补上注册后的复检（仍锁定才返回），使文档描述与实现一致；其余路径行为不变。
+2. **F2（回归锁失效，已修）**：原 `workManagerUsesCredentialStorageWithoutChangingAppStorage` 的 5 条断言全是 `source.contains(...)`，其中 `contains("getApplicationContext()")` **恒真**（`start()` 里本来就有该调用），删掉 `ContextWrapper` 里那行承重覆盖（即让缺陷原样复发）也不会转红。已改为 6 条结构性正则断言，覆盖 credential 标志、`getApplicationContext()` 覆盖返回 `this`、CE 设备早返回、`initialize(workContext)`、未解锁推迟、**注册后复检**。
+3. **F3（本文档口径，已订正）**：见 §验证记录 的口径订正行。
+
+**C67 复测结论**：`:app:testLeanbackArm64_v8aDebugUnitTest` 全量 662 suites / 4227 tests / 8 failures，其中 `FollowingWorkStartupSourceTest tests=3 failures=0 errors=0 skipped=0`，`following` 相关 11 个用例类（`com.fongmi.android.tv.following` 9 个 + `ui.activity.FollowingUiSourceTest` + `bean.BackupFollowingTest`）全部 0 失败；8 个失败全部落在本修复未触碰的 beta 侧既有用例上，且均为 Windows 环境差异（6 个源码守卫用例断言工作副本里的 `\n` 字面量，被 `core.autocrlf=true` 的 CRLF 检出破坏；2 个 mpv 用例依赖 Linux 下才成立的 `File.renameTo` 语义）。详见 C67 文档的失败分类表。
+
 ## Recovery anchor
 
-- 状态：实现完成；源码与最终 manifest 已编译/合并，2 项源契约回归通过；未做正式包和设备安装。
+- 状态：实现完成并经 C67 复评修正；源码与最终合并 manifest 已编译/合并，`FollowingWorkStartupSourceTest` 3 例在双 flavor 通过；未做正式包和设备安装。
 - 当前文件：`app/src/main/AndroidManifest.xml`、`app/src/main/java/com/fongmi/android/tv/following/FollowingWorkManager.java`、`FollowingWorkInitializer.java`、`FollowingScheduler.java`、`app/src/test/.../FollowingWorkStartupSourceTest.java`、本任务文档。
-- 唯一下一步：执行 task guard finish，原子提交并创建恢复标签；若需盒子验证，必须后续覆盖安装且不能卸载现有包。
+- 唯一下一步：随 C67 合并提交一并推送 `dev1` 并创建 `dev1 -> beta` PR；若需盒子验证，必须后续覆盖安装且不能卸载现有包。

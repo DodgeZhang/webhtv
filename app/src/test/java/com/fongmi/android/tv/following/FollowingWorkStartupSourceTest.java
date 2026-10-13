@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -44,12 +45,24 @@ public class FollowingWorkStartupSourceTest {
     @Test
     public void workManagerUsesCredentialStorageWithoutChangingAppStorage() throws Exception {
         String source = Files.readString(root().resolve("app/src/main/java/com/fongmi/android/tv/following/FollowingWorkManager.java"));
-        assertTrue(source.contains("CONTEXT_CREDENTIAL_PROTECTED_STORAGE = 0x00000010"));
-        assertTrue(source.contains("createPackageContext("));
-        assertTrue(source.contains("getApplicationContext()"));
-        assertTrue(source.contains("WorkManager.initialize(workContext"));
-        assertTrue(source.contains("isUserUnlocked"));
+        assertTrue("WorkManager must be handed a credential-protected package context",
+                matches(source, "createPackageContext\\(\\s*app\\.getPackageName\\(\\),\\s*CONTEXT_CREDENTIAL_PROTECTED_STORAGE\\)"));
+        assertTrue("WorkManager re-normalizes the Context, so the adapter must keep the CE wrapper as the application Context",
+                matches(source, "public Context getApplicationContext\\(\\)\\s*\\{[^}]*return this;"));
+        assertTrue("A normal credential-protected device must keep its existing WorkManager storage",
+                matches(source, "if \\(!app\\.isDeviceProtectedStorage\\(\\)\\) return app;"));
+        assertTrue("Only the credential-protected context may reach WorkManager",
+                matches(source, "WorkManager\\.initialize\\(\\s*workContext\\s*,"));
+        assertTrue("A device-protected start must defer instead of initializing",
+                matches(source, "!isUserUnlocked\\(app\\)"));
+        assertTrue("The unlock state must be re-checked after registering, because the broadcast is not replayed",
+                matches(source, "registerUnlockReceiver\\(app\\);\\s*if \\(!isUserUnlocked\\(app\\)\\) return;"));
     }
+
+    private static boolean matches(String source, String regex) {
+        return Pattern.compile(regex, Pattern.DOTALL).matcher(source).find();
+    }
+
     @Test
     public void allFollowingSchedulingAndCancellationUsesTheStorageGate() throws Exception {
         String source = Files.readString(root().resolve("app/src/main/java/com/fongmi/android/tv/following/FollowingScheduler.java"));
