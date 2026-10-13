@@ -149,8 +149,35 @@ STATUS   FAIL
 由三个并行审计子代理产出，每个自读规范正文、自核当前实现、要求给出 `文件:行号` 证据与四档判定（满足 / 部分满足 / 未满足 / 不适用）。
 
 - **§6.1 子代理 B：§9.1 按钮 / §9.2 输入框 / §9.3 列表项与分组 / §9.4 卡片与海报 / §9.5 Chip·Tab·标签 —— 已完成**
-- §6.2 子代理 A：§7 形状·层级·动效 + §8 间距·布局·安全区 —— 进行中
+- **§6.2 子代理 A：§7 形状·层级·动效 + §8 间距·布局·安全区 —— 已完成**
 - §6.3 子代理 C：§9.6 Switch·Checkbox·Radio / §9.7 Dialog·BottomSheet·全屏浮层 / §9.8 Player·OSD·控制层 —— 进行中
+
+### 6.2 §7 + §8（子代理 A）
+
+**总体结论**：以「部分满足」为主。**形状与间距 token 已建立但绝大多数零引用**；实际取值以硬编码 dp 为主，并存在越档值。电视安全区（48/58dp）、12 列 20dp 网格、卡片比例与间距偏离最明显。颜色层语义化推进较好，**形状/表面层基本未语义化**。
+
+**高优先级发现**：
+
+| # | 规范条目 | 判定 | 证据 | 差在哪 |
+|---|---|---|---|---|
+| 1 | §8.1 间距 token 取值与引用 | 未满足 | `main/res/values/webhtv_dimens.xml:2-7` | `space_5`=20dp（规范 24dp）、`space_6`=24dp（规范 32dp）、**缺 `space_8`=48dp**；且 `space_1..6` **全仓零引用**；`size_tv_card_gap`=20dp（`:11`）同样零引用 |
+| 2 | §7.1 形状 token 覆盖 | 部分满足 | `main/res/values/webhtv_shapes.xml` | ExtraSmall/Small/Large/Full **零引用**；仅 Medium（`webhtv_styles.xml:226` 卡片）与 ExtraLarge（`:231-237` Dialog/BottomSheet）在用。实际圆角以硬编码为主，含**尺度外档位** 5/6/7/10/14/17/18/20/26/28dp（`leanback/selector_control_sheet_button.xml:24`=6dp、`leanback/shape_ad_stats_content.xml:4`=14dp、`main/about_primary_icon_button.xml:18`=18dp、`main/dialog_result_list.xml:83`=26dp） |
+| 3 | §7.1 档位归属 | **冲突（需决策）** | `main/res/layout/adapter_tmdb_video.xml:14`、`item_tmdb_person_photo.xml:15`、`leanback/adapter_episode_card.xml:16` | 内容卡用 `webhtv_card_radius_default`=**8dp**，而规范里 8dp 是"列表项/输入框/普通按钮"、**卡片应为 12dp**；该 8dp 已被 `testLeanback/.../TvFocusRingContractTest.java:369-393` **固化为契约** → 改哪一侧是产品决策。反向冲突：输入框用 4dp（`main/res/drawable/selector_dialog_input.xml:6,15`），规范要求 8dp |
+| 4 | §8.3 电视安全区 | 未满足 | `leanback/activity_home.xml:23,50,83`、`activity_vod.xml:14`、`activity_setting.xml:13`、`view_empty.xml:65` | 普遍 24dp（`activity_following.xml:18-20`=28dp），规范要求左右 48dp（现代电视 58dp）；全仓仅 `leanback/dialog_buffer.xml:6`、`dialog_speed.xml:6` 是 48dp |
+| 5 | §8.3 网格 | 未满足 | `leanback/Product.java:19-21` + `PlayerSetting.java:297-298`；`Product.java:29`、`HistoryPresenter.java:38` | 列数 = `abs(PlayerSetting.getSize()-7)`，默认 **5 列**（规范 12 列）；gutter 硬编码 **16dp**（规范 20dp） |
+| 6 | §8.3 卡片比例与间距 | 未满足 | `bean/Style.java:33-34,51-52`、`HistoryPresenter.java:41`；`adapter_tmdb_video.xml:7`=14dp、`adapter_tmdb_cast.xml:8`=12dp、`leanback/adapter_episode_card.xml:9`=12dp | 默认海报 ratio=**0.75（3:4）**（规范 2:3；仅 TMDB 照片 `item_tmdb_person_photo.xml:5-6` 160×240 满足）；"横版"默认 **1.33（4:3）**（规范 16:9；仅 `adapter_tmdb_video.xml:5-6`、`leanback/adapter_episode_card.xml:7-8` 满足）；横向间距 12–14dp（规范 20dp）；未发现方形资料卡（仅 `Style` oval 默认 1.0） |
+| 7 | §8.2 设置项最小高度 56dp | 未满足 | `mobile/fragment_setting_player.xml:59-63` + `mobile/res/drawable/shape_item.xml:8-12` | 设置行 `wrap_content` + 上下各 8dp padding → 实际约 **40dp**；全仓 "56dp" 无一处落在设置行。`ListItem` minHeight=48dp（`webhtv_styles.xml:220`）未被手机端普遍采用（34dp 筛选行等大量存在） |
+| 8 | §7.3 TV Dialog/Sheet 进出动效 | 未满足 | `leanback/res/values/styles.xml:26`（`windowAnimationStyle=@style/NoAnim`，`:66-71` 四项 `@null`）；`leanback/SiteDialog.java:410`、`QuickSearchDialog.java:197`、`EpisodeListDialog.java:624`（`setWindowAnimations(0)`） | **0ms**，规范要求 200–250ms；mobile 未声明、走系统默认 |
+| 9 | §7.2 玻璃越界到非播放器场景 | 部分满足 | `mobile/dialog_type.xml:7`、`mobile/dialog_filter.xml:7`（服务浏览页，见 `mobile/.../VodFragment.java:285`） | 分类/筛选底部面板用了**播放控制玻璃**；且 `testMobile/.../DialogGlassChipStyleTest.java:61-71` 把该行为**固化为契约** |
+| 10 | §7.2 层级归属 | 部分满足 | `adapter_tmdb_video.xml:13`、`adapter_tmdb_cast.xml:14`；`leanback/res/drawable/shape_item_normal.xml:5` | TMDB 全套卡片用 `colorSurfaceContainerHigh`（层级 3），规范里卡片是**层级 2** `surfaceContainer`；TV 设置行用硬编码 `@color/black_20` 而非层级 1 `surfaceContainerLow`。层级 5 `inverseSurface` 全仓无消费者（无 Snackbar）→ 判为**不适用** |
+
+**判定为「满足」的部分（不要重复返工）**：§7.1 大弹窗统一 22dp（`DialogRoundedCornerSourceTest.java:14-45` 钉住）；§7.2 层级 3 用于 Dialog/浮层（`webhtv_styles.xml:230,236`、`ThemeOverlay.WebHTV.Dialog:126`）、层级 4 用于选中输入（`selector_dialog_input.xml:5,14`）；§7.3 TV focus **150ms 单一来源**（`webhtv_tokens.xml:192` + `TvFocusScale.java:71`，契约 `TvFocusScaleContractTest.java:72-86,144-159`）、常规档 1.1、缩放只改 scaleX/Y 不重排；§7.3 加载态（原生 ProgressBar + `ProgressLayout.java:269-292` 保证 progress/empty 互斥）；§7.3 主题切换走 `recreate()` 无逐 View 动画；§8.2 页边距 16dp（`mobile/fragment_setting.xml:26-27`）、底部操作区与内容分离（`main/dialog_result_list.xml:105-109`）；§8.3 960×540dp 设计基准（`leanback/AndroidManifest.xml:27-33`）、卡片文字 scrim（`leanback/shape_vod_name.xml:20`、`main/shape_episode_card_overlay.xml:3-7`）。
+
+**附注（正面）**：`values/` 与 `values-night/` 的 `webhtv_tokens.xml` 各 **62 个 color，逐名完全一致**（配对完整）；非配色属性仅声明在 `values/`，正确。
+
+**子代理 A 的"未能确定"清单**：§8.3「asset 面向 1080p」（查了全部密度目录与 manifest，无依据）；§8.3「焦点移动不依赖列表位置或 scroll 回弹」（32 处 scroll 调用均像"滚入视野"，无契约可证明全局成立）；§7.3「按钮按下 100–150ms」（ripple 时长由框架固定、资源不可配；但 `mobile/VodFragment.java:243,246`=80ms、`mobile/LiveActivity.java:824,826`=90ms 在区间外）；§8.2「弹窗内容内边距 24dp」的适用边界（140 个 `dialog_*.xml` 中仅 52 个含 24dp，其余多为播放层 BottomSheet 面板，无法判断规范这条是否只针对 AlertDialog）。
+
+**需用户决策的边界问题**：规范 §7.1 把 8dp 定义为"列表项/输入框/普通按钮"、12dp 定义为"卡片"，但仓库已用 `TvFocusRingContractTest.java:369-393` 把**内容卡 8dp 固化为契约**。这是规范与既有契约的**直接冲突**，修哪一侧需要产品决策——审计未自行判定。
 
 ### 6.1 §9.1–§9.5（子代理 B）
 
@@ -208,18 +235,29 @@ STATUS   FAIL
 | 优先级 | 问题 | 位置 | 依据 | 性质 |
 |---|---|---|---|---|
 | **P0** | **设计系统的组件层"只声明、没接线"**：整族 `webhtv_selector_*.xml`（6 个文件）与 `Widget.WebHTV.Button.Filled/Tonal/Outlined/Text`、`Widget.WebHTV.Card`、`Widget.WebHTV.ListItem` **全库零引用**，只被 `UiStyleSourceTest` 的文本断言读取。它们是现成的、已覆盖 disabled/pressed/focused/selected 的语义状态层，却没接到任何视图上 | `app/src/main/res/color/webhtv_selector_*.xml`、`webhtv_styles.xml` | §6.1 | **架构级**——这是绝大多数组件级缺口的共同根因 |
+| **P0** | **形状/间距 token 层同样"只声明、没接线"**（与上一行的组件层是同一根因）：`webhtv_shapes.xml` 的 ExtraSmall/Small/Large/Full 四个 style 零引用；`webhtv_space_1..6` 零引用；`size_tv_card_gap`=20dp 零引用 | `main/res/values/webhtv_shapes.xml`、`webhtv_dimens.xml:2-7,11` | §6.2 | 架构级 |
+| **P0** | 间距 token **取值错且缺档**：`space_5`=20dp（规范 24dp）、`space_6`=24dp（规范 32dp）、缺 `space_8`=48dp | `main/res/values/webhtv_dimens.xml:2-7` | §6.2 §8.1 | 既有问题 |
+| **P0** | **⚠ 需你决策**：内容卡圆角 8dp（`webhtv_card_radius_default`）与规范 §7.1 的"卡片=12dp"直接冲突，而 8dp 已被 `TvFocusRingContractTest.java:369-393` 固化为契约。反向冲突：输入框 4dp vs 规范 8dp | `adapter_tmdb_video.xml:14`、`item_tmdb_person_photo.xml:15`、`leanback/adapter_episode_card.xml:16`、`selector_dialog_input.xml:6,15` | §6.2 §7.1 | **规范与既有契约冲突** |
 | **P0** | 让静态门槛能跑起来，并把当前唯一的违规修掉 | `scripts/check_ui_tokens.sh` 的可用执行路径；`app/src/mobile/res/layout/item_following.xml` L73/L124 | §2.1、§2.2；§13.1 要求每阶段必做 | 既有问题 + 流程缺口 |
 | **P0** | 空态/错误态**描述文字**达标（4.08 / 3.30:1 → ≥4.5:1） | `view_empty.xml` 的 `@id/description` 与 `ProgressLayout` 的错误态 | §3.2 | **本会话引入** |
-| **P0** | 已声明但**从未赋值/引用**的语义层：`colorSuccessContainer`/`colorWarningContainer`/`onSuccessContainer`/`onWarningContainer` 零引用；`webhtvColorOverlayDark`/`OverlayLight` attr 从未在 `Theme.WebHTV` 赋值；`@dimen/webhtv_size_tv_card_gap`=20dp 零引用 | `webhtv_attrs.xml`、`webhtv_styles.xml`、`webhtv_dimens.xml` | §6.1 | 声明与实现脱节 |
+| **P0** | 已声明但**从未赋值/引用**的语义层：成功/警告容器角色零引用；`webhtvColorOverlayDark`/`OverlayLight` 从未赋值；`size_tv_card_gap` 零引用 | `webhtv_attrs.xml`、`webhtv_styles.xml`、`webhtv_dimens.xml` | §6.1、§6.2 | 声明与实现脱节 |
+| P1 | **电视安全区 24dp（规范 48dp / 现代电视 58dp）**；全仓仅 2 个 dialog 达 48dp | `leanback/activity_home.xml:23,50,83`、`activity_vod.xml:14`、`activity_setting.xml:13`、`view_empty.xml:65` | §6.2 §8.3 | 规范未落地 |
+| P1 | **网格 5 列 / gutter 16dp**（规范 12 列 / 20dp）；列数由 `abs(PlayerSetting.getSize()-7)` 决定 | `leanback/Product.java:19-21,29`、`PlayerSetting.java:297-298`、`HistoryPresenter.java:38` | §6.2 §8.3 | 规范未落地 |
+| P1 | **卡片比例 3:4 与 4:3**（规范 2:3 与 16:9）；横向间距 12–14dp（规范 20dp） | `bean/Style.java:33-34,42,51-52`、`HistoryPresenter.java:41`、`adapter_tmdb_video.xml:7`、`adapter_tmdb_cast.xml:8` | §6.2 §8.3/§9.4 | 规范未落地 |
+| P1 | **TV Dialog/Sheet 进出动效 0ms**（规范 200–250ms） | `leanback/res/values/styles.xml:26,66-71`；`SiteDialog.java:410`、`QuickSearchDialog.java:197`、`EpisodeListDialog.java:624` | §6.2 §7.3 | 规范未落地 |
+| P1 | 设置项最小高度约 40dp（规范 56dp）；`ListItem` minHeight=48dp 未被手机端普遍采用 | `mobile/fragment_setting_player.xml:59-63`、`mobile/res/drawable/shape_item.xml:8-12`、`webhtv_styles.xml:220` | §6.2 §8.2 | 规范未落地 |
 | P1 | 按钮高度：全库 375 个按钮里仅 **10 个**达 48dp（40dp×113、36dp×55、44dp×32）；`@dimen/webhtv_size_button`=48dp **没有任何按钮 style 用它** | `app/src/*/res/layout/*` | §6.1 §9.1 | 规范未落地 |
 | P1 | `FileActivity`（两端）空态三件套 | `app/src/{leanback,mobile}/.../activity/FileActivity.java` | §4 | 遗留项，卡在主动作决策 |
 | P1 | 把 §20.2 的九行设备验收矩阵真正跑一遍 | 设备 | §5 | 流程缺口 |
 | P1 | 手机端卡片：圆角 8dp（规范 12dp）、内边距 6–8dp（规范 12–16dp）、无 surfaceContainer 卡面 | `main/res/values/styles.xml:7-10`、`mobile/res/layout/adapter_vod.xml` | §6.1 §9.4 | 规范未落地 |
 | P1 | 手机端仍在用旧族偏离色：`selector_video_item.xml`=black_60/50/30、`selector_video_text.xml`=yellow_500/white | `mobile/res/color/`；调用方 `adapter_flag.xml`、`adapter_episode_group.xml`、`adapter_quality.xml` | §6.1 §9.3 | 既有问题 |
+| P2 | **圆角越档**：5/6/7/10/14/17/18/20/26/28dp 等尺度外取值散布在实现层 | `leanback/selector_control_sheet_button.xml:24`、`leanback/shape_ad_stats_content.xml:4`、`main/about_primary_icon_button.xml:18`、`main/dialog_result_list.xml:83` | §6.2 §7.1 | 既有问题 |
+| P2 | **层级漂移**：TMDB 全套卡片用层级 3（规范卡片=层级 2）；TV 设置行用硬编码 `black_20` 而非层级 1 | `adapter_tmdb_video.xml:13`、`adapter_tmdb_cast.xml:14`、`leanback/shape_item_normal.xml:5` | §6.2 §7.2 | 既有问题 |
+| P2 | **玻璃越界**：手机分类/筛选底部面板用了播放控制玻璃，且被 `DialogGlassChipStyleTest.java:61-71` 固化为契约 | `mobile/dialog_type.xml:7`、`mobile/dialog_filter.xml:7` | §6.2 §7.2 | 既有问题 + 契约固化 |
 | P2 | 硬编码/写死的焦点与面板色：`selector_mpv_tab_focus.xml`（#E8F0FE/#1A73E8/2dp）、`shape_recommendation_source_chip.xml`（#E8F0FE/#D2E3FC，暗色表不变）、`shape_lab_group_tab_normal.xml`=black_20；且 **`main/res/drawable` 不在焦点环宽度扫描范围内** | `main/res/drawable/` | §6.1 §9.1/§9.5 | 既有问题 + 门槛盲区 |
 | P2 | 危险按钮文字：`following_button_danger_text.xml` 焦点/按下写死 `@android:color/white`，而填充是夜表 `#FFB4AB`，约 **1.9:1** | `main/res/color/following_button_danger_text.xml` | §6.1 §9.1 | 与仓库已修过的同类缺陷 |
 | P2 | 手机端卡片副标题未采用已存在的 `webhtv_on_wallpaper_variant`（实测 6.99:1），仍与主标题同色 | `mobile/res/layout/adapter_vod.xml:109,124` | §6.1 §9.3 | 规范未落地 |
-| P2 | 卡片边框用 `outlineVariant` 而规范写 `outline`（40+ 处）；海报默认比例 0.75 / 横向 1.33 而非 2:3 / 16:9 | `main/adapter_tmdb_*.xml`、`bean/Style.java:34,42` | §6.1 §9.3/§9.4 | 规范与实现口径不一致 |
+| P2 | 卡片边框用 `outlineVariant` 而规范写 `outline`（40+ 处） | `main/adapter_tmdb_*.xml` | §6.1 §9.3 | 规范与实现口径不一致 |
 | P2 | 弹窗底部强调动作超过两个（`dialog_update.xml`、`dialog_about.xml` 各 3 个）；全库**无任何 `stateDescription`** | `app/src/*/res/layout/dialog_update.xml` 等 | §6.1 §9.1 | 规范未落地 |
 | P2 | 把 Java 侧固定色纳入扫描 + allowlist 豁免播放器场景 | `check_ui_tokens.sh` | §2.3 | 门槛盲区 |
 | P2 | 播放器错误层的"错误色"决策 | `view_widget_vod.xml` | §4 | 需观感决策 |
@@ -227,12 +265,37 @@ STATUS   FAIL
 
 ## 8. 结论
 
-**不能说"全面优化完毕"。**
+**不能说"全面优化完毕"——而且差距是结构性的。**
 
-- **§9.9（状态面）**：基本完成，剩 `FileActivity` 与描述文字对比度两项，且发现一处**我自己的记录错误**（错误标题其实是达标的）与一处**我自己引入的缺陷**（描述文字不达标）。
-- **§9.1–§9.5**：审计已完成（§6.1）。判定以"部分满足 / 未满足"为主。**最重要的结论是根因性的**：设计系统的组件层（`webhtv_selector_*` 状态色族、`Widget.WebHTV.Button.*`/`Card`/`ListItem`、成功/警告容器角色、`webhtv_size_tv_card_gap`、`overlayDark`/`OverlayLight`）**大量只声明、没接线**——规范写好了、资源建好了、契约测试也钉住了它们的**存在**，但视图实际消费的是另一套东西。所以"规范符合度"低不是因为规范没写，而是因为**声明层与消费层之间缺一次真正的迁移**（正是 §10.3 迁移映射表要做的事，而它本会话完全未触及）。
-- **§7、§8、§9.6–§9.8**：审计进行中，尚无结论。
-- **§10.3、§11**：本会话完全未触及。
+### 8.1 根因：设计系统"只声明、没接线"
+
+三路审计里已完成的两路**独立地指向同一个根因**：
+
+| 层 | 已声明 | 引用情况 |
+|---|---|---|
+| 组件层（子代理 B） | `webhtv_selector_*.xml` 6 个文件、`Widget.WebHTV.Button.*`/`Card`/`ListItem`、成功/警告容器角色、`overlayDark`/`OverlayLight` | **全部零引用** |
+| 形状/间距层（子代理 A） | `webhtv_shapes.xml` 的 4 个 style、`webhtv_space_1..6`、`size_tv_card_gap` | **全部零引用**；且 `space_5`/`space_6` **取值本身就错**、缺 `space_8` |
+
+规范写好了、资源建好了、契约测试也钉住了它们的**存在**，但视图实际消费的是另一套东西。所以"符合度"低**不是规范没写**，而是**声明层与消费层之间缺一次真正的迁移**——正是 §10.3 迁移映射表要做的事，而它本会话**完全未触及**。
+
+### 8.2 分层结论
+
+- **§9.9（状态面）**：基本完成，剩 `FileActivity` 与描述文字对比度两项；并发现一处**我自己的记录错误**（错误标题其实达标）与一处**我自己引入的缺陷**（描述文字不达标）。
+- **§9.1–§9.5**：已完成（§6.1），判定以部分满足/未满足为主。
+- **§7 + §8**：已完成（§6.2），判定以部分满足为主。**颜色层语义化推进较好，形状/表面层基本未语义化。**
+- **§9.6–§9.8**：进行中。
+- **§10.3、§11**：完全未触及。
 - **流程**：§13.1 要求的静态门槛从未运行且**当前失败**；§13.2/§20.2 的场景与设备矩阵**没有一行被完整执行**。
 
-"全面"缺的不是更多批次，而是**先让门槛能跑、再按矩阵验收**，以及**把声明层真正接到消费层**。P0 四项是明确、可执行的起点。
+### 8.3 也有一批做得扎实的（不要重复返工）
+
+颜色 token 层（两张表各 62 色、逐名一致）、TV 焦点环分层与环色配对（有契约）、大弹窗统一 22dp（有契约）、层级 3/4 的归属、TV focus 150ms 单一来源、加载态互斥、主题切换无逐 View 动画、卡片尺寸稳定性、960×540dp 设计基准、卡片文字 scrim。
+
+### 8.4 需要你决策的两件事
+
+1. **内容卡圆角 8dp vs 规范 12dp**——8dp 已被 `TvFocusRingContractTest.java:369-393` 固化为契约，规范与既有契约直接冲突，修哪一侧是产品决策（输入框 4dp vs 8dp 同理）。
+2. **播放器错误层要不要"错误色"**——底材是任意视频画面，纯白最稳；要满足 §9.9 需给它不透明实心底，属观感决策。
+
+### 8.5 下一步
+
+"全面"缺的不是更多批次，而是三件事：**先让门槛能跑**（P0）、**按 §20.2 矩阵验收**（P1）、**把声明层真正接到消费层**（P0，即 §10.3 迁移映射表）。P0 六项是明确、可执行的起点。
