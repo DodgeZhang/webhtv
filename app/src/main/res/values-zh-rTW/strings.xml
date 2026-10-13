@@ -45,6 +45,10 @@
     <string name="keep_empty_title">還沒有收藏</string>
     <string name="keep_empty_description">在任意詳情頁按「收藏」，就會出現在這裡。</string>
     <string name="keep_empty_action">去點播</string>
+    <!-- 歷史頁空態：設計文件 §9.9 要求「標題 + 解釋 + 一個主動作」。 -->
+    <string name="history_empty_title">還沒有觀看記錄</string>
+    <string name="history_empty_description">播放過的內容會自動出現在這裡，方便繼續觀看。</string>
+    <string name="history_empty_action">去點播</string>
     <string name="exit_confirm_title">退出應用</string>
     <string name="exit_confirm_message">應用將關閉，播放和後台服務也會停止。</string>
     <string name="exit_confirm_playing_message">目前正在播放；後台播放會繼續播放，完全退出會停止播放和後台服務。</string>

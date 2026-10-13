@@ -136,7 +136,11 @@ public class KeepActivity extends BaseActivity implements KeepAdapter.OnClickLis
 
     private void onDelete() {
         if (mAdapter.isDelete()) {
-            new WebHtvAlertDialogBuilder(this).setTitle(R.string.dialog_delete_record).setMessage(R.string.dialog_delete_keep).setNegativeButton(R.string.dialog_negative, null).setPositiveButton(R.string.dialog_positive, (dialog, which) -> mAdapter.clear()).show();
+            new WebHtvAlertDialogBuilder(this).setTitle(R.string.dialog_delete_record).setMessage(R.string.dialog_delete_keep).setNegativeButton(R.string.dialog_negative, null).setPositiveButton(R.string.dialog_positive, (dialog, which) -> {
+                mAdapter.clear();
+                // 清空后必须驱动状态机，否则整页留白（与单条删除同款缺陷）。
+                mBinding.progressLayout.showContent(true, mAdapter.getItemCount());
+            }).show();
         } else if (mAdapter.getItemCount() > 0) {
             mAdapter.setDelete(true);
         }

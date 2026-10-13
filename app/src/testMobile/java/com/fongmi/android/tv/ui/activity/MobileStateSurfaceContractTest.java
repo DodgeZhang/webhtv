@@ -94,32 +94,44 @@ public class MobileStateSurfaceContractTest {
 
     // ------------------------------------------------------------------ 宿主接入
 
+    /** 已接入空态的宿主：源文件、三件套字符串前缀、删除回调签名。 */
+    private static final String[][] EMPTY_HOSTS = {
+            {"app/src/mobile/java/com/fongmi/android/tv/ui/activity/KeepActivity.java",
+                    "keep_empty", "public void onItemDelete(Keep item)"},
+            {"app/src/mobile/java/com/fongmi/android/tv/ui/activity/HistoryActivity.java",
+                    "history_empty", "public void onItemDelete(History item)"},
+    };
+
     @Test
-    public void favoritesWiresARealEmptyStateWithAnAction() throws Exception {
-        String source = read(KEEP);
-        assertTrue("收藏页必须接入空态内容", source.contains("setEmptyContent("));
-        for (String string : new String[]{
-                "keep_empty_title", "keep_empty_description", "keep_empty_action"}) {
-            assertTrue("收藏页必须引用 " + string, source.contains(string));
-            assertTrue("默认字符串表必须声明 " + string, read(STRINGS).contains("name=\"" + string + "\""));
-            assertTrue("简中字符串表必须声明 " + string, read(STRINGS_CN).contains("name=\"" + string + "\""));
+    public void emptyStateHostsWireTheThreePartsWithARealAction() throws Exception {
+        for (String[] host : EMPTY_HOSTS) {
+            String source = read(host[0]);
+            assertTrue(host[0] + " 必须接入空态内容", source.contains("setEmptyContent("));
+            for (String suffix : new String[]{"_title", "_description", "_action"}) {
+                String string = host[1] + suffix;
+                assertTrue(host[0] + " 必须引用 " + string, source.contains(string));
+                assertTrue("默认字符串表必须声明 " + string, read(STRINGS).contains("name=\"" + string + "\""));
+                assertTrue("简中字符串表必须声明 " + string, read(STRINGS_CN).contains("name=\"" + string + "\""));
+            }
+            assertTrue(host[0] + " 的主按钮必须有真实动作（不能是死按钮）", source.contains("view -> goHome()"));
+            assertTrue(host[0] + " 的 goHome 必须真的回首页", source.contains("HomeActivity.class"));
         }
-        assertTrue("主按钮必须有真实动作（不能是死按钮）", source.contains("view -> goHome()"));
-        assertTrue("goHome 必须真的回首页", source.contains("HomeActivity.class"));
     }
 
     /**
      * 删除路径必须驱动状态机。
      *
-     * <p>与电视端此前同款缺陷：`onItemDelete` 只退出删除模式，从不调用
-     * `showContent(true, size)`，于是用户删掉最后一条收藏后看到的是**一片空白**——
-     * 连空态都不出现。
+     * <p>与电视端此前同款缺陷（本仓库已出现三次：电视端收藏页、手机端收藏页、手机端历史页）：
+     * `onItemDelete` 只退出删除模式，从不调用 `showContent(true, size)`，于是用户删掉最后一条后
+     * 看到的是**一片空白**——连空态都不出现。
      */
     @Test
     public void deletePathDrivesTheStateMachineSoTheEmptyStateIsReachable() throws Exception {
-        String handler = methodBody(read(KEEP), "public void onItemDelete(Keep item)");
-        assertTrue("删除回调必须驱动状态机，否则删空后是一片空白而不是空态",
-                handler.contains("showContent(true,"));
+        for (String[] host : EMPTY_HOSTS) {
+            String handler = methodBody(read(host[0]), host[2]);
+            assertTrue(host[0] + " 的删除回调必须驱动状态机，否则删空后是一片空白而不是空态",
+                    handler.contains("showContent(true,"));
+        }
     }
 
     @Test
@@ -130,6 +142,25 @@ public class MobileStateSurfaceContractTest {
         assertTrue("必须有重试按钮文案", handler.contains("R.string.error_retry"));
         assertTrue("重试必须复用同一条加载路径", handler.contains("loadConfig(config, item);"));
         assertTrue("应保留原有的吐司提示", handler.contains("Notify.show(msg);"));
+    }
+
+    /**
+     * 「删除全部」也必须驱动状态机。
+     *
+     * <p>实机验证时发现：点工具栏 🗑 确认清空后整页留白——{@code mAdapter.clear()} 同样不驱动
+     * 状态机。这是本仓库同款缺陷的第 4/5 例（电视端历史页也有一处，见任务文档 §7.1）。
+     */
+    @Test
+    public void deleteAllAlsoDrivesTheStateMachine() throws Exception {
+        for (String[] host : EMPTY_HOSTS) {
+            String source = withoutJavaComments(read(host[0]));
+            assertFalse(host[0] + " 的「删除全部」不得只调 mAdapter.clear() 而不驱动状态机",
+                    source.contains("mAdapter.clear()).show()"));
+            int at = source.indexOf("mAdapter.clear();");
+            assertTrue(host[0] + " 必须有「删除全部」路径", at > 0);
+            String after = source.substring(at, Math.min(source.length(), at + 300));
+            assertTrue(host[0] + " 的「删除全部」之后必须驱动状态机", after.contains("showContent(true,"));
+        }
     }
 
     // ------------------------------------------------------------------ helpers
