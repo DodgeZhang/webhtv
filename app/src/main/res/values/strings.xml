@@ -1725,6 +1725,15 @@
     <string name="home_empty_title">Nothing to show</string>
     <string name="home_empty_description">The content source returned no items.</string>
     <string name="home_empty_action">Reload</string>
+    <!--
+        本地文件浏览器空态。主动作是**重新扫描当前目录**，不是"返回上级"——因为：
+        根目录没有上级（返回会退出页面），而"重新扫描"在任何目录都成立，
+        且能反映外部变化（刚用别的应用放进来的文件）。
+        description 说明"这里本来就没有可显示的项"，并把两种过滤模式的差别讲清楚。
+    -->
+    <string name="file_empty_title">Nothing here</string>
+    <string name="file_empty_description">This folder has no items to show. If you just added files, rescan to pick them up.</string>
+    <string name="file_empty_action">Rescan</string>
     <string name="error_retry">Retry</string>
     <string name="error_play_next">It\'s the last episode!</string>
     <string name="error_play_prev">It\'s the first episode!</string>
