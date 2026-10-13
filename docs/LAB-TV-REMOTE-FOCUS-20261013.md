@@ -5,8 +5,8 @@
 - 目标：电视版（leanback）实验室页面必须能用遥控器操作焦点——命令列表焦点不被 2 秒定时刷新抢走，且实验室自绘的可聚焦控件在聚焦时有可见高亮。
 - 允许路径：`app/src/main/java/com/fongmi/android/tv/lab/LabDetailActivity.java`、`app/src/main/java/com/fongmi/android/tv/lab/LabCommandAdapter.java`、`app/src/main/res/drawable/shape_lab_card.xml`、`shape_lab_run_btn.xml`、`shape_lab_stop_btn.xml`、`shape_lab_click_btn.xml`、`selector_lab_group_tab.xml`、`shape_lab_group_tab_focused.xml`（新增）、`selector_lab_icon_btn.xml`（新增）、`app/src/main/res/layout/activity_lab_detail.xml`、`app/src/test/java/com/fongmi/android/tv/lab/LabTvFocusSourceTest.java`（新增）、`docs/LAB-TV-REMOTE-FOCUS-20261013.md`（本文）。
 - 验收标准：进入 实验室 → 任意包详情 → 命令列表，用遥控方向键把焦点移到命令行的「运行」按钮后静置 ≥ 5 秒，焦点仍在命令行/运行按钮上（修复前 ≤ 2 秒即跳回工具栏）；命令行、运行/停止按钮、分组标签、详情页三个图标按钮在聚焦时画面出现可见变化（像素级 A/B 非零差异）。
-- 当前状态：**会话 1 已实施并验证**（列表差异刷新 + 聚焦视觉 + 图标焦点连线）；弹窗初始焦点锚点见 §6。
-- 下一步唯一动作：见 §6。
+- 当前状态：**已实施、已验证、已交付**（会话 1：列表差异刷新 + 聚焦视觉 + 图标焦点连线；会话 2：命令弹窗初始焦点锚点）。
+- 下一步唯一动作：无，见 §6（含残余未知记录）。
 
 ## 1. 现象与证据（2026-10-13，leanback arm64 debug，设备 `192.168.50.3:5561`）
 
@@ -45,6 +45,13 @@
 
 即遥控用户在小缩放下按不到终端/新增/刷新；实测只有 TAB 能到达（电视遥控器没有 TAB）。这与本次 drawable 改动无关（纯几何 + 框架加权距离），但同属「遥控没法操作焦点」。
 
+### 1.4 根因 D：命令弹窗的初始焦点落在输入框里，遥控出不去
+
+在包详情页按 OK 打开命令弹窗后，`uiautomator dump` 显示初始焦点是 `sheetCommandPreview`（命令预览 EditText）。
+实测在该输入框内 **DOWN / RIGHT / UP 都不移动焦点**（单行可编辑文本把方向键当光标键吃掉），只有 TAB 能到
+`sheetBtnEdit`（编辑）；`sheetBtnRun`（运行）在未安装时是 disabled（本就不可聚焦）。电视遥控器没有 TAB，
+所以即使命令列表已经能操作，用户打开弹窗后依然按不到「运行」——这是「只能改配置文件启动」的最后一段。
+
 ## 2. 决策
 
 | 方案 | 结论 |
@@ -53,7 +60,8 @@
 | 只修焦点高亮 | 焦点仍会被 2 秒轮询踢走，功能不可用 |
 | 只修焦点抢走 | 焦点看不见落点，用户仍会认为「没法操作焦点」 |
 | 删除 2 秒轮询 | 会丢掉「命令在别处启动/结束后按钮与状态标签跟随」，引入状态不刷新回归 |
-| **采用（三项一起修，最小面）** | ① 命令列表改为「状态差异刷新」：状态未变时完全不触发重排，变化时只 `notifyItemChanged` 单行（复用同一 ViewHolder）；② 给实验室自绘的可聚焦控件补 `state_focused`，沿用仓库既有 TV 聚焦视觉约定（2dp 主题色描边，见 `selector_player_settings_row`）；③ 详情页三个图标按钮用 `nextFocus*` 显式连线，不再依赖缩放相关的加权距离 |
+| 命令预览改为不可聚焦 | 会砍掉「运行前改命令」这个既有能力，触摸端也受影响 |
+| **采用（四项一起修，最小面）** | ① 命令列表改为「状态差异刷新」：状态未变时完全不触发重排，变化时只 `notifyItemChanged` 单行（复用同一 ViewHolder）；② 给实验室自绘的可聚焦控件补 `state_focused`，沿用仓库既有 TV 聚焦视觉约定（2dp 主题色描边，见 `selector_player_settings_row`）；③ 详情页三个图标按钮用 `nextFocus*` 显式连线，不再依赖缩放相关的加权距离；④ 命令弹窗在 `show()` 后一次性把初始焦点锚到「运行/编辑」按钮上，输入框仍可点选、UP 也能回去 |
 
 ## 3. 实施记录
 
@@ -69,7 +77,8 @@
 | `app/src/main/res/drawable/selector_lab_group_tab.xml` | 新增 `state_focused` 分支（放在 `state_activated` 之前，聚焦优先） |
 | `app/src/main/res/drawable/selector_lab_icon_btn.xml` | 新增：详情页图标按钮的聚焦/按下/默认三态背景 |
 | `app/src/main/res/layout/activity_lab_detail.xml` | `btnTerminal` / `btnAddCommand` / `btnRefreshCommand` 的背景由 `?attr/selectableItemBackgroundBorderless`（只有按下态）改为 `@drawable/selector_lab_icon_btn`；并显式声明焦点邻居：`btnDownload`/`btnUninstall` → `nextFocusDown=btnTerminal`，`btnTerminal` → `nextFocusUp=btnDownload` + `nextFocusRight=btnAddCommand`，`btnAddCommand` → `nextFocusLeft=btnTerminal` + `nextFocusRight=btnRefreshCommand`，`btnRefreshCommand` → `nextFocusLeft=btnAddCommand` + `nextFocusUp=btnDownload` |
-| `app/src/test/java/com/fongmi/android/tv/lab/LabTvFocusSourceTest.java` | 新增 7 条源码/资源形态契约测试（见 §4.2） |
+| `app/src/main/java/com/fongmi/android/tv/lab/LabCommandSheet.java` | 新增 `requestSheetFocus()`：`dialog.show()` + `syncRunning()` 之后一次性把初始焦点放到「运行」（不可用/未安装时退到「编辑」），避免焦点停在命令预览输入框里被方向键吃掉（见 §1.4） |
+| `app/src/test/java/com/fongmi/android/tv/lab/LabTvFocusSourceTest.java` | 新增 8 条源码/资源形态契约测试（见 §4.2） |
 
 ## 4. 验证
 
@@ -86,10 +95,13 @@
 | 行内「运行」按钮聚焦视觉 | 无 | 2 dp 白描边 |
 | 详情页图标按钮可达性 | 小 UI 缩放下 `下载安装` → DOWN 直接跳到命令行，图标只有 TAB 可达 | `下载安装` → DOWN `终端` → RIGHT `新增` → DOWN 该行「运行」：全 D-pad 可达 |
 | 详情页图标按钮聚焦视觉 | 无 | 聚焦的终端图标有 2 dp 描边 |
+| 命令弹窗初始焦点 | `sheetCommandPreview`（命令预览输入框）；DOWN / RIGHT / UP 都不移动，只有 TAB 能到按钮 | `sheetBtnEdit`（「运行」在未安装时 disabled，按设计回退到「编辑」）；「编辑」有 2 dp 白描边，从按钮按 UP 可回输入框 |
+
+弹窗路径实测：命令行「运行」按 OK → 弹窗打开 → 初始焦点 = `sheetBtnEdit`，同时弹出「请先安装 php」提示（未安装包不启动，符合预期；安装后 `sheetBtnRun` 变为 enabled，锚点即落在「运行」上）。
 
 ### 4.2 静态与单测
 
-- `.\gradlew.bat :app:testLeanbackArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.lab.*" :app:assembleLeanbackArm64_v8aDebug` → **BUILD SUCCESSFUL**；lab 包 **26 个用例 0 失败**（新增 `LabTvFocusSourceTest` 7 条，含「周期刷新不得整表重建」「差异刷新只做局部通知」「可聚焦控件必须有聚焦态」「图标按钮必须声明焦点邻居」）。
+- `.\gradlew.bat :app:testLeanbackArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.lab.*" :app:assembleLeanbackArm64_v8aDebug` → **BUILD SUCCESSFUL**；lab 包 **27 个用例 0 失败**（新增 `LabTvFocusSourceTest` 8 条，含「周期刷新不得整表重建」「差异刷新只做局部通知」「可聚焦控件必须有聚焦态」「图标按钮必须声明焦点邻居」「弹窗初始焦点必须锚在按钮上且轮询不得抢回」）。
 
 ### 4.3 回滚
 
@@ -101,4 +113,10 @@
 
 ## 6. 下一步唯一动作
 
-**已定位但尚未修复的同类缺陷（弹窗初始焦点）**：命令弹窗 `LabCommandSheet` 默认把焦点交给命令预览输入框 `sheetCommandPreview`；实测遥控 **DOWN / RIGHT / UP 都不移动焦点**（单行输入框吃掉方向键），只有 TAB 能到「编辑/运行」。电视遥控器没有 TAB，因此用户打开弹窗后仍按不到「运行」。修复方向：`dialog.show()` 后一次性 `requestFocus()` 到「运行」（不可用时退到「编辑」），不参与 1 秒状态轮询。该文件不在本会话已声明范围内，作为独立会话实施。
+无（本任务已交付：列表差异刷新 + 聚焦视觉 + 图标焦点连线 + 弹窗初始焦点锚点均已设备实测）。
+
+### 6.1 已知残余未知（记录，不在本次范围）
+
+- **状态真变化时的局部刷新未做设备实测**：需要先安装 lab 包（15–200 MB 下载）。实现用的是 `notifyItemChanged(i)` 单行刷新（复用 ViewHolder），若后续发现命令真正启动/结束时焦点仍被抢，可在 `LabDetailActivity` 增加「记录聚焦行 + 布局后回填焦点」。
+- **「运行」enabled 时的弹窗锚点未做设备实测**：同样需要先安装 lab 包（`sheetBtnRun.setEnabled(installed && supported)`）。代码路径为 `sheetBtnRun.getVisibility() == View.VISIBLE && sheetBtnRun.isEnabled() ? sheetBtnRun : sheetBtnEdit`，已由源码级测试锁定。
+- **实验室其它 TV 页面不在本次范围**：`LabOutputActivity`、`LabTerminalActivity`、`LabVariableDialog`、`LabCommandEditDialog`、`LabFileBrowserDialog` 未做遥控焦点走查。

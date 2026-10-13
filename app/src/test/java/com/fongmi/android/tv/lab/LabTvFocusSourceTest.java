@@ -95,6 +95,26 @@ public class LabTvFocusSourceTest {
         }
     }
 
+    /**
+     * 命令弹窗的初始焦点必须落在按钮上。
+     *
+     * <p>BottomSheetDialog 默认聚焦第一个可聚焦控件（命令预览 EditText）。实测遥控方向键在单行输入框里
+     * 出不去（DOWN / RIGHT / UP 都不移动焦点，只有 TAB 能到按钮），电视遥控器没有 TAB，
+     * 用户打开了弹窗却按不到「运行」。
+     */
+    @Test
+    public void commandSheetAnchorsFocusOnAButton() throws Exception {
+        String sheet = stripComments(read("src/main/java/com/fongmi/android/tv/lab/LabCommandSheet.java"));
+        assertTrue("the sheet must move the initial focus onto a button",
+                sheet.contains("requestSheetFocus();"));
+        assertTrue("the run button wins when it is usable, otherwise the edit button",
+                sheet.contains("sheetBtnRun.getVisibility() == View.VISIBLE && sheetBtnRun.isEnabled() ? sheetBtnRun : sheetBtnEdit"));
+
+        String poll = methodBody(sheet, "public void run()");
+        assertFalse("the 1s state poll must not steal focus back while the user types",
+                poll.contains("requestSheetFocus"));
+    }
+
     /** 分组标签的聚焦态必须由 selector 通过 state_focused 接上（聚焦图形本身是纯 shape）。 */    @Test
     public void groupTabSelectorWiresTheFocusedShape() throws Exception {
         String selector = stripComments(read("src/main/res/drawable/selector_lab_group_tab.xml"));
