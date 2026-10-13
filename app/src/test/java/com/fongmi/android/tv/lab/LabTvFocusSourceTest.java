@@ -115,6 +115,33 @@ public class LabTvFocusSourceTest {
                 poll.contains("requestSheetFocus"));
     }
 
+    /**
+     * 「导入包」弹窗必须能用遥控器操作。
+     *
+     * <p>实测（leanback arm64 debug，1920x1080）：弹窗可聚焦节点只有粘贴框、`选择离线包文件`、取消、导入；
+     * 初始焦点落在多行粘贴框，遥控 DOWN / UP / RIGHT 都不移动焦点（被当光标键吃掉），只有 TAB 能跳出去。
+     * 电视遥控器没有 TAB，用户打开弹窗后什么都按不动。
+     */
+    @Test
+    public void importDialogIsReachableWithTheRemote() throws Exception {
+        String activity = stripComments(read("src/main/java/com/fongmi/android/tv/lab/LabActivity.java"));
+        assertTrue("the paste field must release the vertical D-pad keys to focus search",
+                activity.contains("class LabPasteEditText extends AppCompatEditText"));
+        assertTrue("only the vertical keys are released, horizontal cursor movement stays",
+                activity.contains("keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN"));
+        assertTrue("the file-picker link must be focusable",
+                activity.contains("select.setFocusable(true);"));
+        assertTrue("the link must render a focused state",
+                activity.contains("select.setBackgroundResource(R.drawable.selector_lab_link);"));
+        assertTrue("the dialog must anchor the initial focus on the file-picker link",
+                activity.contains("select.requestFocus();"));
+        assertTrue("the link must hand UP back to the paste field (geometry alone does not work)",
+                activity.contains("select.setNextFocusUpId(edit.getId());"));
+        assertTrue("the link drawable must define a focused state",
+                stripComments(read("src/main/res/drawable/selector_lab_link.xml"))
+                        .contains("android:state_focused=\"true\""));
+    }
+
     /** 分组标签的聚焦态必须由 selector 通过 state_focused 接上（聚焦图形本身是纯 shape）。 */    @Test
     public void groupTabSelectorWiresTheFocusedShape() throws Exception {
         String selector = stripComments(read("src/main/res/drawable/selector_lab_group_tab.xml"));
