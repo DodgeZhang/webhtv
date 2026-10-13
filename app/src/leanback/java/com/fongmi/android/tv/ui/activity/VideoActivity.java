@@ -1574,6 +1574,10 @@ private boolean runtimeSourceOnly;
         mBinding.control.action.lut.setOnClickListener(guarded(this::onLut));
         mBinding.control.action.speed.setOnClickListener(guarded(this::onSpeed));
         mBinding.control.action.reset.setOnClickListener(guarded(this::onReset));
+        // 错误层的重试复用控制层同一条「重做本次播放」动作：onReset() 会按用户的「重置」
+        // 设置决定从头重播还是重新拉流，所以不新写播放路径，也就不会与既有的自动换源
+        // （startFlow）产生第二套恢复逻辑。重试成功后的收尾由 showProgress() 负责隐藏错误层。
+        mBinding.widget.retry.setOnClickListener(guarded(this::onReset));
         mBinding.control.action.title.setOnClickListener(guarded(this::onTitle));
         mBinding.control.action.player.setOnClickListener(guarded(this::onPlayerKernel));
         mBinding.control.action.player.setOnLongClickListener(view -> onPlayerKernelLong());
@@ -5120,12 +5124,17 @@ private boolean runtimeSourceOnly;
     private void showError(String text) {
         mBinding.widget.error.setVisibility(View.VISIBLE);
         mBinding.widget.text.setText(text);
+        // 把焦点交给重试按钮：错误态下用户唯一能做的事就是重试，而播放页平时把焦点放在
+        // 视频面上（mBinding.video），浮层里的按钮靠方向键不一定走得过去。
+        mBinding.widget.retry.requestFocus();
         hideProgress();
     }
 
     private void hideError() {
         mBinding.widget.error.setVisibility(View.GONE);
         mBinding.widget.text.setText("");
+        // 只有焦点确实在重试按钮上时才交还视频面：否则会抢走别的控件（例如剧集网格）的焦点。
+        if (mBinding.widget.retry.hasFocus()) mBinding.video.requestFocus();
     }
 
     private void showInfo() {
