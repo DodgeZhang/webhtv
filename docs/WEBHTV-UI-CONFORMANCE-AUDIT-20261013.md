@@ -150,7 +150,38 @@ STATUS   FAIL
 
 - **§6.1 子代理 B：§9.1 按钮 / §9.2 输入框 / §9.3 列表项与分组 / §9.4 卡片与海报 / §9.5 Chip·Tab·标签 —— 已完成**
 - **§6.2 子代理 A：§7 形状·层级·动效 + §8 间距·布局·安全区 —— 已完成**
-- §6.3 子代理 C：§9.6 Switch·Checkbox·Radio / §9.7 Dialog·BottomSheet·全屏浮层 / §9.8 Player·OSD·控制层 —— 进行中
+- **§6.3 子代理 C：§9.6 Switch·Checkbox·Radio / §9.7 Dialog·BottomSheet·全屏浮层 / §9.8 Player·OSD·控制层 —— 已完成**
+
+### 6.3 §9.6–§9.8（子代理 C）
+
+**总体结论**：§9.6 与 §9.7 均有覆盖缺口——开关/复选框**缺可访问文本**、禁用态未用 onSurface 低透明度、弹窗 **scrim 未走 token**；§9.8 控制层语义化较好，但**圆角与部分前景色仍硬编码**，且存在**反向越界**。两端判定基本一致。
+
+| 规范条目 | 端 | 判定 | 证据 | 差在哪 |
+|---|---|---|---|---|
+| §9.6 选中/激活使用 primary | 两端 | 满足 | `dialog_checkbox_tint.xml:4`、`dialog_switch_thumb.xml:4`、`dialog_switch_track.xml:4`、`leanback/site_item_check.xml:4`；未接线开关走 `webhtv_styles.xml:38 colorControlActivated` | 已接线控件 checked 均落在 primary 族 |
+| §9.6 禁用使用 onSurface 低透明度 | 两端 | 部分满足 | `dialog_checkbox_tint.xml:3`（outline_variant）、`dialog_switch_thumb.xml:3`（on_surface_variant）、`dialog_switch_track.xml:3`（outline_variant） | 禁用色取的是两个**不透明**角色；而 `webhtv_on_surface_20/70/80/90`（`webhtv_tokens.xml:36-39`）已声明并绑到 `colorOnSurface_20/70/80/90`（`webhtv_styles.xml:50-53`）却**全库零引用**——又一处"只声明、没接线" |
+| §9.6 开关轨道/滑块/复选框来自同一 ColorStateList | 两端 | 部分满足 | 三份独立色表 + `site_item_check.xml` + Material 默认 | ①不是同一份，而是 **≥4 套机制**；②勾选色不统一（thumb/checkbox=`primary`，track=`primary_container`）；③**多数开关完全未接线**（`dialog_lab_settings.xml:137,170,203,241`、`item_lab_var_switch.xml:30`、`dialog_add_command.xml:103`、`dialog_mpv_config_create.xml:105,128`、`adapter_ad_rule.xml` 两端、`dialog_danmaku.xml:38` 两端等），走 Material 默认 |
+| §9.6 每个控件必须有可访问文本 | 两端 | 部分满足 | **有**：`dialog_ai_config.xml:39,50`、`dialog_audio_source.xml:28,36`、`dialog_one_key_sync.xml:382-470`、`adapter_custom_csp.xml:31,865-895` 等；程序化：`AdRuleAdapter.java` 两端 | **缺**：`adapter_login_state_tree.xml:35`、`adapter_sync_path_dir.xml:19`、`adapter_site.xml:30`、`adapter_home_button.xml:25`、`view_danmaku_appearance.xml` 两端、`dialog_lab_settings.xml:137,170,203,241`、`item_lab_var_switch.xml:30`、`dialog_add_command.xml:103`、`dialog_mpv_config_create.xml:105,128`——既无 `android:text` 也无 `contentDescription`，旁边只有兄弟 TextView；全库 **`labelFor` 零使用**，无标签关联兜底 |
+| §9.6 不能只靠颜色区分开/关 | 两端 | 满足 | MaterialSwitch 拇指位移、MaterialCheckBox 勾形 | 控件自身提供形状/位置通道 |
+| §9.7 四类结构齐备 | 两端 | 满足 | Alert / Single Choice / Form / Sheet（`BaseBottomSheetDialog` 33 个子类、`DialogFullScreen`） | 四类均有落地 |
+| §9.7 统一 materialAlertDialogTheme，不传固定浅色主题 | 两端 | 部分满足 | 统一接线：`webhtv_styles.xml:61`、两端 `styles.xml` → `ThemeOverlay.WebHTV.Dialog`；`Theme.WebHTV.LightDialog` 已降级为空别名，生产 Java 零引用 | **仍有 6 处**直接 new 全限定原始 builder：`Updater.java:392`、`mobile/VideoActivity.java:1568,3533,5219`、`leanback/VideoActivity.java:1658,3769`。后 5 处绕过 `WebHtvAlertDialogBuilder.create()` 的 `ThemeController.bindDialog`（`WebHtvAlertDialogBuilder.java:34-42`），**用户自定义主题不生效**。⚠ **且 `ThemeBinderContractTest.java:232-233` 的禁止正则只匹配 `new AlertDialog.Builder(`，第 243 行 `contains("new MaterialAlertDialogBuilder(")` 也漏掉全限定写法 → 这 6 处通过**了**契约测试** |
+| §9.7 手机浅/深由 DayNight token 决定 | 手机 | 满足 | `webhtv_styles.xml:6` parent `Theme.Material3.DayNight.NoActionBar`；`ThemeController.java:57-59` | — |
+| §9.7 电视默认深色面板 | 电视 | 满足 | `ThemeController.java:57-58` 默认 `MODE_NIGHT_YES`；`Theme.WebHTV.Dialog` 取 `surface_container_high` → night `#2A2F34` | 仅静态验证，未做设备渲染复核 |
+| §9.7 Dialog 背景用 surfaceContainerHigh | 两端 | 满足 | `webhtv_styles.xml:87,88,126,145,230`、`LightDialog.java:66 shell()` | — |
+| §9.7 Dialog 圆角 shapeExtraLarge | 两端 | 满足 | `webhtv_styles.xml:231-232` → `webhtv_shapes.xml:18-21` → `webhtv_dimens.xml:14`=22dp | — |
+| §9.7 scrim 使用 scrim token | 两端 | 部分满足 | 仅 5 个布局用 `webhtv_color_scrim`；`ThemeController.configuredScrimOpacity`（:105）只被 2 个 Dialog 消费 | 绝大多数弹窗用**硬编码 dimAmount 常量**：`LightDialog.java:252`(0.58f)、`CacheManagementDialog.java:209`(0.6f)、`PanNetworkDiagnosticDialog.java:156`(0.62f)、`leanback/EpisodeDialog.java:90`(0.18f) 等 15+ 处；token 的 alpha 槽未被这些路径读取 |
+| §9.7 内容可滚动时固定操作区 | 两端 | 部分满足 | **固定**：`dialog_manage_page.xml`、`LightDialog.resizeAlertList`（`LightDialog.java:103-124`） | **未固定**：`dialog_ai_config.xml:2` 根节点本身是 ScrollView，按钮 200/241/250 全在滚动区内；`dialog_github_proxy.xml:2` 根是 NestedScrollView，5 个按钮全在内；`dialog_one_key_sync.xml` 的 `actionBar` 259-311（4 个按钮）在内 |
+| §9.7 长文本不强制单行；错误/风险/删除对象名完整可见 | 两端 | 部分满足 | 删除对象名可换行：`AdRuleManageDialog.java:398-399`、`KeepActivity.java:141`、`HistoryActivity.java:142` | 仍有 20+ 处 `singleLine`/`maxLines="1"`，其中 `dialog_one_key_sync.xml:237,248`（`remoteName`/`remoteHost`，**设备标识＝对象名称性质**）被强制单行 |
+| §9.8 播放器画面不加普通主题背景 | 两端 | 满足 | 两端 `activity_video.xml` 用 `@color/black`；`view_player_osd.xml` 根节点无 background | — |
+| §9.8 仅控制层/OSD/弹窗消费 token | 两端 | 部分满足 | **消费**：`player_control_text.xml:4-7`、两端 `styles.xml` 的 ControlSheetTitle/VideoActionButton、`view_player_osd.xml:26,30` | **未消费**：两端 `view_widget_vod.xml` 多处用 `@color/white` / `@color/grey_500`；`view_control_seek.xml` 两端 `@color/white`；`PlayerOsdController.java:371-381` 硬编码 `0xFFFFFFFF`。注：错误层纯白与 OSD 白字是已记录的**有意取舍**（底材为任意视频画面），不计为缺陷 |
+| §9.8 playerControl 默认白、playerControlActive 用于选中 | 两端 | 部分满足 | `webhtv_tokens.xml:57,59`；`player_control_text.xml:4`；`UiStyleSourceTest:91-104` 固化 | `leanback/selector_control_sheet_text.xml:3-7` 的 focused/pressed/selected 全部用 `@color/white`，**未用** `playerControlActive`；`mobile` 同文件用硬编码 `#FF000000` 作 activated/selected |
+| §9.8 浅色画面使用 scrim | 两端 | 部分满足 | `webhtv_color_player_scrim=#7A000000` 作文字阴影色（`view_player_osd.xml:26,42,61,77,112,131`）；mobile `view_control_vod.xml:8` `@color/black_20` | leanback `view_control_vod.xml:7` 控制条背景 `@color/transparent`，`Control` 样式走无 `<solid>` 的 `shape_chip_normal`，**无 scrim 底衬**；未找到按画面亮度动态切换 scrim 的逻辑 |
+| §9.8 控制条按钮圆角/间距/焦点/选中与全局一致 | 两端 | 部分满足 | **焦点满足**：leanback `selector_control_sheet_button.xml` 用 `?attr/tvPlayerRing` + `@dimen/webhtv_focus_ring_width`，属规范明文的"视频层"分层，**非缺陷** | ①圆角不统一：控制按钮 **6dp**（leanback）/ **7dp**（mobile default、selected）/ **22dp**（mobile pressed），全局按钮是 `ShapeAppearance.WebHTV.Medium` **12dp**；②`mobile/selector_control_sheet_button.xml` **无 focused 分支**；③选中态色不统一：leanback 走 `tvPlayerCurrentRing`，mobile 走硬编码 `#FF000000`/`#80FFFFFF` |
+| §9.8 播放器专用 token 只允许在 playerControl* 命名空间 | 两端 | 部分满足 | token 命名本身合规（`webhtv_tokens.xml:53-54,57-60`） | **反向越界**：`webhtv_color_player_control_active` 被非播放器布局复用——`item_tmdb_person_work.xml:99`（★ 图标）、`adapter_tmdb_recommendation_landscape.xml:63`、`adapter_tmdb_recommendation.xml:82`、`adapter_tmdb_rail_landscape.xml:59`、`adapter_tmdb_rail_item.xml:58`，以及 `selector_display_option.xml:5`、`colors.xml:32 display_option_bg_selected`。**播放器激活色成了 TMDB 详情/评分/显示选项的通用强调色** |
+| §9.8 进度/音量/亮度/倍速同时有形状/位置/文本反馈 | 两端 | 满足 | 进度：`view_control_seek.xml` + `view_player_osd.xml:145-151`；音量/亮度：两端 `VideoActivity` 的 `setProgress` + 三档图标；倍速：图标+动画 + 文本 | 音量/亮度靠"位置+档位图标"，进度/倍速为"位置+文本"，均具备非颜色第二通道 |
+| §9.8 播放器错误层重试（§9.9 交叉，近期改动） | 两端 | 满足 | 电视 `leanback/view_widget_vod.xml:89-105`；手机 `mobile/view_widget_vod.xml:37-47` | 两端实现不同但各自与其宿主一致 |
+
+**子代理 C 的"未能确定"清单（6 项）**：§9.7 关闭方式（`BaseBottomSheetDialog` 全文无 `onBackPressed` 处理，无法判定四类弹窗返回优先级是否统一）；§9.7 焦点不落被遮挡区域（`TouchOptimizationHelper` 只做触摸优化，既无证据满足也无证据违反）；§9.6 未接线开关的禁用态取值（仓库未覆写 `switchStyle`/`checkboxStyle`/`radioButtonStyle`，无法从本仓库资源判定）；§9.6 滑块是否与开关共享色表（依据不足）；§9.8 scrim 的动态判定（未找到按画面亮度切换的运行时逻辑）；§9.7 电视深色面板的设备级结论（只验证到静态解析链）。
 
 ### 6.2 §7 + §8（子代理 A）
 
@@ -261,41 +292,62 @@ STATUS   FAIL
 | P2 | 弹窗底部强调动作超过两个（`dialog_update.xml`、`dialog_about.xml` 各 3 个）；全库**无任何 `stateDescription`** | `app/src/*/res/layout/dialog_update.xml` 等 | §6.1 §9.1 | 规范未落地 |
 | P2 | 把 Java 侧固定色纳入扫描 + allowlist 豁免播放器场景 | `check_ui_tokens.sh` | §2.3 | 门槛盲区 |
 | P2 | 播放器错误层的"错误色"决策 | `view_widget_vod.xml` | §4 | 需观感决策 |
+| **P0** | **第二个门槛盲区（§6.3）**：`ThemeBinderContractTest.java:232-233` 的禁止正则只匹配 `new AlertDialog.Builder(`，`:243` 的 `contains("new MaterialAlertDialogBuilder(")` 也漏掉**全限定写法** → 6 处绕过 `ThemeController.bindDialog` 的弹窗（`mobile/VideoActivity.java:1568,3533,5219`、`leanback/VideoActivity.java:1658,3769`、`Updater.java:392`）**通过**了契约测试，**用户自定义主题对这些弹窗不生效** | `app/src/test/.../ThemeBinderContractTest.java`、两端 `VideoActivity.java` | §6.3 §9.7 | 既有问题 + 契约盲区 |
+| P1 | §9.7 弹窗 **scrim 未走 token**：仅 5 个布局用 `webhtv_color_scrim`，绝大多数弹窗用硬编码 dimAmount（`LightDialog.java:252`=0.58f、`CacheManagementDialog.java:209`=0.6f、`PanNetworkDiagnosticDialog.java:156`=0.62f、`leanback/EpisodeDialog.java:90`=0.18f 等 15+ 处） | 上述文件 | §6.3 §9.7 | 规范未落地 |
+| P1 | §9.6 **控件缺可访问文本**：12+ 处开关/复选框既无 `android:text` 也无 `contentDescription`，旁边只有兄弟 TextView；全库 **`labelFor` 零使用** | `adapter_login_state_tree.xml:35`、`adapter_sync_path_dir.xml:19`、`adapter_site.xml:30`、`adapter_home_button.xml:25`、`view_danmaku_appearance.xml` 两端、`dialog_lab_settings.xml:137,170,203,241`、`item_lab_var_switch.xml:30`、`dialog_add_command.xml:103`、`dialog_mpv_config_create.xml:105,128` | §6.3 §9.6 | 规范未落地（无障碍） |
+| P1 | §9.6 禁用态未用 onSurface 低透明度：`webhtv_on_surface_20/70/80/90` 已声明并绑到 `colorOnSurface_20/70/80/90` 却**零引用**；实际用不透明的 outline_variant / on_surface_variant | `webhtv_tokens.xml:36-39`、`webhtv_styles.xml:50-53`、`dialog_checkbox_tint.xml:3`、`dialog_switch_thumb.xml:3` | §6.3 §9.6 | 又一处"只声明、没接线" |
+| P1 | §9.8 控制层**未消费 token**：两端 `view_widget_vod.xml` 多处 `@color/white`/`grey_500`、`view_control_seek.xml` 两端 `@color/white`、`PlayerOsdController.java:371-381` 硬编码 `0xFFFFFFFF` | 上述文件 | §6.3 §9.8 | 规范未落地 |
+| P1 | §9.8 **反向越界**：`webhtv_color_player_control_active` 被非播放器布局复用（TMDB ★ 图标、推荐/导轨卡片、`selector_display_option.xml:5`、`colors.xml:32`），**播放器激活色成了 TMDB 的通用强调色** | `item_tmdb_person_work.xml:99`、`adapter_tmdb_recommendation*.xml`、`adapter_tmdb_rail*.xml`、`selector_display_option.xml:5` | §6.3 §9.8 | 命名空间越界 |
+| P2 | §9.7 内容可滚动时**操作区未固定**：`dialog_ai_config.xml`（根即 ScrollView，3 个按钮全在滚动区内）、`dialog_github_proxy.xml`（5 个按钮全在内）、`dialog_one_key_sync.xml`（4 个按钮的 actionBar 在内） | 上述布局 | §6.3 §9.7 | 规范未落地 |
+| P2 | §9.8 控制按钮圆角不统一：控制层 **6dp/7dp/22dp**，全局按钮 **12dp**；`mobile/selector_control_sheet_button.xml` **无 focused 分支**；选中态色 leanback 走 token 而 mobile 走硬编码 `#FF000000`/`#80FFFFFF` | `leanback/res/drawable/selector_control_sheet_button.xml`、`mobile` 同文件 | §6.3 §9.8 | 规范未落地 |
 | P3 | §10.3 迁移映射表、§11 Web/WebTheme | — | §5 | 未触及的大块 |
 
 ## 8. 结论
 
-**不能说"全面优化完毕"——而且差距是结构性的。**
+**不能说"全面优化完毕"——而且差距是结构性的。审计三路已全部完成（§6.1/§6.2/§6.3）。**
+
+### 8.0 两处"门槛盲区"（本次审计最值得记住的发现）
+
+审计独立发现**两道契约测试各自漏掉了真实违规**：
+
+| 盲区 | 后果 | 出处 |
+|---|---|---|
+| `TvFocusRingContractTest` 只扫 `app/src/leanback/res/drawable` | `main/res/drawable/selector_mpv_tab_focus.xml` 写死的 `#E8F0FE`/`#1A73E8` + 2dp **逃过检查** | §6.2 |
+| `ThemeBinderContractTest` 的禁止正则只匹配 `new AlertDialog.Builder(`，`contains("new MaterialAlertDialogBuilder(")` 漏掉**全限定写法** | **6 处**绕过 `ThemeController.bindDialog` 的弹窗通过测试，**用户自定义主题对它们不生效** | §6.3 |
+
+这说明：**契约测试的存在不等于覆盖**。仓库有大量契约测试（这是优点），但它们都有未声明的扫描边界——而边界外正好住着违规。
 
 ### 8.1 根因：设计系统"只声明、没接线"
 
-三路审计里已完成的两路**独立地指向同一个根因**：
+三路审计**独立地指向同一个根因**：
 
 | 层 | 已声明 | 引用情况 |
 |---|---|---|
-| 组件层（子代理 B） | `webhtv_selector_*.xml` 6 个文件、`Widget.WebHTV.Button.*`/`Card`/`ListItem`、成功/警告容器角色、`overlayDark`/`OverlayLight` | **全部零引用** |
-| 形状/间距层（子代理 A） | `webhtv_shapes.xml` 的 4 个 style、`webhtv_space_1..6`、`size_tv_card_gap` | **全部零引用**；且 `space_5`/`space_6` **取值本身就错**、缺 `space_8` |
+| 组件层（B） | `webhtv_selector_*.xml` 6 个文件、`Widget.WebHTV.Button.*`/`Card`/`ListItem`、成功/警告容器角色、`overlayDark`/`OverlayLight` | **全部零引用** |
+| 形状/间距层（A） | `webhtv_shapes.xml` 的 4 个 style、`webhtv_space_1..6`、`size_tv_card_gap` | **全部零引用**；且 `space_5`/`space_6` **取值本身就错**、缺 `space_8` |
+| 控件状态层（C） | `webhtv_on_surface_20/70/80/90`（已绑到 `colorOnSurface_*`） | **零引用** |
 
 规范写好了、资源建好了、契约测试也钉住了它们的**存在**，但视图实际消费的是另一套东西。所以"符合度"低**不是规范没写**，而是**声明层与消费层之间缺一次真正的迁移**——正是 §10.3 迁移映射表要做的事，而它本会话**完全未触及**。
 
 ### 8.2 分层结论
 
 - **§9.9（状态面）**：基本完成，剩 `FileActivity` 与描述文字对比度两项；并发现一处**我自己的记录错误**（错误标题其实达标）与一处**我自己引入的缺陷**（描述文字不达标）。
-- **§9.1–§9.5**：已完成（§6.1），判定以部分满足/未满足为主。
-- **§7 + §8**：已完成（§6.2），判定以部分满足为主。**颜色层语义化推进较好，形状/表面层基本未语义化。**
-- **§9.6–§9.8**：进行中。
+- **§9.1–§9.5**：已完成（§6.1），以部分满足/未满足为主。
+- **§7 + §8**：已完成（§6.2），以部分满足为主。**颜色层语义化推进较好，形状/表面层基本未语义化。**
+- **§9.6–§9.8**：已完成（§6.3）。§9.6/§9.7 有覆盖缺口；§9.8 控制层语义化较好但有硬编码、圆角不统一与**反向越界**。
 - **§10.3、§11**：完全未触及。
 - **流程**：§13.1 要求的静态门槛从未运行且**当前失败**；§13.2/§20.2 的场景与设备矩阵**没有一行被完整执行**。
 
 ### 8.3 也有一批做得扎实的（不要重复返工）
 
-颜色 token 层（两张表各 62 色、逐名一致）、TV 焦点环分层与环色配对（有契约）、大弹窗统一 22dp（有契约）、层级 3/4 的归属、TV focus 150ms 单一来源、加载态互斥、主题切换无逐 View 动画、卡片尺寸稳定性、960×540dp 设计基准、卡片文字 scrim。
+颜色 token 层（两表各 62 色逐名一致）、TV 焦点环分层与环色配对（有契约）、大弹窗统一 22dp（有契约）、层级 3/4 归属、TV focus 150ms 单一来源、加载态互斥、主题切换无逐 View 动画、卡片尺寸稳定性、960×540dp 设计基准、卡片文字 scrim、§9.7 四类弹窗结构齐备、Dialog 背景/圆角走 token、手机 DayNight 由 token 决定、电视默认深色面板、播放器画面不加主题背景、进度/音量/亮度/倍速均有非颜色第二通道。
 
-### 8.4 需要你决策的两件事
+### 8.4 需要你决策的三件事
 
-1. **内容卡圆角 8dp vs 规范 12dp**——8dp 已被 `TvFocusRingContractTest.java:369-393` 固化为契约，规范与既有契约直接冲突，修哪一侧是产品决策（输入框 4dp vs 8dp 同理）。
-2. **播放器错误层要不要"错误色"**——底材是任意视频画面，纯白最稳；要满足 §9.9 需给它不透明实心底，属观感决策。
+1. **内容卡圆角 8dp vs 规范 12dp**——8dp 已被 `TvFocusRingContractTest.java:369-393` 固化为契约，规范与既有契约直接冲突（输入框 4dp vs 8dp 同理）。
+2. **播放器错误层要不要"错误色"**——底材是任意视频画面，纯白最稳。
+3. **玻璃面板的边界**——手机分类/筛选面板用了播放控制玻璃，且已被 `DialogGlassChipStyleTest.java:61-71` 固化为契约；要改就得同时改契约。
 
 ### 8.5 下一步
 
-"全面"缺的不是更多批次，而是三件事：**先让门槛能跑**（P0）、**按 §20.2 矩阵验收**（P1）、**把声明层真正接到消费层**（P0，即 §10.3 迁移映射表）。P0 六项是明确、可执行的起点。
+"全面"缺的不是更多批次，而是三件事：**先让门槛能跑并补上两处扫描盲区**（P0）、**按 §20.2 矩阵验收**（P1）、**把声明层真正接到消费层**（P0，即 §10.3 迁移映射表）。P0 七项是明确、可执行的起点。
