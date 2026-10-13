@@ -44,6 +44,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.IntConsumer;
 
 public class LabActivity extends AppCompatActivity implements LabPackageAdapter.Listener, LabGroupAdapter.Listener {
 
@@ -400,7 +401,17 @@ public class LabActivity extends AppCompatActivity implements LabPackageAdapter.
         int source = LabConfig.get().getSource();
         dropdown.setText(items[indexOfSource(source)], false);
         applySourceFields(input, folder, source);
-        dropdown.setOnItemClickListener((parent, view, position, id) -> applySourceFields(input, folder, SOURCE_MODES[position]));
+        // 触摸点选时 Material 自己更新文本；遥控确认走 escapeVerticalKeys 的落选分支，
+        // 需要自己把文本与可见字段一起切过去，所以两条路径共用同一段逻辑。
+        IntConsumer pick = position -> {
+            dropdown.setText(items[position], false);
+            applySourceFields(input, folder, SOURCE_MODES[position]);
+        };
+        dropdown.setOnItemClickListener((parent, view, position, id) -> pick.accept(position));
+        // 遥控确认键：下拉列表在电视上不可用（见 escapeVerticalKeys 注释），改为直接切换选项。
+        Runnable cycle = () -> pick.accept((Math.max(0, indexOf(items,
+                dropdown.getText() == null ? "" : dropdown.getText().toString())) + 1) % items.length);
+        escapeVerticalKeys(cycle, dropdown, input, rootInput, proxyPort, proxyNoProxy);
         folder.setOnClickListener(v -> openLocalPicker());
         rootInput.setText(LabConfig.get().getRootOverride());
         foreground.setChecked(LabConfig.get().getForeground());
@@ -487,6 +498,48 @@ public class LabActivity extends AppCompatActivity implements LabPackageAdapter.
         input.setText(url ? LabConfig.get().getUrl() : LabConfig.get().getLocalPath());
         input.setFocusable(url);
         input.setFocusableInTouchMode(url);
+    }
+
+    /**
+     * 让实验室设置里的文本控件把上下方向键让给焦点搜索。
+     *
+     * <p>实测（leanback arm64 debug，1920x1080）：打开「实验室配置源」后焦点落在「配置源」下拉上，
+     * 遥控 DOWN / UP 全都不移动（被 AutoCompleteTextView / 可编辑文本当成光标键吃掉），
+     * 用户到不了文件夹图标、URL、根目录、开关和取消/确定；电视遥控器没有 TAB。
+     *
+     * <p>下拉列表展开时上下键仍交给列表导航；确认键由本方法落选，因为 Material 的下拉在遥控确认时
+     * 只关闭列表、不回调选中项（实测高亮「网络 URL」后按 OK 无效，而点选同一行有效）。
+     */
+    /**
+     * 让实验室设置里的文本控件把上下方向键让给焦点搜索，并让配置源下拉能用遥控切换。
+     *
+     * <p>实测（leanback arm64 debug，1920x1080）：打开「实验室配置源」后焦点落在「配置源」下拉上，
+     * 遥控 DOWN / UP 全都不移动（被 AutoCompleteTextView / 可编辑文本当成光标键吃掉），
+     * 用户到不了文件夹图标、URL、根目录、开关和取消/确定；电视遥控器没有 TAB。
+     *
+     * <p>下拉列表本身在遥控下也不可用：Material 的列表能跟着上下键移动高亮，但确认键只关列表、
+     * 不回调选中项（`getListSelection()` 拿不到高亮项）；反过来由我们自己 `setListSelection()`
+     * 记录选择虽能落选，高亮却不跟随。所以遥控侧不走列表：按确认键直接在选项间切换，
+     * 下拉文本与可见字段同步变化，触摸点选仍走 Material 原本的列表。
+     */
+    private void escapeVerticalKeys(Runnable cycle, EditText... fields) {
+        for (EditText field : fields) {
+            if (field == null) continue;
+            field.setOnKeyListener((view, keyCode, event) -> {
+                if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+                boolean confirm = keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
+                        || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    if (view instanceof AutoCompleteTextView dropdown) dropdown.dismissDropDown();
+                    View next = view.focusSearch(keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? View.FOCUS_DOWN : View.FOCUS_UP);
+                    return next != null && next.requestFocus();
+                }
+                if (!confirm || !(view instanceof AutoCompleteTextView dropdown)) return false;
+                dropdown.dismissDropDown();
+                cycle.run();
+                return true;
+            });
+        }
     }
 
     /**

@@ -142,6 +142,31 @@ public class LabTvFocusSourceTest {
                         .contains("android:state_focused=\"true\""));
     }
 
+    /**
+     * 「实验室配置源」弹窗必须能用遥控器操作。
+     *
+     * <p>实测（leanback arm64 debug，1920x1080）：打开后焦点落在「配置源」下拉上，遥控 DOWN / UP 全都不移动
+     * （被 AutoCompleteTextView / 可编辑文本当光标键吃掉），到不了文件夹图标、URL、根目录、开关和取消/确定；
+     * 下拉展开后 DOWN 能移动高亮，但按 OK 只关闭列表、不回调选中项（点选同一行才生效）。
+     */
+    @Test
+    public void settingsDialogReleasesVerticalKeysAndAppliesTheDropdownPick() throws Exception {
+        String activity = stripComments(read("src/main/java/com/fongmi/android/tv/lab/LabActivity.java"));
+        assertTrue("the settings dialog must install the vertical-key escape",
+                activity.contains("escapeVerticalKeys(cycle, dropdown, input, rootInput, proxyPort, proxyNoProxy);"));
+        String escape = methodBody(activity, "private void escapeVerticalKeys(");
+        assertTrue("vertical keys move focus",
+                escape.contains("view.focusSearch("));
+        assertTrue("the open dropdown list is dismissed before moving focus",
+                escape.contains("dropdown.dismissDropDown();"));
+        assertTrue("the confirm key cycles the dropdown instead of using the unusable popup",
+                escape.contains("cycle.run();"));
+        assertTrue("the cycle advances to the next option",
+                activity.contains("+ 1) % items.length"));
+        assertTrue("touch picking and the remote cycle share one code path",
+                activity.contains("dropdown.setOnItemClickListener((parent, view, position, id) -> pick.accept(position));"));
+    }
+
     /** 分组标签的聚焦态必须由 selector 通过 state_focused 接上（聚焦图形本身是纯 shape）。 */    @Test
     public void groupTabSelectorWiresTheFocusedShape() throws Exception {
         String selector = stripComments(read("src/main/res/drawable/selector_lab_group_tab.xml"));
