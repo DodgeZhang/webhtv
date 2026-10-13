@@ -167,6 +167,29 @@ public class LabTvFocusSourceTest {
                 activity.contains("dropdown.setOnItemClickListener((parent, view, position, id) -> pick.accept(position));"));
     }
 
+    /**
+     * 配置源下拉必须能直接 DOWN 到「选本地配置」的文件夹按钮，且两种配置源模式都要走对。
+     *
+     * <p>实测（leanback arm64 debug，1920x1080）：焦点搜索按加权距离比较，文件夹在右侧、
+     * 根目录在正下方，于是 DOWN 直接从下拉跳到根目录，跳过了用户想点的文件按钮。
+     *
+     * <p>{@code nextFocus*} 会顺着「目标控件自己的连线」继续走、并跳过不可见目标，
+     * 所以把链条写成 下拉 → 文件夹 → URL 输入框 → 根目录：本地配置模式下 URL 输入框是 GONE，
+     * 链条自然落到根目录；网络 URL 模式下文件夹是 GONE，链条落到 URL 输入框。
+     */
+    @Test
+    public void settingsDialogWiresTheDropdownToTheFileButton() throws Exception {
+        String layout = stripComments(read("src/main/res/layout/dialog_lab_settings.xml"));
+        assertTrue("the dropdown must hand focus down to the file button",
+                layout.contains("android:nextFocusDown=\"@+id/folder\""));
+        assertTrue("the file button must lead back up to the dropdown",
+                layout.contains("android:nextFocusUp=\"@+id/sourceDropdown\""));
+        assertTrue("the file button must chain through the URL field",
+                layout.contains("android:nextFocusDown=\"@+id/input\""));
+        assertTrue("the URL field must chain down to the root input",
+                layout.contains("android:nextFocusDown=\"@+id/rootInput\""));
+    }
+
     /** 分组标签的聚焦态必须由 selector 通过 state_focused 接上（聚焦图形本身是纯 shape）。 */    @Test
     public void groupTabSelectorWiresTheFocusedShape() throws Exception {
         String selector = stripComments(read("src/main/res/drawable/selector_lab_group_tab.xml"));

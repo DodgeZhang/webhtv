@@ -5,7 +5,7 @@
 - 目标：电视版（leanback）实验室页面必须能用遥控器操作焦点——命令列表焦点不被 2 秒定时刷新抢走，且实验室自绘的可聚焦控件在聚焦时有可见高亮。
 - 允许路径：`app/src/main/java/com/fongmi/android/tv/lab/LabDetailActivity.java`、`app/src/main/java/com/fongmi/android/tv/lab/LabCommandAdapter.java`、`app/src/main/res/drawable/shape_lab_card.xml`、`shape_lab_run_btn.xml`、`shape_lab_stop_btn.xml`、`shape_lab_click_btn.xml`、`selector_lab_group_tab.xml`、`shape_lab_group_tab_focused.xml`（新增）、`selector_lab_icon_btn.xml`（新增）、`app/src/main/res/layout/activity_lab_detail.xml`、`app/src/test/java/com/fongmi/android/tv/lab/LabTvFocusSourceTest.java`（新增）、`docs/LAB-TV-REMOTE-FOCUS-20261013.md`（本文）。
 - 验收标准：进入 实验室 → 任意包详情 → 命令列表，用遥控方向键把焦点移到命令行的「运行」按钮后静置 ≥ 5 秒，焦点仍在命令行/运行按钮上（修复前 ≤ 2 秒即跳回工具栏）；命令行、运行/停止按钮、分组标签、详情页三个图标按钮在聚焦时画面出现可见变化（像素级 A/B 非零差异）。
-- 当前状态：**已实施、已验证、已交付**（会话 1：列表差异刷新 + 聚焦视觉 + 图标焦点连线；会话 2：命令弹窗初始焦点锚点；会话 3：导入包弹窗遥控可达；会话 4：配置源弹窗遥控可达与切换）。
+- 当前状态：**已实施、已验证、已交付**（会话 1：列表差异刷新 + 聚焦视觉 + 图标焦点连线；会话 2：命令弹窗初始焦点锚点；会话 3：导入包弹窗遥控可达；会话 4：配置源弹窗遥控可达与切换；会话 5：配置源 → 文件夹按钮焦点连线）。
 - 下一步唯一动作：无，见 §6（含残余未知记录）。
 
 ## 1. 现象与证据（2026-10-13，leanback arm64 debug，设备 `192.168.50.3:5561`）
@@ -85,6 +85,17 @@ TextView）、`取消`、`导入`；初始焦点在粘贴框，遥控 **DOWN / U
 
 因此遥控侧不再走列表：确认键直接在选项间切换，下拉文本与可见字段同步变化（触摸点选仍走 Material 列表）。
 
+### 1.7 根因 G：配置源 DOWN 到不了「选本地配置」按钮
+
+修复 §1.6 后复测（`127.0.0.1:5559`，1920x1080）：从「配置源」按 DOWN 直接落到「根目录」，**跳过了右侧的文件夹按钮**
+（用户要点的「选本地配置」）。这是焦点搜索的加权距离结果：文件夹在右、根目录在正下方，
+`13×主轴² + 次轴²` 让正下方的整宽控件更「近」。
+
+修复时踩到 `nextFocus*` 的一个规则：**目标控件不可见时会跳过它、并顺着「目标控件自己的连线」继续走**。
+第一版把链条写成 下拉 → 文件夹 → 根目录，结果 URL 模式下文件夹是 GONE，链条直接穿过 URL 输入框落到根目录，
+把 URL 输入框跳过了（实测 `visible=[url]` 时 DOWN 直接到 `rootInput`）。最终链条写成
+**下拉 → 文件夹 → URL 输入框 → 根目录**：本地模式 URL 输入框 GONE，链条落到根目录；URL 模式文件夹 GONE，链条落到 URL 输入框。
+
 ## 2. 决策
 
 | 方案 | 结论 |
@@ -116,7 +127,8 @@ TextView）、`取消`、`导入`；初始焦点在粘贴框，遥控 **DOWN / U
 | `app/src/main/java/com/fongmi/android/tv/lab/LabActivity.java` | `showImportDialog()`：粘贴框改用 `LabPasteEditText`（只把 `DPAD_UP`/`DPAD_DOWN` 放行给焦点搜索，左右键与输入行为不变）；「选择离线包文件」显式 `setFocusable(true)` 并挂 `selector_lab_link` 背景；`setOnShowListener` 里把初始焦点锚到该链接（见 §1.5） |
 | `app/src/main/res/drawable/selector_lab_link.xml` | 新增：弹窗文字链接的聚焦/按下/默认三态背景（聚焦 = `@color/black_40` + 2dp `@color/accent`） |
 | `app/src/main/java/com/fongmi/android/tv/lab/LabActivity.java`（续） | `showSettings()`：新增 `escapeVerticalKeys(cycle, ...)`，接管配置源下拉与 URL / 根目录 / 代理端口 / 免代理四个输入框的 `DPAD_UP` / `DPAD_DOWN`（展开的列表先 `dismissDropDown()` 再移动焦点）；配置源下拉在遥控确认键上直接 `cycle` 到下一个选项（文本与可见字段同步），触摸点选仍走 `setOnItemClickListener` 的 `pick`（见 §1.6） |
-| `app/src/test/java/com/fongmi/android/tv/lab/LabTvFocusSourceTest.java` | 新增 10 条源码/资源形态契约测试（见 §4.2） |
+| `app/src/main/res/layout/dialog_lab_settings.xml` | 配置源弹窗焦点连线：`sourceDropdown` → `nextFocusDown=folder`，`folder` → `nextFocusUp=sourceDropdown` + `nextFocusDown=input`，`input` → `nextFocusUp=sourceDropdown` + `nextFocusDown=rootInput`（利用「跳过不可见目标并顺链继续」的规则同时满足两种配置源模式，见 §1.7） |
+| `app/src/test/java/com/fongmi/android/tv/lab/LabTvFocusSourceTest.java` | 新增 11 条源码/资源形态契约测试（见 §4.2） |
 
 ## 4. 验证
 
@@ -141,12 +153,14 @@ TextView）、`取消`、`导入`；初始焦点在粘贴框，遥控 **DOWN / U
 | 「导入包」弹窗控件可达性 | 粘贴框锁死，链接只有文字颜色 | 链接 → DOWN 取消/导入；链接 → UP 粘贴框；粘贴框 → DOWN 链接：全 D-pad 可达且无死锁 |
 | 「实验室配置源」弹窗焦点 | 焦点锁在「配置源」下拉，DOWN / UP 全不动，到不了任何其它控件 | 下拉 → DOWN `rootInput` → 取消 → 各开关；UP 反向到文件夹图标 → 下拉；URL 模式下 下拉 → DOWN URL 输入框 → 根目录 → 取消 |
 | 「实验室配置源」切换配置源 | 遥控无法切换（OK 只关列表） | 聚焦下拉按 OK：`本地配置` ↔ `网络 URL` 循环（`visible=[folder]` ↔ `visible=[url]` 实测），文本与可见字段同步 |
+| 「实验室配置源」焦点顺序（本地配置） | 配置源 → DOWN 跳过文件夹按钮直达根目录 | 配置源 → DOWN 文件夹 → DOWN 根目录 → DOWN 取消 → DOWN 各开关；UP 反向 开关 → 文件夹 → 配置源 |
+| 「实验室配置源」焦点顺序（网络 URL） | — | 配置源 → DOWN URL 输入框 → DOWN 根目录 → DOWN 取消；UP 反向 根目录 → URL 输入框 → 配置源 |
 
 弹窗路径实测：命令行「运行」按 OK → 弹窗打开 → 初始焦点 = `sheetBtnEdit`，同时弹出「请先安装 php」提示（未安装包不启动，符合预期；安装后 `sheetBtnRun` 变为 enabled，锚点即落在「运行」上）。
 
 ### 4.2 静态与单测
 
-- `.\gradlew.bat :app:testLeanbackArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.lab.*" :app:assembleLeanbackArm64_v8aDebug` → **BUILD SUCCESSFUL**；lab 包 **29 个用例 0 失败**（新增 `LabTvFocusSourceTest` 10 条，含「周期刷新不得整表重建」「差异刷新只做局部通知」「可聚焦控件必须有聚焦态」「图标按钮必须声明焦点邻居」「弹窗初始焦点必须锚在按钮上且轮询不得抢回」「导入包弹窗粘贴框必须放行上下键、链接必须可聚焦并有聚焦态且锚住初始焦点」「配置源弹窗必须放行上下键并让确认键切换选项」）。
+- `.\gradlew.bat :app:testLeanbackArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.lab.*" :app:assembleLeanbackArm64_v8aDebug` → **BUILD SUCCESSFUL**；lab 包 **30 个用例 0 失败**（新增 `LabTvFocusSourceTest` 11 条，含「周期刷新不得整表重建」「差异刷新只做局部通知」「可聚焦控件必须有聚焦态」「图标按钮必须声明焦点邻居」「弹窗初始焦点必须锚在按钮上且轮询不得抢回」「导入包弹窗粘贴框必须放行上下键、链接必须可聚焦并有聚焦态且锚住初始焦点」「配置源弹窗必须放行上下键并让确认键切换选项」「配置源必须能 DOWN 到文件夹按钮且两种模式都走对」）。
 
 ### 4.3 回滚
 
