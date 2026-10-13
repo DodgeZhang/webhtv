@@ -166,6 +166,26 @@ public class TvStateSurfaceContractTest {
         }
     }
 
+    /**
+     * 电视端历史页的空态三件套。
+     *
+     * <p>TV-4 当时只接了收藏页，历史页一直显示布局里的默认单行文案（真机截图里就是
+     * 「这里什麽都没有 👀」）。本批补齐——它复用手机端批次已加的三语字符串，因此不需要新文案。
+     */
+    @Test
+    public void historyScreenWiresARealEmptyStateWithAnAction() throws Exception {
+        String source = read("app/src/leanback/java/com/fongmi/android/tv/ui/activity/HistoryActivity.java");
+        assertTrue("历史页必须接入空态内容", source.contains("setEmptyContent("));
+        for (String string : new String[]{
+                "history_empty_title", "history_empty_description", "history_empty_action"}) {
+            assertTrue("历史页必须引用 " + string, source.contains(string));
+            assertTrue("默认字符串表必须声明 " + string, read(STRINGS).contains("name=\"" + string + "\""));
+            assertTrue("简中字符串表必须声明 " + string, read(STRINGS_CN).contains("name=\"" + string + "\""));
+        }
+        assertTrue("主按钮必须有真实动作（不能是死按钮）", source.contains("view -> goHome()"));
+        assertTrue("goHome 必须真的回首页", source.contains("HomeActivity.class"));
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /** 取某个 {@code @+id/xxx} 控件自身的属性文本。 */

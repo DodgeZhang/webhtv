@@ -43,10 +43,32 @@ public class HistoryActivity extends BaseActivity implements HistoryAdapter.OnCl
 
    @Override
    protected void initView(Bundle savedInstanceState) {
+       setEmptyContent();
        setRecyclerView();
        getHistory();
         mBinding.deleteButton.setOnClickListener(v -> onDelete());
        mBinding.reportButton.setOnClickListener(v -> onReport());
+   }
+
+   /**
+    * 空态内容：设计文档 §9.9 要求「标题 + 解释 + 一个主动作」。
+    *
+    * <p>改动前这一页只显示布局里的默认单行文案 {@code @string/error_empty}
+    * （「这里什麽都没有 👀」），既不解释为什么空，也不给出下一步——与电视端收藏页
+    * 此前的问题相同，只是当时只接了收藏页。
+    */
+   private void setEmptyContent() {
+       mBinding.progressLayout.setEmptyContent(
+               R.string.history_empty_title,
+               R.string.history_empty_description,
+               R.string.history_empty_action,
+               view -> goHome());
+   }
+
+   /** 空态主按钮：回点播首页去挑一部。与收藏页/播放页的回首页写法一致。 */
+   private void goHome() {
+       startActivity(new Intent(this, HomeActivity.class).addFlags(
+               Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
    }
 
    private void onReport() {
