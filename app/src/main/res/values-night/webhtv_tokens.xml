@@ -121,4 +121,7 @@
     <!-- 壁纸上的错误前景色，与日间表同值：壁纸在两种模式下都是深色，不随模式切换。
          取值依据与实测对比度见 values/webhtv_tokens.xml 的同名条目。 -->
     <color name="webhtv_color_on_wallpaper_error">#FFDAD6</color>
+    <!-- 错误取值文字的实心深色底，与日间表同值：它是实心色，不跟随调色板。
+         核算过程见 values/webhtv_tokens.xml 的同名条目。 -->
+    <color name="webhtv_color_error_value_bg">#4A3438</color>
 </resources>

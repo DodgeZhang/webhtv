@@ -176,7 +176,9 @@ public class ThemeContractTest {
         // 角色契约，只是同一命名族里的固定语义色，与 webhtv_on_wallpaper 同类。
         // 54 → 55：新增 webhtv_color_on_wallpaper_error（壁纸上的错误前景色，
         // 见 docs/TV-ERROR-STATE-20261012.md），同理不属于角色契约。
-        assertEquals(55, colors.size());
+        // 55 → 56：新增 webhtv_color_error_value_bg（错误取值文字的实心深色底，
+        // 让错误正文稳过 4.5:1，见 docs/TV-ERROR-STATE-CLOSEOUT-20261013.md）。
+        assertEquals(56, colors.size());
         for (RecordComponent component : ThemeTokens.class.getRecordComponents()) {
             if (!component.getType().equals(int.class)) continue;
             String name = component.getName();

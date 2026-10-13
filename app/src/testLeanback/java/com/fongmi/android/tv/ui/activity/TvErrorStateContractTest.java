@@ -38,6 +38,8 @@ public class TvErrorStateContractTest {
             "app/src/leanback/java/com/fongmi/android/tv/ui/activity/SettingEnhanceActivity.java";
     private static final String AD =
             "app/src/leanback/java/com/fongmi/android/tv/ui/activity/SettingAdActivity.java";
+    private static final String KEEP =
+            "app/src/leanback/java/com/fongmi/android/tv/ui/activity/KeepActivity.java";
 
     /** 实机实测的最不利底材亮度（sRGB 相对亮度）。 */
     private static final double MEASURED_WALLPAPER_WORST = 0.2019;
@@ -45,6 +47,9 @@ public class TvErrorStateContractTest {
 
     private static final String ERROR_ROLE = "webhtv_color_on_wallpaper_error";
     private static final int ERROR_VALUE = 0xFFDAD6;
+    /** 错误取值的实心深色底（TV-6 底材改造）。 */
+    private static final String ERROR_BG_ROLE = "webhtv_color_error_value_bg";
+    private static final int ERROR_BG_VALUE = 0x4A3438;
 
     // ------------------------------------------------------------------ 角色本身
 
@@ -145,12 +150,33 @@ public class TvErrorStateContractTest {
     /**
      * 设置页的内联错误必须与正常取值**可区分**，且失败过的行在后续刷新成功时能复位。
      */
+    /**
+     * 底材改造（TV-6）：错误取值换上一块**实心深底**后，正文必须稳过 4.5:1。
+     *
+     * <p>这是 TV-5 记录的那个缺口的收口方式——缺口在壁纸/色带这种中亮度底材上无法靠调色
+     * 解决（要达标就得接近纯白，错误色随之失去语义），只能改底材。
+     */
+    @Test
+    public void errorValueSubstrateGivesTheBodyTextARealMargin() throws Exception {
+        for (String table : new String[]{TOKENS, TOKENS_NIGHT}) {
+            Matcher matcher = Pattern.compile("<color name=\"" + ERROR_BG_ROLE + "\">#([0-9A-Fa-f]{6})</color>")
+                    .matcher(read(table));
+            assertTrue(table + " 必须声明 " + ERROR_BG_ROLE, matcher.find());
+            assertEquals("错误底材必须与明暗无关（它是实心色，不跟随调色板）",
+                    ERROR_BG_VALUE, Integer.parseInt(matcher.group(1), 16));
+        }
+        double onChip = contrast(luminance(ERROR_VALUE), luminance(ERROR_BG_VALUE));
+        assertTrue("错误正文在实心底上必须稳过正文门槛 4.5:1，实测 " + round(onChip), onChip >= 4.5);
+    }
+
     @Test
     public void settingsInlineErrorsUseTheErrorRoleAndRecoverOnSuccess() throws Exception {
         for (String path : new String[]{ENHANCE, AD}) {
             String source = read(path);
             assertTrue(path + " 的 setError 必须使用错误角色",
                     source.contains("R.attr.webhtvColorOnWallpaperError"));
+            assertTrue(path + " 的 setError 必须换上错误底材",
+                    source.contains("setBackgroundResource(R.drawable.shape_error_value)"));
             assertTrue(path + " 必须把成功路径复位到常规壁纸前景色",
                     source.contains("R.attr.webhtvColorOnWallpaper)"));
             // 复位必须发生在写入摘要的同一条路径上，否则某行失败一次后会一直是红的。
@@ -160,10 +186,68 @@ public class TvErrorStateContractTest {
             String impl = source.substring(reset, source.indexOf("}", reset));
             assertTrue(path + " 的 setSummary 必须复位颜色",
                     impl.contains("setTextColor(themeColor(R.attr.webhtvColorOnWallpaper))"));
+            assertTrue(path + " 的 setSummary 必须撤掉错误底材（错误态是临时的）",
+                    impl.contains("setBackground(null)"));
+        }
+    }
+
+    /**
+     * 收藏页点击条目时的配置加载失败必须进入错误态并可重试。
+     *
+     * <p>TV-5 的文档 §7.3 原本把"其余宿主"泛泛列成历史/收藏/文件三处；本批实际侦察后发现
+     * **历史与文件的加载没有失败分支**（本地读取不会抛错），搜索/采集也只有提示性吐司——
+     * 唯一真实的页面级远端失败是收藏页的 `loadConfig`。所以这里只钉这一处，
+     * 不为了凑数量去臆造错误态。
+     */
+    @Test
+    public void favoritesConfigLoadFailureEntersTheErrorStateWithARetry() throws Exception {
+        String source = read(KEEP);
+        int handler = source.indexOf("public void error(String msg)");
+        assertTrue("收藏页必须有配置加载失败回调", handler > 0);
+        String body = withoutJavaComments(source.substring(handler, source.indexOf("});", handler)));
+        assertTrue("失败必须进入错误态", body.contains("showError("));
+        assertTrue("错误态标题必须是 error_config_load", body.contains("R.string.error_config_load"));
+        assertTrue("必须有重试按钮文案", body.contains("R.string.error_retry"));
+        assertTrue("重试必须复用同一条加载路径", body.contains("loadConfig(config, item);"));
+        assertTrue("应保留原有的吐司提示", body.contains("Notify.show(msg);"));
+    }
+
+    /**
+     * `setSummary` 会用 `setBackground(null)` 撤掉错误底材——前提是这些取值 TextView
+     * **原本就没有背景**。一旦有人给其中任何一个加上背景，复位就会把它一并抹掉。
+     * 这里把前提钉住，让那种改动在这里先失败，而不是变成"设置页某个取值突然没底了"。
+     */
+    @Test
+    public void summaryTextViewsHaveNoBackgroundSoClearingTheErrorSubstrateIsSafe() throws Exception {
+        for (String layout : new String[]{
+                "app/src/leanback/res/layout/activity_setting_enhance.xml",
+                "app/src/leanback/res/layout/activity_setting_ad.xml"}) {
+            String source = read(layout);
+            Matcher ids = Pattern.compile("@\\+id/(\\w*[Tt]ext\\w*)\"").matcher(source);
+            int checked = 0;
+            while (ids.find()) {
+                String id = ids.group(1);
+                String block = tagBlockAfter(source, ids.end());
+                assertFalse(layout + " 的 " + id
+                                + " 在布局里带了背景：setSummary 的 setBackground(null) 会把它抹掉",
+                        block.contains("android:background="));
+                checked++;
+            }
+            assertTrue(layout + " 应至少含一个取值 TextView", checked > 0);
         }
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** 取某个 id 匹配位置之后、当前标签结束（{@code />} 或 {@code >}）之前的属性文本。 */
+    private static String tagBlockAfter(String source, int from) {
+        int end = source.length();
+        int selfClosing = source.indexOf("/>", from);
+        if (selfClosing >= 0) end = Math.min(end, selfClosing);
+        int closing = source.indexOf(">", from);
+        if (closing >= 0) end = Math.min(end, closing);
+        return source.substring(from, end);
+    }
 
     private static int tokenValue(String path) throws Exception {
         Matcher matcher = Pattern.compile("<color name=\"" + ERROR_ROLE + "\">#([0-9A-Fa-f]{6})</color>")

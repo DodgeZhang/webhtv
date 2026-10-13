@@ -86,6 +86,18 @@ public class KeepActivity extends BaseActivity implements KeepAdapter.OnClickLis
             @Override
             public void error(String msg) {
                 Notify.show(msg);
+                // 设计文档 §9.9：错误态要给出「错误色 + 原因 + 重试动作」。
+                // 改动前这里只弹一个会消失的吐司，页面没有任何变化——用户既不知道原因会
+                // 停留多久，也没有重试入口（只能再点一次卡片，但卡片看起来毫无反应）。
+                // 重试直接复用同一条加载路径，所以重试成功与首次成功的行为完全一致。
+                mBinding.progressLayout.showError(
+                        R.string.error_config_load,
+                        msg,
+                        R.string.error_retry,
+                        view -> {
+                            mBinding.progressLayout.showProgress();
+                            loadConfig(config, item);
+                        });
             }
         });
     }

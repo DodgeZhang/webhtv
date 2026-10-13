@@ -208,6 +208,8 @@ public class SettingEnhanceActivity extends BaseActivity {
         if (view == null) return;
         view.setText(text);
         view.setTextColor(themeColor(R.attr.webhtvColorOnWallpaper));
+        // 撤掉错误底材：错误态是"临时"的，刷新成功必须完全回到原样（这些 TextView 原本没有背景）。
+        view.setBackground(null);
     }
 
     /**
@@ -217,6 +219,10 @@ public class SettingEnhanceActivity extends BaseActivity {
      * （{@code #B3261E}）压在深色壁纸行色带上实测只有 1.06:1，完全不可读。这里用与壁纸
      * 同族的 {@code ?attr/webhtvColorOnWallpaperError}（同一底材实测 4.05–4.50:1）。
      *
+     * <p>底材：错误色直接画在行色带上只有 4.05–4.50:1，略低于正文门槛 4.5:1，而继续调色无解
+     * （要达标就得接近纯白，错误色随之失去语义）。因此这里同时换上一块**实心深底**
+     * （{@code @drawable/shape_error_value}），核算为 8.84:1，稳过门槛。
+     *
      * <p>如实记录：该取值在行色带最亮处是 4.05:1，**略低于正文门槛 4.5:1**。这是底材
      * （中亮度壁纸）决定的取舍，理由与替代方案见 {@code values/webhtv_tokens.xml} 的同名条目
      * 与 docs/TV-ERROR-STATE-20261012.md §7。
@@ -225,6 +231,7 @@ public class SettingEnhanceActivity extends BaseActivity {
         if (view == null) return;
         view.setText(R.string.error_config_get);
         view.setTextColor(themeColor(R.attr.webhtvColorOnWallpaperError));
+        view.setBackgroundResource(R.drawable.shape_error_value);
     }
 
     /** 解析主题属性里的颜色值；未赋值时返回 0（透明）。 */
