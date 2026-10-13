@@ -1672,6 +1672,10 @@
     <string name="error_config_get">配置取得失败</string>
     <!-- 内容源加载失败时的错误态：设计文档 §9.9 要求「错误色 + 原因 + 重试动作」。 -->
     <string name="error_config_load">内容源加载失败</string>
+    <!-- 首页空态（确实没有内容，与"加载失败"是两件事）：设计文档 §9.9 的三件套。 -->
+    <string name="home_empty_title">暂时没有内容</string>
+    <string name="home_empty_description">内容源没有返回可显示的内容。</string>
+    <string name="home_empty_action">重新加载</string>
     <string name="error_retry">重试</string>
     <string name="error_play_next">已经是最后一集了！</string>
     <string name="error_play_prev">已经是第一集了！</string>

@@ -1717,6 +1717,10 @@
     <string name="error_config_get">Configuration get failed</string>
     <!-- 内容源加载失败时的错误态：设计文档 §9.9 要求「错误色 + 原因 + 重试动作」。 -->
     <string name="error_config_load">Could not load content source</string>
+    <!-- 首页空态（确实没有内容，与"加载失败"是两件事）：设计文档 §9.9 的三件套。 -->
+    <string name="home_empty_title">Nothing to show</string>
+    <string name="home_empty_description">The content source returned no items.</string>
+    <string name="home_empty_action">Reload</string>
     <string name="error_retry">Retry</string>
     <string name="error_play_next">It\'s the last episode!</string>
     <string name="error_play_prev">It\'s the first episode!</string>
