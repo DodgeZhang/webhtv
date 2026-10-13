@@ -7,7 +7,8 @@
 - 保护面：任务开始时工作树仅 `.design-evidence/` 未跟踪（预存脏路径 0 个）；分支 `dev4`，HEAD `585b0bcb256`。
 - 验收：① 6 处弹窗改走 `WebHtvAlertDialogBuilder`；② `ThemeBinderContractTest` 的正则覆盖全限定写法且仍全绿；③ `TvFocusRingContractTest` 的扫描覆盖 `main` 里的电视焦点环，并把 4 个未收敛文件**显式**列为已知项（名单是活的：修好即失败提醒移除）；④ 两端测试全绿。
 - 回滚：撤销本任务原子提交即可；无数据迁移。
-- 下一步唯一动作：无（本批已交付）。**后续批次**见 §5.1（那 4 个文件的宽度/圆角收敛需重做像素级月牙复核）。
+- 交付坐标：提交 `f6eede67dc1`（dev4），recovery tag `recovery/TV-FOCUS-RING-MAIN-SOURCE-20261013/20261013150501`；未推送。
+- 下一步唯一动作：无（本批已交付）。**建议的下一批**：`selector_mpv_tab_focus.xml` 的硬编码调色板（见 §5.2，它比那 4 个焦点环更严重——整块写死颜色，深色主题下是亮蓝孤岛）。
 
 ## 1. 盲区一：`ThemeBinderContractTest` 漏掉全限定写法
 
