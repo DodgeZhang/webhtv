@@ -190,6 +190,22 @@ public class LabTvFocusSourceTest {
                 layout.contains("android:nextFocusDown=\"@+id/rootInput\""));
     }
 
+    /**
+     * 配置源弹窗的取消/确定必须能 UP 回「根目录」。
+     *
+     * <p>实测（leanback arm64 debug，1920x1080）：两个按钮在 ScrollView 之外，焦点搜索按绝对坐标比较，
+     * 内容滚到底时按 UP 会落到「不走代理的域名」（此刻正好在按钮上方），而不是视觉上方的「根目录」。
+     */
+    @Test
+    public void settingsDialogButtonsLeadBackToTheRootInput() throws Exception {
+        String activity = stripComments(read("src/main/java/com/fongmi/android/tv/lab/LabActivity.java"));
+        assertTrue("both dialog buttons must be pinned to the root input",
+                activity.contains("wireButtonFocus(settingsDialog.getButton(AlertDialog.BUTTON_NEGATIVE), rootInput);")
+                        && activity.contains("wireButtonFocus(settingsDialog.getButton(AlertDialog.BUTTON_POSITIVE), rootInput);"));
+        assertTrue("the pin uses the target's own id",
+                activity.contains("button.setNextFocusUpId(target.getId());"));
+    }
+
     /** 分组标签的聚焦态必须由 selector 通过 state_focused 接上（聚焦图形本身是纯 shape）。 */    @Test
     public void groupTabSelectorWiresTheFocusedShape() throws Exception {
         String selector = stripComments(read("src/main/res/drawable/selector_lab_group_tab.xml"));

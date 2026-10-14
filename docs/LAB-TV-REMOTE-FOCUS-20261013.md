@@ -96,6 +96,13 @@ TextView）、`取消`、`导入`；初始焦点在粘贴框，遥控 **DOWN / U
 把 URL 输入框跳过了（实测 `visible=[url]` 时 DOWN 直接到 `rootInput`）。最终链条写成
 **下拉 → 文件夹 → URL 输入框 → 根目录**：本地模式 URL 输入框 GONE，链条落到根目录；URL 模式文件夹 GONE，链条落到 URL 输入框。
 
+### 1.8 根因 H：取消/确定按 UP 回不到「根目录」
+
+修复 §1.7 后复测（`127.0.0.1:5559`，1920x1080）：两个按钮在 `ScrollView` **之外**（`buttonPanel` 在 `[405,808][1515,920]`，
+`ScrollView` 在 `[405,250][1515,808]`），而焦点搜索按**绝对坐标**比较、不知道内容当前滚到哪。
+内容滚到底时按 UP，框架把焦点交给此刻正好在按钮上方的「不走代理的域名」（实测 `proxyNoProxy [453,704][1467,808]`），
+而不是用户视觉上方的「根目录」——用户按 UP 看到的是滚回内容区中部，找不到根目录输入框。
+
 ## 2. 决策
 
 | 方案 | 结论 |
@@ -128,7 +135,8 @@ TextView）、`取消`、`导入`；初始焦点在粘贴框，遥控 **DOWN / U
 | `app/src/main/res/drawable/selector_lab_link.xml` | 新增：弹窗文字链接的聚焦/按下/默认三态背景（聚焦 = `@color/black_40` + 2dp `@color/accent`） |
 | `app/src/main/java/com/fongmi/android/tv/lab/LabActivity.java`（续） | `showSettings()`：新增 `escapeVerticalKeys(cycle, ...)`，接管配置源下拉与 URL / 根目录 / 代理端口 / 免代理四个输入框的 `DPAD_UP` / `DPAD_DOWN`（展开的列表先 `dismissDropDown()` 再移动焦点）；配置源下拉在遥控确认键上直接 `cycle` 到下一个选项（文本与可见字段同步），触摸点选仍走 `setOnItemClickListener` 的 `pick`（见 §1.6） |
 | `app/src/main/res/layout/dialog_lab_settings.xml` | 配置源弹窗焦点连线：`sourceDropdown` → `nextFocusDown=folder`，`folder` → `nextFocusUp=sourceDropdown` + `nextFocusDown=input`，`input` → `nextFocusUp=sourceDropdown` + `nextFocusDown=rootInput`（利用「跳过不可见目标并顺链继续」的规则同时满足两种配置源模式，见 §1.7） |
-| `app/src/test/java/com/fongmi/android/tv/lab/LabTvFocusSourceTest.java` | 新增 11 条源码/资源形态契约测试（见 §4.2） |
+| `app/src/main/java/com/fongmi/android/tv/lab/LabActivity.java`（续） | `showSettings()` 的 `setOnShowListener` 里新增 `wireButtonFocus(...)`：把取消/确定的 `nextFocusUpId` 钉到 `rootInput`（两个按钮在 `ScrollView` 外，几何搜索会落到滚动后位于按钮上方的控件，见 §1.8） |
+| `app/src/test/java/com/fongmi/android/tv/lab/LabTvFocusSourceTest.java` | 新增 12 条源码/资源形态契约测试（见 §4.2） |
 
 ## 4. 验证
 
@@ -155,12 +163,13 @@ TextView）、`取消`、`导入`；初始焦点在粘贴框，遥控 **DOWN / U
 | 「实验室配置源」切换配置源 | 遥控无法切换（OK 只关列表） | 聚焦下拉按 OK：`本地配置` ↔ `网络 URL` 循环（`visible=[folder]` ↔ `visible=[url]` 实测），文本与可见字段同步 |
 | 「实验室配置源」焦点顺序（本地配置） | 配置源 → DOWN 跳过文件夹按钮直达根目录 | 配置源 → DOWN 文件夹 → DOWN 根目录 → DOWN 取消 → DOWN 各开关；UP 反向 开关 → 文件夹 → 配置源 |
 | 「实验室配置源」焦点顺序（网络 URL） | — | 配置源 → DOWN URL 输入框 → DOWN 根目录 → DOWN 取消；UP 反向 根目录 → URL 输入框 → 配置源 |
+| 「实验室配置源」取消/确定按 UP | 落到「不走代理的域名」（内容滚到底时位于按钮上方），不是视觉上方的根目录 | 取消 → UP 根目录；确定 → UP 根目录（RIGHT 在取消/确定之间移动仍正常，DOWN 行为未改动） |
 
 弹窗路径实测：命令行「运行」按 OK → 弹窗打开 → 初始焦点 = `sheetBtnEdit`，同时弹出「请先安装 php」提示（未安装包不启动，符合预期；安装后 `sheetBtnRun` 变为 enabled，锚点即落在「运行」上）。
 
 ### 4.2 静态与单测
 
-- `.\gradlew.bat :app:testLeanbackArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.lab.*" :app:assembleLeanbackArm64_v8aDebug` → **BUILD SUCCESSFUL**；lab 包 **30 个用例 0 失败**（新增 `LabTvFocusSourceTest` 11 条，含「周期刷新不得整表重建」「差异刷新只做局部通知」「可聚焦控件必须有聚焦态」「图标按钮必须声明焦点邻居」「弹窗初始焦点必须锚在按钮上且轮询不得抢回」「导入包弹窗粘贴框必须放行上下键、链接必须可聚焦并有聚焦态且锚住初始焦点」「配置源弹窗必须放行上下键并让确认键切换选项」「配置源必须能 DOWN 到文件夹按钮且两种模式都走对」）。
+- `.\gradlew.bat :app:testLeanbackArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.lab.*" :app:assembleLeanbackArm64_v8aDebug` → **BUILD SUCCESSFUL**；lab 包 **31 个用例 0 失败**（新增 `LabTvFocusSourceTest` 12 条，含「周期刷新不得整表重建」「差异刷新只做局部通知」「可聚焦控件必须有聚焦态」「图标按钮必须声明焦点邻居」「弹窗初始焦点必须锚在按钮上且轮询不得抢回」「导入包弹窗粘贴框必须放行上下键、链接必须可聚焦并有聚焦态且锚住初始焦点」「配置源弹窗必须放行上下键并让确认键切换选项」「配置源必须能 DOWN 到文件夹按钮且两种模式都走对」「取消/确定必须能 UP 回根目录」）。
 
 ### 4.3 回滚
 

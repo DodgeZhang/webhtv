@@ -14,6 +14,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -426,7 +427,13 @@ public class LabActivity extends AppCompatActivity implements LabPackageAdapter.
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, null)
                 .create();
-        settingsDialog.setOnShowListener(d -> settingsDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        settingsDialog.setOnShowListener(d -> {
+            // 取消/确定在 ScrollView 之外，而焦点搜索按绝对坐标比较：内容滚到底时按 UP，
+            // 框架会把焦点交给「不走代理的域名」（它此刻正好在按钮上方），而不是用户看到的
+            // 视觉上方那个「根目录」。显式连线到根目录，遥控上下行才符合所见。
+            wireButtonFocus(settingsDialog.getButton(AlertDialog.BUTTON_NEGATIVE), rootInput);
+            wireButtonFocus(settingsDialog.getButton(AlertDialog.BUTTON_POSITIVE), rootInput);
+            settingsDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                     int selected = dropdown.getText() == null ? LabConfig.SOURCE_LOCAL : SOURCE_MODES[Math.max(0, indexOf(items, dropdown.getText().toString()))];
                     LabConfig.get().setSource(selected);
                     if (selected == LabConfig.SOURCE_LOCAL && TextUtils.isEmpty(LabConfig.get().getLocalPath())) {
@@ -461,8 +468,15 @@ public class LabActivity extends AppCompatActivity implements LabPackageAdapter.
                     settingsDialog.dismiss();
                     LabProcManager.updateService();
                     reload();
-                }));
+                });
+        });
         settingsDialog.show();
+    }
+
+    /** 把弹窗按钮的上行焦点钉在指定控件上（按钮在 ScrollView 外，几何搜索会落到滚动后的控件）。 */
+    private void wireButtonFocus(Button button, View target) {
+        if (button == null || target == null) return;
+        button.setNextFocusUpId(target.getId());
     }
 
     private void openLocalPicker() {
