@@ -119,6 +119,23 @@
 
 **验证**：新增契约测试 `siteCardsDeclareHorizontalPaddingOnTheViewNotOnlyOnTheBackground`（锁住两个卡片布局必须显式声明水平 padding），`SiteDialogLayoutTest` 4/4 通过。1080p 实机 `uiautomator` 实测：健康点左边缘 `x=245`、卡片左边界 `x=213`，**间距 32px ≈ 16dp**（14dp padding + 1dp 描边），不再压边框；`logcat` 无 `FATAL EXCEPTION`。
 
+## 9. 后续修复：面板占比偏小 + 分组标签行被裁（2026-10-14 第三轮）
+
+用户复核反馈：「比例不太合理吧按钮显示不全不太好看，而且在电视上占比感觉又调小，是否可以参考其他的弹出框比例比如：90%？上下左右各10%？」
+
+**根因**（两个独立问题）：
+
+1. **占比偏小**：`PANEL_MAX_WIDTH_DP = 1180` 这个 dp 宽度上限是元凶。真机电视常见 density 1.0，1920px 屏即 1920dp 宽，`0.82 × 1920 = 1574dp` 会被硬压到 1180dp——**只剩 61% 屏宽**，比设定的 82% 还小得多。density 越低，压缩越明显，这正是「在电视上占比又调小」的原因。
+2. **标签行被裁**：面板变窄后，14 个分组标签（每个 `marginEnd 12dp` + 左右 `padding 16dp`）总宽超出内容区约 80px，末尾标签被面板右缘硬裁掉半个。
+
+**修复**：
+
+- 宽度与高度比例统一改为 `0.9f`，对齐仓库既有大弹窗惯例 `CacheManagementDialog.SCREEN_FRACTION = 0.9f`（该弹窗用纯比例、无 dp 上限）。**删除 `PANEL_MAX_WIDTH_DP`**，只保留 `PANEL_MIN_WIDTH_DP = 480` 作极窄屏兜底。
+- 分组标签间距 `12dp → 10dp`、内边距 `16dp → 14dp`，让 15 个标签在 90% 宽度下完整放下；超出时仍由 `groupScroll` 横向滚动兜底。
+- 同步修正 `dialog_site.xml` 里过时的「屏宽 86%、上限 1180dp」注释。
+
+**验证**：`SiteDialogLayoutTest` 4/4 通过（断言更新为「必须用 0.9 比例」且「不得再有 dp 宽度上限」）。1080p 实机 `uiautomator` 实测：面板内容区 `x=136..1784`（**1648px = 屏宽 86%**，含面板 padding 后整体 90%），一屏显示 **15 个站点**（此前 9 个）；15 个分组标签宽度均匀（84–112px），末尾「APP」右缘 `x=1784` 与内容区右边界一致，**不再被裁**；`logcat` 无 `FATAL EXCEPTION`。
+
 ## 7. 当前状态与下一步
 
 - 状态：实现、静态验证与 1080p 实机验证均已完成；实机发现的崩溃已修复并复测通过。

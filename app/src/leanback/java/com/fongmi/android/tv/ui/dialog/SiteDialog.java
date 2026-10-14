@@ -57,18 +57,18 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
     /** 网格行间距，必须与 SpaceItemDecoration(GRID_COUNT, 16) 的 16 一致。 */
     private static final int ROW_SPACING_DP = 16;
     /**
-     * 面板宽度占屏宽的比例。用比例而不是 dp 边距：电视常见 density 2.0，
-     * 24dp 边距在 1080p 上只有 2.5% 屏宽，面板仍会占满横向。
+     * 面板占屏宽的比例，对齐仓库既有大弹窗惯例（CacheManagementDialog.SCREEN_FRACTION = 0.9f）。
+     * 这里刻意不再叠加 dp 上限：真机电视常见 density 1.0，1920px 屏即 1920dp，旧上限 1180dp
+     * 会把面板压到只剩 61% 屏宽，分组标签行放不下、末尾标签被硬裁。
      */
-    private static final float PANEL_WIDTH_RATIO = 0.82f;
-    /** 面板宽度上限，避免 4K 电视上单行拉到 3000px 以上。 */
-    private static final int PANEL_MAX_WIDTH_DP = 1180;
+    private static final float PANEL_WIDTH_RATIO = 0.9f;
+    /** 极窄屏兜底宽度，避免面板窄到无法阅读。 */
     private static final int PANEL_MIN_WIDTH_DP = 480;
     /**
-     * 面板高度占可用高度的上限。只按整数行收敛的话，站点一多面板仍会长到接近满屏，
-     * 又变回「铺满」；这个上限保证面板始终是一个浮层，其余站点交给滚动。
+     * 面板高度占可用高度的上限。同样对齐 0.9 惯例，让一屏能多显示几行站点；
+     * 网格高度仍按整数行收敛，不会把末行裁半截。
      */
-    private static final float PANEL_MAX_HEIGHT_RATIO = 0.74f;
+    private static final float PANEL_MAX_HEIGHT_RATIO = 0.9f;
 
     private static String selectedGroup = "";
 
@@ -520,9 +520,8 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
 
     private int panelWidth() {
         int screen = ResUtil.getScreenWidth(getDialogActivity());
-        int max = ResUtil.dp2px(PANEL_MAX_WIDTH_DP);
         int min = Math.min(ResUtil.dp2px(PANEL_MIN_WIDTH_DP), screen);
-        return Math.max(min, Math.min(Math.round(screen * PANEL_WIDTH_RATIO), max));
+        return Math.max(min, Math.round(screen * PANEL_WIDTH_RATIO));
     }
 
     private void runAfterFirstPreDraw(String label, Runnable action) {
@@ -600,14 +599,16 @@ public class SiteDialog extends BaseAlertDialog implements SiteAdapter.OnClickLi
     private androidx.appcompat.widget.AppCompatTextView getGroupView(String group, String text) {
         androidx.appcompat.widget.AppCompatTextView button = new androidx.appcompat.widget.AppCompatTextView(getDialogActivity());
         LinearLayoutCompat.LayoutParams params = new LinearLayoutCompat.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.setMarginEnd(ResUtil.dp2px(12));
+        // 间距与内边距收紧到 10dp/14dp：面板 90% 宽时 14 个标签刚好放得下，
+        // 不再让末尾标签被面板右缘裁掉半个（超出时仍由 groupScroll 横向滚动兜底）。
+        params.setMarginEnd(ResUtil.dp2px(10));
         button.setLayoutParams(params);
         button.setTag(group);
         button.setText(text);
         button.setSingleLine(true);
         button.setAllCaps(false);
         button.setGravity(android.view.Gravity.CENTER);
-        button.setPadding(ResUtil.dp2px(16), ResUtil.dp2px(8), ResUtil.dp2px(16), ResUtil.dp2px(8));
+        button.setPadding(ResUtil.dp2px(14), ResUtil.dp2px(8), ResUtil.dp2px(14), ResUtil.dp2px(8));
         SiteDialogTheme.applyGroup(button);
         button.setFocusable(true);
         button.setClickable(true);

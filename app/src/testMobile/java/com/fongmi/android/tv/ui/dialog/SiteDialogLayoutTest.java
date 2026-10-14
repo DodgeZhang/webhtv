@@ -35,7 +35,9 @@ public class SiteDialogLayoutTest {
 
         assertTrue("panel width must be a fraction of the screen so it never spans the full width",
                 source.contains("screen * PANEL_WIDTH_RATIO"));
-        assertTrue("panel width must be capped so 4K TVs do not stretch a single row",
+        assertTrue("panel must follow the repo's large-dialog 90% convention",
+                source.contains("PANEL_WIDTH_RATIO = 0.9f"));
+        assertFalse("a dp width cap would shrink the panel on density-1.0 TVs and clip the group row",
                 source.contains("PANEL_MAX_WIDTH_DP"));
         assertTrue("panel height must be capped as a fraction of the available height",
                 source.contains("PANEL_MAX_HEIGHT_RATIO"));
