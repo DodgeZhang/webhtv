@@ -145,8 +145,9 @@ Spec 轴同时确认：**无 scope creep**，注释引用的先例 `display_opti
 - 目标：把 `origin/beta` 最新合入 `dev2`（不回退已移除提交）、复评 dev2 已提交未推送改动、修复问题并验证通过、再复评，通过后提交、推送、开 PR 到 beta（只创建不合并）。
 - 状态：**已闭环**。合并 0 冲突且内容中性（补丁摘要相等）；双轴评审发现 5 项，其中 4 项已修（A2/B/C1/S1，同一处 B+S1）、3 项记录不修（A1/D1/S2）；定向单测 26/26（修复后 6/6）通过；变异验证证明新增状态锁非空转；已提交、已推送、PR 已创建（只创建未合并）。
 - 交付坐标：
-  - 合并提交：`<filled after finish>`（双父：`2137fffc5a` + `a8c0d6a5fe`）
-  - 恢复标签（本地）：`<filled after finish>`
-  - 推送：`origin/dev2`
-  - PR：`<filled after finish>`（`dev2` → `beta`，只创建不合并）
+  - 合并提交：`b515bf11bbe4d71664dbe6d462246b29fa27dc19`（双父：`2137fffc5a` + `a8c0d6a5fe`）
+  - 恢复标签（本地）：`recovery/C69-beta-merge-review-dev2-20261014/20261014153930-b515bf11bbe4`
+  - 推送：`origin/dev2` 快进 `4913d6ff23..b515bf11bb`
+  - PR：[#446](https://github.com/Silent1566/webhtv/pull/446)（`dev2` → `beta`，`OPEN` / `MERGEABLE` / `CLEAN`，只创建不合并）
+  - PR 净增量：恰为 3 个路径（`selector_dialog_glass_chip_text.xml`、`DialogGlassChipStyleTest.java`、本文件）
 - 下一步：无。
