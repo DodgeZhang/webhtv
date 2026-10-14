@@ -501,16 +501,6 @@ public class LabActivity extends AppCompatActivity implements LabPackageAdapter.
     }
 
     /**
-     * 让实验室设置里的文本控件把上下方向键让给焦点搜索。
-     *
-     * <p>实测（leanback arm64 debug，1920x1080）：打开「实验室配置源」后焦点落在「配置源」下拉上，
-     * 遥控 DOWN / UP 全都不移动（被 AutoCompleteTextView / 可编辑文本当成光标键吃掉），
-     * 用户到不了文件夹图标、URL、根目录、开关和取消/确定；电视遥控器没有 TAB。
-     *
-     * <p>下拉列表展开时上下键仍交给列表导航；确认键由本方法落选，因为 Material 的下拉在遥控确认时
-     * 只关闭列表、不回调选中项（实测高亮「网络 URL」后按 OK 无效，而点选同一行有效）。
-     */
-    /**
      * 让实验室设置里的文本控件把上下方向键让给焦点搜索，并让配置源下拉能用遥控切换。
      *
      * <p>实测（leanback arm64 debug，1920x1080）：打开「实验室配置源」后焦点落在「配置源」下拉上，

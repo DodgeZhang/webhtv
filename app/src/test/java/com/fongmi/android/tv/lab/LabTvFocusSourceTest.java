@@ -110,7 +110,10 @@ public class LabTvFocusSourceTest {
         assertTrue("the run button wins when it is usable, otherwise the edit button",
                 sheet.contains("sheetBtnRun.getVisibility() == View.VISIBLE && sheetBtnRun.isEnabled() ? sheetBtnRun : sheetBtnEdit"));
 
-        String poll = methodBody(sheet, "public void run()");
+        // 锚点必须是轮询本体（mStateRunnable 匿名类），不能用 "public void run()"：
+        // 那个签名在本文件里第一处命中的是轮询的 run()（约 60 行），第二处才是
+        // LabCommandSheet 自己的 run()（约 319 行），靠 indexOf 的先后顺序太脆。
+        String poll = methodBody(sheet, "private final Runnable mStateRunnable");
         assertFalse("the 1s state poll must not steal focus back while the user types",
                 poll.contains("requestSheetFocus"));
     }
@@ -140,6 +143,13 @@ public class LabTvFocusSourceTest {
         assertTrue("the link drawable must define a focused state",
                 stripComments(read("src/main/res/drawable/selector_lab_link.xml"))
                         .contains("android:state_focused=\"true\""));
+        // 环色必须与链接文字色同源（LabActivity 用 R.color.webhtv_color_primary）。用固定的
+        // @color/accent 会在浅色弹窗面板 #E7E8EF 上掉到 2.56:1，低于仓库既有的「焦点环 ≥3:1」门。
+        String link = stripComments(read("src/main/res/drawable/selector_lab_link.xml"));
+        assertTrue("the link focus ring must use the theme token (5.23:1 light / 7.86:1 night)",
+                link.contains("@color/webhtv_color_primary"));
+        assertFalse("the fixed lab accent is only 2.56:1 on the light dialog panel",
+                link.contains("@color/accent"));
     }
 
     /**
@@ -207,7 +217,8 @@ public class LabTvFocusSourceTest {
                         || activity.contains("getButton(AlertDialog.BUTTON_POSITIVE).setNextFocusUpId"));
     }
 
-    /** 分组标签的聚焦态必须由 selector 通过 state_focused 接上（聚焦图形本身是纯 shape）。 */    @Test
+    /** 分组标签的聚焦态必须由 selector 通过 state_focused 接上（聚焦图形本身是纯 shape）。 */
+    @Test
     public void groupTabSelectorWiresTheFocusedShape() throws Exception {
         String selector = stripComments(read("src/main/res/drawable/selector_lab_group_tab.xml"));
         assertTrue("the focused branch must come first so it wins over activated",
