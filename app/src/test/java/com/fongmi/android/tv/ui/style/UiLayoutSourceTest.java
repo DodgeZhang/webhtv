@@ -36,6 +36,21 @@ public class UiLayoutSourceTest {
         assertTrue("TV episode cards must keep the shared rounded family",
                 card.contains("app:cardCornerRadius=\"@dimen/webhtv_card_radius_default\""));
         assertFalse("TV episode card colours must be token-only", card.matches("(?s).*#[0-9A-Fa-f]{6,8}.*"));
+        // 间距必须来自 token，不能是第二个会漂移的硬编码数字：webhtv_size_tv_card_gap 曾经
+        // 只声明、从未被任何布局或调用点引用，于是 TV 卡片间距实际是各点自定的 8/10/12/16dp。
+        assertTrue("TV episode cards must take their gap from the shared token",
+                card.contains("android:layout_marginEnd=\"@dimen/webhtv_size_tv_card_gap\""));
+        assertFalse("TV episode cards must not hardcode their gap",
+                card.matches("(?s).*layout_marginEnd=\"[0-9]+dp\".*"));
+        for (String presenter : new String[]{
+                "src/leanback/java/com/fongmi/android/tv/ui/activity/HomeActivity.java",
+                "src/leanback/java/com/fongmi/android/tv/ui/fragment/TypeFragment.java",
+                "src/leanback/java/com/fongmi/android/tv/ui/fragment/CollectFragment.java"
+        }) {
+            assertTrue(presenter + " must build its card row gap from the shared token",
+                    Files.readString(Path.of(presenter), StandardCharsets.UTF_8)
+                            .contains("ResUtil.dpOf(R.dimen.webhtv_size_tv_card_gap)"));
+        }
     }
 
     @Test

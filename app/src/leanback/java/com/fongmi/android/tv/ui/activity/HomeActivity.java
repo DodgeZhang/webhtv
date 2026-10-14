@@ -514,9 +514,12 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         selector.addPresenter(Integer.class, new HeaderPresenter());
         selector.addPresenter(String.class, new ProgressPresenter());
         selector.addPresenter(Vod.class, new VodPresenter(this, Style.list()));
-        selector.addPresenter(ListRow.class, new CustomRowPresenter(16), VodPresenter.class);
-        selector.addPresenter(ListRow.class, new CustomRowPresenter(16), FuncPresenter.class);
-        selector.addPresenter(ListRow.class, new CustomRowPresenter(16, FocusHighlight.ZOOM_FACTOR_SMALL, HorizontalGridView.FOCUS_SCROLL_ALIGNED), HistoryPresenter.class);
+        // 首页三条卡片行统一读设计系统的 TV 卡片间距 token（§6「TV 横向间距 20dp」）。
+        // 此前是硬编码 16dp，而 webhtv_size_tv_card_gap 只声明、从未被引用。
+        int tvCardGap = ResUtil.dpOf(R.dimen.webhtv_size_tv_card_gap);
+        selector.addPresenter(ListRow.class, new CustomRowPresenter(tvCardGap), VodPresenter.class);
+        selector.addPresenter(ListRow.class, new CustomRowPresenter(tvCardGap), FuncPresenter.class);
+        selector.addPresenter(ListRow.class, new CustomRowPresenter(tvCardGap, FocusHighlight.ZOOM_FACTOR_SMALL, HorizontalGridView.FOCUS_SCROLL_ALIGNED), HistoryPresenter.class);
         mBinding.recycler.setAdapter(new ItemBridgeAdapter(mAdapter = new ArrayObjectAdapter(selector)));
         mBinding.recycler.setVerticalSpacing(ResUtil.dp2px(16));
         mBinding.typeRecycler.setHorizontalSpacing(ResUtil.dp2px(16));
