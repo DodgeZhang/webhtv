@@ -191,19 +191,20 @@ public class LabTvFocusSourceTest {
     }
 
     /**
-     * 配置源弹窗的取消/确定必须能 UP 回「根目录」。
+     * 配置源弹窗的取消/确定必须按「就近」回到上方控件，不能硬钉到某个固定控件。
      *
      * <p>实测（leanback arm64 debug，1920x1080）：两个按钮在 ScrollView 之外，焦点搜索按绝对坐标比较，
-     * 内容滚到底时按 UP 会落到「不走代理的域名」（此刻正好在按钮上方），而不是视觉上方的「根目录」。
+     * 内容滚到底时按 UP 落到「不走代理的域名」——这正是用户视觉上方的控件，属于正确行为。
+     * 曾一度把它硬钉到「根目录」，反而与所见不符（用户已指出），故锁住「不得钉死」。
      */
     @Test
-    public void settingsDialogButtonsLeadBackToTheRootInput() throws Exception {
+    public void settingsDialogButtonsKeepGeometricUpFocus() throws Exception {
         String activity = stripComments(read("src/main/java/com/fongmi/android/tv/lab/LabActivity.java"));
-        assertTrue("both dialog buttons must be pinned to the root input",
-                activity.contains("wireButtonFocus(settingsDialog.getButton(AlertDialog.BUTTON_NEGATIVE), rootInput);")
-                        && activity.contains("wireButtonFocus(settingsDialog.getButton(AlertDialog.BUTTON_POSITIVE), rootInput);"));
-        assertTrue("the pin uses the target's own id",
-                activity.contains("button.setNextFocusUpId(target.getId());"));
+        assertFalse("no button-focus pinning helper should remain",
+                activity.contains("wireButtonFocus("));
+        assertFalse("the dialog buttons must not be pinned to a fixed target",
+                activity.contains("getButton(AlertDialog.BUTTON_NEGATIVE).setNextFocusUpId")
+                        || activity.contains("getButton(AlertDialog.BUTTON_POSITIVE).setNextFocusUpId"));
     }
 
     /** 分组标签的聚焦态必须由 selector 通过 state_focused 接上（聚焦图形本身是纯 shape）。 */    @Test
