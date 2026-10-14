@@ -173,6 +173,33 @@ S1 的修法依据全部是**仓库内一手来源**：
 - 文档回滚：删除本文，撤销对 `docs/LAB-TV-REMOTE-FOCUS-20261013.md` 的允许路径与 C68 修正行，以及评估索引的 C68 行。
 - 不涉及 Media3/nextlib AAR、FFmpeg、MPV native、lock、native 二进制或音频路由。
 
+## 9. 交付坐标
+
+| 项 | 值 |
+| --- | --- |
+| 修正提交 | `5a5ce47394d7f3037dd93a48915037b14b954fdf`（单亲，父 = `b2bb4a249b9b2c9385e322d0652086facdf60aa1`） |
+| recovery tag | `recovery/C68-beta-merge-review-dev3-20261014/20261014032823-5a5ce47394d7` |
+| 推送 | `git push origin dev3` → `fc790db709..5a5ce47394  dev3 -> dev3`；`git rev-parse origin/dev3` == `git rev-parse dev3` == `5a5ce47394d7f3037dd93a48915037b14b954fdf` |
+| PR | [#444](https://github.com/Silent1566/webhtv/pull/444)（`dev3` → `beta`，**只创建，未合并**） |
+
+## 闭环记录
+
+| 复核项 | 结果 |
+| --- | --- |
+| `git rev-list --parents -n1 5a5ce47394` | 单亲（父 `b2bb4a249b`）：本轮 beta 已是祖先，无合并父，与 `C66` 同形 |
+| `git merge-base --is-ancestor origin/beta HEAD`（收尾） | **真** |
+| `MERGE_HEAD` | 不存在（合并预演返回 `Already up to date.`，从未进入合并态） |
+| `git diff --diff-filter=D --name-status origin/beta HEAD` | 空（没有删除 beta 侧文件） |
+| `git diff --name-status origin/beta dev3` | 18 路径（16 个实验室焦点路径 + 本文 + 评估索引 1 行） |
+| 工作区 | `git status --porcelain` 为空（除本次纯文档坐标提交） |
+| PR 状态 | `state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=18`、`baseRefName=beta`、`headRefName=dev3` |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/444/files --jq '.[].filename'` 与 `git diff --name-only origin/beta dev3` **逐项一致**（18 项，`Compare-Object` 无输出） |
+| 守卫会话 | 主会话 `C68-beta-merge-review-dev3-20261014`（upstream）与坐标会话 `C68-beta-merge-review-dev3-20261014-coords`（quick-fix，scope `docs`） |
+| 临时资源 | `%TEMP%\c68-pr-body.md`（PR 正文）按任务范围清理 |
+
+- 本次交付只创建 PR，未执行任何合并操作。
+- **本任务闭环完成。** 三项用户要求均已满足：① 合并远端 beta 最新代码且远端已移除/回退的内容**零复活**（行级与文件级交集均为 0）；② 复评全部已修改代码（含已提交未推送的 7 个实验室遥控焦点提交）并修正 1 项重要 + 3 项次要问题，2 轮评审通过、31 例单测全绿；③ 提交（修正提交 + recovery tag）、推送 `dev3`、创建 PR（中文描述、只创建未合并）。
+
 ## 实施记录
 
 - 2026-10-14 10:55 (+08:00)：确认工作区干净；`git fetch --all --prune` 后 `origin/beta` = `f398ced4dd`，`git merge --no-ff --no-commit origin/beta` 返回 `Already up to date.`，本轮无远端新提交、无冲突。
@@ -182,4 +209,7 @@ S1 的修法依据全部是**仓库内一手来源**：
 - 2026-10-14：Standards / Spec 双轴复评（主会话直接执行，子代理两次失败未返回）得到 S1–S4 + P1；完成 5 处修复。
 - 2026-10-14：修复后复验 31/31 通过（1m55s，含资源编译）。
 - 2026-10-14：第 2 轮复审无新增阻塞/重要问题，2 条候选经核实不成立并记录取舍。
+- 2026-10-14：交付面与空白卫生校验（18 路径、`git diff --check` 干净），guard `finish` → 修正提交 `5a5ce47394d7f3037dd93a48915037b14b954fdf` + recovery tag `recovery/C68-beta-merge-review-dev3-20261014/20261014032823-5a5ce47394d7`。
+- 2026-10-14：`git push origin dev3`（`fc790db709..5a5ce47394`）；创建 PR [#444](https://github.com/Silent1566/webhtv/pull/444)（base `beta`，18 个文件，只创建不合并）。
+- 2026-10-14：坐标会话（`-coords`，quick-fix，scope `docs`）把交付坐标与闭环记录写回本文。
 - 环境注记：本机 `bash` 指向不可用的 WSL，guard 用 `G:\Git\bin\bash.exe` 执行；Gradle 用 `gradlew.bat`（`JAVA_HOME` = JDK 21）。本机环境变量 `GIT_CONFIG_COUNT=2` 缺 `GIT_CONFIG_KEY_*`，所有 git 命令前需清空该变量。
