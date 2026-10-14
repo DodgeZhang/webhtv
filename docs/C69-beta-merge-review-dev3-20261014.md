@@ -12,8 +12,8 @@
 - 允许路径：`app/src/leanback/**`、`app/src/main/res/values/strings.xml`、`app/src/main/res/values-zh-rCN/strings.xml`、`app/src/main/res/values-zh-rTW/strings.xml`、`app/src/testMobile/java/com/fongmi/android/tv/ui/dialog/SiteDialogLayoutTest.java`、`docs/TV-SITE-DIALOG-PANEL-20261014.md`、本文、`docs/upstream-player-dependency-merge-assessment-2026-08-20.md`。
 - 保护既有脏文件：0 个（任务开始时 `git status --porcelain` 为空）。
 - 验收标准：合并后净差异不含被 beta 回退的提交内容（零复活、零丢失）；复评发现的阻塞/重要问题全部修正并跑通定向单测；`dev3` 推送成功且 PR 已创建（不合并）。
-- 当前状态：**已实施、已验证**；交付坐标见文末。
-- 下一步唯一动作：无。
+- 当前状态：**已实施、已验证、已交付**（合并为空内容合并；双轴复评得到 1 项重要 + 8 项次要问题并全部修正；mobile 定向 10/10、leanback 定向 69/69）。
+- 下一步唯一动作：无，见文末「交付坐标」。
 
 ## 1. 合并范围：beta 只多一个「把 dev3 合进 beta」的合并提交
 
@@ -158,4 +158,35 @@ S1 的修法依据全部是**仓库内一手来源**：
 - 2026-10-14：双轴复评（Spec 子代理正常返回；Standards 子代理失败，由主会话执行）得到 S1 + P1–P8。
 - 2026-10-14：完成 9 处修复（1 个测试助手 + 8 处文档更正）。
 - 2026-10-14：修复前基线 10/10 通过；**变异测试证明 S1 修复后断言可失败**；修复后 mobile 定向与 leanback 定向（69/69）全部通过。
-- 环境注记：本机环境变量 `GIT_CONFIG_COUNT=2` 缺 `GIT_CONFIG_KEY_*`，所有 git 命令前需清空该变量；guard 用 `G:\Git\bin\bash.exe` 执行；Gradle 用 `gradlew.bat`（`JAVA_HOME` = JDK 21）。
+- 2026-10-14：第 2 轮复审发现并修正 2 处**本轮自己引入**的文档结构问题——`§7` 被新章节挤到文档中部（该文档的既有惯例是 §7 收尾）、以及一处指向 C69 文档不存在章节的交叉引用（`§交付坐标` → `§9 实施记录`）；修正后章节顺序恢复为 §1–§6、§8–§11、§7 收尾。
+- 2026-10-14：guard `finish` → 双父合并提交 `aa7a0b56f19fe5fa7bde2378586f34f523e8fa01`（父 = `e84eb4f3e7` + `a8c0d6a5fe`）+ recovery tag `recovery/C69-beta-merge-review-dev3-20261014/20261014122252-aa7a0b56f19f`。
+- 2026-10-14：`git push origin dev3`（`2ea9700e5d..aa7a0b56f1`）+ 推送 recovery tag；创建 PR [#445](https://github.com/Silent1566/webhtv/pull/445)（base `beta`，15 个文件，**只创建不合并**）。
+- 环境注记：本机环境变量 `GIT_CONFIG_COUNT=2` 缺 `GIT_CONFIG_KEY_*`，所有 git 命令前需清空该变量；guard 用 `G:\Git\bin\bash.exe` 执行；Gradle 用 `gradlew.bat`（`JAVA_HOME` = JDK 21）；`gh` 未设默认仓库，`gh pr create` 必须显式带 `--repo Silent1566/webhtv`（否则报 `Head sha can't be blank`）。
+
+## 10. 交付坐标
+
+| 项 | 值 |
+| --- | --- |
+| 合并+修正提交 | `aa7a0b56f19fe5fa7bde2378586f34f523e8fa01`（**双父**：父₁ = `e84eb4f3e7`，父₂ = `a8c0d6a5fe`） |
+| recovery tag | `recovery/C69-beta-merge-review-dev3-20261014/20261014122252-aa7a0b56f19f` |
+| 推送 | `git push origin dev3` → `2ea9700e5d..aa7a0b56f1  dev3 -> dev3`；`git rev-parse origin/dev3` == `git rev-parse dev3` == `aa7a0b56f1…` |
+| PR | [#445](https://github.com/Silent1566/webhtv/pull/445)（`dev3` → `beta`，**只创建，未合并**） |
+
+## 闭环记录
+
+| 复核项 | 结果 |
+| --- | --- |
+| `git rev-list --parents -n1 aa7a0b56f1` | **双父**（`e84eb4f3e7` `a8c0d6a5fe`）——本轮 beta 有真实新提交，故产生真合并提交（与 C66/C68 的「空操作」形态不同） |
+| `git merge-base --is-ancestor origin/beta HEAD`（收尾） | **真**（exit 0） |
+| `MERGE_HEAD` | 已清除 |
+| 合并结果树 | `11500cea39…`（含本轮文档/测试修正）；合并前的零内容性已由「预演时 `git write-tree` == `dev3^{tree}` == `57194a00e9…`」证明 |
+| `git diff --diff-filter=D --name-status origin/beta dev3` | 空（没有删除 beta 侧文件） |
+| `git diff --name-status origin/beta dev3` | 15 路径（12 个站点面板实现/资源/测试 + 2 份文档 + 评估索引 1 行） |
+| 工作区 | `git status --porcelain` 为空 |
+| PR 状态 | `state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=15`、`baseRefName=beta`、`headRefName=dev3` |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/445/files --jq '.[].filename'` 与 `git diff --name-only origin/beta dev3` **逐项一致**（15 项，`Compare-Object` 无输出） |
+| 守卫会话 | `C69-beta-merge-review-dev3-20261014`（upstream） |
+| 临时资源 | `.git/c69-pr-body.md`（PR 正文）已按任务范围清理 |
+
+- 本次交付只创建 PR，未执行任何合并操作。
+- **本任务闭环完成。** 三项用户要求均已满足：① 合并远端 beta 最新代码且远端已移除/回退的内容**零复活**（内容级与文件级交集均为 0）；② 复评全部已修改代码（含已提交未推送的 4 个站点面板提交）并修正 1 项重要 + 8 项次要问题，2 轮评审通过、mobile 10/10 与 leanback 69/69 全绿；③ 提交（双父合并提交 + recovery tag）、推送 `dev3`、创建 PR（中文描述、只创建未合并）。

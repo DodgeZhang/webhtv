@@ -201,7 +201,7 @@ assertFalse("the grid must no longer be stretched to fill the panel",
 | `7d7c17ef15` | fix(tv): 站点面板比例改为 90%，分组标签行不再被裁 | `recovery/tv-site-panel-ratio-20261014/20261014104705-7d7c17ef1500` |
 | `e84eb4f3e7` | docs(tv): 更正站点面板实测数字 | `recovery/tv-site-doc-fix-20261014/20261014105043-e84eb4f3e731` |
 
-C69 复评轮的修正提交与 recovery tag 见 `docs/C69-beta-merge-review-dev3-20261014.md` §9 实施记录。
+C69 复评轮的修正提交（`aa7a0b56f1`，双父合并）、recovery tag 与 PR [#445](https://github.com/Silent1566/webhtv/pull/445) 见 `docs/C69-beta-merge-review-dev3-20261014.md` §10 交付坐标。
 
 ## 7. 当前状态与下一步
 
