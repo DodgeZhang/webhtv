@@ -21,6 +21,7 @@ public class DialogGlassChipStyleTest {
         String text = readMainResource("color", "selector_dialog_glass_chip_text.xml");
         String track = readLeanbackResource("layout", "adapter_track.xml");
         String title = readLeanbackResource("layout", "adapter_title.xml");
+        String danmaku = readLeanbackResource("layout", "adapter_danmaku.xml");
 
         assertEquals("all focused/selected/checked/activated chip states must share one active drawable",
                 5, occurrences(selector, "@drawable/shape_dialog_glass_chip_active"));
@@ -31,10 +32,25 @@ public class DialogGlassChipStyleTest {
                         && active.contains("android:color=\"#F2FFFFFF\""));
         assertTrue("active chips must include the blue-gray lower focus edge",
                 active.contains("android:color=\"#6B6F9F\""));
+        // Every chip state the background selector can reach must keep a text entry of its own;
+        // a dropped entry silently falls back to the palette-following default and re-ships the
+        // reported defect for that state (state_activated is the TV persistent-selection state).
+        String states = withoutComments(text);
+        assertEquals("the chip text selector must keep exactly one entry per chip state",
+                6, occurrences(states, "<item "));
+        for (String state : new String[]{
+                "android:state_enabled=\"false\"", "android:state_checked=\"true\"",
+                "android:state_activated=\"true\"", "android:state_selected=\"true\"",
+                "android:state_focused=\"true\""}) {
+            assertTrue("the chip text selector must keep its " + state + " entry",
+                    states.contains(state));
+        }
         assertTrue("subtitle rows must use the shared chip background and text selectors",
                 usesSharedSelectors(track));
         assertTrue("title rows must use the shared chip background and text selectors",
                 usesSharedSelectors(title));
+        assertTrue("danmaku rows must use the shared chip background and text selectors",
+                usesSharedSelectors(danmaku));
     }
 
     /**
@@ -45,7 +61,7 @@ public class DialogGlassChipStyleTest {
      * {@code colorOnSurface} {@code #E2E2E9} on the selected fill {@code #E6E6EA} measured
      * <b>1.04:1</b>, which renders the selected track as a glowing white bar. The day table
      * has the mirror defect on the default chip: {@code #1A1C1E} on the translucent indigo
-     * fill measured <b>1.79:1</b>.
+     * fill measured <b>1.68:1</b>.
      *
      * <p>The check is the resolved contrast rather than the literal spelling, so the colours
      * may be re-tuned as long as both states stay legible.
