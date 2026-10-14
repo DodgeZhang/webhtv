@@ -54,9 +54,29 @@ public class SiteDialogLayoutTest {
                 source.contains("params.height = ViewGroup.LayoutParams.MATCH_PARENT;\n        binding.recycler.setLayoutParams(params);"));
     }
 
+    @Test
+    public void siteCardsDeclareHorizontalPaddingOnTheViewNotOnlyOnTheBackground() throws Exception {
+        // SiteDialogTheme.applySiteItem() 用程序化 GradientDrawable 整体替换 background，
+        // 那个 drawable 没有 padding，selector_site_item 里 shape 声明的内边距会一起丢失。
+        // 内边距必须显式写在 View 上，否则健康点会直接压在卡片边框上。
+        for (String layout : new String[]{"adapter_site.xml", "adapter_site_switch.xml"}) {
+            String source = new String(Files.readAllBytes(findLeanbackLayoutPath().resolve(layout)), StandardCharsets.UTF_8);
+            assertTrue(layout + " must declare start padding on the card view itself",
+                    source.contains("android:paddingStart=\"14dp\""));
+            assertTrue(layout + " must declare end padding on the card view itself",
+                    source.contains("android:paddingEnd=\"14dp\""));
+        }
+    }
+
     private static Path findLeanbackJavaPath() {
         Path moduleRelative = Path.of("src", "leanback", "java");
         if (Files.exists(moduleRelative)) return moduleRelative;
         return Path.of("app", "src", "leanback", "java");
+    }
+
+    private static Path findLeanbackLayoutPath() {
+        Path moduleRelative = Path.of("src", "leanback", "res", "layout");
+        if (Files.exists(moduleRelative)) return moduleRelative;
+        return Path.of("app", "src", "leanback", "res", "layout");
     }
 }

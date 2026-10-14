@@ -107,6 +107,18 @@
 
 未覆盖：真机电视的遥控器实体按键与过扫描裁切未验证（本会话只有平板形态模拟器）。
 
+## 8. 后续修复：健康点压住卡片边框（2026-10-14 第二轮）
+
+用户复核反馈：「健康检测的状态都和按钮边框重叠了，正常至少得有左间距吧？」
+
+**根因**：`SiteDialogTheme.applySiteItem()` 会用程序化 `GradientDrawable`（`rounded()`，见 `SiteDialogTheme.java:128`）通过 `root.setBackground(...)` **整体替换**卡片背景。而 `selector_site_item` 三个 shape 里声明的 `padding`（`left/right 14dp`、`top/bottom 10dp`）是随 drawable 一起生效的——背景被换掉，这些 padding 就全部归零。于是健康点直接贴在卡片边框上。
+
+这是上一轮改动引入的：为了消除双重缩进，当时删掉了 `adapter_site*.xml` 里 `layout_marginStart="14dp"`，理由是「shape 自带 14dp 内边距」，但没有意识到运行时背景会被替换。
+
+**修复**：把水平内边距显式声明在卡片 View 上（`android:paddingStart/End="14dp"`），不再依赖会被替换掉的 drawable padding。垂直方向留白已由 `gravity="center_vertical"` 提供，不叠加 padding。`dialog_site.xml` 根布局本来就是这个模式（padding 写在 View 上），因此面板在实机截图里一直正常——同一个坑此前只在面板躲过。
+
+**验证**：新增契约测试 `siteCardsDeclareHorizontalPaddingOnTheViewNotOnlyOnTheBackground`（锁住两个卡片布局必须显式声明水平 padding），`SiteDialogLayoutTest` 4/4 通过。1080p 实机 `uiautomator` 实测：健康点左边缘 `x=245`、卡片左边界 `x=213`，**间距 32px ≈ 16dp**（14dp padding + 1dp 描边），不再压边框；`logcat` 无 `FATAL EXCEPTION`。
+
 ## 7. 当前状态与下一步
 
 - 状态：实现、静态验证与 1080p 实机验证均已完成；实机发现的崩溃已修复并复测通过。

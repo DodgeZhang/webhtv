@@ -2,6 +2,9 @@
 <!--
     电视版站点卡片（切换模式，无勾选框）。行高 52dp 必须与 SiteDialog.ROW_HEIGHT_DP 一致。
     健康点紧贴站名（左对齐），不再让文字居中把点甩到卡片边缘。
+
+    水平内边距必须显式写在 View 上，原因见 adapter_site.xml：运行时背景会被
+    SiteDialogTheme 的程序化 drawable 整体替换，shape 里声明的 padding 会丢失。
 -->
 <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -10,7 +13,9 @@
     android:focusable="true"
     android:focusableInTouchMode="true"
     android:gravity="center_vertical"
-    android:orientation="horizontal">
+    android:orientation="horizontal"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp">
 
     <View
         android:id="@+id/health"
