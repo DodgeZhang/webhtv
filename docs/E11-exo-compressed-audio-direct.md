@@ -724,3 +724,13 @@ A 的源码、测试、本文和索引按 `E11-audio-startup-admission` guard �
 - 合并对象：`origin/beta` = `fc3d3a2b4a2e0f7bb8842e76d2db7da706f79ef7`（`Merge pull request #448 from Silent1566/dev3`），其第二父即本分支 HEAD `10e62fe391efa7d2b3607f78022d14c5372f3d3c`——本次为**内容零差异合并**。
 - **零复活证明**：合并结果树 `git write-tree` = `29e496e53d628d1045c2fae46136969d7f5ddf21`，与 `origin/beta^{tree}` **逐字节相同**；并以整树集合比对（`git ls-tree -r --name-only` + `comm`）核对：在「历史上出现过 revert/回退/撤销/剔除 主题提交所触及的 731 条路径」中已有 601 条不在 beta 树内，本次合并树**复活 0 条**。
 - 检测器口径与自检：只匹配提交主题行并锚定开头（`^(Revert|revert|回退|撤销|剔除)`），避免把正文含「revert」字样的合并提交误判为 revert 提交；把一条确实「在 revert 集且不在 beta 树」的路径（`ISSUE_TEMPLATE`）注入伪造树时检测器正确报出，对真实合并树则为 0，排除空转。
+
+### 交付坐标（2026-10-15）
+
+- 合并提交：`0d925731015595112eae8647d386051135c4da5c`（双父：`10e62fe391efa7d2b3607f78022d14c5372f3d3c` + `origin/beta` `fc3d3a2b4a2e0f7bb8842e76d2db7da706f79ef7`）。
+- 恢复标签：`recovery/E11/20261015153914-0d9257310155`（已推送）。
+- 推送：`origin/dev3` → 上述合并提交，`git ls-remote` 复核一致。
+- PR：<https://github.com/Silent1566/webhtv/pull/449>（base=`beta`、head=`dev3`、state=OPEN、`mergedAt=null`、`mergeable=MERGEABLE`；**仅创建，未合并**）。
+- PR 文件集与 `git diff --name-only origin/beta HEAD` 逐项一致（5 项，已用比对确认）。
+- 创建 PR 后再次 fetch：`origin/beta` 仍为 `fc3d3a2b4a`，等于合并提交第二父，PR 未转为冲突。
+- 回滚：`git revert 0d925731015595112eae8647d386051135c4da5c`，恢复「双 15 秒 + 软解/换内核」现状。
