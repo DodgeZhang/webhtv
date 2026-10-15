@@ -35,3 +35,5 @@ plans/
 .codebase-memory
 graphify-out/
 .codex/task-state/
+# WorkBuddy 项目级技能与工作记忆（仅本地使用，不提交远端）
+.workbuddy/
