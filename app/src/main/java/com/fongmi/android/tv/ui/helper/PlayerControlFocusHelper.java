@@ -4,6 +4,8 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.fongmi.android.tv.R;
+
 public final class PlayerControlFocusHelper {
 
     private PlayerControlFocusHelper() {
@@ -30,11 +32,48 @@ public final class PlayerControlFocusHelper {
             ensureFocus(root, preferred);
             return true;
         }
+        syncSeekReturnTarget(root);
         if (!isDirectionKey(event) || event.getAction() != KeyEvent.ACTION_DOWN) return false;
         View focus = root.findFocus();
         View next = focus == null ? null : focus.focusSearch(direction(event));
         if (next == null || !isDescendant(root, next)) return true;
         return false;
+    }
+
+    /**
+     * 进度条按 UP 时应该回到的控件。
+     *
+     * <p>焦点已经落在进度条自己身上时返回 {@code null}：此时必须保留上一次的「回来目标」，
+     * 否则目标会被改写成 seek 自身，UP 就只能靠几何搜索乱跳。焦点不在控制栏内、
+     * 或者控件没有 id / 不可聚焦时同样返回 {@code null}（保留现状）。
+     */
+    public static View seekReturnTarget(View seek, View controls, View focused) {
+        if (seek == null || controls == null || focused == null) return null;
+        if (focused.getId() == View.NO_ID || !focused.isFocusable()) return null;
+        if (isDescendant(seek, focused) || !isDescendant(controls, focused)) return null;
+        return focused;
+    }
+
+    /**
+     * 让进度条的 UP 目标跟着「刚才停留的那颗按钮」走。
+     *
+     * <p>电视端控制栏里从按钮按 DOWN 落到进度条后，再按 UP 应当回到用户刚才停留的那颗按钮；
+     * 而 FocusFinder 只认进度条自己（{@code timeBar}）的 nextFocusUpId，所以每收到一个遥控键、
+     * 且焦点还停在控制栏的某颗控件上时，就把它改写成那颗控件。焦点已经在进度条上时保持不动
+     * （见 {@link #seekReturnTarget}）。目标之后被隐藏时 FocusFinder 会跳过它并回退到几何搜索，
+     * 因此不需要清理失效记忆。
+     */
+    public static void syncSeekReturnTarget(View root) {
+        if (root == null) return;
+        syncSeekReturnTarget(root, root.findFocus());
+    }
+
+    static void syncSeekReturnTarget(View root, View focus) {
+        if (root == null) return;
+        View timeBar = root.findViewById(R.id.timeBar);
+        if (timeBar == null) return;
+        View target = seekReturnTarget(timeBar, root, focus);
+        if (target != null) timeBar.setNextFocusUpId(target.getId());
     }
 
     public static boolean containsFocus(View root) {
