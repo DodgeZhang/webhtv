@@ -413,6 +413,14 @@ public class PlayerPlaybackRegressionSourceTest {
         return read(Path.of("src", "mobile", "java"), Path.of("app", "src", "mobile", "java"), parts);
     }
 
+    /**
+     * 读取源文件并把行尾统一成 LF。
+     *
+     * <p>仓库开了 {@code core.autocrlf}，Windows 工作区里这些文件是 CRLF，而 Java 字符串字面量里的
+     * {@code "\n"} 是单个 LF。不归一化的话，任何跨行的 {@code contains()} 断言都永远为假——
+     * 要么让整个用例恒失败，要么（当它被 {@code &&} 串在别的真断言后面时）让本该生效的回归锁恒假。
+     * 同包的 {@code SiteDialogLayoutTest} / {@code TmdbDetailActivityLayoutTest} 用的是同一套写法。
+     */
     private static String read(Path moduleRoot, Path workspaceRoot, String... parts) throws Exception {
         Path path = moduleRoot;
         for (String part : parts) path = path.resolve(part);
@@ -420,6 +428,6 @@ public class PlayerPlaybackRegressionSourceTest {
             path = workspaceRoot;
             for (String part : parts) path = path.resolve(part);
         }
-        return Files.readString(path, StandardCharsets.UTF_8);
+        return Files.readString(path, StandardCharsets.UTF_8).replace("\r\n", "\n");
     }
 }
