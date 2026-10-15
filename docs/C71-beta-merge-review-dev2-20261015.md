@@ -115,10 +115,14 @@
 
 ## 7. 交付坐标
 
-- 合并提交：（见下方 Recovery anchor，由 `task_guard finish` 生成）
-- 恢复标签：`recovery/C71-beta-merge-review-dev2-20261015/<timestamp>-<sha>`
+- 合并提交：`3c9cffa4c9e3d3f60053bdc57bf4ebe2cdd914a1`（双父：`4f75fbe451` + `870b2f8220`，第二父 = 提交前最新 `origin/beta` tip）
+- 恢复标签（本地）：`recovery/C71-beta-merge-review-dev2-20261015/20261015052943-3c9cffa4c9e3`
 - 推送：`origin/dev2`
 - PR：`dev2` → `beta`（中文描述，**只创建不合并**）
+
+### 7.1 任务编号说明
+
+`C70` 已被 `android6` 分支的 `5a5d07822f`（leanback API 23 history progress，恢复标签 `recovery/C70-leanback-api23-history-progress/20261014080727-5a5d07822faa`）占用，故本任务使用 **`C71`**。已核实 `C71` 在全部 ref 的提交主题、文档名与任务状态目录中均未被占用。交付前已把提交信息中的 guard trailer、任务文档名与恢复标签统一为 `C71`（提交与标签均未推送，重命名安全）。
 
 ## 8. Recovery anchor
 
