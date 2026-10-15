@@ -383,3 +383,65 @@ chip 常态底色的真实渲染栈是**三层**：画面 → 90%–80% 深靛�
 
 - 本次交付只创建 PR，未执行任何合并操作。
 - **第 2 轮闭环完成。** 四项用户要求均已满足：① 合并远端 beta 最新代码且远端已移除/回退的内容**零复活**（补丁摘要相等 + 五层证据 + 可证伪自检）；② 复评全部已修改代码（含合并带入的 dev2 chip 修复与 dev3 已提交未推送的 `1cbdf2d817`），发现并修正 P1 + P2 + 反空转加固，4 组变异测试证明断言为真锁；③ 循环复评至无必修项（第 2 轮复审确认本轮改动本身无新增问题）；④ 提交（双父合并提交 + recovery tag）、推送 `dev3`、创建中文描述 PR（**只创建未合并**）。
+
+## 19. 重新合并（beta 在验证期间前进导致 PR 一度 CONFLICTING）
+
+### 19.1 触发原因
+
+第 2 轮首次提交并推送后（`4fb486309a`，PR [#448](https://github.com/Silent1566/webhtv/pull/448) 创建成功、`mergeable=MERGEABLE`），在收尾复核时发现 PR 转为 **`CONFLICTING`**。经 `git fetch` 查明：**`origin/beta` 在验证期间从 `870b2f8220` 前进到 `c18ebd90d9`**（dev2 的 PR #447：`4f75fbe451 fix(mobile): 全屏手动旋转的方向在切集后保持` + 其 C71 复评文档 + 评估索引 C71 行）。这正是 `.codex/skills/...` 记录的「验证耗时期间 beta 可能继续前进」情形。
+
+### 19.2 处置
+
+按 Skill 要求**中止旧未提交合并并重新合入、评审、验证**：
+
+| 步骤 | 结果 |
+| --- | --- |
+| 新 beta 增量 | `870b2f8220..c18ebd90d9` 共 4 路径：`VideoActivity.java`（M）、`PlayerPlaybackRegressionSourceTest.java`（M）、`docs/C71-beta-merge-review-dev2-20261015.md`（A）、评估索引（M） |
+| 与我的改动面重叠 | **无**（我的 6 个路径与 beta 新增的 4 个路径不相交） |
+| `git merge-tree` 预演 | 唯一冲突：`docs/upstream-player-dependency-merge-assessment-2026-08-20.md` |
+| 冲突性质 | **union 冲突**——双方各自在表格中追加行（我方 C69 第 2 轮行，beta 侧 C71 新行 + 旧 C69 行） |
+| 解决方式 | 保留**我方更新后的 C69 行**（含第 2 轮记录）+ 保留 **beta 的 C71 行**；丢弃 beta 侧已被我方取代的旧 C69 行 |
+| 解决正确性校验 | 逐行比对：beta 的 **112 行全部保留、零丢失**；merged 亦为 112 行、无额外行 |
+
+### 19.3 重新合并后的验证（全部针对最终 beta tip `c18ebd90d9`）
+
+| 检查 | 结果 |
+| --- | --- |
+| `MERGE_HEAD` | `c18ebd90d9845706543a446cd4f5df9a5974420b` == 提交前 `origin/beta` |
+| 合并提交 | `f39b3e2bd199bad2b69e6c04831eb6b76763e466`（**双父**：`3a4c0fcaeb` + `c18ebd90d9`） |
+| 零复活 L2（beta 删除面） | 空 |
+| 零复活 L3（复活形态 `--diff-filter=A`） | 空 |
+| 零复活 L4（revert 111 提交 / 731 路径 ∩ 新增 0） | 交集 0 |
+| 零丢失 L5 | 合并树 5067 == beta 5067，缺失 **0** |
+| 冲突标记 | 0（4 个冲突文件逐一 grep） |
+| 逐文件一致性 | 5 个文件与 dev3 侧（`3a4c0fcaeb`）**逐字节相同**；仅索引文件因冲突解决而不同（**预期行为**） |
+| `git diff --cached --check` | exit 0 |
+| 定向单测 | `:app:testMobileArm64_v8aDebugUnitTest --tests *VodAdapterLayoutTest --tests *DialogGlassChipStyleTest --tests *PlayerPlaybackRegressionSourceTest` → `BUILD SUCCESSFUL`；逐套件 XML **5/5 + 6/6 + 15/15 = 26 例 / 0 失败**（含 beta 新带入的 `PlayerPlaybackRegressionSourceTest`） |
+| 推送 | `git push origin dev3` → `3a4c0fcaeb..f39b3e2bd1  dev3 -> dev3`；tag `recovery/C69-beta-merge-review-dev3-20261015-remerge/20261015054223-f39b3e2bd199` 已推送 |
+| 提交后最终 fetch | `origin/beta` 仍为 `c18ebd90d9`，**等于**提交的第二父 ⇒ 合并对象未再前进 |
+| PR 状态 | 回到 `mergeable=MERGEABLE`、`state=OPEN`、`mergedAt=null`、`changedFiles=6`、base `beta`、head `dev3` |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/448/files` 与 `git diff --name-only origin/beta HEAD` **逐项一致**（6 项，`diff` 无输出） |
+| PR 描述 | 已更新为 `c18ebd90d9` 口径（合并范围、五层证据、26 例测试、re-merge tag） |
+
+### 19.4 第 2 轮最终交付坐标
+
+| 项 | 值 |
+| --- | --- |
+| 重新合并+修正提交 | `f39b3e2bd199bad2b69e6c04831eb6b76763e466`（**双父**：父₁ = `3a4c0fcaeb`，父₂ = `c18ebd90d9`） |
+| 首轮合并提交 | `4fb486309aada52fbc159e031c6f6b93a4ac2ef5`（父₁ = `1cbdf2d817`，父₂ = `870b2f8220`） |
+| recovery tag | `recovery/C69-beta-merge-review-dev3-20261015-remerge/20261015054223-f39b3e2bd199`（另有首轮 `…-20261015/20261015053508-4fb486309aad` 与坐标 `…-coords/20261015053835-3a4c0fcaeb17`） |
+| 推送 | `git push origin dev3` → `05f37bee21..3a4c0fcaeb`（首轮坐标）→ `3a4c0fcaeb..f39b3e2bd1`（重新合并） |
+| PR | [#448](https://github.com/Silent1566/webhtv/pull/448)（`dev3` → `beta`，`MERGEABLE`，**只创建，未合并**） |
+| 临时资源 | `.git/c69-pr-body.md`、`.git/pr448-body.md`、`.git/c69-coords.md` 均已清理 |
+
+### 19.5 重新合并的闭环记录
+
+| 复核项 | 结果 |
+| --- | --- |
+| `git rev-list --parents -n1 f39b3e2bd1` | **双父**（`3a4c0fcaeb` `c18ebd90d9`） |
+| `git merge-base --is-ancestor origin/beta HEAD` | **真**（exit 0） |
+| `MERGE_HEAD` | 已清除 |
+| 工作区 | `git status --porcelain` 为空 |
+| 守卫会话 | `C69-beta-merge-review-dev3-20261015-remerge`（upstream，已 finish）+ `…-remerge-coords`（本节坐标提交） |
+
+- **重新合并闭环完成。** PR #448 已恢复 `MERGEABLE` 且保持 `OPEN`/未合并；用户四项要求（零复活合并、循环复评修正、提交+推送、创建中文 PR 不合并）在最终 beta tip `c18ebd90d9` 上重新验证通过。
