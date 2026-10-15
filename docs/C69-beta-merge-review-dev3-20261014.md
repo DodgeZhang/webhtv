@@ -352,3 +352,34 @@ chip 常态底色的真实渲染栈是**三层**：画面 → 90%–80% 深靛�
 - 2026-10-15：定向单测 11/11 通过；leanback `ui.*` + `theme.*` 534 例中 5 例失败，经「还原到 `HEAD` 后同样失败」证明为既有失败。
 - 2026-10-15：`git diff --check` exit 0；`check_ui_tokens.sh --strict` 相对基线零新增违规。
 - 环境注记：本轮遇到一次**陈旧的 `.git/index.lock`**（0 字节、无进程持有，经 `[System.IO.File]::Open(...,'None')` 排他打开验证为 FREE 后删除）；并发进程来自 Orca 应用与 npx skill 安装器，与本任务无关。Gradle 用 `gradlew.bat`（`JAVA_HOME` = JDK 21）；`gh pr create` 必须显式带 `--repo Silent1566/webhtv`。
+
+## 18. 交付坐标（第 2 轮）
+
+| 项 | 值 |
+| --- | --- |
+| 合并+修正提交 | `4fb486309aada52fbc159e031c6f6b93a4ac2ef5`（**双父**：父₁ = `1cbdf2d817529b5a3b979b8a48c17587a6f0f3ea`，父₂ = `870b2f8220d1b9cd83381198945c5a11f8e84b62`） |
+| 合并树 | `23906a6a515bd437a5de1c0befb5bd7ed3e647d9` |
+| recovery tag | `recovery/C69-beta-merge-review-dev3-20261015/20261015053508-4fb486309aad` |
+| 推送 | `git push origin dev3` → `05f37bee21..4fb486309a  dev3 -> dev3`；`git ls-remote` 确认 `refs/heads/dev3` = `4fb486309a…`，tag 对象 `3714057132…` 解引用到同一提交 |
+| PR | [#448](https://github.com/Silent1566/webhtv/pull/448)（`dev3` → `beta`，**只创建，未合并**） |
+| 临时资源 | `.git/c69-pr-body.md`（PR 正文）已按任务范围清理 |
+
+## 第 2 轮闭环记录
+
+| 复核项 | 结果 |
+| --- | --- |
+| `git rev-list --parents -n1 HEAD` | **双父**（`1cbdf2d817` `870b2f8220`）——本轮 beta 有真实新提交，故产生真合并提交 |
+| 提交前最终 fetch 后 `origin/beta` | `870b2f8220d1b9cd83381198945c5a11f8e84b62`，**等于**提交的第二父 ⇒ 合并对象未在验证期间前进 |
+| `git merge-base --is-ancestor origin/beta HEAD` | **真**（exit 0） |
+| `MERGE_HEAD` | 已清除 |
+| 补丁摘要相等（纯索引） | `9b43b82b81af133e723a5c387f19ce697ae19a12` == `git diff --binary 05f37bee21 HEAD` 的哈希 ⇒ 合并结果 ≡ beta tip + dev3 自身提交 |
+| 合并树 vs beta 路径集 | 5066 == 5066，缺失 **0** |
+| `git diff --diff-filter=D --name-status origin/beta HEAD` | 空（未删除 beta 侧任何文件） |
+| `git diff --name-status origin/beta HEAD` | 6 路径（3 个 chip/站点标签实现或测试 + 1 个手机版布局 + 2 份文档） |
+| PR 状态 | `state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=6`、`baseRefName=beta`、`headRefName=dev3` |
+| PR 文件集校验 | `gh api repos/Silent1566/webhtv/pulls/448/files --jq '.[].filename'` 与 `git diff --name-only origin/beta HEAD` **逐项一致**（6 项，`diff` 无输出） |
+| 工作区 | `git status --porcelain` 为空 |
+| 守卫会话 | `C69-beta-merge-review-dev3-20261015`（upstream，已 finish）+ `…-coords`（本文档坐标提交） |
+
+- 本次交付只创建 PR，未执行任何合并操作。
+- **第 2 轮闭环完成。** 四项用户要求均已满足：① 合并远端 beta 最新代码且远端已移除/回退的内容**零复活**（补丁摘要相等 + 五层证据 + 可证伪自检）；② 复评全部已修改代码（含合并带入的 dev2 chip 修复与 dev3 已提交未推送的 `1cbdf2d817`），发现并修正 P1 + P2 + 反空转加固，4 组变异测试证明断言为真锁；③ 循环复评至无必修项（第 2 轮复审确认本轮改动本身无新增问题）；④ 提交（双父合并提交 + recovery tag）、推送 `dev3`、创建中文描述 PR（**只创建未合并**）。
