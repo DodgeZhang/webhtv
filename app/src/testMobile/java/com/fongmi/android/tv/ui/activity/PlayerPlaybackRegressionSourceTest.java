@@ -236,6 +236,39 @@ public class PlayerPlaybackRegressionSourceTest {
     }
 
     @Test
+    public void mobileManualRotateSurvivesEpisodeSwitchInsteadOfBeingAutoCorrected() throws Exception {
+        String source = readMobileJava("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java");
+        int rotate = source.indexOf("private void onRotate()");
+        int rotateEnd = source.indexOf("\n    private ", rotate + 1);
+        int check = source.indexOf("private void checkOrientation()");
+        int checkEnd = source.indexOf("\n    private ", check + 1);
+        int enter = source.indexOf("private void enterFullscreen()");
+        int enterEnd = source.indexOf("\n    private ", enter + 1);
+        int exit = source.indexOf("private void exitFullscreen()");
+        int exitEnd = source.indexOf("\n    private ", exit + 1);
+
+        assertTrue("the rotate button must mark the user's explicit choice before requesting it",
+                rotate >= 0 && rotateEnd > rotate
+                        && source.indexOf("manualRotate = true;", rotate) > rotate
+                        && source.indexOf("manualRotate = true;", rotate) < source.indexOf("PlaybackOrientation.getRotateOrientation(isRotate())", rotate)
+                        && source.indexOf("PlaybackOrientation.getRotateOrientation(isRotate())", rotate) < rotateEnd);
+        assertTrue("video-size auto correction must stand down while the user's rotation is in force",
+                check >= 0 && checkEnd > check
+                        && source.indexOf("if (manualRotate) return;", check) > check
+                        && source.indexOf("if (manualRotate) return;", check) < source.indexOf("setRotate(true);", check)
+                        && source.indexOf("setRotate(true);", check) < checkEnd);
+        assertTrue("entering fullscreen must rebuild the automatic baseline from the current video shape",
+                enter >= 0 && enterEnd > enter
+                        && source.indexOf("setRotate(current.isPortrait());", enter) > enter
+                        && source.indexOf("manualRotate = false;", enter) > source.indexOf("setRotate(current.isPortrait());", enter)
+                        && source.indexOf("manualRotate = false;", enter) < enterEnd);
+        assertTrue("leaving fullscreen must end the manual override",
+                exit >= 0 && exitEnd > exit
+                        && source.indexOf("manualRotate = false;", exit) > exit
+                        && source.indexOf("manualRotate = false;", exit) < exitEnd);
+    }
+
+    @Test
     public void mobileFullscreenExitRebindsEpisodesAfterOrientationSettles() throws Exception {
         String source = readMobileJava("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java");
         int restore = source.indexOf("private void restoreEmbeddedVideoLayoutAfterFullscreen()");
