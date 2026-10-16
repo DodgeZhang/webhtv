@@ -2867,7 +2867,11 @@ private boolean runtimeSourceOnly;
             mBinding.tmdbOverview.setMaxLines(Integer.MAX_VALUE);
             mBinding.tmdbOverview.setText(overviewText);
         }
-        mBinding.tmdbOverview.setVisibility(View.VISIBLE);
+        // 详情列可能已经被沉浸音频收起：setDetail() 里 checkFlag() 排在 setText() 之前，
+        // checkFlag()->onItemClick()->onRefresh()->getPlayer() 会先 setAudioStageVisible(true)
+        // 把整列（含本节点）收掉，这里再无条件下 show 就会把刚收起的简介重新亮在音频面板旁边。
+        // 详情列的显示/隐藏以 setVideoDetailsVisible() 为唯一所有者，本写入只负责是否“有内容”。
+        mBinding.tmdbOverview.setVisibility(mAudioStageVisible ? View.GONE : View.VISIBLE);
         mBinding.tmdbOverview.post(this::updateTmdbOverviewButton);
     }
 

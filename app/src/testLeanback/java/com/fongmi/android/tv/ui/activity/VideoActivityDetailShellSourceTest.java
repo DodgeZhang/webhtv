@@ -69,7 +69,7 @@ public class VideoActivityDetailShellSourceTest {
         String body = activity.substring(helper, helperEnd);
         assertTrue("the preview must write the synopsis node itself, not only its tag",
                 body.contains("mBinding.tmdbOverview.setText(overviewText)")
-                        && body.contains("mBinding.tmdbOverview.setVisibility(View.VISIBLE)"));
+                        && body.contains("mBinding.tmdbOverview.setVisibility("));
 
         int setText = activity.indexOf("private void setText(Vod item) {");
         int setTextEnd = activity.indexOf("private void setText(TextView view, int resId, String text)", setText);
@@ -126,5 +126,42 @@ public class VideoActivityDetailShellSourceTest {
                 block.contains("android:layout_below=\"@+id/actor\""));
         assertTrue("the synopsis must stay above the action row",
                 block.contains("android:layout_above=\"@+id/row2\""));
+    }
+
+    /**
+     * 预览写入不得再把已被沉浸音频收起的详情列重新点亮。
+     *
+     * <p>{@code setDetail(Vod)} 里 {@code checkFlag()} 排在 {@code setText()} <b>之前</b>：
+     * 沉浸音频续播时 {@code checkFlag()->onItemClick()->onRefresh()->getPlayer()} 会先调
+     * {@code setAudioStageVisible(true)}，而它经 {@code syncAudioStageSurface} 调
+     * {@code setVideoDetailsVisible(false)} 把整列（含简介节点）收掉；随后 {@code setText(Vod)}
+     * 跑到 {@code updateOverviewPreview()}，若无条件下 {@code View.VISIBLE} 就会把刚收起的简介
+     * 重新亮在音频面板旁边——正是「简介区必须跟着一起收」这条修复要消灭的现象。
+     *
+     * <p>因此详情列的显隐只能由 {@code setVideoDetailsVisible()} 拥有，写入点必须受
+     * {@code mAudioStageVisible} 约束。用单行字面量断言，避免工作区 CRLF 让跨行字面量恒假。
+     */
+    @Test
+    public void synopsisPreviewDoesNotUnhideTheDetailColumnWhileImmersiveAudioIsShown() throws Exception {
+        Path source = Path.of("src", "leanback", "java", "com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java");
+        if (!Files.isRegularFile(source)) source = Path.of("app").resolve(source);
+        String activity = Files.readString(source, StandardCharsets.UTF_8);
+
+        int helper = activity.indexOf("private void updateOverviewPreview()");
+        int helperEnd = activity.indexOf("private void updateTmdbOverviewButton()", helper);
+        assertTrue("updateOverviewPreview must exist", helper >= 0 && helperEnd > helper);
+        String body = activity.substring(helper, helperEnd);
+
+        assertTrue("the preview must not re-show the detail column while immersive audio is up",
+                body.contains("mBinding.tmdbOverview.setVisibility(mAudioStageVisible ? View.GONE : View.VISIBLE);"));
+        assertFalse("no unconditional show of the synopsis node may remain in the preview writer",
+                body.contains("mBinding.tmdbOverview.setVisibility(View.VISIBLE);"));
+
+        // setVideoDetailsVisible() 必须仍然是详情列（含简介）显隐的唯一所有者。
+        int details = activity.indexOf("private void setVideoDetailsVisible(boolean visible)");
+        int detailsEnd = activity.indexOf("private boolean shouldShowVideoDetailRemark", details);
+        assertTrue("setVideoDetailsVisible must own the synopsis visibility", details >= 0 && detailsEnd > details);
+        assertTrue("the detail column must still collapse the synopsis together with its siblings",
+                activity.substring(details, detailsEnd).contains("mBinding.tmdbOverview.setVisibility("));
     }
 }
