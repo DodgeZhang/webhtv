@@ -41,7 +41,6 @@ Exit code is 0 on PASS and 1 on FAIL, matching the shell script.
 
 from __future__ import annotations
 
-import argparse
 import pathlib
 import subprocess
 import sys
@@ -61,9 +60,9 @@ def repo_root() -> pathlib.Path:
 
 def run(root_arg, tokens_file, night_tokens_file, allowlist, strict_flag, stage_value):
     import fnmatch
-    import sys
     import pathlib
     import re
+    import sys
 
 
     root = pathlib.Path(root_arg)
@@ -90,6 +89,17 @@ def run(root_arg, tokens_file, night_tokens_file, allowlist, strict_flag, stage_
 
     color_pattern = re.compile(r'<color name="webhtv_color_([a-z0-9_]+)">#([0-9A-Fa-f]{6,8})</color>')
     hex_pattern = re.compile(r'#[0-9A-Fa-f]{6,8}\b')
+    xml_comment_pattern = re.compile(r'<!--.*?-->', re.DOTALL)
+
+    def strip_xml_comments(text):
+        """XML comments are documentation, not rendered values.
+
+        An audit comment quoting the palette a file replaced (and the contrast it scored) is not
+        a hard-coded colour, so scanning raw text flags any file whose only hex sits in a comment
+        - a false positive whose cheapest fix is deleting the evidence. Stripping comments first
+        keeps check 4 aimed at what actually renders.
+        """
+        return xml_comment_pattern.sub(" ", text)
 
     def parse_colors(path):
         text = path.read_text(encoding="utf-8")
@@ -195,7 +205,7 @@ def run(root_arg, tokens_file, night_tokens_file, allowlist, strict_flag, stage_
         value = relative(path)
         name = path.name
         if stage == "B":
-            return name.startswith("dialog_") or name.startswith("fragment_setting") or name.startswith("activity_setting") or "/color/dialog_" in value
+            return name.startswith(("dialog_", "fragment_setting", "activity_setting")) or "/color/dialog_" in value
         if stage == "C":
             if name.startswith(("view_empty", "view_progress", "view_wall")):
                 return True
@@ -204,7 +214,7 @@ def run(root_arg, tokens_file, night_tokens_file, allowlist, strict_flag, stage_
                 return "player_osd" not in value and "tmdb" not in value
             return False
         if stage == "D":
-            return "tmdb" in value or "detail" in value or name.startswith("view_control") or name.startswith("view_player_osd") or name.startswith("adapter_player_osd")
+            return "tmdb" in value or "detail" in value or name.startswith(("view_control", "view_player_osd", "adapter_player_osd"))
         if stage == "E":
             return value.startswith("app/src/main/assets/") and path.suffix.lower() in {".css", ".html"}
         return True
@@ -230,7 +240,7 @@ def run(root_arg, tokens_file, night_tokens_file, allowlist, strict_flag, stage_
     def has_hex(path):
         if path.suffix.lower() in {".css", ".html"} and "app/src/main/assets/" in relative(path):
             return asset_has_hex(path)
-        return bool(hex_pattern.search(path.read_text(encoding="utf-8", errors="ignore")))
+        return bool(hex_pattern.search(strip_xml_comments(path.read_text(encoding="utf-8", errors="ignore"))))
 
 
     def scan(files):
@@ -327,12 +337,12 @@ def main(argv=None) -> int:
             print(USAGE)
             return 0
         else:
-            print("unknown option: %s" % arg, file=sys.stderr)
+            print(f"unknown option: {arg}", file=sys.stderr)
             print(USAGE, file=sys.stderr)
             return 2
 
     if stage not in ("", "A", "B", "C", "D", "E", "F"):
-        print("invalid stage: %s" % stage, file=sys.stderr)
+        print(f"invalid stage: {stage}", file=sys.stderr)
         return 2
 
     # Mirrors the shell script: --baseline forces non-strict; a stage other than

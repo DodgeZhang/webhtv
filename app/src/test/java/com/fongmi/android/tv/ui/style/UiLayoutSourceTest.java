@@ -32,7 +32,8 @@ public class UiLayoutSourceTest {
 
     @Test
     public void tvCardsUseTheSharedCardGapTokenAndRoundedFamily() throws Exception {
-        String card = Files.readString(Path.of("src/leanback/res/layout/adapter_episode_card.xml"), StandardCharsets.UTF_8);
+        String card = withoutComments(
+                Files.readString(Path.of("src/leanback/res/layout/adapter_episode_card.xml"), StandardCharsets.UTF_8));
         assertTrue("TV episode cards must keep the shared rounded family",
                 card.contains("app:cardCornerRadius=\"@dimen/webhtv_card_radius_default\""));
         assertFalse("TV episode card colours must be token-only", card.matches("(?s).*#[0-9A-Fa-f]{6,8}.*"));
@@ -66,6 +67,19 @@ public class UiLayoutSourceTest {
                             || source.contains("shape_episode_card_overlay")
                             || source.contains("shape_tmdb_recommendation_info"));
         }
+    }
+
+    /**
+     * XML comments are documentation, not rendered values.
+     *
+     * <p>An audit comment that quotes a measured hex (the palette it replaced, the contrast it
+     * scored) is not a hard-coded colour. Scanning raw text reports a false positive for any file
+     * whose only hex sits in a comment, and the fix an author is pressured into is deleting the
+     * evidence. Stripping comments first keeps this guard aimed at what actually renders, matching
+     * {@code UiStyleSourceTest} and the other source guards in this repository.
+     */
+    private static String withoutComments(String source) {
+        return source.replaceAll("(?s)<!--.*?-->", " ");
     }
 
     private static void assertRatio(String file, int width, int height, double expected) throws Exception {
