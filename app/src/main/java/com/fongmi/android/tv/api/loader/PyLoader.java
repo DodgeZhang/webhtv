@@ -49,14 +49,19 @@ public class PyLoader {
                 spider.init(App.get(), normalizeExt(ext));
                 return spider;
             } catch (Throwable e) {
-                // A failed bridge init used to be silent: printStackTrace() keeps the
-                // cause out of the diagnostic log, and SpiderNull then returns "" for
-                // every method, so home/category/search just render empty.  Record it
-                // under the python-spider tag (already routed to the NETWORK category)
-                // and name the callable that failed, because the stack alone does not
-                // tell whether it was init(), getDependence() or the module import.
+                // A failed bridge init is otherwise hard to attribute: SpiderNull then
+                // returns "" for every method, so home/category/search just render empty.
+                // Record it under the python-spider tag (already routed to the NETWORK
+                // category) and name the callable that failed, because the stack alone
+                // does not tell whether it was init(), getDependence() or the import.
                 SpiderDebug.log(PY_TAG, "init failed key=%s api=%s error=%s:%s", key, api, e.getClass().getName(), e.getMessage());
                 SpiderDebug.log(PY_TAG, e);
+                // SpiderDebug.log() is gated on DebugLogStore.acceptsTag(), which is false
+                // whenever 调试日志 is off (the default).  Relying on it alone would make a
+                // failed init invisible in Logcat even though this catch is the only place
+                // that explains an all-empty site.  Keep the unconditional channel too, as
+                // the sibling JsLoader does for its own init failure.
+                e.printStackTrace();
                 return new SpiderNull();
             }
         });
