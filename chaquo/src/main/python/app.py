@@ -31,8 +31,18 @@ def str2json(content):
 
 
 def getDependence(ru):
-    result = ru.getDependence()
-    return result
+    # getDependence is a WebHTV bridge extension, not part of the TVBox/"cat" Python
+    # spider contract.  The bundled base/spider.py supplies a default, but a
+    # single-file spider that does not inherit from it has no such attribute, and
+    # calling it raises AttributeError inside Spider.init().  PyLoader then degrades
+    # the site to an all-empty SpiderNull, so home/category/search silently show
+    # nothing.  Treat "not implemented" as "no dependencies".
+    # Use getattr rather than try/except AttributeError so a real getDependence()
+    # that raises internally still surfaces instead of being swallowed here.
+    getter = getattr(ru, 'getDependence', None)
+    if getter is None:
+        return []
+    return getter() if callable(getter) else getter
 
 
 def getName(ru):

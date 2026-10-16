@@ -5,12 +5,15 @@ import android.text.TextUtils;
 import com.fongmi.android.tv.App;
 import com.fongmi.chaquo.Loader;
 import com.github.catvod.crawler.Spider;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.crawler.SpiderNull;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class PyLoader {
+
+    private static final String PY_TAG = "python-spider";
 
     private final ConcurrentHashMap<String, Spider> spiders;
     private final Loader loader;
@@ -46,7 +49,14 @@ public class PyLoader {
                 spider.init(App.get(), normalizeExt(ext));
                 return spider;
             } catch (Throwable e) {
-                e.printStackTrace();
+                // A failed bridge init used to be silent: printStackTrace() keeps the
+                // cause out of the diagnostic log, and SpiderNull then returns "" for
+                // every method, so home/category/search just render empty.  Record it
+                // under the python-spider tag (already routed to the NETWORK category)
+                // and name the callable that failed, because the stack alone does not
+                // tell whether it was init(), getDependence() or the module import.
+                SpiderDebug.log(PY_TAG, "init failed key=%s api=%s error=%s:%s", key, api, e.getClass().getName(), e.getMessage());
+                SpiderDebug.log(PY_TAG, e);
                 return new SpiderNull();
             }
         });
