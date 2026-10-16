@@ -44,13 +44,23 @@ public final class PlayerControlFocusHelper {
      * 进度条按 UP 时应该回到的控件。
      *
      * <p>焦点已经落在进度条自己身上时返回 {@code null}：此时必须保留上一次的「回来目标」，
-     * 否则目标会被改写成 seek 自身，UP 就只能靠几何搜索乱跳。焦点不在控制栏内、
-     * 或者控件没有 id / 不可聚焦时同样返回 {@code null}（保留现状）。
+     * 否则目标会被改写成 seek 自身，UP 就只能靠几何搜索乱跳。
+     *
+     * <p>判定必须覆盖「焦点在 seek 子树内」与「焦点是 seek 的祖先」两个方向：进度条的容器
+     * {@code CustomSeekView} 自身在构造函数里 {@code setFocusable(true)}，只是当前它的
+     * {@code requestFocus} 会把请求转发给 {@code timeBar}，所以容器自己拿不到焦点。一旦上游把该
+     * 转发改成「失败就回退到 {@code super.requestFocus}」，容器就会成为可达的焦点持有者；
+     * 那时若把它写成 UP 目标，焦点会被转发回进度条，表现为「按 UP 没反应」。这里把两个方向
+     * 都拒掉，使该不变不依赖上游委托细节（由
+     * {@code containerNeverHoldsFocusBecauseRequestFocusDelegatesToTheSeekBar} 锁住前提）。
+     *
+     * <p>焦点不在控制栏内、或者控件没有 id / 不可聚焦时同样返回 {@code null}（保留现状）。
      */
     public static View seekReturnTarget(View seek, View controls, View focused) {
         if (seek == null || controls == null || focused == null) return null;
         if (focused.getId() == View.NO_ID || !focused.isFocusable()) return null;
-        if (isDescendant(seek, focused) || !isDescendant(controls, focused)) return null;
+        if (isDescendant(seek, focused) || isDescendant(focused, seek)) return null;
+        if (!isDescendant(controls, focused)) return null;
         return focused;
     }
 

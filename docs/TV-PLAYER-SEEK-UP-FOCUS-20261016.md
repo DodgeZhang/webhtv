@@ -5,8 +5,8 @@
 - 目标（完成句）：电视端（leanback）控制栏里，遥控焦点从任意按钮按 DOWN 落到进度条后，再按 UP 必须回到**刚才停留的那颗按钮**，而不是固定跳到第一颗按钮（下集）或由几何搜索乱跳。
 - 允许路径：`app/src/main/java/com/fongmi/android/tv/ui/helper/PlayerControlFocusHelper.java`、`app/src/testLeanback/java/com/fongmi/android/tv/ui/helper/PlayerControlFocusHelperSeekReturnTest.java`（新增）、`docs/TV-PLAYER-SEEK-UP-FOCUS-20261016.md`（本文）。
 - 验收标准：同一条控制栏、同一串按键，修复前「下集 → DOWN（落到进度条）→ UP」焦点落到 `codecCapability`；修复后回到 `next`/`decode` 等**用户刚才停留的那颗按钮**（设备实测，见 §4）。
-- 当前状态：**已实施、已验证、待提交**。
-- 下一步唯一动作：`task_guard.sh finish` 提交并打恢复标签（见 §6）。
+- 当前状态：**已实施、已验证、已提交待推送；C72 复评轮已修正 1 项实现 + 3 项文档缺陷**。
+- 下一步唯一动作：`C72` 合并提交后推送 `dev3` 并创建到 `beta` 的 PR（见 `docs/C72-beta-merge-review-dev3-20261016.md`）。
 
 ## 1. 现象与证据（2026-10-16，leanback arm64 debug，设备 192.168.50.3:5559）
 
@@ -46,32 +46,42 @@
 | 给进度条重写 `focusSearch` 拦截 UP | 改变 `View` 的焦点语义，影响所有调用 `timeBar.focusSearch` 的路径（含 `CustomSeekView.requestFocus` 的委托链），面过大 |
 | **采用：在遥控按键路径上把「刚才停留的控件」同步进 `timeBar.nextFocusUpId`** | 单点改动、复用已有 helper；内置按钮、详情直放按钮、MPV 自定义按钮一律自动覆盖；不新增状态、不改变任何 `View` 语义 |
 
-为什么在 `handleKey` 里同步是安全的：该 helper 是电视端控制栏唯一的遥控按键入口（`VideoActivity:8154`、`TmdbDetailActivity:10905`），它已经保证「焦点在控制栏内」，因此这里读到的 `root.findFocus()` 就是用户当前停留的控件，且同步发生在框架做焦点搜索**之前**。
+为什么在 `handleKey` 里同步是安全的：该 helper 是电视端控制栏唯一的遥控按键入口（`VideoActivity:8154`、`TmdbDetailActivity:10887`），它已经保证「焦点在控制栏内」，因此这里读到的 `root.findFocus()` 就是用户当前停留的控件，且同步发生在框架做焦点搜索**之前**。
 
 ## 3. 实施
 
 ### 3.1 `PlayerControlFocusHelper`（唯一改动文件）
 
-- 新增 `seekReturnTarget(seek, controls, focused)`：判定哪颗控件可以被记成「回来目标」。**焦点已经在进度条自己身上时返回 `null`**——否则用户一到进度条就按 UP，记忆会被覆盖成进度条自身，UP 目标自我指向，等于丢记忆。同样拒绝：控制栏外的焦点、`NO_ID`、不可聚焦的控件。
-- 新增 `syncSeekReturnTarget(root[, focus])`：从 `root` 里按 `R.id.timeBar` 取真实进度条（两套控制栏 id 相同），通过 `seekReturnTarget` 判定后写入 `timeBar.setNextFocusUpId(target.getId())`；没有进度条时是 no-op（手机端 `view_control_seek.xml` 的 timeBar 不可聚焦，也不受影响）。
+- 新增 `seekReturnTarget(seek, controls, focused)`：判定哪颗控件可以被记成「回来目标」。**焦点已经在进度条自己身上时返回 `null`**——否则用户一到进度条就按 UP，记忆会被覆盖成进度条自身，UP 目标自我指向，等于丢记忆。同样拒绝：控制栏外的焦点、`NO_ID`、不可聚焦的控件，以及**进度条的容器**（`seek` 子树双向判定：焦点在 `seek` 内或 `seek` 是焦点祖先都拒绝）。
+- 新增 `syncSeekReturnTarget(root[, focus])`：从 `root` 里按 `R.id.timeBar` 取真实进度条（两套控制栏 id 相同），通过 `seekReturnTarget` 判定后写入 `timeBar.setNextFocusUpId(target.getId())`；取不到进度条时是 no-op。注意：手机版 `view_control_seek.xml` 的 `timeBar` 仍存在于布局中（只是不可聚焦），所以该函数在手机版树上**照常执行并写入**，只是写入的目标永不被咨询（焦点到不了 `timeBar`），因此手机端观感不变——这与「函数没跑」不同，已由 `mobileShapedTreeIsNotANoop` 固定。
 - `handleKey` 在确认「焦点在控制栏内」之后、`focusSearch` 之前调用一次 `syncSeekReturnTarget(root)`。
 
 不改任何布局、不新增 View 状态、不碰 `TmdbDetailActivity` 与 `VideoActivity` 的现有接线，因此两套控制栏与手机端行为来源一致。
 
 ### 3.2 新增契约测试
 
-`app/src/testLeanback/java/com/fongmi/android/tv/ui/helper/PlayerControlFocusHelperSeekReturnTest.java`（Robolectric 真实 View 语义，9 条）：
-`buttonAboveTheSeekBecomesTheReturnTarget`、`seekItselfNeverOverwritesTheRememberedTarget`、`focusOutsideTheControlBarIsIgnored`、`idlessOrUnfocusableViewsAreIgnored`、`syncWritesTheFocusedButtonIntoTheSeekUpTarget`、`syncKeepsTheMemoryWhileTheSeekItselfIsFocused`、`syncWithoutASeekBarIsANoop`、`remoteKeyPathSyncsTheReturnTargetBeforeAnyFocusMove`、`remoteKeyPathKeepsTheMemoryWhileTheSeekIsFocused`。
+`app/src/testLeanback/java/com/fongmi/android/tv/ui/helper/PlayerControlFocusHelperSeekReturnTest.java`（Robolectric 真实 View 语义，13 条）：
+`buttonAboveTheSeekBecomesTheReturnTarget`、`seekItselfNeverOverwritesTheRememberedTarget`、`focusableSeekContainerIsNeverWrittenAsItsOwnUpTarget`、`realCustomSeekViewIsNotWrittenAsItsOwnReturnTarget`、`containerNeverHoldsFocusBecauseRequestFocusDelegatesToTheSeekBar`、`mobileShapedTreeIsNotANoop`、`focusOutsideTheControlBarIsIgnored`、`idlessOrUnfocusableViewsAreIgnored`、`syncWritesTheFocusedButtonIntoTheSeekUpTarget`、`syncKeepsTheMemoryWhileTheSeekItselfIsFocused`、`syncWithoutASeekBarIsANoop`、`remoteKeyPathSyncsTheReturnTargetBeforeAnyFocusMove`、`remoteKeyPathKeepsTheMemoryWhileTheSeekIsFocused`。
 
 ## 4. 验证
 
 ### 4.1 单元测试（本轮新生成产物）
 
+首轮（9 条）：
+
 ```text
 bash ./gradlew :app:testLeanbackArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.ui.helper.PlayerControlFocusHelperSeekReturnTest"
 → BUILD SUCCESSFUL in 5m 59s
 app/build/test-results/testLeanbackArm64_v8aDebugUnitTest/TEST-com.fongmi.android.tv.ui.helper.PlayerControlFocusHelperSeekReturnTest.xml
-  tests="9" skipped="0" failures="0" errors="0"   (mtime 00:56，属本轮)
+  tests="9" skipped="0" failures="0" errors="0"   (mtime 00:56，属首轮)
+```
+
+C72 复评轮（13 条，含新增 4 条容器/手机版形状回归锁）：
+
+```text
+bash ./gradlew :app:testLeanbackArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.ui.helper.PlayerControlFocusHelperSeekReturnTest"
+→ BUILD SUCCESSFUL in 23s
+  tests="13" skipped="0" failures="0" errors="0"   (mtime 10:53:58，属 C72 轮)
 ```
 
 ### 4.2 设备 A/B（192.168.50.3:5559，覆盖安装，未卸载）
@@ -92,7 +102,7 @@ BEFORE 见 §1.2（UP → `codecCapability`）。AFTER（同一台设备、同�
 
 上一轮遗留的未验项即本控制栏。补测条件：设备 `192.168.50.3:5559`，临时把偏好 `detail_open_mode` 改为 `0`（沉浸融合，`TmdbDetailActivity` 内嵌控制栏 `playerControls` 才可达），测试结束后按原字节还原。
 
-**为什么用沉浸融合模式验证**：这条内嵌控制栏属于 `TmdbDetailActivity`，`detail_open_mode` 为 `0`(融合)/`1`(增强)/`2`(详情直放) 时都会由 `PlayerDetailController`/`FusionDetailController` 复用同一套 `playerControls` 视图（`detail_open_mode=2` 因 `showInlinePlayer()=false`，需先点击播放才出现该栏；融合模式默认就展示内嵌播放器，因此最易稳定取样，故本轮选它）。
+**为什么用沉浸融合模式验证**：这条内嵌控制栏属于 `TmdbDetailActivity`，`detail_open_mode` 为 `0`(融合) 时由 `FusionDetailController` 驱动（`rawFusionMode()` → `new FusionDetailController`），其 `showInlinePlayer()` 返回 `true`，即默认就展示内嵌播放器与 `playerControls`，因此最易稳定取样，故本轮选它。
 
 作为对照，本轮先用 `detail_open_mode=2` 走 `am start -d file:///sdcard/Movies/mov_bbb.mp4` 本地推送入口时，落到了影视原生 `VideoActivity`：该卡片是 PUSH 站点的本地推送条目（`start()` 开头的 `PushParser.fromId(id).shouldSkipAutoTmdbMatch()` 分支直接转 `VideoActivity.startDirect`），并非模式路由所致。两边最终都走同一个 `PlayerControlFocusHelper.handleKey` 入口与同一个 `R.id.timeBar`。
 
@@ -112,9 +122,8 @@ BEFORE 见 §1.2（UP → `codecCapability`）。AFTER（同一台设备、同�
 
 ### 4.4 未覆盖 / 残余未知
 
-- 详情直放控制栏（`TmdbDetailActivity` 的 `playerControls`）本轮**未做设备端走位复测**：该路径需要经由详情页进入 `inlineFullscreen` 才能取到同一 id 的 `timeBar`，本轮把设备预算用在了影视原生控制栏的决定性 A/B 上。~~两者共用同一个 `handleKey` 入口与同一个 `R.id.timeBar`，逻辑覆盖相同，但设备观感仍属未验证项。~~ **→ 已于 2026-10-16 补测完成，见 §4.3。**
-- 手机端（`mobile` flavor）的 `view_control_seek.xml` 里 `timeBar` 不可聚焦，`syncSeekReturnTarget` 对该树是 no-op；本改动不触及手机端判定路径，未做手机端回归。
-- 本轮设备取样覆盖了影视原生控制栏（§4.2）与沉浸融合内嵌控制栏（§4.3）两条路径；详情直放（`detail_open_mode=2`）复用同一套 `playerControls` 视图与同一个按键入口，未再单独走位。
+- 详情直放控制栏（`detail_open_mode=2`）本轮**未单独做设备走位**：该模式由 `EnhancedDetailController` 驱动且 `showInlinePlayer()=false`，需先点击播放才出现 `playerControls`。已设备复核的是同一套 `playerControls` 视图 + 同一个 `handleKey` 入口 + 同一个 `R.id.timeBar` 的沉浸融合模式（§4.3），故不再重复走位。
+- 手机端（`mobile` flavor）的 `view_control_seek.xml` 里 `timeBar` 不可聚焦，所以即使 `syncSeekReturnTarget` 照常写入 UP 目标，焦点也到不了 `timeBar`、该目标永不被咨询，手机端观感不变；本改动不触及手机端判定路径，未做手机端回归。
 
 ## 5. 回滚
 
