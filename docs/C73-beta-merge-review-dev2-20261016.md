@@ -154,14 +154,16 @@
 
 ## 7. 交付坐标
 
-- 合并提交：`<见下方回填>`（双父：`933ab6d73e` + `12d7d559e5`，第二父 = 提交前最新 `origin/beta` tip）
-- 恢复标签（本地）：`<见下方回填>`
-- 推送：`origin/dev2`
-- PR：`dev2` → `beta`（中文描述，**只创建不合并**）
+- 合并提交：`0b7ebfd0872ae8e1cf8ff1ae967016e45bfc9969`（双父：`933ab6d73e` + `12d7d559e5`，第二父 = 提交前最新 `origin/beta` tip；实测 `HEAD^2` == `origin/beta`）
+- 恢复标签（本地 + 已推送）：`recovery/C73-beta-merge-review-dev2-20261016/20261016052352-0b7ebfd0872a`
+- 推送：`origin/dev2`（`40c0ce860e..0b7ebfd087`），远端引用已核对等于本地 `HEAD`
+- PR：`dev2` → `beta`，**#451**（`state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`，中文描述，**只创建不合并**）
+- PR 文件集与 `git diff --name-only origin/beta HEAD` **逐项一致**（各 8 条，`diff` 无差异）
+- PR 创建后再 `fetch` 一次：`origin/beta` 仍为 `12d7d559e5`，等于合并提交第二父，未出现冲突
 
 ## 8. Recovery anchor
 
 - 目标：把 `origin/beta` 最新（`12d7d559e5`）合入 `dev2`（不回带已移除提交）、复评 dev2 已提交未推送的 4 个提交与合并交互、修复问题并验证通过、再复评，通过后提交、推送、开 PR 到 beta（只创建不合并）。
-- 状态：**评审与验证已闭环**（3 轮，2 项必修已修并 7 组变异验证）；提交/推送/PR 坐标在完成后回填本行。
-- 关键文件：`app/src/main/java/com/fongmi/android/tv/api/loader/PyLoader.java`（P1 修复点）、`docs/integration/spider.md`（P2 修复点）、`app/src/test/java/com/fongmi/android/tv/api/loader/PyLoaderDiagnosticsWiringTest.java`（新增回归锁）。
+- 状态：**已闭环**。3 轮评审发现 2 项必修并已修 + 7 组变异验证；合并提交 `0b7ebfd087`、tag 与分支已推送，PR #451 已创建（`OPEN`/`MERGEABLE`/`mergedAt=null`，只创建未合并）。
+- 关键文件：`app/src/main/java/com/fongmi/android/tv/api/loader/PyLoader.java`（P1 修复点）、`docs/integration/spider.md`（P2 修复点）、`app/src/test/java/com/fongmi/android/tv/api/loader/PyLoaderDiagnosticsWiringTest.java`（新增回归锁）、`docs/C73-beta-merge-review-dev2-20261016.md`（本文）。
 - 下一步：无。
