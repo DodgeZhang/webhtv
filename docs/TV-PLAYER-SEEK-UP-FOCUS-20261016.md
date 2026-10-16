@@ -88,10 +88,33 @@ BEFORE 见 §1.2（UP → `codecCapability`）。AFTER（同一台设备、同�
 
 安装证据：`app-leanback-arm64_v8a-debug.apk` mtime `01:04:40`（本轮构建），`adb install -r` 返回 `Success`，`dumpsys package` 的 `lastUpdateTime` 与本轮一致。
 
-### 4.3 未覆盖 / 残余未知
+### 4.3 详情内嵌控制栏设备复核（2026-10-16 补测，消除原未验项）
 
-- 详情直放控制栏（`TmdbDetailActivity` 的 `playerControls`）本轮**未做设备端走位复测**：该路径需要经由详情页进入 `inlineFullscreen` 才能取到同一 id 的 `timeBar`，本轮把设备预算用在了影视原生控制栏的决定性 A/B 上。两者共用同一个 `handleKey` 入口与同一个 `R.id.timeBar`，逻辑覆盖相同，但设备观感仍属未验证项。
-- 手机端（`mobile` flavor）的 `view_control_seek.xml` 里 `timeBar` 不可聚焦，`syncSeekReturnTarget` 对该树是 no-op；本轮未做手机端回归（改动不触及该路径的判定）。
+上一轮遗留的未验项即本控制栏。补测条件：设备 `192.168.50.3:5559`，临时把偏好 `detail_open_mode` 改为 `0`（沉浸融合，`TmdbDetailActivity` 内嵌控制栏 `playerControls` 才可达），测试结束后按原字节还原。
+
+**为什么用沉浸融合模式验证**：这条内嵌控制栏属于 `TmdbDetailActivity`，`detail_open_mode` 为 `0`(融合)/`1`(增强)/`2`(详情直放) 时都会由 `PlayerDetailController`/`FusionDetailController` 复用同一套 `playerControls` 视图（`detail_open_mode=2` 因 `showInlinePlayer()=false`，需先点击播放才出现该栏；融合模式默认就展示内嵌播放器，因此最易稳定取样，故本轮选它）。
+
+作为对照，本轮先用 `detail_open_mode=2` 走 `am start -d file:///sdcard/Movies/mov_bbb.mp4` 本地推送入口时，落到了影视原生 `VideoActivity`：该卡片是 PUSH 站点的本地推送条目（`start()` 开头的 `PushParser.fromId(id).shouldSkipAutoTmdbMatch()` 分支直接转 `VideoActivity.startDirect`），并非模式路由所致。两边最终都走同一个 `PlayerControlFocusHelper.handleKey` 入口与同一个 `R.id.timeBar`。
+
+内嵌控制栏实测（`dumpsys activity top` 读焦点；控制栏有 10s 自动隐藏，故把按键与取样放在同一次 `adb shell` 内完成）：
+
+| 步骤 | 焦点落点 | 判定 |
+| --- | --- | --- |
+| 唤出后 DOWN | `playerEpisodes` | 按钮行可达 |
+| 再 DOWN | `timeBar` | 落到进度条 |
+| 右移 3 格 | `playerFullscreenAction`（第 4 颗） | 停在非首颗按钮 |
+| DOWN | `timeBar` | 再落到进度条 |
+| **UP** | **`playerFullscreenAction`** | ✅ 回到刚才那颗按钮（该栏修复前被硬钉为 `playerNext`，会强制跳「下集」） |
+
+另外确认合理的边界行为：焦点已停在进度条上时继续按 UP，焦点交给控制栏外层的 `playerPanel`（进度条本来就是控制栏最下面一行，再往上离开控制栏是正确的，不是缺陷）。
+
+**环境还原**：`shared_prefs/com.silent.android.webhtv_preferences.xml` 用测试前备份回写，md5 与测试前完全一致（`46624c3ab03d9e3bfc8a70a7b3ec825a`），`detail_open_mode=1`、`detail_theme_mode=1`、`tmdb_enabled=true`、`detail_interaction_mode=0` 均复原；未卸载应用，未改动其它设置。
+
+### 4.4 未覆盖 / 残余未知
+
+- 详情直放控制栏（`TmdbDetailActivity` 的 `playerControls`）本轮**未做设备端走位复测**：该路径需要经由详情页进入 `inlineFullscreen` 才能取到同一 id 的 `timeBar`，本轮把设备预算用在了影视原生控制栏的决定性 A/B 上。~~两者共用同一个 `handleKey` 入口与同一个 `R.id.timeBar`，逻辑覆盖相同，但设备观感仍属未验证项。~~ **→ 已于 2026-10-16 补测完成，见 §4.3。**
+- 手机端（`mobile` flavor）的 `view_control_seek.xml` 里 `timeBar` 不可聚焦，`syncSeekReturnTarget` 对该树是 no-op；本改动不触及手机端判定路径，未做手机端回归。
+- 本轮设备取样覆盖了影视原生控制栏（§4.2）与沉浸融合内嵌控制栏（§4.3）两条路径；详情直放（`detail_open_mode=2`）复用同一套 `playerControls` 视图与同一个按键入口，未再单独走位。
 
 ## 5. 回滚
 
