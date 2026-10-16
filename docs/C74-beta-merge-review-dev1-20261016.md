@@ -194,4 +194,32 @@ mBinding.tmdbOverview.setVisibility(mAudioStageVisible ? View.GONE : View.VISIBL
 
 ## 9. 交付坐标
 
-（本节由交付步骤补齐：合并提交、recovery tag、推送结果、PR 编号与链接。）
+| 项 | 值 |
+| --- | --- |
+| 合并提交（双父） | `1e0d3ae0a4add1ed99ba62ee6300c1faff846671` |
+| 第一父 | `2d4259ef7a3bb18478f301d21c3d3a388e37b46b`（dev1 开工前 HEAD） |
+| 第二父 | `9f4ea10a29d347d4a9290bdecdba7966374320fa`（提交前最新 `origin/beta` tip） |
+| recovery tag | `recovery/C74-beta-merge-review-dev1-20261016/20261016100405-1e0d3ae0a4ad` |
+| 分支 | `dev1` |
+| PR | [#452](https://github.com/Silent1566/webhtv/pull/452)（`base=beta`、`head=dev1`、`state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`，只创建不合并） |
+
+净差异（`git diff --name-status origin/beta 1e0d3ae0a4`）：
+
+```
+M  app/src/leanback/java/com/fongmi/android/tv/ui/activity/VideoActivity.java
+M  app/src/leanback/java/com/fongmi/android/tv/ui/adapter/EpisodeAdapter.java
+M  app/src/leanback/res/layout/activity_video.xml
+M  app/src/testLeanback/java/com/fongmi/android/tv/ui/activity/VideoActivityDetailShellSourceTest.java
+A  docs/C74-beta-merge-review-dev1-20261016.md
+M  docs/upstream-player-dependency-merge-assessment-2026-08-20.md
+```
+
+即 4 个 dev1 自身路径 + 本任务文档；无任何 beta 已删除内容被带回。
+
+### 交付后复核（创建 PR 之后）
+
+- 再次 `git fetch origin beta`：`origin/beta` 仍等于合并提交第二父 `9f4ea10a29`（未前进，PR 不会转为 CONFLICTING）。
+- `gh pr view 452`：`baseRefName=beta`、`headRefName=dev1`、`state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`。
+- 远端 `refs/heads/dev1` = `1e0d3ae0a4`，annotated tag 解引用（`^{}`）后同样指向 `1e0d3ae0a4`。
+- PR 文件集（6 项）与 `git diff --name-only origin/beta HEAD`（6 项）逐项一致（用 `diff` 校验，非目测）。
+- **未合并 PR**：`mergedAt=null`，仅创建。
