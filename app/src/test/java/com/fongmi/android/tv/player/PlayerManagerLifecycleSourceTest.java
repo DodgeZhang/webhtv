@@ -65,20 +65,25 @@ public class PlayerManagerLifecycleSourceTest {
     }
 
     @Test
-    public void exoBufferingStateArmsOnlyTheExoStallWatchdog() throws Exception {
+    public void bufferingStateArmsTheStallWatchdogForEveryEngine() throws Exception {
         String source = readPlayerManager();
         int buffering = source.indexOf("} else if (state == Player.STATE_BUFFERING) {");
         int nextBranch = source.indexOf("\n            } else {", buffering);
         assertTrue("state listener must contain the buffering branch", buffering >= 0);
         assertTrue("state listener buffering branch must have a closing boundary", nextBranch > buffering);
-        int arm = source.indexOf("if (isExo()) armBufferingStallWatchdog();", buffering);
-        assertTrue("entering Exo BUFFERING must start only the Exo stall watchdog", arm > buffering && arm < nextBranch);
-        assertTrue("watchdog arming must be restricted to Exo playback",
-                source.contains("if (!isExo() || player == null || spec == null) return;"));
-        assertTrue("watchdog polling must stop for non-Exo playback",
-                source.contains("if (!isExo() || player == null || spec == null) {"));
-        assertTrue("seeking must only re-arm the stall watchdog for Exo playback",
-                source.contains("player.seekTo(time);\n        cancelBufferingStallWatchdog();\n        if (isExo()) armBufferingStallWatchdog();"));
+        int arm = source.indexOf("armBufferingStallWatchdog();", buffering);
+        assertTrue("entering BUFFERING must start the stall watchdog", arm > buffering && arm < nextBranch);
+        // The watchdog is engine-independent: MPV reaches the same frozen-BUFFERING state and
+        // MpvPlayer.timeOutSeekBuffering() already defers to it. Restricting it to Exo left MPV
+        // with no bound at all, because the 15 s startup timer is cancelled by BUFFERING itself.
+        assertFalse("the stall watchdog must not be gated on a single engine",
+                source.contains("if (isExo()) armBufferingStallWatchdog();"));
+        assertTrue("watchdog arming must only require a live player and spec",
+                source.contains("private void armBufferingStallWatchdog() {\n        if (player == null || spec == null) return;"));
+        assertTrue("watchdog polling must only require a live player and spec",
+                source.contains("private void checkBufferingStall() {\n        if (player == null || spec == null) {"));
+        assertTrue("seeking must re-arm the stall watchdog for every engine",
+                source.contains("player.seekTo(time);\n        cancelBufferingStallWatchdog();\n        armBufferingStallWatchdog();"));
         int polling = source.indexOf("private void checkBufferingStall()");
         int observe = source.indexOf("bufferingStallWatchdog.observe(", polling);
         int timeout = source.indexOf("bufferingStallWatchdog.shouldTimeout(", polling);

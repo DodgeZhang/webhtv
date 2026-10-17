@@ -54,7 +54,6 @@ import com.fongmi.android.tv.player.audio.PlaybackMediaSessionController;
 import com.fongmi.android.tv.player.audio.PlaybackMediaSignalHub;
 import com.fongmi.android.tv.player.cache.PlaybackDiskBufferStore;
 import com.fongmi.android.tv.player.exo.TrackUtil;
-import com.fongmi.android.tv.player.exo.ExoBufferingStallWatchdog;
 import com.fongmi.android.tv.player.exo.ExoDecoderResourceRecoveryLimiter;
 import com.fongmi.android.tv.player.exo.ExoNetworkGuardBufferPolicy;
 import com.fongmi.android.tv.player.exo.ExoNetworkGuardController;
@@ -186,8 +185,8 @@ public class PlayerManager implements ParseCallback {
     private final Runnable liveDanmakuMetricsRunnable;
     private final Runnable networkProtectionRunnable;
     private final Runnable playbackTelemetryRunnable;
-    private final ExoBufferingStallWatchdog bufferingStallWatchdog =
-            new ExoBufferingStallWatchdog();
+    private final BufferingStallWatchdog bufferingStallWatchdog =
+            new BufferingStallWatchdog();
     private final Callback callback;
     private final PlaybackMediaSignalHub mediaSignals = new PlaybackMediaSignalHub(8);
     private final PlaybackMediaClock mediaClock = new PlaybackMediaClock(500L);
@@ -1036,6 +1035,46 @@ public class PlayerManager implements ParseCallback {
         return type >= 0 && type < items.length ? items[type] : items[PlayerSetting.EXO];
     }
 
+    /**
+     * 唯一的内核/软硬解切换原因日志。
+     *
+     * <p>以前每个切换点各自打印，字段与措辞都不一致（`fallback player from=… to=…`、
+     * `switch player type=…`、`switch decode decode=…`），无法回答“这次到底是为什么换的”。
+     * 现在所有路径都经过这里，统一输出：
+     * <ul>
+     *   <li>{@code kind=kernel|decode} 区分换内核与换软硬解；</li>
+     *   <li>{@code cause=} 机器可读原因（见各调用点）；</li>
+     *   <li>{@code chosen=} 是否用户显式选定，用于区分「用户选择」与「自动回退」；</li>
+     *   <li>{@code from/to} 同时给出内核名与软硬解，避免只看到其中一个维度。</li>
+     * </ul>
+     */
+    private void logSwitchCause(String kind, String cause, int fromType, int toType,
+                                int fromDecode, int toDecode, boolean chosen, long positionMs) {
+        PlaybackTrace.log("switch-cause", playbackTrace.current(),
+                "kind=%s cause=%s chosen=%s from=%s/%s to=%s/%s position=%d",
+                kind, cause, chosen,
+                getPlayerText(fromType), decodeText(fromDecode),
+                getPlayerText(toType), decodeText(toDecode),
+                Math.max(0, positionMs));
+    }
+
+    /**
+     * 切换原因日志的 kind 由实际变化推导，不由调用方声明：内核变了就是 kernel，
+     * 内核没变而软硬解变了就是 decode。这样 {@code fallbackDecode()} 这种“同一个内核、
+     * 只换软硬解”的路径不会被误报成换内核。
+     */
+    private void logSwitchCause(String cause, int fromType, int toType,
+                                int fromDecode, int toDecode, boolean chosen, long positionMs) {
+        String kind = fromType != toType ? "kernel" : fromDecode != toDecode ? "decode" : "none";
+        logSwitchCause(kind, cause, fromType, toType, fromDecode, toDecode, chosen, positionMs);
+    }
+
+    private static String decodeText(int decode) {
+        if (decode == PlayerEngine.HARD) return "hard";
+        if (decode == PlayerEngine.SOFT) return "soft";
+        return "unknown";
+    }
+
     private Format getSelectedFormat(int type) {
         return getSelectedFormat(getCurrentTracks(), type);
     }
@@ -1727,7 +1766,7 @@ public class PlayerManager implements ParseCallback {
         }
         player.seekTo(time);
         cancelBufferingStallWatchdog();
-        if (isExo()) armBufferingStallWatchdog();
+        armBufferingStallWatchdog();
     }
 
     public long getTextOffsetMs() {
@@ -1897,8 +1936,11 @@ public void resetTrack(int type) {
 
     private void fallbackToSoftDecode() {
         if (engine == null || !engine.isHard()) return;
+        int previousDecode = engine.getDecode();
         hardDecodeSwitchRetryArmed = false;
         beginPlaybackTrace("switch-decode-auto");
+        logSwitchCause("decode", "auto-no-hardware-decoder", playerType, playerType,
+                previousDecode, PlayerEngine.SOFT, false, getPosition());
         engine.setDecode(PlayerEngine.SOFT);
         if (engine instanceof ExoPlayerEngine exo) {
             exo.prepareFrameSchedulingForNextPlayback();
@@ -1912,6 +1954,7 @@ public void resetTrack(int type) {
         beginIjkRuntimeManualOverride();
         beginPlaybackTrace("switch-decode-fresh");
         int next = engine.isHard() ? PlayerEngine.SOFT : PlayerEngine.HARD;
+        logSwitchCause("decode", "user-choice", playerType, playerType, engine.getDecode(), next, false, position);
         boolean resetVideoSurface = playerType == PlayerSetting.EXO && next == PlayerEngine.HARD;
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         prepareSeq++;
@@ -1937,6 +1980,7 @@ public void resetTrack(int type) {
         beginIjkRuntimeManualOverride();
         beginPlaybackTrace("switch-decode-result");
         int next = engine.isHard() ? PlayerEngine.SOFT : PlayerEngine.HARD;
+        logSwitchCause("decode", "user-choice", playerType, playerType, engine.getDecode(), next, false, position);
         boolean resetVideoSurface = playerType == PlayerSetting.EXO && next == PlayerEngine.HARD;
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         prepareSeq++;
@@ -1993,12 +2037,15 @@ public void resetTrack(int type) {
     /**
      * 自动线路回退需要丢弃失败现场的 renderer/Surface 状态。
      * force 只允许错误恢复路径使用；普通起播保持“同核心不重建”的原有行为。
+     *
+     * <p>force 同时就是归因信号：只有 onError 重试会传 true，所以原因无需额外参数。
      */
     public void preparePlayer(int type, boolean force) {
         int next = resolveAvailablePlayer(PlayerSetting.sanitizePlayer(type));
         PlayerSetting.putActivePlayer(next);
         if (engine == null || player == null || (next == playerType && !force)) return;
         int decode = engine.getDecode();
+        int previousType = playerType;
         resetPlayerFallback();
         manualPlayerSwitchPending = false;
         beginPlaybackTrace("prepare-player");
@@ -2008,6 +2055,8 @@ public void resetTrack(int type) {
         stopParse();
         engine.release();
         playerType = next;
+        logSwitchCause(force ? "history-kernel-retry-after-error" : "history-kernel-before-play",
+                previousType, next, decode, decode, true, getPosition());
         if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "prepare player type=%d decode=%d", next, decode);
         engine = buildEngine(playerType, sanitizeDecode(decode));
         player = engine.getPlayer();
@@ -2055,6 +2104,7 @@ public void resetTrack(int type) {
         boolean resetVideoSurface = type != playerType;
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         int decode = engine.getDecode();
+        int previousType = playerType;
         prepareSeq++;
         resetLutRuntimeState("switch_player_result", true);
         stopNativeAudioSession();
@@ -2062,6 +2112,7 @@ public void resetTrack(int type) {
         engine.release();
         playerType = type;
         PlayerSetting.putActivePlayer(type);
+        logSwitchCause("user-choice", previousType, type, decode, decode, true, position);
         engine = buildEngine(playerType, decode);
         player = engine.getPlayer();
         playWhenReady = wasPlayWhenReady;
@@ -2095,7 +2146,7 @@ public void resetTrack(int type) {
         manualPlayerSwitchPending = manual;
         if (manual) beginIjkRuntimeManualOverride();
         beginPlaybackTrace("switch-player");
-        switchEngine(type, true, true, true);
+        switchEngine(type, true, true, true, engine.getDecode(), "user-choice");
     }
 
     /**
@@ -2105,24 +2156,35 @@ public void resetTrack(int type) {
      */
     private void switchEngine(int type, boolean chosen, boolean preserveState, boolean notifyPrepare) {
         int decode = engine.getDecode();
-        switchEngine(type, chosen, preserveState, notifyPrepare, decode);
+        switchEngine(type, chosen, preserveState, notifyPrepare, decode, "user-choice");
     }
 
     private void switchEngine(int type, boolean chosen, boolean preserveState, boolean notifyPrepare, int decode) {
+        switchEngine(type, chosen, preserveState, notifyPrepare, decode, "unspecified");
+    }
+
+    private void switchEngine(int type, boolean chosen, boolean preserveState, boolean notifyPrepare, int decode, String cause) {
         long position = preserveState ? getPosition() : 0;
         float speed = preserveState ? getSpeed() : 1f;
         boolean repeat = preserveState && isRepeatOne();
         boolean wasPlayWhenReady = preserveState && player != null ? player.getPlayWhenReady() : playWhenReady;
-        switchEngine(type, chosen, notifyPrepare, decode, position, speed, repeat, wasPlayWhenReady);
+        switchEngine(type, chosen, notifyPrepare, decode, position, speed, repeat, wasPlayWhenReady, cause);
     }
 
     private void switchEngine(int type, boolean chosen, boolean notifyPrepare, int decode, long position, float speed, boolean repeat, boolean wasPlayWhenReady) {
+        switchEngine(type, chosen, notifyPrepare, decode, position, speed, repeat, wasPlayWhenReady, "unspecified");
+    }
+
+    private void switchEngine(int type, boolean chosen, boolean notifyPrepare, int decode, long position, float speed, boolean repeat, boolean wasPlayWhenReady, String cause) {
+        int previousType = playerType;
+        int previousDecode = engine == null ? -1 : engine.getDecode();
         prepareSeq++;
         resetLutRuntimeState("switch_player", true);
         stopNativeAudioSession();
         engine.release();
         playerType = type;
         if (chosen) PlayerSetting.putActivePlayer(type);
+        logSwitchCause(cause, previousType, type, previousDecode, sanitizeDecode(decode), chosen, position);
         if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "switch player type=%d chosen=%s position=%d spec=%s", type, chosen, position, debugSpec());
         engine = buildEngine(playerType, sanitizeDecode(decode));
         player = engine.getPlayer();
@@ -8500,7 +8562,7 @@ public void resetTrack(int type) {
                 applyLutForCurrentItem();
                 scheduleNetworkProtection(0);
             } else if (state == Player.STATE_BUFFERING) {
-                if (isExo()) armBufferingStallWatchdog();
+                armBufferingStallWatchdog();
                 App.removeCallbacks(networkProtectionRunnable);
                 // Do not reset/disrupt the network guard here. BUFFERING is transient and
                 // clearing its trend makes repeated stalls permanently outrun the 10 s
@@ -8693,11 +8755,13 @@ public void resetTrack(int type) {
     };
 
     private void armBufferingStallWatchdog() {
-        if (!isExo() || player == null || spec == null) return;
-        bufferingStallWatchdog.arm(
-                SystemClock.elapsedRealtime(),
-                Math.max(0, player.getCurrentPosition()),
-                nativeBufferedPosition());
+        if (player == null || spec == null) return;
+        long position = Math.max(0, player.getCurrentPosition());
+        long buffered = nativeBufferedPosition();
+        bufferingStallWatchdog.arm(SystemClock.elapsedRealtime(), position, buffered);
+        PlaybackTrace.log("buffering-stall", playbackTrace.current(),
+                "action=arm player=%d decode=%d position=%d buffered=%d loading=%s",
+                playerType, engine == null ? -1 : engine.getDecode(), position, buffered, player.isLoading());
         App.post(bufferingStallRunnable, BUFFERING_STALL_POLL_INTERVAL_MS);
     }
 
@@ -8711,7 +8775,7 @@ public void resetTrack(int type) {
     }
 
     private void checkBufferingStall() {
-        if (!isExo() || player == null || spec == null) {
+        if (player == null || spec == null) {
             cancelBufferingStallWatchdog();
             return;
         }
@@ -8739,8 +8803,12 @@ public void resetTrack(int type) {
 
     private void onBufferingStall(long positionMs, long bufferedPositionMs) {
         cancelBufferingStallWatchdog();
+        long stalledMs = bufferingStallWatchdog.stalledDurationMs(SystemClock.elapsedRealtime());
+        boolean loading = player != null && player.isLoading();
         PlaybackTrace.log("buffering-stall", playbackTrace.current(),
-                "stalled position=%d buffered=%d player=%d", positionMs, bufferedPositionMs, playerType);
+                "action=timeout stalledMs=%d loading=%s position=%d buffered=%d player=%d decode=%d",
+                stalledMs, loading, positionMs, bufferedPositionMs, playerType,
+                engine == null ? -1 : engine.getDecode());
         PlaybackException e = new PlaybackException(
                 ResUtil.getString(R.string.error_play_timeout), null, PlaybackException.ERROR_CODE_TIMEOUT);
         if (fallbackPlayback(e)) return;
@@ -9004,6 +9072,8 @@ public void resetTrack(int type) {
         int seq = ++prepareSeq;
         PlaySpec target = spec;
         long position = Math.max(0, getPosition());
+        logSwitchCause("decode", "hard-decode-switch-retry", playerType, playerType,
+                engine.getDecode(), PlayerEngine.HARD, false, position);
         float speed = getSpeed();
         boolean repeat = isRepeatOne();
         boolean wasPlayWhenReady = player.getPlayWhenReady();
@@ -9210,7 +9280,7 @@ public void resetTrack(int type) {
         App.removeCallbacks(runnable);
         localProxyRetry = 0;
         hardDecodeSwitchRetryArmed = false;
-        switchEngine(playerType, false, true, true, PlayerEngine.SOFT);
+        switchEngine(playerType, false, true, true, PlayerEngine.SOFT, "fallback-decode:" + fallbackTrigger(e));
         return true;
     }
 
@@ -9223,8 +9293,29 @@ public void resetTrack(int type) {
         SpiderDebug.log("player", "fallback player from=%s to=%s spec=%s cause=%s", from, to, debugSpec(), causeChain(e));
         App.removeCallbacks(runnable);
         localProxyRetry = 0;
-        switchEngine(next, false, true, true, fallbackDecode(PlayerSetting.getFailureFallback(), playerType, next, engine.getDecode()));
+        switchEngine(next, false, true, true, fallbackDecode(PlayerSetting.getFailureFallback(), playerType, next, engine.getDecode()), "fallback-kernel:" + fallbackTrigger(e));
         return true;
+    }
+
+    /**
+     * 把触发回退的异常归成短标签，让 {@code cause=} 直接回答“为什么换的”。
+     * 保留 errorCode 数值，因为同一标签下不同 code 的处置不同（例如解码失败与超时）。
+     */
+    private static String fallbackTrigger(PlaybackException e) {
+        if (e == null) return "unknown";
+        String label = switch (e.errorCode) {
+            case PlaybackException.ERROR_CODE_TIMEOUT -> "timeout";
+            case PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "decoder-init";
+            case PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED -> "decoder-query";
+            case PlaybackException.ERROR_CODE_DECODING_FAILED -> "decoding";
+            case PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED -> "format-unsupported";
+            case PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED -> "video-frame";
+            case PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> "http-status";
+            case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "network-connect";
+            case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "network-timeout";
+            default -> "code-" + e.errorCode;
+        };
+        return label;
     }
 
     private boolean ensurePlayerAvailableForPlayback() {
@@ -9236,7 +9327,7 @@ public void resetTrack(int type) {
             return false;
         }
         logUnavailablePlayer(from, next);
-        switchEngine(next, false, false, true);
+        switchEngine(next, false, false, true, engine == null ? PlayerEngine.HARD : engine.getDecode(), "kernel-unavailable");
         return false;
     }
 
