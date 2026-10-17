@@ -293,15 +293,83 @@ public boolean proceedNonBlocking(@C.Priority int priority) {
 
 ## 9. 用户决策
 
-- [ ] 批准实施阶段 1（EOF 恢复退避）
-- [ ] 批准实施阶段 2（预加载让位）
-- [ ] 批准实施阶段 3（降速区分故障类型）
+- [x] 批准实施阶段 1（EOF 恢复退避）
+- [x] 批准实施阶段 2（预加载让位）
+- [ ] 批准实施阶段 3（降速区分故障类型）——**用户批准时未包含，按设计暂缓**
 - [ ] 仅批准设计，暂不实施
-- [ ] 其他：______
 
-## 10. 下一步动作
+用户于 2026-10-17 以「开始吧」批准实施；按设计第 8 节建议的默认范围，实施阶段 1+2，阶段 3 暂缓待设备验证结果。
 
-等待用户对第 9 节作出选择。若批准，开 `upstream` lane，按阶段 1 → 2 →（可选 3）顺序实施，每阶段独立验证与原子提交。
+## 10. 实施记录（2026-10-17）
+
+### 10.1 改动清单
+
+| 文件 | 性质 | 内容 |
+| --- | --- | --- |
+| `app/src/main/java/com/fongmi/android/tv/player/exo/HttpEofRecoveryDataSource.java` | 改 | `RECONNECT_BACKOFF_MS = {100,250,500}` + `backoffMs()` + `backoffBeforeReconnect()`；新增 `foreground` 角色字段与 `Factory(factory, foreground)` 重载；恢复时发布前台信号；日志增 `backoffMs=` 字段 |
+| `app/src/main/java/com/fongmi/android/tv/player/exo/ExoForegroundEofSignal.java` | 新增 | 进程级「最近一次前台 EOF 恢复时刻」记录，`ageMs()` 以 `Long.MAX_VALUE` 表示「从未发生」 |
+| `app/src/main/java/com/fongmi/android/tv/player/exo/AutoPreloadPolicy.java` | 改 | 新增 `EOF_YIELD_WINDOW_MS = 15_000`、`Reason.FOREGROUND_EOF_RECOVERY`、`Inputs.foregroundEofRecoveryAgeMs`；`hardPauseReason()` 新增让位判据（置于热压力之后、`FOREGROUND_RECOVERY` 之前） |
+| `app/src/main/java/com/fongmi/android/tv/player/exo/MediaSourceFactory.java` | 改 | 预加载路径（`createUpstreamDataSourceFactory`）标 `false`；前台缓存路径标 `true` |
+| `app/src/test/.../HttpEofRecoveryPolicyTest.java` | 改 | 新增 `spacesOutConsecutiveReconnects`、`totalBackoffStaysWithinOneRecoveryBurst` |
+| `app/src/test/.../AutoPreloadPolicyTest.java` | 改 | `inputs()` 增重载；新增 4 例让位行为测试 |
+| `app/src/test/.../ExoForegroundEofSignalTest.java` | 新增 | 5 例信号语义测试 |
+| `app/src/testLeanback/.../HttpEofRecoveryCancellationTest.java` | 新增 | 2 例：退避期间 `close()` 取消语义（Robolectric）、仅前台发布信号 |
+| `app/src/test/.../ExoEofRecoveryWiringSourceTest.java` | 新增 | 3 例源码守卫：预加载标 `false`、前台标 `true`、`PreCache` 不触前台工厂 |
+
+### 10.2 实施中自行发现并修复的缺陷
+
+**退避 sleep 引入 `close()` 竞争窗口（必修）**。`backoffBeforeReconnect()` 位于 `read()` 自身的 `dataSpec == null` 守卫**之后**，而 Media3 从另一线程调用 `close()` 取消加载。sleep 期间 `close()` 会置 `dataSpec = null`，随后 `dataSpec.subrange(...)` 抛 NPE。已在 sleep 后补 `dataSpec == null` 再检查，抛 `InterruptedIOException`。
+
+该缺陷是本次改动**新引入**的：原代码在守卫与解引用之间无阻塞点。已用 `HttpEofRecoveryCancellationTest.closeDuringBackoffCancelsCleanlyInsteadOfReopening` 锁定，并证明非空转（见 10.4 M5）。
+
+### 10.3 验证结果
+
+| 项目 | 结果 |
+| --- | --- |
+| `compileLeanbackArm64_v8aDebugJavaWithJavac` | BUILD SUCCESSFUL |
+| `compileLeanbackArm64_v8aDebugUnitTestJavaWithJavac` | BUILD SUCCESSFUL |
+| `compileMobileArm64_v8aDebugUnitTestJavaWithJavac` | BUILD SUCCESSFUL（双 flavor） |
+| `testLeanbackArm64_v8aDebugUnitTest --tests "...player.exo.*"` | **tests=603 failures=0 errors=0** |
+| 新增/扩展测试类 | `AutoPreloadPolicyTest` 27、`HttpEofRecoveryPolicyTest` 5、`ExoForegroundEofSignalTest` 5、`HttpEofRecoveryCancellationTest` 2、`ExoEofRecoveryWiringSourceTest` 3 |
+| `git diff --check` | PASS |
+
+未做全量测试矩阵：改动只触及 Exo 网络数据源与预载策略，`player.exo.*` 包 603 例已覆盖全部被改类与其直接消费者。
+
+### 10.4 变异测试（证明断言非空转）
+
+| 变异 | 内容 | 结果 |
+| --- | --- | --- |
+| M1 | `backoffMs()` 恒返回 0（旧无退避行为） | `spacesOutConsecutiveReconnects` + `totalBackoffStaysWithinOneRecoveryBurst` **如期转红** |
+| M2 | 删除 `hardPauseReason()` 中的 EOF 让位判据 | `foregroundEofRecoveryYieldsOnBlockedThroughputRoute` + `yieldOutlastsTheObservedRecoveryBurst` **如期转红** |
+| M3 | `EOF_YIELD_WINDOW_MS` 改为 1 小时（窗口失效） | `preloadResumesOnceTheYieldWindowExpires` + `healthyRouteWithTrustedThroughputIsUnaffectedByStaleRecovery` **如期转红** |
+| M4 | `ageMs()` 未观测时返回 0（而非 `Long.MAX_VALUE`） | 首次仅 `expiredSystemFactsCannotPromoteFastMode` 转红，**暴露缺口**：无测试直接覆盖 `ExoForegroundEofSignal`。补 `ExoForegroundEofSignalTest` 后重跑，`neverObservedRecoveryReportsUnreachableAge` + `resetReturnsToUnobserved` **如期转红** |
+| M5 | 删除退避后的 `dataSpec == null` 再检查 | **首轮未转红**（测试空转）——原测试在异常**之前** `close()`，被既有守卫拦住。改为在 sleep 窗口内（30 ms 延迟）`close()` 并断言异常类型后，报 `NullPointerException: ... "this.dataSpec" is null` **如期转红** |
+| M6 | 预加载路径错标为 `foreground=true` | `preloadPathIsMarkedNonForeground` **如期转红** |
+
+全部 4 个生产文件变异后均以 `git hash-object` 逐字节还原校验通过：
+`HttpEofRecoveryDataSource.java` = `7758dfdbe3c67357d4e7f6555780fbb5e688a17d`、
+`AutoPreloadPolicy.java` = `c0b31cfb065ec04dc5196ff23e93e091c9b99733`、
+`ExoForegroundEofSignal.java` = `de5db8fb816f512251144578b6f8fded9e8e34bf`、
+`MediaSourceFactory.java` = `77bc7016fcbf9988351f27b5ec1a4b414bffe177`。
+
+M4 与 M5 各记录一次「变异假绿」，均已定位原因并补齐断言，而非放宽断言。
+
+### 10.5 未验证项（诚实边界）
+
+- **设备端效果未验证**。退避是否真的降低 EOF 频率、让位是否真的降低掉帧，需要用户用同一外部代理与同一片源复现并采集新 AV diagnostics 导出。这是唯一能证明改动有效的证据，本任务无法单独完成。
+- **15 s 让位窗口未实测校准**。取值依据是「设备实测恢复簇 2–6 s」+「同量级 `WEAK_RESUME_DELAY_MS`」，属推理而非实测。窗口过短无效、过长牺牲切集预加载收益（预加载单任务时长 `EXTERNAL_LOOPBACK_DURATION_MS = 40_000`）。
+- **`ExoForegroundEofSignal` 未接网络保护**。阶段 3 暂缓，故该信号目前只有预加载一个消费者。
+- **未验证双并发实例**。信号是进程级单值，若同进程存在两个前台播放器（如壁纸播放器 + 前台），后者的恢复会覆盖前者的时间戳。当前 `CustomWallView` 在 `onStop` 释放播放器，风险低但未实测。
+
+### 10.6 回滚
+
+阶段 1+2 为一个原子提交，回滚即 `git revert` 该提交或还原上述 4 个生产文件。行为基线是 `HttpEofRecoveryDataSource` 的两个历史提交 `c8a34e856b`、`34753212de`。
+
+## 11. 下一步动作
+
+**等待用户设备验证**：用同一外部代理与同一片源复现，采集新 AV diagnostics 导出，核对 10.5 列出的三项未验证项。
+
+若设备验证通过且掉帧显著下降，阶段 3（降速区分故障类型）可按设计第 3.3 节单独评估；若未通过，按 10.5 的窗口取值与信号接线重新校准。
 
 ## 附：证据溯源
 
