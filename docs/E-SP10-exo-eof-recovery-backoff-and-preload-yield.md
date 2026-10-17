@@ -249,12 +249,12 @@ public boolean proceedNonBlocking(@C.Priority int priority) {
 
 ## 5. 最小实施步骤（分阶段，各自可独立回滚）
 
-#### 阶段 1（改动一，约 15 分钟）
+### 阶段 1（改动一，约 15 分钟）
 
 1. 改 `HttpEofRecoveryDataSource.reconnectAtCurrentPosition()`，加退避常量与等待。
 2. 加单元测试：`remainingLength` / `isRecoverableEof` / `canRecoverConsecutively` 既有测试保持通过；新增退避序列断言（用可注入的时钟或 `SystemClock` 间接断言）。
 
-#### 阶段 2（改动二，约 40 分钟）
+### 阶段 2（改动二，约 40 分钟）
 
 1. `HttpEofRecoveryDataSource` 增加角色标记与进程级「前台 EOF 恢复时刻」发布。
 2. `MediaSourceFactory` 三处创建点传入角色（前台 2 处、预加载 1 处）。
@@ -262,7 +262,7 @@ public boolean proceedNonBlocking(@C.Priority int priority) {
 4. `PreCache` 接线：把前台 EOF 恢复年龄传入 `AutoPreloadPolicy.Inputs`。
 5. 加策略单测：窗口内暂停、窗口外恢复、正常网络不误暂停。
 
-#### 阶段 3（改动三，约 30 分钟，可选后置）
+### 阶段 3（改动三，约 30 分钟，可选后置）
 
 1. `ExoNetworkGuardController.Input` 增加字段与新 reason；`PlayerManager` 接线；OSD 文案补新 reason。
 2. 加控制器单测。
@@ -359,7 +359,23 @@ M4 与 M5 各记录一次「变异假绿」，均已定位原因并补齐断言�
 - **设备端效果未验证**。退避是否真的降低 EOF 频率、让位是否真的降低掉帧，需要用户用同一外部代理与同一片源复现并采集新 AV diagnostics 导出。这是唯一能证明改动有效的证据，本任务无法单独完成。
 - **15 s 让位窗口未实测校准**。取值依据是「设备实测恢复簇 2–6 s」+「同量级 `WEAK_RESUME_DELAY_MS`」，属推理而非实测。窗口过短无效、过长牺牲切集预加载收益（预加载单任务时长 `EXTERNAL_LOOPBACK_DURATION_MS = 40_000`）。
 - **`ExoForegroundEofSignal` 未接网络保护**。阶段 3 暂缓，故该信号目前只有预加载一个消费者。
-- **未验证双并发实例**。信号是进程级单值，若同进程存在两个前台播放器（如壁纸播放器 + 前台），后者的恢复会覆盖前者的时间戳。当前 `CustomWallView` 在 `onStop` 释放播放器，风险低但未实测。
+- **未验证双并发实例**。信号是进程级单值，若同进程存在两个前台播放器，后者的恢复会覆盖前者的时间戳。**已静态核实**：全仓只有两个 `ExoPlayer.Builder` 构造点——`ExoUtil.java:292`（经 `setMediaSourceFactory` 接入本任务的前台/预加载角色）与 `CustomWallView.java:295`（壁纸播放器，**未**设 `MediaSourceFactory`，故永远拿不到 `HttpEofRecoveryDataSource`，无法发布信号）。风险已排除，但未做运行时验证。
+- **`HttpEofRecoveryDataSource` 单参构造函数与单参 `Factory` 重载现已无生产调用者**（默认 `foreground=true`）。保留作为安全默认值，但若将来新增调用点，需显式确认其角色。
+
+### 10.7 第 2 轮：补齐 capture 接线守卫（2026-10-17 后续）
+
+第 1 轮交付后自查发现一个**真实缺口**：所有让位测试都直接构造 `AutoPreloadPolicy.Inputs`，因此即使 `Inputs.capture()` **根本没读**信号，测试仍会全绿——改动会在生产环境**完全失效**而无人发现。
+
+已补 `ExoForegroundEofSignalTest` 两例端到端测试，走真实 `Inputs.capture()` 路径（含 `PlaybackAutoContext` 会话匹配）：
+
+- `captureReadsTheSignalSoTheYieldCanActuallyFire`：新鲜恢复 → `ageMs=0` 且预加载暂停；同一会话 60 s 后 → `ageMs=60000` 且预加载恢复。
+- `captureWithoutAnyRecoveryNeverYields`：无恢复 → `Long.MAX_VALUE` 且预加载正常。
+
+变异验证 **M7**：把 `capture()` 中的 `ExoForegroundEofSignal.ageMs(nowElapsedMs)` 换成 `Long.MAX_VALUE`（模拟接线缺失），`captureReadsTheSignalSoTheYieldCanActuallyFire` **如期转红**。
+
+调试记录：首轮 `captureWithoutAnyRecoveryNeverYields` 失败，原因是测试用的 trace id `p-eof-capture-none` 不满足 `PlaybackTrace.isValid()`（要求 `p-<base36>-<base36>`，第二段不得含 `-`），被归一化为 `none` 导致 session mismatch 而暂停——**是测试夹具缺陷，不是生产缺陷**；改为 `p-eofcap-none` 后通过。
+
+验证：`player.exo.*` **605 例 0 失败**（较第 1 轮 +2），4 个生产文件哈希与第 1 轮提交逐字节相同（**本轮只改测试**）。
 
 ### 10.6 回滚
 
@@ -367,9 +383,11 @@ M4 与 M5 各记录一次「变异假绿」，均已定位原因并补齐断言�
 
 ## 11. 下一步动作
 
-**等待用户设备验证**：用同一外部代理与同一片源复现，采集新 AV diagnostics 导出，核对 10.5 列出的三项未验证项。
+**等待用户设备验证**：用同一外部代理与同一片源复现，采集新 AV diagnostics 导出，核对 10.5 列出的未验证项（设备端效果、15 s 窗口取值）。
 
 若设备验证通过且掉帧显著下降，阶段 3（降速区分故障类型）可按设计第 3.3 节单独评估；若未通过，按 10.5 的窗口取值与信号接线重新校准。
+
+另需用户决策：任务守卫 `start` 的写序缺陷（`status=active` 先于 `id` 写入，失败后无 abort 命令且永久阻塞后续 `start`）是否另开治理维护任务修复。
 
 ## 附：证据溯源
 
