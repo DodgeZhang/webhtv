@@ -1,15 +1,48 @@
-# C75：dev4 合并远端 beta 最新代码并复评已修改代码（含已提交未推送）
+# C76：dev4 合并远端 beta 最新代码并复评已修改代码（含已提交未推送）
 
 ## Recovery anchor
 
 - **目标**：把远端 `beta` 最新代码安全合入 `dev4`，不得复活 beta 已移除/回退内容；评审合并结果与 dev4 全部已提交未推送改动（含本轮修复），验证通过后提交、推送并创建中文 `dev4 -> beta` PR，**只创建不合并**。
 - **允许路径**：`app/`、`chaquo/`、`scripts/`、`docs/`；任务开始时工作区仅有 `.design-evidence/`（未跟踪，按预存脏路径保护，不入提交）。
-- **分支与回滚锚点**：`dev4`；第一父 `a29bbbed5efad5f9e3267843abe784d39158c520`（本地已提交未推送 tip）。
-- **合并第二父（本轮 beta 权威 tip）**：`dae133ddc49940dc001e4f3588315cfce6dc971d`（PR #452）。
+- **分支与回滚锚点**：`dev4`；第一父 `58de02cd78553afda3fbb52c0ab4f018a85e05a1`（上一轮 C75 合并提交，已推送）。
+- **合并第二父（本轮 beta 权威 tip）**：`c1f0a5c3716ac1b44ed12a846b66b0a0a299523c`（PR #454）。
 - **当前状态**：已交付（见 §5、§6）。
 - **下一动作**：无（已交付）。
 
-## 1. 合并台账
+## 0. 本轮（第 2 轮）背景：PR #453 变 CONFLICTING 后的重新合并
+
+上一轮交付后 `origin/beta` 由 `dae133ddc49` 前进到 `c1f0a5c3716`（PR #454，dev3 的合并评审），PR #453 由 MERGEABLE 变为 **CONFLICTING**。按 Skill 规定重新合并新 tip：
+
+- 冲突面：**仅 1 个文件**（`docs/upstream-player-dependency-merge-assessment-2026-08-20.md`），且为 Skill 已记录的 **union 冲突**（各分支各自向任务索引表追加行）。
+- **冲突根因：任务编号并发撞车。** dev3 的 `C75-beta-merge-review-dev3-20261016` 已随 PR #454 进入 beta，而 dev4 本轮任务在分配时 `C75` 确实空闲（`git log --all`/`docs/`/`origin/beta` 三处均无占用），属**并发占用**。
+- **处置**：按仓库既有约定（后到者改名，与 C70 撞车时同口径），保留 beta 的 `C75`（dev3 权威行），把 dev4 本轮任务改号为 **`C76`**：
+  - 评估索引：删除我方 C75 行、以 `C76` 行重新插入（beta 行零丢失，见 §3 行 ID 集合比对）；
+  - 任务文档 `git mv` 为 `docs/C76-beta-merge-review-dev4-20261017.md` 并更新标题与 guard 引用；
+  - guard state 的 `id` 同步改为 `C76-beta-merge-review-dev4-20261017`。
+- **本轮 beta 增量是纯文档**（`docs/C75-beta-merge-review-dev3-20261016.md` 新增 + 评估索引修改），**无任何代码路径变更**，故上一轮的 4 项代码修复不受影响（6 个修复文件 blob 与上一轮提交逐一相同，已用 `git rev-parse` 核对）。
+
+## 1b. 合并台账（第 2 轮：解决 PR #453 冲突）
+
+| 项 | 值 |
+| --- | --- |
+| 合并前 HEAD（第一父） | `58de02cd78553afda3fbb52c0ab4f018a85e05a1`（上一轮 C75 合并提交，已推送） |
+| 合并前 `origin/beta` | `dae133ddc49940dc001e4f3588315cfce6dc971d`（PR #452） |
+| 本轮 `origin/beta` | `c1f0a5c3716ac1b44ed12a846b66b0a0a299523c`（PR #454） |
+| 合并方式 | `git merge --no-commit --no-ff origin/beta` |
+| 冲突文件 | 1（`docs/upstream-player-dependency-merge-assessment-2026-08-20.md`，union 冲突） |
+| 解决方式 | 保留 beta 的 `C75`（dev3）行 + 我方行改号为 `C76` 后插入；冲突标记 0 |
+| 合并索引树 | `7ba55f47e3ad971b87e03867284867076fc246d8` |
+| 本轮 beta 增量 | 2 路径，**均为文档**（`docs/C75-beta-merge-review-dev3-20261016.md` 新增、评估索引修改），**无代码变更** |
+| PR #453 状态 | 解决前 `CONFLICTING` → 解决并推送后应为 `MERGEABLE` |
+
+### beta 增量 disposition（第 2 轮）
+
+| 完整 commit ID | 处置 |
+| --- | --- |
+| `c1f0a5c3716ac1b44ed12a846b66b0a0a299523c` | 本轮 beta tip（PR #454 合并提交），作为合并第二父 |
+| `5abdf7a1cf198bc3f8076bb38ee84c337f610f66` | dev3 合并 `origin/beta`（PR #451/#452）的合并提交（零内容合并），随第二父纳入 |
+
+## 1. 合并台账（第 1 轮）
 
 | 项 | 值 |
 | --- | --- |
@@ -48,19 +81,20 @@
 
 原计划使用 `C74`。合并中途发现 dev1 的 PR #452 已把 `C74-beta-merge-review-dev1-20261016` 合入 beta，编号被占用。按「C* 任务编号必须全分支查重后再分配」的既有约定，本次改为空闲的 **`C75`**（`git log --all`、`docs/`、`origin/beta` 三处均无 C75 占用），guard state 的 `id` 同步更新。
 
-## 3. 复活与净差异审计（在最终合并树 `cb3ddeec84` 上）
+## 3. 复活与净差异审计（在最终合并树 `7ba55f47e3` 上）
 
 判据均以**整树文件名集合**比较（规避 MSYS 把 `git cat-file -e <ref>:path` 的 `/` 当路径分隔符的已知假阴性）：
 
-| 检查 | 结果 |
-| --- | --- |
-| A) 合并树有、beta 无、合并基也无（＝dev4 自身未推送新增，合法） | **52** |
-| B) 合并树有、beta 无、合并基有（＝复活候选） | **0** |
-| C) beta 有、合并树无（＝合并丢内容） | **0** |
-| D) revert 提交删除路径 ∩ 合并树独有路径（＝复活） | **0** |
-| E) revert 删除且不在 beta 树、却出现在合并树（＝带回已移除内容） | **0** |
+| 检查 | 第 1 轮（`cb3ddeec84`） | 第 2 轮（`7ba55f47e3`） |
+| --- | --- | --- |
+| A) 合并树有、beta 无、合并基也无（＝dev4 自身未推送新增，合法） | 52 | **53**（+1：`docs/C76-…` 文档改名） |
+| B) 合并树有、beta 无、合并基有（＝复活候选） | **0** | **0** |
+| C) beta 有、合并树无（＝合并丢内容） | **0** | **0** |
+| D) revert 提交删除路径 ∩ 合并树独有路径（＝复活） | **0** | **0** |
+| E) revert 删除且不在 beta 树、却出现在合并树（＝带回已移除内容） | **0** | **0** |
 
-- **检测器非空转自检**：把一条真实「被 revert 删除且不在 beta 树」的路径（`app/src/main/assets/themes/index.json`）注入伪造合并树，检测器如期报出该路径（E 集合 = 1）。对照组真合并树该集合为空 → 证明「零复活」不是空转结论。
+- **检测器非空转自检**（两轮均执行）：把一条真实「被 revert 删除且不在 beta 树」的路径（`app/src/main/assets/themes/index.json`）注入伪造合并树，检测器如期报出该路径。对照组真合并树该集合为空 → 证明「零复活」不是空转结论。
+- **评估索引行 ID 集合比对（第 2 轮）**：beta 的 89 个行 ID（含 `C`/`E`/`P` 族）在工作区**全部保留**，仅新增 `C76`（`comm -23` 零丢失、`comm -13` 仅 `| \`C76\` |`）；C 族行数 beta 17 → 工作区 18。
 - 自检期间另发现并规避两个既有陷阱：Python 文本模式写出的 CRLF 会让 `comm` 逐行比较失配（已用 `newline=''` 写 LF）；`git cat-file -e origin/beta:<path>` 在 MSYS 下会假报「不存在」，已改用 `git ls-tree -r --name-only` 整树比对。
 
 ## 4. 代码评审
@@ -150,5 +184,5 @@ APK 打包、设备安装与实机播放矩阵、native 重建、完整 Instrume
 
 ## 6. 交付坐标
 
-- 合并提交（双父，第一父 `a29bbbed5ef`、第二父 `dae133ddc49`）与 recovery tag 由本轮 C75 guard 生成后回填。
+- 合并提交（双父，第一父 `a29bbbed5ef`、第二父 `dae133ddc49`）与 recovery tag 由本轮 C76 guard 生成后回填。
 - 推送 `dev4` 与 tag，创建中文 `dev4 -> beta` PR，**只创建不合并**。
