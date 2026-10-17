@@ -1047,6 +1047,9 @@ public class PlayerManager implements ParseCallback {
      *   <li>{@code chosen=} 是否用户显式选定，用于区分「用户选择」与「自动回退」；</li>
      *   <li>{@code from/to} 同时给出内核名与软硬解，避免只看到其中一个维度。</li>
      * </ul>
+     *
+     * <p>{@code position} 由调用方在切换前读好再传进来，而不是在方法内部读：多数调用点
+     * 位于引擎 {@code release()} 之后，此时再读只能拿到已释放播放器的状态。
      */
     private void logSwitchCause(String kind, String cause, int fromType, int toType,
                                 int fromDecode, int toDecode, boolean chosen, long positionMs) {
@@ -1182,17 +1185,21 @@ public class PlayerManager implements ParseCallback {
      * still being selected. This prevents a failed direct DV probe from
      * exposing a stale poster or the last frame before the GPU rebuild.
      * The probe frame only exists when automatic output can actually reach
-     * surface direct; while the stability guard pins automatic mode to GPU —
-     * or the device guard blocks zero copy, which makes
-     * {@link MpvPerformanceSetting#resolveSurfaceDirect} refuse direct output
-     * in every mode — there is nothing to hide, so holding the shutter would
-     * only withhold the picture while audio already plays.
+     * surface direct, so the shutter asks the same cheap gates
+     * {@link MpvPerformanceSetting#resolveSurfaceDirect} applies before it can
+     * return true: not zero-copy blocked, TV, hard decode. Dropping the TV term
+     * would close the shutter on phones, where direct output is unreachable
+     * ({@code leanback=false} makes the decision {@code not-tv}) — the shutter
+     * would then only withhold the picture while audio already plays, which is
+     * the regression fixed by 6a458ec11c.
      * Probing that gives up without a decision also releases the shutter,
      * otherwise the picture would stay hidden for the rest of the item.
      */
     public boolean shouldKeepVideoShutterClosed() {
         return isMpv()
                 && MpvPerformanceSetting.isAutoSurfaceDirectEnabled()
+                && Util.isLeanback()
+                && engine != null && engine.isHard()
                 && MpvPerformanceSetting.getOutputMode() == MpvPerformanceSetting.OUTPUT_AUTO
                 && !mpvAutoOutputEvaluated
                 && !mpvAutoOutputProbeGaveUp
@@ -2047,6 +2054,10 @@ public void resetTrack(int type) {
         int decode = engine.getDecode();
         int previousType = playerType;
         resetPlayerFallback();
+        // Read the position while the old engine is still alive: the switch-cause log below runs
+        // after engine.release(), and getPosition() would then report the released player's state
+        // instead of where playback actually was when the kernel was swapped.
+        long positionBeforeRelease = Math.max(0, getPosition());
         manualPlayerSwitchPending = false;
         beginPlaybackTrace("prepare-player");
         prepareSeq++;
@@ -2056,7 +2067,7 @@ public void resetTrack(int type) {
         engine.release();
         playerType = next;
         logSwitchCause(force ? "history-kernel-retry-after-error" : "history-kernel-before-play",
-                previousType, next, decode, decode, true, getPosition());
+                previousType, next, decode, decode, true, positionBeforeRelease);
         if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "prepare player type=%d decode=%d", next, decode);
         engine = buildEngine(playerType, sanitizeDecode(decode));
         player = engine.getPlayer();
@@ -8802,8 +8813,11 @@ public void resetTrack(int type) {
     }
 
     private void onBufferingStall(long positionMs, long bufferedPositionMs) {
-        cancelBufferingStallWatchdog();
+        // Read the measured stall *before* disarming: cancelBufferingStallWatchdog() resets the
+        // watchdog, and stalledDurationMs() reports -1 once disarmed — the log would then always
+        // claim stalledMs=-1 instead of the duration that actually tripped the timeout.
         long stalledMs = bufferingStallWatchdog.stalledDurationMs(SystemClock.elapsedRealtime());
+        cancelBufferingStallWatchdog();
         boolean loading = player != null && player.isLoading();
         PlaybackTrace.log("buffering-stall", playbackTrace.current(),
                 "action=timeout stalledMs=%d loading=%s position=%d buffered=%d player=%d decode=%d",

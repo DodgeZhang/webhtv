@@ -136,6 +136,47 @@ public class PlayerManagerSwitchCauseSourceTest {
         assertFalse(logger.contains("SpiderDebug.isEnabled()"));
     }
 
+    /**
+     * 日志里的位置必须在引擎释放之前读出。
+     *
+     * <p>{@code preparePlayer()} 的切换原因日志位于 {@code engine.release()} 之后；若那里
+     * 直接写 {@code getPosition()}，记录的就是已释放播放器的状态，而不是内核被换掉时播放
+     * 真正所在的位置——排查「按剧集记住的内核」时这个字段正是关键。
+     */
+    @Test
+    public void switchCausePositionIsReadBeforeTheEngineIsReleased() throws Exception {
+        String source = stripComments(readPlayerManager());
+        String prepare = methodBody(source,
+                "public void preparePlayer(int type, boolean force)",
+                "public void switchPlayer(int type, PlaySpec freshSpec");
+
+        int capture = prepare.indexOf("long positionBeforeRelease = Math.max(0, getPosition());");
+        int release = prepare.indexOf("engine.release();");
+        int log = prepare.indexOf("logSwitchCause(");
+        assertTrue("preparePlayer must read the position while the old engine is alive", capture >= 0);
+        assertTrue("preparePlayer must release the old engine", release >= 0);
+        assertTrue("preparePlayer must log the switch cause", log >= 0);
+        assertTrue("the read must precede the release", capture < release);
+        assertTrue("the log must use the captured value, not a post-release read",
+                prepare.indexOf("true, positionBeforeRelease)") > release && log > release);
+    }
+
+    /**
+     * Drops whole-line comments and trailing {@code //} comments, so an assertion looking for a
+     * call by name cannot be satisfied by that name appearing in the comment documenting it.
+     * Verified by mutation: leaving the comment in place kept a broken ordering assertion green.
+     */
+    private static String stripComments(String source) {
+        StringBuilder out = new StringBuilder(source.length());
+        for (String line : source.split("\n", -1)) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) continue;
+            int marker = line.indexOf("//");
+            out.append(marker >= 0 ? line.substring(0, marker) : line).append('\n');
+        }
+        return out.toString();
+    }
+
     private static String readPlayerManager() throws IOException {
         return read("app/src/main/java/com/fongmi/android/tv/player/PlayerManager.java",
                 "src/main/java/com/fongmi/android/tv/player/PlayerManager.java");

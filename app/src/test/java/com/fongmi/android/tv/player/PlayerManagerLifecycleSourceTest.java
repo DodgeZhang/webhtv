@@ -92,6 +92,45 @@ public class PlayerManagerLifecycleSourceTest {
                 observe > polling && timeout > observe);
     }
 
+    /**
+     * 超时日志里的实测停滞时长必须在停掉看门狗之前读出。
+     *
+     * <p>{@code cancelBufferingStallWatchdog()} 会把看门狗置为未布防，而
+     * {@code stalledDurationMs()} 在未布防时返回 {@code -1}。先取消再读，日志就永远写
+     * {@code stalledMs=-1}，实测时长这个字段等于不存在——排查时无法分辨「刚过 20s 就超时」
+     * 与「卡了 90s 才超时」。
+     */
+    @Test
+    public void stallDurationIsMeasuredBeforeTheWatchdogIsDisarmed() throws Exception {
+        String source = stripComments(readPlayerManager());
+        String body = methodBody(source, "private void onBufferingStall(");
+        int measured = body.indexOf("stalledDurationMs(");
+        int disarmed = body.indexOf("cancelBufferingStallWatchdog();");
+        assertTrue("onBufferingStall must report the measured stall", measured >= 0);
+        assertTrue("onBufferingStall must disarm the watchdog", disarmed >= 0);
+        assertTrue("reading stalledDurationMs() after reset() always yields -1", measured < disarmed);
+    }
+
+    /**
+     * Drops whole-line comments and trailing {@code //} comments.
+     *
+     * <p>Without this, an assertion that looks for a call by name can be satisfied by the same
+     * name inside the explanatory comment that documents it — the guard then passes no matter
+     * what the code does. Verified by mutation: restoring the buggy order while the comment
+     * still names {@code stalledDurationMs()} kept the assertion green until comments were
+     * stripped.
+     */
+    private static String stripComments(String source) {
+        StringBuilder out = new StringBuilder(source.length());
+        for (String line : source.split("\n", -1)) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) continue;
+            int marker = line.indexOf("//");
+            out.append(marker >= 0 ? line.substring(0, marker) : line).append('\n');
+        }
+        return out.toString();
+    }
+
     private static String readPlayerManager() throws IOException {
         Path root = Path.of("").toAbsolutePath();
         Path source = root.resolve(Path.of(
