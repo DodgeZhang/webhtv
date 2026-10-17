@@ -6,8 +6,8 @@
 - Lane: `standard`。
 - Baseline: branch `dev2`, HEAD `3eee5e8c9d618c4f7845e6bd0100357f28ef82d0`。
 - Protected dirty paths: `.wh_diag/**`（任务前已存在，未纳入 scope）。
-- Status: 已实现，验证通过，待提交。
-- Next action: 无；设备验证待补（见 §7）。
+- Status: 已实现，单测与四变体编译通过并已提交（`c2a09e7647dd`）；模拟器实测已完成（§7.1：MPV 布防通过、不误杀通过、停滞超时因测试环境限制未触发）。
+- Next action: 无；停滞超时与 32 位/手机版布防待用限速方式补验（见 §7.2）。
 
 ## 1. 用户可见能力
 
@@ -60,7 +60,7 @@ private void armBufferingStallWatchdog() {
 切换分散在多个路径，措辞与字段各异：
 
 | 路径 | 原日志 |
-|---|---|
+| --- | --- |
 | 失败回退内核 | `player: fallback player from=… to=…` |
 | 失败回退软解 | `player: fallback decode player=… from=hard to=soft` |
 | 手动换内核 | `player: switch player type=… chosen=…` |
@@ -72,7 +72,7 @@ private void armBufferingStallWatchdog() {
 ## 3. 方案比较
 
 | 方案 | 收益 | 缺陷/风险 | 决定 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 只调大 `TIMEOUT_PLAY` | 改动最小 | 对 MPV 起播无效（定时器已被 BUFFERING 取消）；且与站点取址超时共用常量，等于放宽所有源站超时 | 否决 |
 | 把看门狗复制一份 MPV 版 | 不动 Exo 路径 | 重复实现与重复维护，两套阈值会漂移 | 否决 |
 | 看门狗上移为引擎无关，各引擎共用 | 单一实现、单一阈值；MPV 立即获得兜底 | 需确认 MPV 的 position/buffered/loading 语义与 Exo 一致（已确认）；需确认 20s/60s 高于两个引擎的 rebuffer 阈值（已确认） | **采用** |
@@ -97,7 +97,7 @@ private void armBufferingStallWatchdog() {
 
 新增 `switch-cause` 日志与两个 `logSwitchCause` 重载：
 
-```
+```text
 switch-cause kind=kernel|decode|none cause=… chosen=true|false from=<内核>/<软硬解> to=<内核>/<软硬解> position=…
 ```
 
@@ -108,7 +108,7 @@ switch-cause kind=kernel|decode|none cause=… chosen=true|false from=<内核>/<
 原因取值：
 
 | cause | 触发点 |
-|---|---|
+| --- | --- |
 | `user-choice` | 所有 `switchPlayer`/`switchDecode` 入口（均为 UI 用户操作） |
 | `history-kernel-before-play` | `preparePlayer(force=false)`：按剧集记住的内核 |
 | `history-kernel-retry-after-error` | `preparePlayer(force=true)`：onError 重试（`force` 本身就是归因信号） |
@@ -149,14 +149,70 @@ switch-cause kind=kernel|decode|none cause=… chosen=true|false from=<内核>/<
 
 首版把 `cause` 作为参数贯穿到 3 个 Activity，导致 4 个既有 source-text 测试失败（`VideoActivityLayoutTest`×2、`TmdbUIAdapterTest`×1、`TmdbDetailDirectPlayTransitionSourceTest`×1）。经基线对照确认这 4 项确为本次引入后，改为在 `PlayerManager` 内部按入口推导原因，撤销全部 Activity 改动，4 项失败随之消失。这 4 项失败**不是**被放宽或删除的断言，而是改动被改回后自然恢复。
 
-## 7. 未完成的设备验证
+## 7. 设备验证记录
 
-需在电视端（leanback，arm64 与 32 位各一次）与手机端各验证：
+### 7.1 模拟器实测（2026-10-17，已执行）
 
-1. **停滞兜底**：构造 MPV 卡缓冲（弱网/断网续播），确认 `buffering-stall action=arm` 后出现 `action=timeout stalledMs=…`，且随后走既有失败回退，而不是无限转圈。
-2. **不误杀**：正常弱网缓冲（位置不动但 buffered 持续增长）必须**不**触发超时；暂停状态不得累积到 episode ceiling。
+**设备**：`192.168.50.3:5557`（本仓库约定的 2 号模拟器），Android 9 / x86_64 + houdini 翻译 / 应用 arm64-v8a。
+
+**方式**：覆盖安装 `app/build/outputs/apk/leanbackArm64_v8a/debug/app-leanback-arm64_v8a-debug.apk`（200,391,926 字节，debug key SHA-1 `d92b568f…`，与设备已装包签名一致，数据保留）。**未打正式包**。
+
+#### 通过：看门狗在 MPV 上布防
+
+```text
+buffering-stall: action=arm player=3 decode=1 position=11952 buffered=11952 loading=true
+VO: [gpu] 1920x1080 => 1920x1080 yuv420p
+```
+
+- `player=3` 即 **MPV**。改动前 `armBufferingStallWatchdog()` 的 `if (!isExo()) return;` 会让这行日志根本不可能出现，因此这是门禁已放开的直接证据。
+- `VO: [gpu] 1920x1080` 证明 MPV 确实加载并渲染了媒体，不是空转。
+- 全程**没有** `action=timeout`，即正常播放未被误杀（§7 第 2 项“不误杀”在此场景下成立）。
+
+#### 顺带复现并定性了「设置 MPV 却跳到 EXO」
+
+```text
+switch-cause: kind=kernel cause=history-kernel-before-play chosen=true from=MPV/hard to=EXO/hard position=0
+```
+
+全局默认内核已设为 MPV（`player=3`），但**该文件的历史记录里 `player=0`（EXO）**，于是起播前被切回 EXO。设备上历史分布为 `-1:12 / 0:170 / 3:4`，即绝大多数记录是 EXO。
+
+这条正是本任务新增日志的价值所在：一行即可区分「历史记录覆盖了设置」与「失败自动回退」。**注意**：`chosen=true` 表示这是“用户显式选定过的内核”，此处来源是历史记录，不是本次失败回退（回退会带 `cause=fallback-kernel:<trigger>`），两者不会混淆。
+
+#### 未通过：停滞超时（`action=timeout`）无法在模拟器上端到端触发
+
+尝试了 7 种构造方式，全部退化为**源站取址的 30s 超时**（`TimeoutFutureException` + `player finish cost=30017ms`，`start-file`=0），MPV 没有机会加载媒体：
+
+| # | 尝试 | 结果 |
+| --- | --- | --- |
+| 1 | 32KB 全零流 | 非有效 MP4，取址超时 |
+| 2 | 真实 MP4 + 声明超大 Content-Length | 代理等待剩余字节，取址超时 |
+| 3 | 无 Content-Length 的连续流 | 同上 |
+| 4 | `moov` 在文件前部的 vt.mp4 | 同上 |
+| 5 | 完整 HTTP 语义（HEAD / Range / 206） | 同上 |
+| 6 | `adb reverse` 走 `127.0.0.1` | 同上 |
+| 7 | 按请求序号区分 spider 探测与播放 + 手工 faststart 重排的 sintel | 同上 |
+
+**根因（测试环境限制，非改动缺陷）**：`push_agent` 站点的 spider 会先探测 URL，探测阶段被停滞就自己挂到 30s 取址超时；而 `SiteApi.playerContent` 只有 `file:` 前缀或站点为空时才绕过 spider（`if (PUSH.equals(key) && (site.isEmpty() || isLocalFileUrl(requestId))) return pushPlayer(...)`），HTTP URL 必走 spider。
+
+另注：`SIGSTOP` 冻结进程不可行——它会连同看门狗一起冻结，无法验证超时。
+
+**因此停滞超时目前只有单测覆盖**（`BufferingStallWatchdogTest` 23 例，含 episode ceiling、seek 重锚、慢速填充不误杀、暂停不累积等边界），尚无设备端到端证据。
+
+#### 建议的超时验证方式
+
+真机/模拟器上改用**限速**而非服务端停滞：把设备带宽限到低于媒体码率，让 MPV 自然耗尽缓冲。这样取址能正常完成、媒体能加载，`position` 与 `buffered` 随后双双冻结，才是看门狗要捕获的状态。服务端停滞在 `push_agent` 路径上先天不可用。
+
+### 7.2 仍需完成的设备验证
+
+1. **停滞兜底**：按 §7.1 建议的限速方式，确认 `action=arm` 后出现 `action=timeout stalledMs=…`，且随后走既有失败回退而非无限转圈。
+2. **不误杀（弱网场景）**：正常弱网缓冲（位置不动但 buffered 持续增长）必须**不**触发超时；暂停状态不得累积到 episode ceiling。
 3. **切换归因**：分别做「用户手动换内核」「用户手动换软硬解」「播放失败自动回退」三类操作，确认导出日志各出现一行 `switch-cause`，且 `cause`/`chosen` 与实际操作一致。
-4. 回退判据：出现误杀或异常回退时，`git revert` 本任务提交即可完整恢复。
+4. **32 位与手机版**：leanback armeabi_v7a 与 mobile 各跑一次布防确认。
+5. 回退判据：出现误杀或异常回退时，`git revert` 本任务提交即可完整恢复。
+
+### 7.3 环境还原
+
+验证后设备已恢复到任务前状态：prefs（移除临时写入的 `player=3`）、`tv` 数据库（历史分布回到 `-1:12 / 0:170 / 3:4`）、设备临时文件与 `adb reverse` 全部清理；宿主临时目录与测试服务进程已删除。仓库工作区无改动（仅任务前既有的 `.wh_diag/`）。
 
 ## 8. 回滚
 
