@@ -182,11 +182,25 @@
 
 | 项 | 值 |
 | --- | --- |
-| 合并提交 / 第二父 | 本轮 **无第二父**（`origin/beta` 已是 HEAD 祖先）；本次任务提交的第一父为 `3866292f2a73855d87bc1ee4aedf0cbbf5076103` |
+| 合并提交 / 第二父 | 本轮 **无第二父**（`origin/beta` 已是 HEAD 祖先）；本任务提交的第一父为 `3866292f2a73855d87bc1ee4aedf0cbbf5076103` |
+| 本任务提交 | `d6dae3da12fec4c6054d63aa402d8d13bd175581`（4 files changed, 197 insertions(+), 4 deletions(-)） |
+| recovery tag | `recovery/C79-beta-merge-review-dev3-20261018/20261017162842-d6dae3da12fe`（annotated，已推送，指向 `d6dae3da12`） |
 | 提交前 beta tip | `4e3f6bcf3a20a8c71711470dd1aa0361303acc5a`（提交前二次 `fetch` 复核：**未前进**，仍为 HEAD 祖先） |
-| 净差异 | 14 个路径（13 个原净差异 + 本任务文档），仅本任务自身改动 |
-| 分支 | `dev3`（`origin/dev3` 落后本地，推送后回到一致） |
-| PR | `base=beta`、`head=dev3`，中文描述，**只创建不合并** |
+| 净差异 | **14** 个路径（13 个实现/文档净差异 + 本任务文档），仅本任务自身改动 |
+| 分支 | `dev3`，推送后 `origin/dev3` = `d6dae3da12` = 本地 HEAD |
+| PR | **#457** → https://github.com/Silent1566/webhtv/pull/457 |
+
+### 7.1 交付后复核（已执行）
+
+| 复核项 | 结果 |
+| --- | --- |
+| `gh pr view 457` | `baseRefName=beta`、`headRefName=dev3`、`state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`isDraft=false` |
+| `git ls-remote origin` | `refs/heads/dev3` = `d6dae3da12fec4c6054d63aa402d8d13bd175581`；tag 存在 |
+| `git rev-list -n1 <tag>` | = `d6dae3da12fec4c6054d63aa402d8d13bd175581`（tag 指向正确） |
+| 创建 PR 后再次 `fetch` | `origin/beta` 仍为 `4e3f6bcf3a20a8c71711470dd1aa0361303acc5a`（**未前进**），故本轮「无第二父」结论继续成立 |
+| PR 文件集 vs `git diff --name-only origin/beta HEAD` | GitHub compare API 返回 **14** 个文件，与本地 **逐项一致**（`diff` 输出为空） |
+| compare 状态 | `ahead_by=6`、`behind_by=0`、`status=ahead` |
+| 分支保护 | **未合并、未关闭**，仅创建（符合任务要求「不要擅自通过 PR」） |
 
 ## 8. 回滚
 
