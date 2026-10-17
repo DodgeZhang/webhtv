@@ -14,8 +14,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>This signal is deliberately narrower than a bandwidth estimate: it is raised only by an
  * actually observed {@link java.net.ProtocolException}, so it needs no confidence model and cannot
- * be defeated by an untrusted throughput path. Preload and the network guard read it to yield
- * while the foreground connection is being repaired.
+ * be defeated by an untrusted throughput path. Preload reads it to yield while the foreground
+ * connection is being repaired; {@link ExoNetworkGuardController} is not wired to it yet.
  *
  * <p>Time-based rather than event-based, so it expires on its own and needs no reset at session
  * boundaries. Only foreground recoveries are recorded; a preload-side recovery must not make

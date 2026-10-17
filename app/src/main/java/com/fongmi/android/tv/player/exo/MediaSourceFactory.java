@@ -344,8 +344,7 @@ public class MediaSourceFactory implements MediaSource.Factory {
             DataSource.Factory upstreamFactory, Map<String, String> headers) {
         return new CacheDataSource.Factory()
                 .setCache(getCache())
-                // Foreground path: these recoveries are the signal preload and the network guard
-                // yield to.
+                // Foreground path: these recoveries are the signal preload yields to.
                 .setUpstreamDataSourceFactory(new HttpEofRecoveryDataSource.Factory(upstreamFactory, true))
                 .setCacheWriteDataSinkFactory(null)
                 .setCacheKeyFactory(cacheKeyFactory(headers))
