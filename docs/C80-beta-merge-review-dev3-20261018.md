@@ -11,8 +11,8 @@
 - **提交前 HEAD**：`a8d4e4bd5c5d080b8e498a70f5b3e69a7125f49e`
 - **提交前 beta tip（第二父）**：`c9eca9bc1ab7dc2e23efaf4c84311e19e11b29ec`（PR #457）
 - **评审对象**：dev3 已提交未推送的 3 个提交（首页「未配置」空态与状态自收）
-- **当前状态**：见 §7（交付坐标）
-- **下一动作**：见 §7
+- **当前状态**：已交付（提交 64ebe4be5806 / recovery tag / 推送 dev3 / PR #458）
+- **下一动作**：无（本批已交付）
 
 ## 1. 目标与判定标准
 
@@ -174,16 +174,32 @@ public void noConfig() {
 
 | 项 | 值 |
 | --- | --- |
-| 合并提交 | 见下方「交付后回填」 |
+| 合并提交 | `64ebe4be58063075f5139d175412bc3e9ce95edd`（双父：`a8d4e4bd5c` + `c9eca9bc1a`） |
 | 第二父 | `c9eca9bc1ab7dc2e23efaf4c84311e19e11b29ec`（PR #457） |
-| recovery tag | 见下方「交付后回填」 |
-| 净差异 | **13** 个路径（12 个实现/文档 + 本任务文档），仅本任务自身改动 |
-| 分支 | `dev3` |
-| PR | 见下方「交付后回填」 |
+| recovery tag | `recovery/C80-beta-merge-review-dev3-20261018/20261018183241-64ebe4be5806`（annotated，已推送） |
+| 净差异 | **14** 个路径（12 个实现/文档 + 本任务 2 个文档），仅本任务自身改动；`665 insertions(+), 2 deletions(-)` |
+| 分支 | `dev3`，推送后 `origin/dev3` = `64ebe4be5806` = 本地 HEAD |
+| PR | **#458** → https://github.com/Silent1566/webhtv/pull/458 |
 
-### 7.1 交付后回填
+### 7.1 交付后复核（已执行）
 
-（提交/推送/建 PR 后补记，不另行新建文件。）
+| 复核项 | 结果 |
+| --- | --- |
+| `gh pr view 458 --repo Silent1566/webhtv` | `baseRefName=beta`、`headRefName=dev3`、`state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`isDraft=false` |
+| `git ls-remote origin` | `refs/heads/dev3` = `64ebe4be58063075f5139d175412bc3e9ce95edd`；tag 存在且 `^{}` 解引用同值（tag 指向正确） |
+| 创建 PR 后复核 beta | `origin/beta` 仍为 `c9eca9bc1ab7dc2e23efaf4c84311e19e11b29ec`（**未前进**） |
+| PR 文件集 vs `git diff --name-only origin/beta HEAD` | GitHub API 返回 **14** 个文件，与本地 **逐项一致**（`Compare-Object` 输出为空） |
+| compare 状态 | `ahead_by=4`、`behind_by=0`、`status=ahead` |
+| 分支保护 | **未合并、未关闭**，仅创建（符合任务要求「不要擅自通过 PR」） |
+
+### 7.2 工具坑（本轮实测，供后续任务复用）
+
+`gh` 在本工作区的**默认仓库上下文是 `webhtv/webhtv`**（`gh repo view` 返回它），而不是 `origin` 指向的 `Silent1566/webhtv`。因此：
+
+- 不带 `--repo` 的 `gh pr create` 会报 `No commits between beta and dev3` / `Head ref must be a branch`——这是**上下文错了**，不是分支或提交有问题；
+- 不带 `--repo` 的 `gh pr view <N>` 会报 `Could not resolve to a PullRequest`（即使该 PR 真实存在）。
+
+**规避**：所有 `gh pr` 子命令显式带 `--repo Silent1566/webhtv`。
 
 ## 8. 回滚
 
