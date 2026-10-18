@@ -12,7 +12,7 @@
 ## 1. 用户可见能力
 
 1. **MPV 卡缓冲不再只能干等**：MPV 播放中若进入 BUFFERING 且位置与缓冲末端都不再前进，会在有界时间内结束该次尝试并走既有失败回退，而不是无限转圈。
-2. **切换原因可追溯**：导出的播放日志里，每次换内核或换软硬解都会有一行 `switch-cause`，写明原因、是否用户显式选择、从哪个内核/软硬解换到哪个。
+2. **切换原因可追溯**：导出的播放日志里，每次换内核或换软硬解都会有一行 `switch-cause`，写明原因（是否为用户显式选择看 `cause`）、从哪个内核/软硬解换到哪个。
 
 ## 2. 现场证据与根因
 
@@ -176,7 +176,7 @@ switch-cause: kind=kernel cause=history-kernel-before-play chosen=true from=MPV/
 
 全局默认内核已设为 MPV（`player=3`），但**该文件的历史记录里 `player=0`（EXO）**，于是起播前被切回 EXO。设备上历史分布为 `-1:12 / 0:170 / 3:4`，即绝大多数记录是 EXO。
 
-这条正是本任务新增日志的价值所在：一行即可区分「历史记录覆盖了设置」与「失败自动回退」。**注意**：`chosen=true` 表示这是“用户显式选定过的内核”，此处来源是历史记录，不是本次失败回退（回退会带 `cause=fallback-kernel:<trigger>`），两者不会混淆。
+这条正是本任务新增日志的价值所在：一行即可区分「历史记录覆盖了设置」与「失败自动回退」。**注意**：这行 `cause=history-kernel-before-play` 已经说明来源是历史记录；`chosen=true` 只表示本次切换改写了会话内核（回退路径一律 `chosen=false`），**不能**据此推断「用户显式选过 EXO」。用户是否真的选过那一集的内核，要看历史记录的 `player` 字段本身。
 
 #### 未通过：停滞超时（`action=timeout`）无法在模拟器上端到端触发
 
@@ -234,7 +234,7 @@ kind=kernel cause=fallback-kernel:timeout chosen=false from=MPV/soft to=EXO/hard
 kind=kernel cause=history-kernel-before-play chosen=true from=MPV/hard to=EXO/hard position=0
 ```
 
-「内核没变只换软硬解」记为 `decode`、内核变化记为 `kernel`、「用户显式选定（此处为历史记录）」记为 `chosen=true`，三者可直接从导出日志区分。§7.2 第 3 项中的「播放失败自动回退」类已覆盖；「用户手动换内核/软硬解」两类仍需手按遥控器，本轮未做。
+「内核没变只换软硬解」记为 `decode`、内核变化记为 `kernel`、「来源是历史记录」靠 `cause=history-kernel-before-play` 识别，三者可直接从导出日志区分（`chosen` 一律按 §4.3 的实测口径读，不要拿它当「用户 vs 自动」的判据）。§7.2 第 3 项中的「播放失败自动回退」类已覆盖；「用户手动换内核/软硬解」两类仍需手按遥控器，本轮未做。
 
 #### 未通过：`action=timeout` 的根因（本轮新结论）
 
