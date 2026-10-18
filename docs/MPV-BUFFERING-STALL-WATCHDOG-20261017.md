@@ -294,12 +294,61 @@ switch-cause: kind=kernel cause=fallback-kernel:timeout chosen=false from=MPV/so
 
 另外记录一次我自己造成的干扰：把本地脚本命名为 `inspect.py` 遮蔽了 Python 标准库 `inspect` 模块，导致限速服务器启动即崩（`AttributeError: module 'inspect' has no attribute 'signature'`）；已重命名为 `dbcheck.py`。
 
+### 7.1.3 第四轮实测：§7.2 第 2/4 项通过，并发现一个真实缺陷（2026-10-18 13:30–18:20）
+
+#### 通过：不误杀（弱网）+ 暂停不累积（§7.2 第 2 项）
+
+| 场景 | 构造 | 结果 |
+| --- | --- | --- |
+| 弱网持续前进 | 60 KB/s 限速（码率约 84 KB/s） | `buffered` 从 217 持续增长到 52208，`position` 同步前进至 ENDED，**全程零 `action=timeout`**（多次 `action=arm` 后都自然取消） |
+| 暂停超 ceiling | 播到 3.8 s 后 `control&type=pause` + 冻结网络 100 s（`EPISODE_CEILING_MS=90_000`） | 状态保持 `state=2`（PAUSED），**零 `action=timeout`** |
+
+即“位置不动但 buffered 在涨”和“用户主动暂停”都不会被看门狗误杀，与设计意图一致。
+
+#### 通过：32 位与手机版布防（§7.2 第 4 项）
+
+| 变体 | `primaryCpuAbi` | 日志 |
+| --- | --- | --- |
+| leanback armeabi_v7a | `armeabi-v7a` | `action=arm player=3 decode=1` |
+| mobile arm64_v8a | `arm64-v8a` | `action=arm player=3 decode=1` |
+
+两个变体均为重新构建（含本任务最新修复）后覆盖安装，MPV 上布防成立。
+
+#### 发现并修复的真实缺陷：控制栏「解码」按钮不写 `switch-cause`
+
+按 §7.2 第 3 项核对手动切换归因时发现：`switch-cause` 全仓只有一个产生点（`PlayerManager.logSwitchCause`），而手动软硬解切换有两条路径：
+
+| 入口 | 是否记日志 |
+| --- | --- |
+| `switchDecode(PlaySpec…)` / `switchDecode(Result…)`（换源/刷新后重取址） | 有 |
+| `toggleDecode()`（控制栏「解码」按钮，双 flavor 最常用入口） | **无** |
+
+`toggleDecode` 的调用链（`beginIjkRuntimeManualOverride` / `rebuildPlayer` / `setMediaItem`）均不记日志，所以**日常最常用的手动换软硬解完全不产生 `switch-cause`**——直接违反本任务 §1 第 2 项的公开承诺。
+
+**修复**（`a9a52e2cb7`）：在 `engine.setDecode(next)` **之前**捕获 `previousDecode`，并补一行 `logSwitchCause("decode", "user-choice", …, chosen=false)`；新增回归锁 `manualDecodeButtonLogsItsCauseToo`（含「先捕获后覆盖」顺序断言）。
+
+**两轮变异测试（其中一次抓出了我自己写的假绿）**：
+
+| # | 变异 | 期望 | 实测 |
+| --- | --- | --- | --- |
+| 1a | 删掉新增的日志行 | 转红 | **假绿** —— 我用 `switchPlayer(int type)` 作方法体结束锚点，它隔着 ~130 行，把 `switchDecode` 里真正的 `logSwitchCause("decode","user-choice",…)` 一起圈进来了 |
+| 1b | 同上，锚点改为紧邻的 `maybeFallbackToSoftDecode(` | 转红 | 如期 `manualDecodeButtonLogsItsCauseToo FAILED` |
+| 2 | 把 `previousDecode` 捕获移到 `engine.setDecode(next)` 之后 | 转红 | 如期 FAILED |
+
+修完后 `git hash-object` 与修复版逐字节相同，定向 10/10 绿；全量 leanback `4346 tests / 8 failed` 与 C78 记录的基线失败集**逐条一致**（零新增失败，均为 Windows CRLF 与既有夹具缺陷）。
+
+#### 未完成：§7.2 第 3 项的设备端确认
+
+`toggleDecode` 的修复已由单测锁定，但**未能在设备上按遥控器抓到该行**：`uiautomator dump` 在这个播放页持续报 `could not get idle state`（MPV 持续出帧），而绝对坐标 tap 又会被 `HorizontalScrollView` 的横向滚动带偏——本轮多次 tap 实际落在「软解/播放参数」之间而没命中按钮。D-pad 行走可看到焦点环确实落在该按钮上（截图确认），但同一轮里走到末屏会把播放页退回详情页。
+
+**结论**：该项的功能已由“代码路径 + 回归锁 + 变异测试”三重証实；**缺的只是遥控器手按的设备回放**，下一轮可用“先暂停再 D-pad 定位 + CENTER 激活”（暂停后 `uiautomator` 可用，本文已验证暂停能拿到 `state=2`）。
+
 ### 7.2 仍需完成的设备验证
 
-1. ~~**停滞兜底**：确认 `action=timeout stalledMs=…` 且随后走既有失败回退~~ → **已完成，见 §7.1.2**（`stalledMs=60934`，三级回退齐全）。
-2. **不误杀（弱网场景）**：正常弱网缓冲（位置不动但 buffered 持续增长）必须**不**触发超时；暂停状态不得累积到 episode ceiling。
-3. **切换归因**：分别做「用户手动换内核」「用户手动换软硬解」「播放失败自动回退」三类操作，确认导出日志各出现一行 `switch-cause`，且 `cause` 与实际操作一致；`chosen` 按实测口径核（它指的是「会话内核是否被本次切换改写」，不是「是否用户发起」）。
-4. **32 位与手机版**：leanback armeabi_v7a 与 mobile 各跑一次布防确认。
+1. ~~**停滞兜底**~~ → **已完成，见 §7.1.2**（`stalledMs=60934`，三级回退齐全）。
+2. ~~**不误杀（弱网场景）**~~ → **已完成，见 §7.1.3**（弱网持续前进与暂停 100 s 均零 `action=timeout`）。
+3. **切换归因**：自动回退类已实证（§7.1.1/§7.1.2）；「用户手动换内核」（`preparePlayer`/`switchPlayer`）与「用户手动换软硬解」的代码路径与回归锁已就位（§7.1.3），**仅差遥控器手按的设备回放**。建议路径：暂停 → D-pad 定位到「解码」→ CENTER 激活 → 查 `switch-cause kind=decode cause=user-choice`。
+4. ~~**32 位与手机版**~~ → **已完成，见 §7.1.3**（两个变体均 `action=arm player=3`）。
 5. 回退判据：出现误杀或异常回退时，`git revert` 本任务提交即可完整恢复。
 
 ### 7.3 环境还原
