@@ -101,13 +101,14 @@ public class PlaybackEpisodeIdTest {
     }
 
     private static String readSource(String relative) throws Exception {
-        java.nio.file.Path path = java.nio.file.Paths.get(relative);
-        if (!java.nio.file.Files.exists(path)) {
-            // 从模块目录跑时路径不同，回退一层。
-            path = java.nio.file.Paths.get("..", relative);
-        }
+        // 从 user.dir 逐级向上找项目根：Gradle 的 JVM 单测工作目录可能是仓库根，
+        // 也可能是模块目录（app/）；写死单层回退会在换一种布局后静默失效。
+        // 仓库既有先例：ExoVideoHardwareDecodeTest.readSource 用同样的向上查找。
+        java.nio.file.Path root = java.nio.file.Paths.get(System.getProperty("user.dir")).toAbsolutePath();
+        while (root != null && !java.nio.file.Files.isRegularFile(root.resolve(relative))) root = root.getParent();
+        if (root == null) throw new IllegalStateException("找不到项目根，无法读取 " + relative);
         StringBuilder builder = new StringBuilder();
-        for (String line : java.nio.file.Files.readAllLines(path, java.nio.charset.StandardCharsets.UTF_8)) {
+        for (String line : java.nio.file.Files.readAllLines(root.resolve(relative), java.nio.charset.StandardCharsets.UTF_8)) {
             String trimmed = line.trim();
             if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) continue;
             builder.append(line).append('\n');

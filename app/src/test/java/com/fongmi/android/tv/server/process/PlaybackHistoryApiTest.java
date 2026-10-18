@@ -40,6 +40,18 @@ public class PlaybackHistoryApiTest {
     }
 
     @Test
+    public void blankSiteKeyStillFallsBackToSiteAlias() {
+        // 回归锁：`?siteKey=%20&site=csp_x` 里调用方明确给了别名，
+        // 若只看 isEmpty 就返回空串，端点会报 400 而调用方拿不到解释。
+        // 只有主参数与别名**都**空才返回空串。
+        Map<String, String> params = new HashMap<>();
+        params.put("siteKey", "   ");
+        params.put("site", "csp_alias");
+
+        assertEquals("csp_alias", PlaybackHistoryApi.siteKey(params));
+    }
+
+    @Test
     public void limitFallsBackToDefaultOnMissingOrMalformed() {
         // 坏参数一律回落默认（0 表示"用默认"），而不是报 400——
         // 对端传了一个坏 limit 不该让整次拉取失败。

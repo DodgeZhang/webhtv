@@ -13,7 +13,7 @@
 - **验收标准**：见 §6 验收矩阵；每项都有可执行的定向验证。
 - **当前状态**：改动 A（`GET /api/playback/history`）与改动 C（`apiSafe()` 追加 `episodeId`）已实施，
   双 flavor 编译 + 定向单测 + 变异验证已通过，并已在 `192.168.50.3:5561` 上覆盖安装实测。
-  证据见 §10 实施记录。
+  证据见 §10 实施记录。**2026-10-18 合并 `origin/beta` 时复评并修正 2 项缺陷，见 §11。**
 - **下一步**：改动 E 需先做 `03` §3.2 的 logcat 实验；改动 D 暂缓（由对侧重算）。
 
 ---
@@ -339,3 +339,83 @@ logcat 实验）确认提前 EOF 是否真的报 `STATE_ENDED`，再决定是否
 **若后续需要跨配置读取**（PC 端不切换配置也能拿到全部历史），
 应作为独立改动评估：新增「按 `siteKey` 跨 `cid`」的查询 + 明确返回 `cid` 归属，
 而不是改动本端点的既有语义。
+
+---
+
+## 11. 合并 `origin/beta` 时的复评与修正（2026-10-18）
+
+### 11.1 合并事实
+
+| 项 | 值 |
+| --- | --- |
+| 合并前 HEAD | `18a43b46f4c`（dev4，含本任务未推送提交 `e55f19276fb`） |
+| 合并进的分支 | `origin/beta` @ `c9eca9bc1ab`（PR #457），18 个提交 |
+| 冲突 | 0（`git merge --no-ff --no-commit` 自动完成） |
+| 合并结果 − beta 的净差异 | **恰为本任务 11 个路径、+858/−0**，即只有本任务自己的新增 |
+
+### 11.2 零复活证据（用户明确要求：远端已移除/回退的提交不得被顺带带回）
+
+| 层 | 方法 | 结果 |
+| --- | --- | --- |
+| L1 路径级 | 净差异 11 路径 ∩ beta 上 28 个 revert 提交触及的 154 路径 | **0** |
+| L2 行级 | 净差异 526 条新增实质行 ∩ revert 提交删除的 3478 条实质行 | 17 条命中，**逐条分类全为通用样板**（`import android.text.TextUtils;`、`} catch (Throwable e) {`、`\| --- \| --- \|` 表格分隔行等），无一条为被回退的业务代码 |
+| L3 文件级 | beta 树 5141 路径 − 合并索引树 | **0 缺失**（无 beta 内容被合并吞掉） |
+| L4 反向 | 合并索引树 − beta 树 | 恰为本任务 5 个新增文件（`PlaybackHistoryApi.java` + 3 个测试 + 本任务文档） |
+
+### 11.3 复评发现并修正的 3 项缺陷
+
+| # | 问题 | 影响 | 修正 |
+| --- | --- | --- | --- |
+| 1 | `PlaybackApi.history` 与 `PlaybackHistoryApi` 的失败路径**只**调 `SpiderDebug.log`，而它每条重载先过 `DebugLogStore.acceptsTag(tag)`，其 `enabled` 默认 `false`（要用户手动开「调试日志」） | 默认发行版里读库失败**完全静默**：响应里「这个站点没有历史」与「库挂了/单条记录坏了」长得一模一样，而空数组正是对端「不推进游标」的依据，排查时没有任何线索。与 C73 在 `PyLoader` 修过的是同一类缺陷 | 两处 `catch` 与端点 500 路径各补 `e.printStackTrace()`，与既有 `SpiderDebug.log` **并存**（两条通道：进诊断面板 + 无条件进 Logcat），并在注释里写明 `enabled` 默认 false 这一前提 |
+| 2 | `PlaybackHistoryApi.siteKey()` 在 `siteKey` 存在但**只有空白**时不回退 `site` 别名（`TextUtils.isEmpty(" ")` 为 false） | `?siteKey=%20&site=xxx` 会返回 400，而调用方明确给了别名，拿不到任何解释 | 改为 `isEmpty(value) \|\| isEmpty(value.trim())` 才回退；只有两者都空才返回空串 |
+| 3 | **本任务自身两个改动之间的接口缺陷**：只读端点按设计**不输出** `episodeUrl`（只给指纹 `episodeId`），但写路径 `PlaybackProgressWriter` 无条件 `history.setEpisodeUrl(input.episodeUrl)` | 对端把刚读到的记录**原样回推**时没有 `episodeUrl`，会把本地那条历史已落库的播放地址**抹成空串**。地址是「从历史继续播放」定位集条目的依据（`History.getEpisode()`），抹掉后用户从历史点进去会定位不到那一集——即"读得出来、写回去就坏"的往返缺陷 | 抽出纯函数 `resolveEpisodeUrl(local, input, sameEpisode)`：入参带地址则以入参为准；入参无地址时，仅在能证明**同一集**（既有 `sameEpisode` 容错语义，或集指纹相等）才保留本地地址，否则清空。反向约束同样锁住——对端推的是**另一集**时不得把上一集地址挂到新集进度上 |
+
+第 3 项是本轮唯一由**本任务两个改动组合**产生的缺陷（单独看任一个都自洽），
+也是复评的价值所在：只读端点与写路径分属两个提交，只有把往返路径连起来看才会暴露。
+
+同时加固了本任务测试自身的一处脆弱点：`PlaybackEpisodeIdTest.readSource` 原用「单层 `..` 回退」，
+换一种 Gradle 测试工作目录布局就会静默失效；改为从 `user.dir` 逐级向上找项目根
+（仓库既有先例 `ExoVideoHardwareDecodeTest.readSource`）。
+
+### 11.4 新增回归锁与变异验证
+
+新增 `PlaybackHistoryDiagnosticsWiringTest`（4 例）锁定「两条通道缺一不可」，
+并按**catch 块**取体（而非全局 `indexOf`）——第一版守卫用全局查找时，
+删掉第一个 `catch` 的兜底日志会匹配到**第二个** `catch` 而恒真，已修正为按块断言。
+
+`PlaybackProgressWriterEpisodeTest` 由 3 例扩到 11 例，覆盖第 3 项的往返决策
+（保留本地地址 / 换集清空 / 入参地址优先 / 既有 sameEpisode 语义 / 首次写入）。
+
+| 变异 | 改动 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| M1 | 删掉 `PlaybackApi` 第一个 `catch` 的 `e.printStackTrace();` | `databaseReadFailureReachesLogcatWithoutDebugLoggingEnabled` 转红 | **如期转红**（`4 tests completed, 1 failed`），已还原 |
+| M2 | `siteKey()` 的空白回退改回 `isEmpty` 单判 | `blankSiteKeyStillFallsBackToSiteAlias` 转红 | **如期转红**，已还原 |
+| M3 | `resolveEpisodeUrl` 退回无条件 `return input.episodeUrl` | 往返决策断言转红 | **如期转红**（`11 tests completed, 2 failed`），已还原 |
+
+两处**假绿**已修正并记录：
+① M1 第一轮守卫过松（全局查找命中第二个 `catch`），据此改为按块取体；
+② M3 第一轮只测了辅助函数 `sameEpisodeFingerprint`，**没测调用点**，
+把 `resolveEpisodeUrl` 退回无条件写入时全绿——据此把「保留/清空」这个决策本身
+抽成纯函数并直接断言。教训：守卫必须钉在**被修改的那条语句**上，
+只测它依赖的辅助函数等于没测。
+
+### 11.5 验证证据（修正后）
+
+| # | 验证 | 命令 | 结果 |
+| --- | --- | --- | --- |
+| 1 | 双 flavor 编译 | `gradlew :app:compileMobileArm64_v8aDebugJavaWithJavac :app:compileLeanbackArm64_v8aDebugJavaWithJavac --no-daemon` | BUILD SUCCESSFUL |
+| 2 | 定向单测 | `gradlew :app:testMobileArm64_v8aDebugUnitTest --tests "com.fongmi.android.tv.playback.*" --tests "com.fongmi.android.tv.server.*"` | 50 个测试类 **254 例 0 失败 0 错误 0 跳过** |
+| 3 | 本任务相关测试类 | 同上 | `PlaybackEpisodeIdTest` 8、`PlaybackHistoryDiagnosticsWiringTest` 4、`PlaybackHistoryLimitTest` 4、`PlaybackHistoryApiTest` 6、`PlaybackProgressWriterEpisodeTest` 11（3→11），全绿 |
+| 4 | 变异 | M1 / M2 / M3 | 均如期转红并逐字节还原 |
+| 5 | 冲突标记 | `git grep -E '^(<<<<<<<\|>>>>>>>)'` | 0 |
+| 6 | whitespace | `git diff --check` | 通过（exit 0） |
+
+### 11.6 未执行（如实声明边界）
+
+- **未重跑设备实测**：第 11.3 节三项修正都不改变成功路径的响应形态——
+  第 1 项只加日志通道；第 2 项只在「主参数为空白」这一原本报 400 的路径上生效；
+  第 3 项只在「入参无 `episodeUrl`」时改变落库值，而该形态**只在 PC 端回推时出现**
+  （本机播放路径始终带地址），因此沿用 §10.2 的 `192.168.50.3:5561` 实测证据，
+  未重新安装 APK。第 3 项的端到端效果（PC 回推后从历史续播仍能定位集）需 PC 端联调才能实测，
+  属本任务边界外的对侧验收。
+- **`completed` 阈值与 `STATE_ENDED` 闸门**（改动 D/E）仍按 §5.4/§5.5 暂缓，本次未动。

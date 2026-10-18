@@ -67,7 +67,10 @@ public class PlaybackHistoryApi implements Process {
             SpiderDebug.log("playback-api", "history site=%s total=%s", siteKey, records.size());
             return cors(json(Response.Status.OK, payload(siteKey, records).toString()), session);
         } catch (Throwable e) {
+            // 同 PlaybackApi.history：SpiderDebug 受 DebugLogStore.enabled（默认 false）门控，
+            // 默认发行版里不会落盘，必须补 printStackTrace 才能让 500 在 Logcat 里可查。
             SpiderDebug.log("playback-api", e);
+            e.printStackTrace();
             return cors(error(Response.Status.INTERNAL_ERROR, 500, e.getMessage()), session);
         }
     }
@@ -91,10 +94,14 @@ public class PlaybackHistoryApi implements Process {
      *
      * <p>包级可见而不是私有：参数归一化是纯逻辑，值得被单测直接锁定，
      * 不必为了测它去 mock 一整个 HTTP session。
+     *
+     * <p>{@code siteKey} 存在但只有空白时，**也要**回退到 {@code site} 别名：
+     * {@code ?siteKey=%20&site=csp_x} 里调用方明确给了别名，若因为主参数是空白就
+     * 直接返回空串，端点会报 400 而调用方拿不到任何解释。只有两者都空才返回空串。
      */
     static String siteKey(Map<String, String> params) {
         String value = params.get("siteKey");
-        if (TextUtils.isEmpty(value)) value = params.get("site");
+        if (TextUtils.isEmpty(value) || TextUtils.isEmpty(value.trim())) value = params.get("site");
         return value == null ? "" : value.trim();
     }
 

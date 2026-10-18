@@ -64,9 +64,14 @@ public final class PlaybackApi {
             rows = AppDatabase.get().getHistoryDao()
                     .findBySiteKey(VodConfig.getCid(), siteKey + AppDatabase.SYMBOL, effective);
         } catch (Throwable e) {
-            // 读库失败必须留下痕迹：静默返回空数组会让调用方把"库挂了"误读成
-            // "这个站点没有历史"，排查时完全失去线索。
+            // 读库失败必须留下痕迹：静默返回空数组会让调用方把「库挂了」误读成
+            // 「这个站点没有历史」，排查时完全失去线索。
+            // 注意：只打 SpiderDebug 不够——它的每条重载先过 DebugLogStore.acceptsTag()，
+            // 而 DebugLogStore.enabled 默认 false（要用户手动开「调试日志」），
+            // 也就是默认发行版里这条日志根本不会落盘。printStackTrace 走 Logcat 无条件可见，
+            // 两者并存才能既进诊断面板、又不依赖用户设置。
             SpiderDebug.log("playback-api", e);
+            e.printStackTrace();
             return Collections.emptyList();
         }
         if (rows == null || rows.isEmpty()) return Collections.emptyList();
@@ -79,8 +84,10 @@ public final class PlaybackApi {
                 records.add(PlaybackRecord.from(history, null, null, "")
                         .copyFor(PlaybackFieldPolicy.apiSafe()));
             } catch (Throwable e) {
-                // 单条坏记录不该让整批读取失败（与对端"部分失败不推进游标"的语义一致）。
+                // 单条坏记录不该让整批读取失败（与对端「部分失败不推进游标」的语义一致）。
+                // 同样补 printStackTrace：坏记录是「历史里少了一条」的唯一解释点。
                 SpiderDebug.log("playback-api", e);
+                e.printStackTrace();
             }
         }
         return records;
