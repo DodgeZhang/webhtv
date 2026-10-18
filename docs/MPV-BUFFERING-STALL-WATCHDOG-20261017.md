@@ -6,8 +6,8 @@
 - Lane: `standard`。
 - Baseline: branch `dev2`, HEAD `3eee5e8c9d618c4f7845e6bd0100357f28ef82d0`。
 - Protected dirty paths: `.wh_diag/**`（任务前已存在，未纳入 scope）。
-- Status: 已实现，单测与四变体编译通过并已提交（`c2a09e7647dd`）；模拟器实测已完成（§7.1 + §7.1.1：MPV 布防、不误杀、切换归因三类均实证；停滞超时因 15 s 启动守卫与输出重建竞争仍未取得 `action=timeout`，构造条件已在 §7.1.1 写明）。
-- Next action: 无（停滞超时的设备端到端证据需先用「固定 MPV 输出模式 + READY 后零重建窗口」重跑，见 §7.2）。
+- Status: 已实现，单测与四变体编译通过并已提交（`c2a09e7647dd`）；模拟器实测已完成（§7.1 + §7.1.1：MPV 布防、不误杀、切换归因三类均实证；停滞超时因 15 s 启动守卫与输出重建竞争仍未取得 `action=timeout`，构造条件已在 §7.1.1 写明）。第三轮（2026-10-18）复核了存疑的 `History.player` 语义：对照实验证明「-1 = 无偏好」语义**完好**，先前的「3→0」属测量假象，**无需修改生产代码**；另查实 `chosen` 的文档口径与代码不符（已更正文档，代码未改）。
+- Next action: 无（可选后续：① 停滞超时的设备端到端证据需先用「固定 MPV 输出模式 + READY 后零重建窗口」重跑，见 §7.2；② `chosen` 语义是否按「用户 vs 自动」重命名/修正，属独立任务）。
 
 ## 1. 用户可见能力
 
@@ -102,7 +102,7 @@ switch-cause kind=kernel|decode|none cause=… chosen=true|false from=<内核>/<
 ```
 
 - `kind` **由实际变化推导**（内核变了→`kernel`，内核没变而软硬解变了→`decode`），不由调用方声明，避免“同内核只换软硬解”被误报成换内核。
-- `chosen` 区分「用户显式选定」与「自动回退」。
+- `chosen` 表示**本次切换是否把用户选定的内核记为会话内核**（代码里它同时驱动 `switchEngine` 的 `if (chosen) PlayerSetting.putActivePlayer(type)`），不是「本次切换是否由用户发起」。实测反例：用户点击切换软硬解走 `cause=user-choice` 却记 `chosen=false`（`switchDecode` 两处），而用户换内核的 `cause=user-choice` 记 `chosen=true`。只看 `cause` 判断「用户 vs 自动」更准；`chosen` 适合回答「会话内核是否被这次切换改写」。
 - `from/to` 同时给出内核名与软硬解，避免只看到其中一个维度。
 
 原因取值：
@@ -249,15 +249,17 @@ kind=kernel cause=history-kernel-before-play chosen=true from=MPV/hard to=EXO/ha
 
 #### 本轮发现、但**不属于**本任务的既有缺陷
 
-1. **全新历史记录的 `player` 字段为 0（EXO）**，导致 `applyHistoryPlayerKernel()` 把「没有任何历史」误判成「用户显式选过 EXO」：即使设置页全局内核是 MPV，推送一个全新 URL 也会先被切到 EXO。设备 `tv` 库实测：新推送行 `player=0`，而更早的行有 `-1`。`History.player` 字段声明默认是 `PlayerSetting.NONE`，与实测不符，说明某条创建/回填路径写入了 0；根因未定位，超出本任务范围，仅记录。
-2. **覆盖安装会清空应用数据**（prefs、`tv` 库、运行时权限全部回到默认）。本轮因此需要重新写入 `player=3`、打开 `debug_log`，并用 `pm grant` 补 `READ_EXTERNAL_STORAGE`/`WRITE_EXTERNAL_STORAGE`/`RECORD_AUDIO`/`CAMERA`，否则应用会卡在权限对话框。**`debug_log` 关闭时 `PlaybackTrace` 一行都不输出**——上一轮与本轮前半段「日志空白」正是这个原因。
-3. 本轮 23:16 左右出现一次**非本任务操作导致的包被卸载**（`pm list packages` 中包消失，随后重新 `install -r` 恢复）。未定位触发者，记录以备复查。
+1. **【已核实为我的测量假象，非缺陷】** 我曾在报告里写「全新历史记录的 `player` 为 0，被当成用户显式选过 EXO」。随后用预置值对照实验证伪：应用从零新建的行是 **`-1`**；预置 `3` 回读仍 `3`；预置 `-1` 回读仍 `-1` 且正确回退全局默认。`History.player` 的「-1 = 无偏好」语义完好，`setPlayer` 三个调用点都带 `isPlayer()` 守卫。**无需修复。**
+2. **设备库里 169 条 `player=0` 的真实来源（旧 bug 遗留数据）**：`4db26d042b`（2026-08-31「修复：播放器里切内核不再全局生效，改回按剧集记住」）删掉了一处例行存档写内核的旧代码 `updateInlineHistoryPlayer()` → `history.setPlayer(player().getPlayerType())`。该旧代码会在**每次例行存档**把当前会话内核写进历史，EXO(0) 因此被批量盖章。数据时间分布与判断完全吻合：`player=0` 最晚 **2026-10-16**、`player=-1` 一直延续到 **2026-10-18**（修复后的构建开始产生 `-1`）。这是**已修复 bug 的存量残留**，不是活跃缺陷；是否清理存量请另行决定，不在本任务范围。
+3. **`chosen` 字段的文档口径与代码不符（真实缺陷，未修）**：文档原写「`chosen` 区分用户显式选定与自动回退」，但用户点击切换软硬解（`switchDecode`，`cause=user-choice`）传的是 `false`，与用户换内核（`chosen=true`）不一致。`chosen` 实际含义是「本次切换是否改写会话内核」（它同时驱动 `switchEngine` 的 `putActivePlayer`）。已按实测口径改写文档；**代码未改**——修正它会牵动 C78 的变异验证集，超出本任务范围，记为待办。
+4. **覆盖安装会清空应用数据**（prefs、`tv` 库、运行时权限全部回到默认）。本轮因此需要重新写入 `player=3`、打开 `debug_log`，并用 `pm grant` 补 `READ_EXTERNAL_STORAGE`/`WRITE_EXTERNAL_STORAGE`/`RECORD_AUDIO`/`CAMERA`，否则应用会卡在权限对话框。**`debug_log` 关闭时 `PlaybackTrace` 一行都不输出**——上一轮与本轮前半段「日志空白」正是这个原因。
+5. 本轮 23:16 左右出现一次**非本任务操作导致的包被卸载**（`pm list packages` 中包消失，随后重新 `install -r` 恢复）。未定位触发者，记录以备复查。
 
 ### 7.2 仍需完成的设备验证
 
 1. **停滞兜底**：按 §7.1.1 的结论，必须构造「已 READY、其后 20–60 s 无任何引擎重建、零进展」的窗口：先在设置里把 MPV 输出模式固定（避开自动档重建），再用路径式限速服务器（`/r<Bps>/<file>`）压到码率以下，确认 `action=arm` 后出现 `action=timeout stalledMs≈20000 或 60000`，且随后走既有失败回退而非无限转圈。**注意 15 s 启动守卫会抢在看门狗之前结束“从未 READY”的会话**，那是预期分工，不是缺陷。
 2. **不误杀（弱网场景）**：正常弱网缓冲（位置不动但 buffered 持续增长）必须**不**触发超时；暂停状态不得累积到 episode ceiling。
-3. **切换归因**：分别做「用户手动换内核」「用户手动换软硬解」「播放失败自动回退」三类操作，确认导出日志各出现一行 `switch-cause`，且 `cause`/`chosen` 与实际操作一致。
+3. **切换归因**：分别做「用户手动换内核」「用户手动换软硬解」「播放失败自动回退」三类操作，确认导出日志各出现一行 `switch-cause`，且 `cause` 与实际操作一致；`chosen` 按实测口径核（它指的是「会话内核是否被本次切换改写」，不是「是否用户发起」）。
 4. **32 位与手机版**：leanback armeabi_v7a 与 mobile 各跑一次布防确认。
 5. 回退判据：出现误杀或异常回退时，`git revert` 本任务提交即可完整恢复。
 
