@@ -8,6 +8,7 @@
 - 验收：①重置/无配置启动不再出现错误态与死重试；②两端契约测试全绿；③`BaseConfig` 不再把空地址发成 `error("")`；④配置可用后状态浮层能自收（用户在错误态上完成恢复备份能直接回到内容）。
 - 回滚：撤销本任务原子提交即可回到「无配置=error("")第」的旧行为；无数据迁移、无 schema 变更。
 - 交付坐标：提交 `0f1dc0c615b`（`dev3`），recovery tag `recovery/HOME-STATE-NO-CONFIG-20261018/20261018125200`；未推送。
+- 设备验证补充（2026-10-18 13:05–14:52）：`192.168.50.3:5559`（V1923A / Android 9 / API 28）跑通全链路，见 §0.2。
 - 下一步唯一动作：无（本批已交付）。后续候选：`LiveConfig` 的同类空态、`StateEvent.content()` 目前仍无生产者（见 §5）。
 
 ## 0. 真机验证（决定性证据）
@@ -33,6 +34,50 @@ adb -s emulator-5554 shell am start --user 11 -n com.silent.android.webhtv/com.f
 - 点「添加接口」→ 打开接口列表（`id/add` = 新增，列表为空）→ 点「新增」→ 出现「新增点播 / 接口名称 / 请输入配置…」输入框：**主动作真的能把用户带出去**。
 - 反向回归：同一台设备在**有配置**的用户 0 上启动，首页照常加载出真实内容（`id/title` = `YouTube[官]` 加分类与推荐列表），说明改动没有影响正常路径。
 - 测试用户已删除（`pm remove-user 11`），设备回到 user 0。
+
+## 0.2 补验：5559 端口设备（2026-10-18，用户指定）
+
+上节是在 **emulator-5554** 上做的。本次按用户要求在 **`192.168.50.3:5559`**（vivo `V1923A`，Android 9 / API 28，x86_64 但 abilist 含 arm64-v8a → 装 `mobileArm64_v8a` debug 包）重做，并用**自建本地配置服务**制造"配置从无到有"的真实条件。
+
+**构建一致性**：直接复用 11:38 的 `app-mobile-arm64_v8a-debug.apk`，其 mtime 晚于全部 6 个改动源文件（最晚 `VodFragment.java` 11:00）→ APK 含本次改动；逐 dex 扫描确认 `classes15.dex` 命中 `noConfig`/`NO_CONFIG`、`classes11.dex` 命中 `home_no_config_title`。
+
+**A. 无配置 → 空态（重置路径）**
+
+`pm clear` 后冷启动，`uiautomator dump`：
+
+| resource-id | text | clickable |
+|---|---|---|
+| `id/text` | 还没有配置接口 | false |
+| `id/description` | 添加一个点播接口后即可浏览内容。 | false |
+| `id/action` | 添加接口 | **true** |
+
+"内容源加载失败" / "重试" 在整份 dump 中命中数 **0/0**。截图 `5559_after_reset_granted.png`：标题非错误色、插画（空箱子）保留、无重试按钮。
+
+**B. 空态主动作真能把用户带出去**
+
+点「添加接口」→ 接口列表（空，只有 `id/add`「新增」）→ 点「新增」→ 出现「新增点播 / 接口名称，可选 / 请输入配置…」输入框。与 5554 结论一致。
+
+**C. 配置从无到有后状态自收（本次补验的核心，5554 未覆盖）**
+
+这一条才是用户「恢复备份后必现杀进程才行」的根因验证，做法是复刻 `AppBackup.reload()` 的事件序列：
+
+1. 在宿主 `192.168.50.3:18888` 起静态服务，放一份极简配置（1 个 `type:1` 站点）与配套 `api.json`；
+   设备侧 `curl` 确认可达（**不依赖 `adb reverse`**，绕开 `E-SP10` §11.2 记录的那台 Android 9 回环不可用问题）。
+2. 首页停在空态，记 `pidof` = **5841**。
+3. 走界面新增该接口并「确定」。
+4. 界面直接变为内容态：标题 `LocalTest`、分类 `推荐/电影/连续剧`、两张卡片 `本地测试片A / 更新至2集`、`本地测试片B`。
+   - 「还没有配置接口 / 内容源加载失败 / 重试 / 添加接口」命中数全为 **0**；
+   - 结束后 `pidof` 仍是 **5841** → **同一进程，无冷启动、无杀进程**。
+
+这一步证明 `dismissStateIfConfigured()` 在 `RefreshEvent.HOME` 上的收卡生效——正是用户报的"必须杀进程重进"那条。
+
+**D. 正向回归（已有配置走正常路径）**
+
+同一台设备 `force-stop` 后冷启动：`Status: ok`，3.7 s 直接出内容（`LocalTest` + 分类 + 两张卡片），无任何空态/错误态残留。
+
+**收尾**：本地 18888 服务已关闭（端口确认释放）；设备 `pm clear` 复位回"无配置"真实状态，避免留下测试配置。
+
+**未覆盖**：`LiveConfig` 空态；恢复**整包备份 zip** 的端到端（本次是用界面新增复刻了 `reload()` 的事件序列，不是真的导入 zip 文件，因为该路径要经 SAF 文件选择器，非交互式驱动成本不划算）。
 
 ## 1. 现象
 
@@ -84,7 +129,7 @@ adb -s emulator-5554 shell am start --user 11 -n com.silent.android.webhtv/com.f
 - `testLeanbackArm64_v8aDebugUnitTest --tests *TvErrorStateContractTest`：**13 tests, 0 failures**。
 - `compileMobileArm64_v8aDebugJavaWithJavac compileLeanbackArm64_v8aDebugJavaWithJavac`：通过。
 - 全量移动端单测另有 **6 个既有失败**，均读取本任务未触碰的文件（`VideoActivity` 的 TMDB source-only、`PlaybackActivity/NovelRouter` 阅读器、`assets/css/ui.css` 令牌作用域、`mpvplayer` 的 `MpvFontConfig/MpvHlsCacheCoordinator`），已核对其读取路径与本 diff 无交集 → **预存失败，不在本任务范围**（按 AGENTS.md §2/§4 报告不修）。
-- 真机验证：见「下一步唯一动作」。
+- 真机验证：5554（新 Android 用户干净安装，§0）与 5559（本地配置源 + 同进程收卡，§0.2）两次通过。
 
 ## 5. 已知边界
 
