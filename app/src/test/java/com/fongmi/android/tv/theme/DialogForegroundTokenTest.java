@@ -34,6 +34,21 @@ public class DialogForegroundTokenTest {
             "DebugLogDialog.java",
             "MpvConfigDialog.java",
             "PlaybackPerformanceDialog.java",
+            "ViewingRecordSyncDialog.java",
+            "PlaybackRemoteSyncDialog.java",
+            "PlaybackWebhookDialog.java",
+    };
+
+    /**
+     * The viewing-record sync family: the top-level dialog and its two second-level managers.
+     *
+     * <p>They build their rows in code, so they are covered by the same foreground contract as
+     * the dialogs above, plus a row/badge surface contract below.
+     */
+    private static final String[] VIEWING_RECORD_SYNC_SOURCES = {
+            "ViewingRecordSyncDialog.java",
+            "PlaybackRemoteSyncDialog.java",
+            "PlaybackWebhookDialog.java",
     };
 
     /**
@@ -95,6 +110,60 @@ public class DialogForegroundTokenTest {
                 popup.contains("?attr/colorOutlineVariant"));
         assertFalse("the popup must not keep a fixed fill", popup.contains("#FFFFFF"));
         assertFalse("the popup must not keep a fixed stroke", popup.contains("#E1E5EA"));
+    }
+
+    /**
+     * The viewing-record sync rows must take their card surface from the active palette.
+     *
+     * <p>These rows are built in code and were filled with a fixed light card
+     * ({@code #F5F6F7}) on a fixed light hairline ({@code #DADCE0} / {@code #E2E5E8}), with the
+     * row title pinned to {@code Color.BLACK} and the badge to {@code #FFFFFF}. None of those
+     * values equals a {@code webhtv_color_*} role, so {@code ThemeBinder}'s exact-match rewrite
+     * skipped them by design: under the night table the dialog panel went dark while every row
+     * stayed a near-white card carrying black text, and the section labels/details stayed the
+     * fixed {@code #5F6368} grey that measures 2.23:1 on that panel.
+     *
+     * <p>Measured after the change, the semantic pairs clear WCAG AA in both tables: row title
+     * 15.43:1 day / 13.29:1 night, detail text 8.39:1 / 10.06:1, status colours 5.90:1 / 10.09:1,
+     * and the suspended row's error text on its error container 5.14:1 / 5.51:1.
+     */
+    @Test
+    public void viewingRecordSyncRowsUseTheActivePalette() throws Exception {
+        for (String name : VIEWING_RECORD_SYNC_SOURCES) {
+            String source = stripComments(read("src/main/java/com/fongmi/android/tv/ui/dialog/" + name));
+            assertFalse(name + " must not pin a black or white literal, which cannot be legible in both palettes",
+                    source.contains("Color.BLACK") || source.contains("Color.WHITE"));
+            assertTrue(name + " must take its row card fill from the active palette",
+                    source.contains("ThemeController.current().colorSurfaceContainerLow()"));
+            assertTrue(name + " must take its row stroke from the active palette",
+                    source.contains("ThemeController.current().colorOutlineVariant()"));
+            assertTrue(name + " must take its row title from the active palette",
+                    source.contains("ThemeController.current().colorOnSurface()"));
+            assertTrue(name + " must take its detail text from the active palette",
+                    source.contains("ThemeController.current().colorOnSurfaceVariant()"));
+        }
+    }
+
+    /**
+     * The badge chip and the suspended row keep their own semantic surfaces.
+     *
+     * <p>The badge was a fixed {@code #FFFFFF} fill, which under the night table drew a white
+     * chip carrying the night success/error text. The suspended row was a fixed {@code #FFF7F7}
+     * pink that only read as "attention" in the day table. Both are pinned here so a later edit
+     * cannot move one half without the other.
+     */
+    @Test
+    public void viewingRecordSyncBadgeAndSuspendedRowFollowThePalette() throws Exception {
+        for (String name : new String[]{"PlaybackRemoteSyncDialog.java", "PlaybackWebhookDialog.java"}) {
+            String source = stripComments(read("src/main/java/com/fongmi/android/tv/ui/dialog/" + name));
+            assertTrue(name + " must take its badge fill from the active palette",
+                    source.contains("ThemeController.current().colorSurfaceContainerLowest()"));
+            assertTrue(name + " must take its status colour from the active palette",
+                    source.contains("ThemeController.current().colorSuccess()"));
+        }
+        String webhook = stripComments(read("src/main/java/com/fongmi/android/tv/ui/dialog/PlaybackWebhookDialog.java"));
+        assertTrue("the suspended webhook row must use the semantic error container",
+                webhook.contains("ThemeController.current().colorErrorContainer()"));
     }
 
     private static String stripComments(String source) {
