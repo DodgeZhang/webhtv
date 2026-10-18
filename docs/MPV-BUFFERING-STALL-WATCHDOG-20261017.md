@@ -6,8 +6,8 @@
 - Lane: `standard`。
 - Baseline: branch `dev2`, HEAD `3eee5e8c9d618c4f7845e6bd0100357f28ef82d0`。
 - Protected dirty paths: `.wh_diag/**`（任务前已存在，未纳入 scope）。
-- Status: 已实现，单测与四变体编译通过并已提交（`c2a09e7647dd`）；模拟器实测已完成（§7.1 + §7.1.1：MPV 布防、不误杀、切换归因三类均实证；停滞超时因 15 s 启动守卫与输出重建竞争仍未取得 `action=timeout`，构造条件已在 §7.1.1 写明）。第三轮（2026-10-18）复核了存疑的 `History.player` 语义：对照实验证明「-1 = 无偏好」语义**完好**，先前的「3→0」属测量假象，**无需修改生产代码**；另查实 `chosen` 的文档口径与代码不符（已更正文档，代码未改）。
-- Next action: 无（可选后续：① 停滞超时的设备端到端证据需先用「固定 MPV 输出模式 + READY 后零重建窗口」重跑，见 §7.2；② `chosen` 语义是否按「用户 vs 自动」重命名/修正，属独立任务）。
+- Status: 已实现，单测与四变体编译通过并已提交（`c2a09e7647dd`）；模拟器实测已完成（§7.1 + §7.1.1 + §7.1.2：MPV 布防、不误杀、切换归因、**停滞超时 `action=timeout stalledMs=60934`** 均已实证，超时后三级失败回退齐全）。第三轮（2026-10-18）复核了存疑的 `History.player` 语义：对照实验证明「-1 = 无偏好」语义**完好**，先前的「3→0」属测量假象，**无需修改生产代码**；另查实 `chosen` 的文档口径与代码不符（已更正文档，代码未改）。
+- Next action: 无（可选后续：① §7.2 第 2–4 项（弱网不误杀、手动换内核/软硬解归因、32 位与手机版布防）仍待补；② `chosen` 语义是否按「用户 vs 自动」重命名/修正，属独立任务）。
 
 ## 1. 用户可见能力
 
@@ -245,7 +245,7 @@ kind=kernel cause=history-kernel-before-play chosen=true from=MPV/hard to=EXO/ha
 3. 因此「停滞发生在会话尚未稳定 READY 时」这一类场景，**必然**由启动守卫在 15 s 收尾，看门狗没有机会到点——这不是看门狗缺陷，而是两条兜底的分工：启动守卫管「一直没起来」，看门狗管「起来后又卡住」。
 4. 要打到看门狗，需要「已 READY 且此后 20–60 s 内没有任何引擎重建」的干净窗口。本轮多次尝试都在窗口内被 MPV 输出策略重建打断；而且应用的磁盘缓冲（日志 `TV-playback-disk-buffer action=query … resultMs=52125`）会把区间直接从本地补齐，进一步压缩窗口。
 
-**结论**：`action=timeout` 的设备端到端证据仍缺，但已不再是「不知道怎么触发」——需要的构造条件已明确为「READY 之后、零重建、持续 20 s 以上零进展」。下一轮应先在设置里固定 MPV 输出模式（避免自动档触发重建），再冻结网络。
+**结论**：`action=timeout` 的设备端到端证据在本轮（§7.1.1）仍缺，但已不再是「不知道怎么触发」——需要的构造条件已明确为「READY 之后、零重建、持续 20 s 以上零进展」。下一轮应先在设置里固定 MPV 输出模式（避免自动档触发重建），再冻结网络。**→ 已按此构造在 §7.1.2 取得证据。**
 
 #### 本轮发现、但**不属于**本任务的既有缺陷
 
@@ -255,9 +255,48 @@ kind=kernel cause=history-kernel-before-play chosen=true from=MPV/hard to=EXO/ha
 4. **覆盖安装会清空应用数据**（prefs、`tv` 库、运行时权限全部回到默认）。本轮因此需要重新写入 `player=3`、打开 `debug_log`，并用 `pm grant` 补 `READ_EXTERNAL_STORAGE`/`WRITE_EXTERNAL_STORAGE`/`RECORD_AUDIO`/`CAMERA`，否则应用会卡在权限对话框。**`debug_log` 关闭时 `PlaybackTrace` 一行都不输出**——上一轮与本轮前半段「日志空白」正是这个原因。
 5. 本轮 23:16 左右出现一次**非本任务操作导致的包被卸载**（`pm list packages` 中包消失，随后重新 `install -r` 恢复）。未定位触发者，记录以备复查。
 
+### 7.1.2 第三轮实测：`action=timeout` 已取得（2026-10-18 12:05，同一分配设备）
+
+**目的**：补上 §7.2 第 1 项。**结果：已取得完整证据链。**
+
+**与前两轮失败的关键差异**：把 MPV 输出模式从「自动」(0) 钉到 **GPU 渲染 (1)**（`perf_mpv_output_mode=1`），消除了自动档的输出策略重建——那正是前两轮每次都在 15 s 启动守卫就被打断的原因。
+
+**构造**：宿主限速服务器（路径式 `/r150000/<file>`，即 150 KB/s，高于该样片约 84 KB/s 的码率，保证能正常起播）→ `adb reverse` → 推送 URL → 等 `position` 真的前进到 READY → `POST /freeze` 冻结全部大区间连接。冻结时 `position=15187`，随后 `position` 与 `buffered` 双双冻结在 `20458/20458`。
+
+**决定性证据（超时行 + 实测停滞时长）**：
+
+```text
+buffering-stall: action=arm    player=3 decode=1 position=0     buffered=0     loading=true
+buffering-stall: action=arm    player=3 decode=1 position=20458 buffered=20750 loading=true
+buffering-stall: action=timeout stalledMs=60934 loading=true position=20458 buffered=20779 player=3 decode=1
+```
+
+- `player=3` 即 **MPV**，`stalledMs=60934` 是**实测**停滞时长，命中 `LOADING_STALL_TIMEOUT_MS=60_000`（`loading=true` 走 60 s 门槛，与设计一致）。
+- **同时验证了 C78 修复 3.2**：`stalledMs` 不再是恒为 `-1` 的失效字段（修复前 `onBufferingStall()` 先 `cancelBufferingStallWatchdog()` 再读，未布防时返回 `-1`）。60934 ms 与冻结时刻到超时时刻的墙钟差吻合。
+- `buffered` 从 20750 只涨到 20779（29 ms 抖动，远小于 `DISCONTINUITY_TOLERANCE_MS=1000`），因此未被误判为 seek 而重新锚定——正是设计意图。
+
+**超时后走既有失败回退，未无限转圈**（§7.2 第 1 项的后半句）：
+
+```text
+switch-cause: kind=decode cause=fallback-decode:timeout chosen=false from=MPV/hard to=MPV/soft position=20458
+player: fallback player from=MPV to=EXO ... cause=androidx.media3.common.PlaybackException
+switch-cause: kind=kernel cause=fallback-kernel:timeout chosen=false from=MPV/soft to=EXO/hard position=20458
+```
+
+即：先换软解（`chosen=false`，自动回退）→ 仍失败 → 换内核到 EXO，三级回退全部带 `cause=*:timeout` 归因。
+
+**由此确认 §7.1.1 的分工结论**：15 s 启动守卫管「一直没起来」，看门狗管「起来后又卡住」；两者不冲突，且本次两者都在同一会话里各自正确生效过（`player finish cost=30010ms` 属前者）。
+
+**本轮踩到的两个自建工具缺陷（已修，记录以免重踩）**：
+
+1. 限速服务器把 `.srt`/`.ass` 字幕探测请求也回退成 4 MB 样片，于是字幕请求本身触发「大区间冻结」规则，播放还没开始就被自己的服务器卡住。修正为：只有媒体扩展名（`.mp4`/`.mkv`/`.ts`/`.m4v`）或无扩展名才回退到样片，字幕一律 404。
+2. `/freeze` 标记是**进程级持久**的，上一轮冻结后没重启服务器，导致下一轮所有连接从 0 字节就冻结。修正为每轮重启服务器。
+
+另外记录一次我自己造成的干扰：把本地脚本命名为 `inspect.py` 遮蔽了 Python 标准库 `inspect` 模块，导致限速服务器启动即崩（`AttributeError: module 'inspect' has no attribute 'signature'`）；已重命名为 `dbcheck.py`。
+
 ### 7.2 仍需完成的设备验证
 
-1. **停滞兜底**：按 §7.1.1 的结论，必须构造「已 READY、其后 20–60 s 无任何引擎重建、零进展」的窗口：先在设置里把 MPV 输出模式固定（避开自动档重建），再用路径式限速服务器（`/r<Bps>/<file>`）压到码率以下，确认 `action=arm` 后出现 `action=timeout stalledMs≈20000 或 60000`，且随后走既有失败回退而非无限转圈。**注意 15 s 启动守卫会抢在看门狗之前结束“从未 READY”的会话**，那是预期分工，不是缺陷。
+1. ~~**停滞兜底**：确认 `action=timeout stalledMs=…` 且随后走既有失败回退~~ → **已完成，见 §7.1.2**（`stalledMs=60934`，三级回退齐全）。
 2. **不误杀（弱网场景）**：正常弱网缓冲（位置不动但 buffered 持续增长）必须**不**触发超时；暂停状态不得累积到 episode ceiling。
 3. **切换归因**：分别做「用户手动换内核」「用户手动换软硬解」「播放失败自动回退」三类操作，确认导出日志各出现一行 `switch-cause`，且 `cause` 与实际操作一致；`chosen` 按实测口径核（它指的是「会话内核是否被本次切换改写」，不是「是否用户发起」）。
 4. **32 位与手机版**：leanback armeabi_v7a 与 mobile 各跑一次布防确认。
