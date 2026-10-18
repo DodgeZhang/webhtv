@@ -201,6 +201,8 @@ public class MobileHomeStateContractTest {
         String dismiss = methodBody(fragment, "private void dismissStateIfConfigured()");
         assertTrue("只有配置真的可用（有站点）时才收起", dismiss.contains("getSites().isEmpty()"));
         assertTrue("收起动作必须真的隐藏浮层", dismiss.contains("hideState()"));
+        // 只在浮层真的可见时动它：收起动作不得在正常内容态上乱改可见性。
+        assertTrue("必须先判浮层可见", dismiss.contains("getVisibility()"));
     }
 
     // ------------------------------------------------------------------ helpers

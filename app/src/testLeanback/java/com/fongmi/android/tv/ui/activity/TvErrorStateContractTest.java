@@ -199,6 +199,31 @@ public class TvErrorStateContractTest {
         String dismiss = methodBody(home, "private void dismissStateIfConfigured()");
         assertTrue("只有配置真的可用（有站点）时才收起", dismiss.contains("getSites().isEmpty()"));
         assertTrue("收起动作必须回到内容态", dismiss.contains("showContent()"));
+        // 只能收「空态 / 错误态」：加载中（PROGRESS）与内容态都不得被这条顺手收掉，
+        // 否则 HOME 刷新会把还在转圈的首页直接变成空白。
+        assertTrue("必须能识别空态", dismiss.contains("isEmpty()"));
+        assertTrue("必须能识别错误态", dismiss.contains("isError()"));
+    }
+
+    /**
+     * 未配置时宿主不得停在加载中：{@code Callback.noConfig()} 的默认实现必须保留改动前的收尾行为。
+     *
+     * <p>{@code noConfig()} 是本次新增的**终态**分支，而既有宿主是拿 {@code start()} 与
+     * {@code error(String)} 当「加载开始 / 加载结束」的一对在用。默认留空实现，所有没来得及
+     * 覆写它的宿主在无配置时就会永远停在加载中。实测可达路径：TV 标题长按走
+     * {@code reloadConfig()}，它先 {@code progressLayout.showProgress()}，加载失败后只有
+     * {@code error("")} 能收掉转圈（空消息在 {@code Notify.show} 里直接返回，不会弹空吐司）。
+     */
+    @Test
+    public void defaultNoConfigStillTerminatesTheLoadingState() throws Exception {
+        String callback = read("app/src/main/java/com/fongmi/android/tv/impl/Callback.java");
+        String body = methodBody(callback, "public void noConfig()");
+        assertTrue("默认实现必须结束加载态（转调 error(\"\")），否则既有宿主会永久停在加载中",
+                body.contains("error(\"\")"));
+        // 可达性证据：reloadConfig() 先进加载态，且它的匿名回调只覆写了 error 作为收尾。
+        String reload = methodBody(read(HOME), "public void reloadConfig()");
+        assertTrue("reloadConfig 必须先进加载态", reload.contains("progressLayout.showProgress()"));
+        assertTrue("该回调以 error(String) 作为收尾", reload.contains("public void error(String msg)"));
     }
 
     /**

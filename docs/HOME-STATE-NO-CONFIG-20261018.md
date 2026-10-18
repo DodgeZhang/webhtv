@@ -110,7 +110,7 @@ adb -s emulator-5554 shell am start --user 11 -n com.silent.android.webhtv/com.f
 
 | 文件 | 改动 |
 |---|---|
-| `impl/Callback.java` | 新增 `noConfig()` 钩子（默认空实现，不破坏既有 53 处匿名实现） |
+| `impl/Callback.java` | 新增 `noConfig()` 钩子（**默认转调 `error("")`**：既保留 `noConfig` 不是失败的语义入口，又不破坏既有 53 处匿名实现依赖 `error` 收尾的约定；见 `C80` 复核记录 §4.2） |
 | `api/config/BaseConfig.java` | 空地址 ⇒ `callback::noConfig`（原来是 `callback.error("")`） |
 | `event/StateEvent.java` | 新增 `NO_CONFIG` 类型与 `noConfig()` 工厂；与 `ERROR` 的区别写进注释 |
 | `mobile HomeActivity.getCallback()` | 实现 `noConfig()`：重置 chrome → `StateEvent.noConfig()`（**不弹吐司**，这不是失败） |
@@ -138,3 +138,5 @@ adb -s emulator-5554 shell am start --user 11 -n com.silent.android.webhtv/com.f
 - TV 端 `dismissStateIfConfigured()` 用 `isEmpty() || isError()` 判定，是因为 `ProgressLayout` 没有 `isContent()` 之外的"已在内容态"语义；它只在 HOME 刷新时执行，不会影响 PROGRESS。
 - `LiveConfig` 未新增 `noConfig` 覆写：直播没有配置时不进首页状态机（`LiveActivity` 自成一套），本次不扩大范围。
 - 空态的主动作在**没有任何接口**时会打开一个空列表（带「新增」）而不是直接弹新增框；多一步但不会误导（`ConfigAdapter` 的 `onAdd` 就在列表里）。做成直连需要动 `HistoryDialog` 的既有行为，不在本次范围。
+- **`noConfig()` 默认实现不是空实现**（`C80` 复核修正）：默认留空会让所有没覆写它的宿主在无配置时永久停在加载中，实测可达路径是 TV 标题长按 → `HomeActivity.reloadConfig()`（先 `progressLayout.showProgress()`）。默认改为转调 `error("")`，与改动前的收尾行为逐字一致；两端首页已覆写，不受影响。
+- **`ProgressLayout` 里有一条既有的过期注释**（不在本任务改动面，按 AGENTS.md §2 只报告不修）：`applyEmptyContent()` 的注释称「mobile 版没有 description/action 两个控件…手机端保持原样（传进来的内容会被静默忽略）」，但 `app/src/mobile/res/layout/view_empty.xml` 两个控件都在，本任务的真机 dump 也取到了 `id/description`、`id/action`。该注释会让后来者误判「手机端主动作不生效」而对已生效的代码再改一遍。
