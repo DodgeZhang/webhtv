@@ -69,10 +69,11 @@ public class DialogForegroundTokenTest {
     /**
      * The only colour resources a guarded dialog may name directly.
      *
-     * <p>All five are selector resources under {@code res/color/} whose every item resolves to a
-     * {@code webhtv_color_*} role, so they already follow the palette; naming them is not a fixed
-     * colour. Anything else - a {@code res/values} literal such as the legacy greys - would pin
-     * one mode and is rejected.
+     * <p>All five are selector resources under {@code res/color/} that resolve to palette roles -
+     * four items per selector, naming {@code webhtv_color_*} roles plus a final mode-independent
+     * {@code @color/transparent} ({@code #00000000}) where the shape supplies the fill - so they
+     * already follow the palette and naming them is not a fixed colour. Anything else, such as a
+     * {@code res/values} literal like the legacy greys, would pin one mode and is rejected.
      */
     private static final String[] ALLOWED_COLOR_RESOURCES = {
             "dialog_tonal_button_bg",
@@ -106,6 +107,9 @@ public class DialogForegroundTokenTest {
                     "colorOnSurfaceVariant()"},
             {"ViewingRecordSyncDialog.java", "private GradientDrawable rowBackground() {",
                     "colorSurfaceContainerLow()", "colorOutlineVariant()"},
+            {"ViewingRecordSyncDialog.java",
+                    "private MaterialButton actionButton(int text, boolean tonal, boolean danger) {",
+                    "colorError()"},
 
             // PlaybackRemoteSyncDialog: the remote-sync managers, each rendered as a card row.
             {"PlaybackRemoteSyncDialog.java", "private View row(RemoteSyncConfig config) {",
@@ -328,8 +332,15 @@ public class DialogForegroundTokenTest {
      * <p>Braces are balanced from the declaration's opening brace, so the returned text is only
      * that method - which is what makes a per-call-site assertion possible. A missing or
      * duplicated declaration fails loudly instead of silently matching the wrong body.
+     *
+     * <p><b>Assumption:</b> this counts raw braces, so it is only correct while the guarded
+     * dialogs contain no {@code '{'} / {@code '}'} inside a string or character literal. A
+     * literal brace would mis-balance the scan and could silently return a truncated body,
+     * weakening every contract in {@link #REQUIRED_SITES}. {@link #assertNoBraceInLiteral}
+     * therefore rejects that shape outright rather than letting it corrupt the result.
      */
     private static String methodBody(String name, String source, String signature) {
+        assertNoBraceInLiteral(name, source);
         int start = source.indexOf(signature);
         if (start < 0) {
             fail(name + " no longer declares \"" + signature
@@ -347,6 +358,23 @@ public class DialogForegroundTokenTest {
             else if (c == '}' && --depth == 0) return source.substring(open, i + 1);
         }
         throw new AssertionError(name + " declares \"" + signature + "\" without a balanced body");
+    }
+
+    /**
+     * Rejects a brace inside a string or character literal, which {@link #methodBody} cannot
+     * count correctly.
+     *
+     * <p>This turns a silent weakening into a loud failure: without it, adding
+     * {@code text("{")} to a guarded dialog would mis-balance the scan, and the contracts below
+     * would start asserting against a truncated body while still reporting green.
+     */
+    private static void assertNoBraceInLiteral(String name, String source) {
+        Matcher matcher = Pattern.compile("\"[^\"\\n]*[{}][^\"\\n]*\"|'[{}]'").matcher(source);
+        if (matcher.find()) {
+            fail(name + " contains a brace inside a string or character literal ("
+                    + matcher.group() + "), which methodBody cannot brace-balance; move the brace"
+                    + " out of the literal or replace the scanner with a real parser");
+        }
     }
 
     private static String[] concat(String[] first, String[] second) {

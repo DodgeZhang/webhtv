@@ -70,7 +70,26 @@
 `VIEWING_RECORD_SYNC_SOURCES` 逐字重复 `DIALOG_SOURCES` 中 3 项，徽标测试又硬编码同样两个名字第三次。
 现 `DIALOG_SOURCES = concat(BASE_DIALOG_SOURCES, VIEWING_RECORD_SYNC_SOURCES)`，徽标断言改为按方法体取。
 
-### 6. 保留的判断（未改，记录理由）
+### 6. 第二轮复评追加修复
+
+第一轮修复提交后复评，又发现 3 项，均已修复：
+
+**(a) `ViewingRecordSyncDialog.actionButton` 漏在契约外（完整性问题）**
+两个兄弟弹窗同形状的 `actionButton` 都在 `REQUIRED_SITES` 里，唯独顶层弹窗的这个没有，
+其 `danger ? … colorError()` 分支（`:235`）因此无守卫 —— 正是本次重写要拦的「单调用点回退」类型。
+已补入。
+
+**(b) 花括号配平器的静默失准风险**
+`methodBody()` 直接数原始花括号，一旦这些文件出现字符串/字符字面量里的 `{` 或 `}`，
+扫描会错位并**静默返回截断的函数体**，使 `REQUIRED_SITES` 全部契约悄悄失效却仍报绿。
+已新增 `assertNoBraceInLiteral()` 把这种形态显式拒绝（当前 6 个文件均无此形态，实测确认），
+并在 `methodBody()` 的注释里写明该前提。
+
+**(c) 放行清单注释论证过头**
+注释称 5 个选择器「每一项都指向 `webhtv_color_*`」，但 `dialog_outlined_button_bg.xml`
+最后一项是 `@color/transparent`（`#00000000`，与明暗无关）。放行决定不变，仅修正论证表述。
+
+### 7. 保留的判断（未改，记录理由）
 
 - **卡片 token 取 `colorSurfaceContainerLow`**：面板是 `colorSurfaceContainerHigh`
   （日 `#E7E8EF` / 夜 `#2A2F34`），卡片日 `#F2F3F9` / 夜 `#181C20`，与面板差 1.10:1 / 1.27:1，
@@ -87,6 +106,8 @@
 | `theme.*` + `ui.dialog.*` | 60 套件 349 项，0 失败 0 错误 |
 | 守卫区分力（修复前源码） | 4/5 失败 |
 | 守卫区分力（单点回退注入） | 失败（3 项） |
+| 守卫区分力（`actionButton` 语义替换 `colorError`→`colorPrimary`，不引入任何字面量） | 失败（仅新契约可拦） |
+| 守卫区分力（字符串字面量内注入 `{`） | 失败于 `assertNoBraceInLiteral`（`:374`） |
 | `python scripts/check_ui_tokens.py --strict` | PASS（violations=0 legacy=0，pairs=38 min=4.28） |
 | 对比度复算 | 标题 15.43/13.29、说明 8.39/10.06、徽标 6.53/11.78、暂停错误字 5.14/5.51，均过 AA |
 
