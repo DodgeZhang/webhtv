@@ -111,7 +111,10 @@ public class OneKeySyncDialog extends BaseBottomSheetDialog implements SyncDevic
 
     @Override
     protected void initEvent() {
-        binding.modeButton.setOnClickListener(v -> toggleMode());
+        binding.directionGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) return;
+            setToRemote(checkedId == R.id.directionPush);
+        });
         binding.refresh.setOnClickListener(v -> refresh());
         binding.changeDevice.setOnClickListener(v -> changeDevice());
         binding.selectAll.setOnClickListener(v -> toggleSelection());
@@ -166,9 +169,15 @@ public class OneKeySyncDialog extends BaseBottomSheetDialog implements SyncDevic
         setScanning(false);
     }
 
-    private void toggleMode() {
-        toRemote = !toRemote;
+    private void setToRemote(boolean value) {
+        if (toRemote == value) return;
+        toRemote = value;
         updateDirection();
+    }
+
+    private void updateDirectionGroup() {
+        int checked = toRemote ? R.id.directionPush : R.id.directionPull;
+        if (binding.directionGroup.getCheckedButtonId() != checked) binding.directionGroup.check(checked);
     }
 
     private void toggleSelection() {
@@ -258,7 +267,7 @@ public class OneKeySyncDialog extends BaseBottomSheetDialog implements SyncDevic
         binding.selected.setText(toRemote ? R.string.sync_mode_to_remote : R.string.sync_mode_from_remote);
         binding.mode.setText(toRemote ? R.string.sync_push : R.string.sync_pull);
         binding.mode.setCompoundDrawablesWithIntrinsicBounds(0, toRemote ? R.drawable.ic_sync_arrow_right_blue : R.drawable.ic_sync_arrow_left_blue, 0, 0);
-        binding.modeButton.setText(toRemote ? R.string.sync_push : R.string.sync_pull);
+        updateDirectionGroup();
         updateDirectionCard(binding.localCard, binding.localRole, toRemote);
         updateDirectionCard(binding.remoteCard, binding.remoteRole, !toRemote);
         binding.localRole.setText(toRemote ? R.string.sync_sender : R.string.sync_receiver);
