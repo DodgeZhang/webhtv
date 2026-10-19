@@ -113,9 +113,8 @@ public class OneKeySyncDialog extends BaseBottomSheetDialog implements SyncDevic
     protected void initEvent() {
         binding.directionGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
             if (!isChecked) return;
-            if ((checkedId == R.id.directionPush) != toRemote) toggleMode();
+            setToRemote(checkedId == R.id.directionPush);
         });
-        binding.mode.setOnClickListener(v -> toggleMode());
         binding.refresh.setOnClickListener(v -> refresh());
         binding.changeDevice.setOnClickListener(v -> changeDevice());
         binding.selectAll.setOnClickListener(v -> toggleSelection());
@@ -170,8 +169,9 @@ public class OneKeySyncDialog extends BaseBottomSheetDialog implements SyncDevic
         setScanning(false);
     }
 
-    private void toggleMode() {
-        toRemote = !toRemote;
+    private void setToRemote(boolean value) {
+        if (toRemote == value) return;
+        toRemote = value;
         updateDirection();
     }
 

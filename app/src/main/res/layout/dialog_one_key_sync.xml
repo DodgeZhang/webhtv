@@ -171,7 +171,6 @@
                         android:layout_marginStart="10dp"
                         android:layout_marginEnd="10dp"
                         android:background="@drawable/shape_sync_direction"
-                        android:clickable="true"
                         android:drawablePadding="2dp"
                         android:focusable="false"
                         android:gravity="center"
