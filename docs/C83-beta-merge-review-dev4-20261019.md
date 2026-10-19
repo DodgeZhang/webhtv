@@ -184,6 +184,7 @@ export JAVA_HOME="C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot"
 
 ## 7. 交付坐标
 
-- 合并提交：`<待填>`（双父：`1b35b6e3e80554e79654455a3d8a986bb1236b66` + `0bb2601e3871f58b727873837112abe86784d61f`）。
-- recovery tag：`<待填>`。
-- 分支 `dev4` 已推送；PR 到 `beta`（只创建、不合并）：`<待填>`。
+- 合并提交：`c0b1ffd3c2d048e7e975a85cb480dc7589f18c9b`（双父：`1b35b6e3e80554e79654455a3d8a986bb1236b66` + `0bb2601e3871f58b727873837112abe86784d61f`）。
+- recovery tag：`recovery/C83-beta-merge-review-dev4-20261019/20261019175417-c0b1ffd3c2d0`。
+- 分支 `dev4` 已推送（`cef7ba60432..c0b1ffd3c2d`）；PR [#462](https://github.com/Silent1566/webhtv/pull/462) → `beta`，`state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=51`（+1204 / -90），**只创建、不合并**。
+- PR 文件集与 `git diff --name-only origin/beta HEAD` 逐项一致（51/51）。
