@@ -197,6 +197,12 @@
 
 构建：`.\gradlew.bat :app:assembleLeanbackArm64_v8aDebug --console=plain --no-build-cache` → **BUILD SUCCESSFUL**。
 
-真机（5561，TV 深色模式）：安装后逐像素扫描确认聚焦按钮的纵向剖面为 `面板 → 环 → 填充 → 环 → 面板`，环色 `#062E6F`、宽度 3px（1.5dp × 480dpi），与关于弹窗一致；未聚焦按钮为纯填充无暗环。
+真机（5561，TV 深色模式）：安装后逐像素扫描确认聚焦按钮的纵向剖面为 `面板 → 环 → 填充 → 环 → 面板`。以关于弹窗 `我已知悉` 为例，y=936 一行读到 `#2A2F34`(面板) → `#D3E3FD`(环, 3px) → `#0842A0`(聚焦填充) → `#D3E3FD`(字形) → … → `#D3E3FD`(环, 3px) → `#2A2F34`(面板)。即聚焦填充已从 `primary #A8C7FA` 切到 `primaryContainer #0842A0`，环从 `#062E6F` 切到 `#D3E3FD`，环宽 3px（1.5dp × 480dpi）。未聚焦按钮为纯 `#A8C7FA` 填充、无环。
 
 **环境限制**：本会话仍无可用的 `bash`（仅 WSL，`HCS_E_SERVICE_NOT_AVAILABLE`），`.codex/scripts/task_guard.sh` 无法执行，按同等意图手工暂存/提交/打 tag —— 只暂存本任务自有路径，不触碰预存脏路径 `.design-evidence/`。
+
+### 8.7 交付坐标
+
+- 提交 `49b28bd91f9e74b43d1963df84c1f56f8731bf80`（分支 `dev4`）。
+- recovery tag `recovery/TV-FOCUS-RING-CONTRAST-20261019/20261019185247`，指向同一提交。
+- 未推送。工作树残留仅 `.design-evidence/`（任务开始前即存在的未跟踪目录）。
