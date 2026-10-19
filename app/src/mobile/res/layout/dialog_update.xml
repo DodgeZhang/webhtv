@@ -155,7 +155,7 @@
                         android:textSize="14sp"
                         app:backgroundTint="@color/dialog_primary_button_bg"
                         app:cornerRadius="8dp"
-                        app:strokeColor="@color/focus_ring_primary"
+                        app:strokeColor="@color/focus_ring_primary_container"
                         app:strokeWidth="@dimen/webhtv_focus_ring_width" />
 
                 </androidx.appcompat.widget.LinearLayoutCompat>
@@ -255,7 +255,7 @@
                         android:textSize="14sp"
                         app:backgroundTint="@color/dialog_primary_button_bg"
                         app:cornerRadius="8dp"
-                        app:strokeColor="@color/focus_ring_primary"
+                        app:strokeColor="@color/focus_ring_primary_container"
                         app:strokeWidth="@dimen/webhtv_focus_ring_width" />
 
                 </androidx.appcompat.widget.LinearLayoutCompat>
@@ -310,7 +310,7 @@
         android:textSize="14sp"
         app:backgroundTint="@color/dialog_primary_button_bg"
         app:cornerRadius="8dp"
-        app:strokeColor="@color/focus_ring_primary"
+        app:strokeColor="@color/focus_ring_primary_container"
         app:strokeWidth="@dimen/webhtv_focus_ring_width" />
 
 </androidx.appcompat.widget.LinearLayoutCompat>
