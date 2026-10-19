@@ -154,7 +154,7 @@
             android:contentDescription="@string/update_settings"
             android:padding="10dp"
             android:src="@drawable/ic_remote_settings"
-            app:tint="?attr/colorOnPrimary" />
+            app:tint="@color/about_primary_icon_tint" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 </androidx.appcompat.widget.LinearLayoutCompat>

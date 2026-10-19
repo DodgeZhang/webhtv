@@ -53,6 +53,10 @@ public class TvFocusRingContractTest {
 
     private static final String LEANBACK_DRAWABLE = "app/src/leanback/res/drawable/";
 
+    private static final String UPDATE_LEANBACK = "app/src/leanback/res/layout/dialog_update.xml";
+    private static final String UPDATE_MOBILE = "app/src/mobile/res/layout/dialog_update.xml";
+    private static final String ABOUT_ICON_TINT = "app/src/main/res/color/about_primary_icon_tint.xml";
+
     // ------------------------------------------------------------ R3 主题控制
 
     @Test
@@ -963,6 +967,104 @@ public class TvFocusRingContractTest {
                 cursor += 1;
             }
             assertTrue(layout + " 至少应有一个带环控件", checked > 0);
+        }
+    }
+
+    // ------------------------------------------- 版本更新弹窗（用户实拍第二张照片）
+
+    /**
+     * R1 回归：版本更新弹窗的三个主按钮此前只有 app:backgroundTint，而
+     * dialog_primary_button_bg 的 focused 与 default 解析结果字节相同（都是
+     * webhtv_color_primary），所以焦点位置完全看不见。用户实拍照片里"更新测试版"
+     * 就是这个缺陷。两个 flavor 都必须补上描边环。
+     */
+    @Test
+    public void updateDialogPrimaryButtonsShowABorderRingWhenFocused() throws Exception {
+        for (String layout : new String[]{UPDATE_LEANBACK, UPDATE_MOBILE}) {
+            String body = values(read(layout));
+            for (String id : new String[]{"stableConfirm", "betaConfirm", "cancel"}) {
+                int start = body.indexOf("android:id=\"@+id/" + id + "\"");
+                assertTrue(layout + " 必须包含 " + id, start >= 0);
+                int end = body.indexOf("/>", start);
+                String button = body.substring(start, end);
+                assertTrue(layout + " 的 " + id + " 必须带描边色通道", button.contains("app:strokeColor="));
+                assertTrue(layout + " 的 " + id + " 必须带统一宽度的描边",
+                        button.contains("app:strokeWidth=\"" + WIDTH + "\""));
+                assertTrue(layout + " 的 " + id + " 环色必须取 primary 填充的配对 on-色",
+                        button.contains("app:strokeColor=\"@color/focus_ring_primary\""));
+                assertTrue(layout + " 的 " + id + " 必须仍然声明填充",
+                        button.contains("app:backgroundTint="));
+            }
+        }
+    }
+
+    /**
+     * 不变量：本任务迁移的弹窗里，凡是消费 dialog_primary_button_bg 的按钮都必须自带描边环。
+     * 这个填充状态表在聚焦前后的解析结果是同一个颜色，环是唯一的焦点线索；
+     * 漏掉任何一个站点都会让那个按钮的焦点重新变得不可见。
+     *
+     * <p>范围仅限用户实拍到的两个弹窗。全仓库仍有其它弹窗消费同一填充但未补环，
+     * 那属于同一缺陷族的已知遗留，已记录在 docs/TV-FOCUS-RING-DIALOG-20261019.md，
+     * 未获授权不在此任务内扩大改动面。
+     */
+    @Test
+    public void migratedDialogsRingEveryPrimaryButton() throws Exception {
+        for (String layout : new String[]{UPDATE_LEANBACK, UPDATE_MOBILE, ABOUT_LAYOUT}) {
+            String body = values(read(layout));
+            int cursor = 0;
+            int ringed = 0;
+            while ((cursor = body.indexOf("app:backgroundTint=\"@color/dialog_primary_button_bg\"", cursor)) >= 0) {
+                int open = body.lastIndexOf('<', cursor);
+                int end = body.indexOf("/>", cursor);
+                String button = body.substring(open, end);
+                assertTrue(layout + " 消费 dialog_primary_button_bg 的按钮必须带描边环，"
+                                + "否则焦点不可见：\n  " + button,
+                        button.contains("app:strokeColor=\"@color/focus_ring_primary\""));
+                assertTrue(layout + " 的带环按钮必须用统一宽度 token",
+                        button.contains("app:strokeWidth=\"" + WIDTH + "\""));
+                ringed++;
+                cursor += 1;
+            }
+            assertTrue(layout + " 至少应有一个消费该填充的按钮", ringed > 0);
+        }
+    }
+
+    // ------------------------------------------- 关于弹窗齿轮图标（用户实拍第一张照片）
+
+    /**
+     * R1 回归：齿轮图标未聚焦时背景全透明，直接贴在 colorSurfaceContainerHigh 面板上，
+     * 而 dialog_about.xml 此前硬写 app:tint="?attr/colorOnPrimary"（深蓝），
+     * 夜间 #062E6F / #2A2F34 = 1.05:1、浅色 #FFFFFF / #E7E8EF = 1.22:1 —— 两种主题
+     * 下图标都等于看不见。着色必须分状态，且常态取面板上的前景色。
+     */
+    @Test
+    public void aboutGearIconTintPairsWithTheBackgroundItActuallySitsOn() throws Exception {
+        String layout = values(read(ABOUT_LAYOUT));
+        int start = layout.indexOf("android:id=\"@+id/updateSettings\"");
+        assertTrue("关于弹窗必须有齿轮按钮", start >= 0);
+        String gear = layout.substring(start, layout.indexOf("/>", start));
+        assertTrue("齿轮必须引用状态化着色表", gear.contains("app:tint=\"@color/about_primary_icon_tint\""));
+        assertFalse("齿轮不得再硬写单一 on-primary 着色", gear.contains("app:tint=\"?attr/colorOnPrimary\""));
+
+        String tint = values(read(ABOUT_ICON_TINT));
+        // 聚焦态：背景被换成 colorPrimary，图标取配对 on-色。
+        assertTrue("齿轮聚焦态必须取配对 on-色", tint.contains("android:color=\"?attr/colorOnPrimary\""));
+        // 常态：背景透明，图标落在面板上，必须取面板上的前景色。
+        assertTrue("齿轮常态必须取面板上的前景色（on-surface-variant）",
+                tint.contains("android:color=\"?attr/colorOnSurfaceVariant\""));
+        assertFalse("齿轮着色不得写死颜色", tint.matches("(?s).*#[0-9A-Fa-f]{6}.*"));
+
+        // 对比度回归：两个分支各自与它实际所处的背景配对。
+        for (String tokens : new String[]{TOKENS_LIGHT, TOKENS_NIGHT}) {
+            String body = read(tokens);
+            String panel = tokenHex(body, "webhtv_color_surface_container_high");
+            String primary = tokenHex(body, "webhtv_color_primary");
+            String onPrimary = tokenHex(body, "webhtv_color_on_primary");
+            String onSurfaceVariant = tokenHex(body, "webhtv_color_on_surface_variant");
+            assertTrue(tokens + "：聚焦态齿轮图标必须与主题色填充 ≥3:1",
+                    contrast(onPrimary, primary) >= 3.0);
+            assertTrue(tokens + "：常态齿轮图标必须与弹窗面板 ≥3:1",
+                    contrast(onSurfaceVariant, panel) >= 3.0);
         }
     }
 
