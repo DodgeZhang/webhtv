@@ -14,7 +14,8 @@
 - **任务守卫**：`C84-beta-merge-review-dev3-20261019`，base HEAD `c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf`，branch `dev3`，受保护脏路径 0
 - **基线**：merge-base `0e81bae1c7d1a91cd229dc5e1663d62f202548b3`（= `dev3` HEAD~2，`beta` 已验证包含它）
 - **当前状态**：**已完成**（合并、复评、修复、验证、提交、推送、PR 全部落地）
-- **下一动作**：无。后续由评审方决定是否合并该 PR。
+- **交付坐标**：合并提交 `13a093ad3745b85f6cece8e501d45cb76762b917`；recovery tag `recovery/C84-beta-merge-review-dev3-20261019/20261019184918-13a093ad3745`；已推送 `dev3`；PR **#463**（`base=beta`/`state=OPEN`/`mergedAt=null`，只创建不合并）
+- **下一动作**：无。后续由评审方决定是否合并 PR #463。
 
 ---
 
@@ -26,7 +27,7 @@
 | 本地 | `dev3` = `c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf`（相对 `origin/dev3` ahead 4，全部未推送） |
 | merge-base | `0e81bae1c7d1a91cd229dc5e1663d62f202548b3` |
 | 冲突 | 唯一 `UU`：`docs/upstream-player-dependency-merge-assessment-2026-08-20.md` |
-| 合并提交 | 由任务守卫 `finish` 落盘（`.git/MERGE_HEAD` = `0bb2601e3871f58b727873837112abe86784d61f`，双父 `c88f2896ac` + `0bb2601e38`），见 §7 |
+| 合并提交 | `13a093ad3745b85f6cece8e501d45cb76762b917`（双父 `c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf` + `0bb2601e3871f58b727873837112abe86784d61f`） |
 
 `git merge-tree --write-tree --name-only dev3 origin/beta` 预演树 `133d1ffd775291e2fa36d01f20415163cc3febc6`，唯一冲突同上；`git merge --no-ff --no-commit origin/beta` 实合并冲突复现一致。
 
@@ -168,7 +169,7 @@ merge-base `0e81bae1c7` = `review(ui): 补全观影记录同步守卫契约并�
 
 ## 7. 交付坐标
 
-- **合并提交**：由任务守卫 `finish` 以 `--no-ff` 双父落盘（父 = `c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf` + `0bb2601e3871f58b727873837112abe86784d61f`）。
-- **本任务提交**：即上条合并提交（守卫 `finish` 落盘，保留 `MERGE_HEAD` 双父）。
-- **recovery tag**：`recovery/C84-beta-merge-review-dev3-20261019/<时间戳>`。
-- **推送**：`dev3`；PR 到 `beta`（只创建不合并）。
+- **合并提交**：`13a093ad3745b85f6cece8e501d45cb76762b917`（`--no-ff` 双父：`c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf` + `0bb2601e3871f58b727873837112abe86784d61f`）。
+- **recovery tag**：`recovery/C84-beta-merge-review-dev3-20261019/20261019184918-13a093ad3745`。
+- **推送**：`dev3` 已推送（`0e81bae1c7..13a093ad37`）。
+- **PR**：<https://github.com/Silent1566/webhtv/pull/463>（`base=beta`、`head=dev3`、`state=OPEN`、`mergedAt=null`；按用户要求**只创建不合并**）。
