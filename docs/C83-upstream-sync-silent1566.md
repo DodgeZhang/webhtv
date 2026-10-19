@@ -1,4 +1,4 @@
-# C81 — 合并上游 `webhtv/webhtv` 分支 `Silent1566`（一键同步方向选择器）
+# C83 — 合并上游 `webhtv/webhtv` 分支 `Silent1566`（一键同步方向选择器）
 
 ## Recovery anchor
 
@@ -14,9 +14,11 @@
   8. 任务文档与评估索引行原子提交，并生成 annotated recovery tag。
 - **Lane**：`upstream`
 - **Scope**：`app/`、`docs/`
-- **任务守卫**：`C81-upstream-sync-silent1566`，base HEAD `0e81bae1c7d1a91cd229dc5e1663d62f202548b3`，branch `dev3`，受保护脏路径 0
-- **当前状态**：已完成只读勘察与门禁评审，进入实施
-- **下一动作**：`git merge --no-ff --no-commit 3f30bebe7e` 后核验两文件差异
+- **任务守卫**：`C83-upstream-sync-silent1566`，base HEAD `0e81bae1c7d1a91cd229dc5e1663d62f202548b3`，branch `dev3`，受保护脏路径 0
+- **当前状态**：**已完成**（合并、验证、提交、tag 全部落地；未推送）
+- **交付坐标**：合并提交 `f6e122c03847e1fc8c5ef83acdad0cbc3e024609`（双父 `0e81bae1c7` + `3f30bebe7e`）；回填提交 `c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf`；recovery tag `recovery/C81-upstream-sync-silent1566/20261019074414-f6e122c03847` 与 `recovery/C81-coords/20261019074552-c88f2896ac00`
+- **下一动作**：无（本任务已闭环）。后续由 `C84-beta-merge-review-dev3-20261019` 接手：把 `origin/beta` 合并进 `dev3` 并复评本任务带入的改动
+- **标识符映射说明**：本任务在提交与 tag 落盘后才因评估索引 ID 撞号改号为 `C83`，已提交的 commit subject（`merge(C81)` / `docs(C81)`）与 recovery tag 名仍含 `C81`。按 AGENTS.md §6「不回写已发布历史」，这些标识符**保持原样**，仅在此记录映射：提交/tag 中的 `C81` ≡ 本文档的 `C83`；仓库中另有一个真实的 dev4 `C81`（评估索引 `docs/upstream-player-dependency-merge-assessment-2026-08-20.md` 第 59 行），两者不可混淆。
 
 ---
 
@@ -107,7 +109,19 @@
 
 ### 5.2 净值
 
-`git diff --stat 0e81bae1c7 114802c50e` 的净差恰为上游净差（2 路径）+ 本任务文档追加。
+合并预览树 `114802c50e`（`git merge-tree --write-tree` 的预演结果）只含上游 2 个代码路径的增量，本任务文档与索引行**不在**该树中——`git diff --stat 0e81bae1c7 114802c50e` 恰为 2 路径（86 insertions / 50 deletions），`git ls-tree 114802c50e docs/` 无 C81/C83 文档。
+
+真实交付树（`c88f2896ac`）相对基线 `0e81bae1c7` 的净差是 **4 路径**：
+
+```
+$ git diff --name-status 0e81bae1c7 c88f2896ac
+M  app/src/main/java/com/fongmi/android/tv/ui/dialog/OneKeySyncDialog.java
+M  app/src/main/res/layout/dialog_one_key_sync.xml
+A  docs/C81-upstream-sync-silent1566.md
+M  docs/upstream-player-dependency-merge-assessment-2026-08-20.md
+```
+
+即上游净差（2 路径）+ 本任务文档（新增 1 路径）+ 评估索引行（修改 1 路径）。
 
 ### 5.3 删除面与复活面
 
@@ -135,10 +149,18 @@
 ### 6.2 编译
 
 ```
-bash ./gradlew --console=plain :app:compileLeanbackArm64_v8aDebugJavaWithJavac \
-  :app:compileMobileArm64_v8aDebugJavaWithJavac \
-  :app:testLeanbackArm64_v8aDebugUnitTest --tests ...
+# 编译（双 flavor arm64 Debug Java）
+bash ./gradlew --console=plain \
+  :app:compileLeanbackArm64_v8aDebugJavaWithJavac \
+  :app:compileMobileArm64_v8aDebugJavaWithJavac
 → BUILD SUCCESSFUL in 2m 31s (110 actionable tasks: 26 executed, 84 up-to-date)
+
+# 定向单测（4 个测试类，逐类执行，见 §6.3）
+bash ./gradlew --console=plain :app:testLeanbackArm64_v8aDebugUnitTest \
+  --tests 'com.fongmi.android.tv.ui.dialog.DialogRoundedCornerSourceTest' \
+  --tests 'com.fongmi.android.tv.ui.style.UiLayoutSourceTest' \
+  --tests 'com.fongmi.android.tv.ui.style.UiStyleSourceTest' \
+  --tests 'com.fongmi.android.tv.theme.UiTokenGatePortabilityContractTest'
 ```
 
 双 flavor arm64 Debug Java 编译均通过（`compileLeanbackArm64_v8aDebugJavaWithJavac`、`compileMobileArm64_v8aDebugJavaWithJavac`）。
@@ -169,6 +191,7 @@ UI_TOKEN_STATUS PASS
 
 - **未做设备端实机验证**：本次为纯 UI 交互重构，编译 + 源码契约 + token 门禁已足以证伪结构性问题；方向选择器的实际点击/焦点行为未在真机或模拟器上手工走查。
 - **已知缺口（如实记录）**：合并带入的方向选择器接线（`directionGroup` 监听 + `setToRemote` 幂等 + `updateDirectionGroup` 的「不一致才 `check`」重入守卫）**没有回归锁**。仓库现有唯一涉及本弹窗的测试 `DialogRoundedCornerSourceTest` 只断言圆角 drawable，不涉及方向选择器；上游 `3f30bebe7e` 修的正是这类评审缺陷，故后续本地改动若破坏该守卫将不会被自动捕获。本任务按「scope 默认关闭」未新增测试文件。
+- **`C84` 复评补充（2026-10-19）**：该弹窗在 `dev3` 合并 `origin/beta` 的复评中被发现两处缺陷并已修复——① `updateDirectionCard()` 用 4 处 Java 裸 hex（`#E8F0FE`/`#F8FAFD`/`#174EA6`/`#5F6368`）在运行时覆盖布局 token，深色/自定义主题下两张方向卡仍是浅底深字；已改为 `ThemeController.current()` 的 `colorPrimaryContainer`/`colorOnPrimaryContainer`/`colorSurfaceContainerLow`/`colorOnSurfaceVariant` 成对语义色。**注意 `scripts/check_ui_tokens.sh` 只扫 `res/` 资源、不扫 Java**，故这处修复不被该门禁覆盖。② `startSync()` 的 `toRemote` 竞态：主线程取 `mode` 拼 URL、工作线程再读 `toRemote` 决定请求体（`backup`/`device`/`remoteRelay`），同步中翻方向会产生方向自相矛盾的请求；已在入口快照为局部 `final boolean toRemote` 并贯穿 `buildBody(...)`，同步期间同时禁用两个方向按钮。两处均**非**本任务（C83）引入：裸 hex 来自更早的 `7e5106e055`，竞态在 merge-base `0e81bae1c7` 已存在。
 
 ## 7. 改动清单
 
@@ -176,8 +199,8 @@ UI_TOKEN_STATUS PASS
 | --- | --- | --- |
 | `app/src/main/java/com/fongmi/android/tv/ui/dialog/OneKeySyncDialog.java` | 上游 `b6f8e0fda7` + `3f30bebe7e` | `modeButton` 删除、`toggleMode`→`setToRemote`、新增 `updateDirectionGroup()`、`directionGroup` 监听接线 |
 | `app/src/main/res/layout/dialog_one_key_sync.xml` | 上游 `b6f8e0fda7` + `3f30bebe7e` | `actionBar` 改垂直两段、新增 `directionGroup`/`directionPush`/`directionPull`、删除 `modeButton`、`mode` 去 `clickable` |
-| `docs/C81-upstream-sync-silent1566.md` | 本任务 | 任务文档（新增） |
-| `docs/upstream-player-dependency-merge-assessment-2026-08-20.md` | 本任务 | 评估索引新增 `C81` 行 |
+| `docs/C83-upstream-sync-silent1566.md` | 本任务 | 任务文档（新增；原名 `docs/C81-upstream-sync-silent1566.md`，因评估索引 ID 撞号在合并冲突解决时 `git mv` 改名） |
+| `docs/upstream-player-dependency-merge-assessment-2026-08-20.md` | 本任务 | 评估索引新增 `C83` 行（原 `C81` 与 beta 已发布的 dev4 `C81` 撞号，本任务让位改 `C83`） |
 
 合并提交为双父 `--no-ff` 合并提交（父 = `0e81bae1c7` + `3f30bebe7e`）。
 
@@ -189,4 +212,8 @@ UI_TOKEN_STATUS PASS
 
 ## 9. 交付坐标与下一步
 
-（实施后填写）
+- **合并提交**：`f6e122c03847e1fc8c5ef83acdad0cbc3e024609`（双父 `--no-ff`：`0e81bae1c7d1a91cd229dc5e1663d62f202548b3` + `3f30bebe7ea97dff6ffcdc8e82649e8a8d970e1a`）
+- **回填提交**：`c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf`（`docs(C81): 回填评估索引交付坐标与验证结论`）
+- **recovery tag**：`recovery/C81-upstream-sync-silent1566/20261019074414-f6e122c03847`、`recovery/C81-coords/20261019074552-c88f2896ac00`
+- **推送状态**：未推送（`dev3` 相对 `origin/dev3` ahead 4）
+- **下一步**：无。本任务已闭环，改号 `C83` 的映射见 §Recovery anchor；后续 `origin/beta` 合并与复评由 `C84-beta-merge-review-dev3-20261019` 承担。
