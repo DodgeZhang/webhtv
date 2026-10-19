@@ -10,7 +10,7 @@
 
     改后三态互为反相，不可能混淆：
       · focused：浅色填充 colorPrimary + 深色环 colorOnPrimary（对填充 7.50:1）
-      · selected：深色填充 colorPrimaryContainer + 浅色环 colorPrimary（7.86:1）
+      · selected：深色填充 colorPrimaryContainer + 浅色环 colorPrimary（5.32:1 夜间 / 4.92:1 浅色）
       · default：surfaceContainerHighest + outlineVariant 静态轮廓（不变）
     focused 与 selected 的填充与环色恰好互换，所以"焦点在哪"与"选中哪个"
     是两个互相独立的线索。

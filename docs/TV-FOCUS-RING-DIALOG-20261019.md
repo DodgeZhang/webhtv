@@ -9,9 +9,9 @@
 - 回滚：撤销本任务原子提交即可；无数据迁移。
 - 交付坐标：提交 `f5d08659fcd`（dev4），recovery tag `recovery/TV-FOCUS-RING-DIALOG-20261019/20261019134000`；未推送。
 - **第二轮（2026-10-19 下午，用户追加授权）**：见 §8。用户指出"选中后的高亮边框颜色和按钮本身的颜色太接近"，并明确授权"发现的其他类似问题请同意改吧"，§6 的遗留清单因此转为在范围内。
-  - 第二轮允许路径：`app/src/main/res/color/`（新增 `focus_ring_primary_container.xml`，改 `dialog_primary_button_bg.xml`、`dialog_primary_button_text.xml`、`about_primary_icon_tint.xml`）、`app/src/main/res/values/colors.xml`、`app/src/main/res/drawable/{about_primary_icon_button,selector_update_version_item}.xml`、三个 `res/layout` 目录下的 46 个主按钮站点、`TvFocusRingContractTest.java`、本文件。
+  - 第二轮允许路径：`app/src/main/res/color/`（新增 `focus_ring_primary_container.xml`，改 `dialog_primary_button_bg.xml`、`dialog_primary_button_text.xml`、`about_primary_icon_tint.xml`）、`app/src/main/res/values/colors.xml`、`app/src/main/res/drawable/{about_primary_icon_button,selector_update_version_item}.xml`、三个 `res/layout` 目录下的 45 个主按钮站点、`TvFocusRingContractTest.java`、本文件。
   - 第二轮验收：① 每个主按钮同时具备"填充变深 + 浅色高对比环"两个独立线索；② 环对面板与对自身填充都 ≥3:1；③ 版本卡选中态与默认态可分辨；④ 契约测试 26 项全绿 + 反证（把聚焦填充改回旧值必须失败）。
-  - 第二轮交付坐标：提交与 tag 见文末 §8.6。
+  - 第二轮交付坐标：提交与 tag 见文末 §8.7。
 - 下一步唯一动作：无。
 
 ## 1. 现象与根因
@@ -39,11 +39,11 @@
 | 来源 | 地址/修订 | 证据等级 | 结论与决策影响 |
 |---|---|---|---|
 | 用户实拍照片 1/2 | sha256 `04114aa3…`/`a1a2080e…`，2560x1440 | A（用户提供） | 确认两个缺陷的现场表现 |
-| 5561 模拟器实拍 | `about1.png`、`gear-focused.png`、`v-*.png` | A（本地设备） | 像素级前后对照 |
+| 5561 模拟器实拍 | `build/tmp-focus-5561/`（`about1.png`、`gear-focused.png`、`v-*.png` 等 9 张；该目录被 `.gitignore` 覆盖，属本机取证产物，不入库） | A（本地设备） | 像素级前后对照 |
 | `app/src/leanback|mobile/res/layout/dialog_update.xml` | HEAD `cef7ba60432` | A（本地） | 三个主按钮只有 `app:backgroundTint`，无 `strokeColor` |
 | `app/src/main/res/color/dialog_primary_button_bg.xml` | HEAD `cef7ba60432` | A（本地） | focused 与 default 同色，环是唯一线索 |
 | `app/src/main/res/color/about_primary_icon_tint.xml` | HEAD `cef7ba60432` | A（本地） | 正确状态表已存在但零引用；分支反了 |
-| `docs/TV-FOCUS-RING-20261004-unified-theme-ring.md` | HEAD `cef7ba60432` | A（本地） | 同一根因的既有记录；§5.2 规定宽度 1.5dp 不得再加粗 |
+| `docs/TV-FOCUS-RING-20261004-unified-theme-ring.md` | HEAD `cef7ba60432` | A（本地） | 同一根因的既有记录；§12 规定宽度 1.5dp 不得再加粗 |
 | WCAG 2.2 SC 1.4.11 / SC 2.4.13 | 沿用仓库既有记录（访问日期 2026-10-04，本次未重新抓取） | A（间接） | 非文本对比度 ≥3:1，焦点外观 ≥3:1 |
 
 不适用类别记录：不涉及解码/渲染/ABI/打包/网络，无需上游播放器依赖类证据。
@@ -53,7 +53,7 @@
 | 方案 | 优点 | 缺点/风险 | 结论 |
 |---|---|---|---|
 | 1. 不变更 | 零风险 | 用户报告的缺陷继续存在 | 拒绝 |
-| 2. 加粗焦点环到 3dp 提升对比 | 直观 | **违反 §5.2**：用户已明确否决 3dp（"太粗"） | 拒绝 |
+| 2. 加粗焦点环到 3dp 提升对比 | 直观 | **违反 §12**：用户已明确否决 3dp（"太粗"） | 拒绝 |
 | 3. 改 `dialog_primary_button_bg` 的聚焦填充色 | 一处改动覆盖全仓库 | 会改变**已验收**的关于弹窗外观；且填充色变化属于另一套机制，与"边框环是唯一机制"的既有契约冲突 | 拒绝 |
 | 4. **补环 + 修正齿轮着色配对**（采用） | 与已验收的关于弹窗完全同一套规范；每个分支都与它实际所处的背景配对，换主题不失效 | 需要同时改两个 flavor | **采用** |
 
@@ -67,7 +67,7 @@
 
 ## 5. 不变量与回滚
 
-- 不改动 `webhtv_focus_ring_width` 的取值（1.5dp），遵守 `TV-FOCUS-RING-20261004` §5.2。
+- 不改动 `webhtv_focus_ring_width` 的取值（1.5dp），遵守 `TV-FOCUS-RING-20261004` §12。
 - 不改动 `dialog_primary_button_bg` / `focus_ring_primary` / 主题 token 的任何取值。
 - 不改动关于弹窗三个按钮（已验收正确）与 `selector_update_version_item`（版本行已有 2dp 环）。
 - 不改动播放器/视频层焦点环族。
@@ -79,7 +79,7 @@
 
 `dialog_ad_block_stats.xml`(leanback/mobile)、`dialog_ad_rule_preview.xml`、`dialog_ad_rule_edit.xml`、`dialog_apk_push_progress.xml`、`dialog_site_health_report.xml`、`dialog_site_health.xml`、`dialog_config.xml`、`dialog_custom_csp.xml`、`dialog_login_state_*.xml`、`dialog_playback_remote_sync.xml`、`dialog_playback_webhook.xml`、`dialog_remote_trust_*.xml`、`dialog_shell_proxy.xml`、`dialog_sync_path.xml`、`dialog_ua.xml`、`dialog_viewing_record_sync.xml`、`dialog_web_home_extension*.xml`、`dialog_mpv_config_*.xml`、`dialog_ai_recommendation_info.xml`、`dialog_manage_page*.xml`、`dialog_one_key_sync.xml`、`activity_crash.xml`、`activity_following.xml` 等。
 
-这些站点在 TV 上同样"聚焦前后填充同色、无环"，属于同一个可见性缺陷。第一轮按 `AGENTS.md` §2「范围默认封闭」未扩大改动面；**第二轮用户明确授权后已一次性机械补齐，精确清点结果为 46 个站点 / 38 个文件，见 §8。**
+这些站点在 TV 上同样"聚焦前后填充同色、无环"，属于同一个可见性缺陷。第一轮按 `AGENTS.md` §2「范围默认封闭」未扩大改动面；**第二轮用户明确授权后已一次性机械补齐，精确清点结果为 45 个站点 / 37 个文件，见 §8。**
 
 ## 7. 验证记录
 
@@ -104,7 +104,7 @@
 | `cancel`（版本更新，聚焦） | 无环，填充 `#98B8EC` | 焦点环 `#062E6F` **3px**（y=755-757） | 达标 |
 | `stableConfirm`/`betaConfirm` | 无环 | 与 `cancel` 同一组属性（静态测试锁定） | 达标 |
 
-`cancel` 的 3px `#062E6F` 环与关于弹窗 `confirm` 的实测完全一致（同为 1.5dp × 480dpi ≈ 3px），确认两个弹窗现在走的是同一套规范。
+`cancel` 的 3px `#062E6F` 环与关于弹窗 `confirm` 的实测完全一致（同为 1.5dp × density 1.75（实测 `wm density` = 280）≈ 2.6px，取整 3px），确认两个弹窗现在走的是同一套规范。
 
 **环境限制**：本会话仍无可用的 `bash`（仅 WSL，`HCS_E_SERVICE_NOT_AVAILABLE`），`scripts/check_ui_tokens.sh` 与 `.codex/scripts/task_guard.sh` 无法执行，按同等意图手工暂存/提交/打 tag。本次未新增裸十六进制。
 
@@ -163,7 +163,7 @@
 
 | 缺陷 | 位置 | 处理 |
 |---|---|---|
-| 46 个主按钮无环、聚焦前后填充同色 | 三个 `res/layout` 目录（38 文件） | 机械补齐：`backgroundTint`→`dialog_primary_button_bg`、`textColor`→`dialog_primary_button_text`、`strokeColor`→`focus_ring_primary_container`、`strokeWidth`→`webhtv_focus_ring_width` |
+| 45 个主按钮无环、聚焦前后填充同色 | 三个 `res/layout` 目录（37 文件） | 机械补齐：`backgroundTint`→`dialog_primary_button_bg`、`textColor`→`dialog_primary_button_text`、`strokeColor`→`focus_ring_primary_container`、`strokeWidth`→`webhtv_focus_ring_width` |
 | 3 个站点有环但环色是静态轮廓 `?attr/colorOutline`（对填充 1.85:1 / 1.43:1） | `dialog_result_list.xml#querySearch`、`leanback/dialog_config.xml#positive`、`mobile/dialog_apk_push_method.xml#local` | 一并改指到 `focus_ring_primary_container` |
 | `mobile/dialog_apk_push_method.xml#local` 文字 `?attr/colorOnSurface` 画在 `?attr/colorPrimary` 填充上 = 1.33:1 / 2.68:1 | 同上 | 改用 `dialog_primary_button_text` |
 | `activity_crash.xml` 的按钮同时有 `android:backgroundTint` 与 `app:backgroundTint`（后者覆盖前者），且根标签缺 `xmlns:app` 导致 `unbound prefix` | `app/src/mobile/res/layout/activity_crash.xml` | 补 `xmlns:app`、删除被覆盖的 `android:backgroundTint` |
@@ -174,9 +174,9 @@
 - `following_button_*` 家族（`activity_following.xml` 4 处、`item_following.xml` 1 处）与 `dialog_cache_management.xml` 2 处仍用 `@color/focus_ring_primary`：它们的聚焦填充是 `webhtv_color_focus`（`#F5F7FF` / `#0B57D0`），深色环压在近白填充上本就高对比，且聚焦同时改变填充 —— 不存在本次报告的缺陷。且 `following_button_focus` 绑定用户可自定义的 FOCUS 槽位，改动会削弱主题定制能力。
 - `dialog_toggle_button_bg` 的消费者（`dialog_custom_csp`、`dialog_web_home_extension*`、`dialog_shell_proxy`）：其聚焦填充已翻转到 `primaryContainer`，`strokeColor="?attr/colorOutline"` 是**静态描边**而非焦点环，语义不同。
 - 播放器/视频层焦点环家族（`tvPlayerRing`）：宿主是视频画面/固定玻璃层，按 `docs/TV-FOCUS-RING-20261004` §14 独立定义。
-- 5 处 Java 代码 `setBackgroundTintList(... R.color.dialog_primary_button_bg)`（`ChoiceDialog`、`CodecCapabilityDialog`、`GitCloudDialog`、`LightDialog`、`RemoteTrustDialog`）：均已自行设置 stroke，且改为状态表后自动继承新的聚焦填充。
+- 5 处 Java 代码 `setBackgroundTintList(... R.color.dialog_primary_button_bg)`（`ChoiceDialog`、`CodecCapabilityDialog`、`GitCloudDialog`、`LightDialog`、`RemoteTrustDialog`）：**这 5 处程序化产出的主按钮至今没有焦点环**——`GitCloudDialog.java:2249-2254`、`RemoteTrustDialog.java:3174-3179` 完全不调 `setStrokeColor`/`setStrokeWidth`；`ChoiceDialog.java:595`、`LightDialog.java:237`、`CodecCapabilityDialog.java:363` 写的是 `setStrokeWidth(primary ? 0 : dp(1))`，primary 分支宽度为 0。它们**不在本轮 45 个 XML 站点内**，契约测试只扫 XML 也永不覆盖。经比对这 5 个文件均**不在本任务改动集**（各自最后提交为 `fb85759b03a`/`2e5022b8685`/`4e4bfffcb67`/`f85398d3598`），属预存缺陷，按 `AGENTS.md` §2 只报告不修。原记录「均已自行设置 stroke」有误，此处更正。
 
-**宽度未动**：`webhtv_focus_ring_width` 仍是 **1.5dp**。用户在 `docs/TV-FOCUS-RING-20261004` §5.2/§12 已明确否决过 3dp（"太粗"），本次全部收益来自颜色。
+**宽度未动**：`webhtv_focus_ring_width` 仍是 **1.5dp**。用户在 `docs/TV-FOCUS-RING-20261004` §12 已明确否决过 3dp（"太粗"），本次全部收益来自颜色。
 
 ### 8.6 验证记录
 
@@ -191,13 +191,15 @@
 
 → **BUILD SUCCESSFUL**；`TvFocusRingContractTest` `tests=26 failures=0 errors=0 skipped=0`，`ThemeBinderContractTest` `tests=26 failures=0 errors=0 skipped=0`（合计 52 项）。
 
+> 计数说明：`tests=26` 是**本轮（第二轮）交付时**的实测值。其后 `C83-beta-merge-review-dev4-20261019` 复评时新增 `focusedVersionCardKeepsItsTextReadable`，该文件在 HEAD 上为 **27** 项。
+
 注意：`ThemeBinderContractTest` 位于共享 `src/test`，必须挂在 flavor 任务 `testLeanbackArm64_v8aDebugUnitTest` 下运行；仓库里**不存在** `:app:testDebugUnitTest` 任务（计划里写的那个名字是错的，已按实际矩阵修正）。
 
-**反证（关键）**：把 `dialog_primary_button_bg.xml` 的聚焦分支改回旧值 `webhtv_color_primary`，`primaryButtonTextPairsWithItsFillOnEveryStateBranch` 立即 FAILED；再把 `dialog_about.xml` 的 `strokeColor` 换成透明，`aboutDialogButtonsAndGearShowABorderRingWhenFocused`、`everyRingedControlStillDeclaresItsFill`、`thereIsExactlyOneFocusRingWidthInTheTvUi`、`everyPrimaryButtonCarriesItsOwnRingAndStatefulText` 共 5 项 FAILED。两个新门槛都**可被证伪**，不是空断言。文件已还原并复跑全绿。
+**反证（关键）**：把 `dialog_primary_button_bg.xml` 的聚焦分支改回旧值 `webhtv_color_primary`，`primaryButtonTextPairsWithItsFillOnEveryStateBranch` 立即 FAILED；再把 `dialog_about.xml` 的 `strokeColor` 换成透明，`aboutDialogButtonsAndGearShowABorderRingWhenFocused`、`everyRingedControlStillDeclaresItsFill`、`thereIsExactlyOneFocusRingWidthInTheTvUi`、`everyPrimaryButtonCarriesItsOwnRingAndStatefulText` 共 4 项 FAILED。两个新门槛都**可被证伪**，不是空断言。文件已还原并复跑全绿。
 
 构建：`.\gradlew.bat :app:assembleLeanbackArm64_v8aDebug --console=plain --no-build-cache` → **BUILD SUCCESSFUL**。
 
-真机（5561，TV 深色模式）：安装后逐像素扫描确认聚焦按钮的纵向剖面为 `面板 → 环 → 填充 → 环 → 面板`。以关于弹窗 `我已知悉` 为例，y=936 一行读到 `#2A2F34`(面板) → `#D3E3FD`(环, 3px) → `#0842A0`(聚焦填充) → `#D3E3FD`(字形) → … → `#D3E3FD`(环, 3px) → `#2A2F34`(面板)。即聚焦填充已从 `primary #A8C7FA` 切到 `primaryContainer #0842A0`，环从 `#062E6F` 切到 `#D3E3FD`，环宽 3px（1.5dp × 480dpi）。未聚焦按钮为纯 `#A8C7FA` 填充、无环。
+真机（5561，TV 深色模式）：安装后逐像素扫描确认聚焦按钮的纵向剖面为 `面板 → 环 → 填充 → 环 → 面板`。以关于弹窗 `我已知悉` 为例，y=936 一行读到 `#2A2F34`(面板) → `#D3E3FD`(环, 3px) → `#0842A0`(聚焦填充) → `#D3E3FD`(字形) → … → `#D3E3FD`(环, 3px) → `#2A2F34`(面板)。即聚焦填充已从 `primary #A8C7FA` 切到 `primaryContainer #0842A0`，环从 `#062E6F` 切到 `#D3E3FD`，环宽 3px（1.5dp × density 1.75，实测 `wm density` = 280 → 2.6px 取整）。未聚焦按钮为纯 `#A8C7FA` 填充、无环。
 
 **环境限制**：本会话仍无可用的 `bash`（仅 WSL，`HCS_E_SERVICE_NOT_AVAILABLE`），`.codex/scripts/task_guard.sh` 无法执行，按同等意图手工暂存/提交/打 tag —— 只暂存本任务自有路径，不触碰预存脏路径 `.design-evidence/`。
 

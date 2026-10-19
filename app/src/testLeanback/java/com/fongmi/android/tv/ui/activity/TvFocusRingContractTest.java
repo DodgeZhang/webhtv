@@ -1306,6 +1306,122 @@ public class TvFocusRingContractTest {
         }
     }
 
+    /**
+     * 回归（{@code 49b28bd91f9}）：版本卡一聚焦，卡内四类文字全部不可读。
+     *
+     * <p>{@code selector_update_version_item} 的 {@code state_focused} 分支用
+     * {@code ?attr/colorPrimary} 填充（夜间 {@code #A8C7FA} / 浅色 {@code #0B57D0}），
+     * 而卡片里的文字色是静态的。{@code UpdateDialog.onStart()} 会自动
+     * {@code stableItem.requestFocus()}，所以弹窗一打开就命中这个状态：
+     * Name/Desc 的 {@code colorOnSurface} 只有 1.33:1（夜间）/ 2.68:1（浅色），
+     * Version 的 {@code colorOnSurfaceVariant} 更低，Expand 的 {@code colorPrimary}
+     * 更是 1.00:1（两个主题都是）——完全看不见。三态填充与环色本身是对的，不动；
+     * 修法是让卡片文字跟随卡片焦点状态翻成填充的配对 on-色。
+     *
+     * <p>本测试同时钉死两件事：聚焦填充上的文字对比度，以及
+     * {@code android:duplicateParentState="true"} 确实把卡片焦点状态传到了文字上
+     * ——后者缺失时修复会静默失效（文字色看着改了，实际永远走默认分支）。
+     */
+    @Test
+    public void focusedVersionCardKeepsItsTextReadable() throws Exception {
+        // 1) 聚焦填充上的文字对比度（修复后夜间 7.50:1 / 浅色 6.39:1）。
+        for (String tokens : new String[]{TOKENS_LIGHT, TOKENS_NIGHT}) {
+            String body = read(tokens);
+            String fill = tokenHex(body, "webhtv_color_primary");
+            String text = tokenHex(body, "webhtv_color_on_primary");
+            double ratio = contrast(text, fill);
+            assertTrue(tokens + "：聚焦版本卡上的文字 " + text + " 压在填充 colorPrimary " + fill
+                            + " 上只有 " + String.format("%.2f", ratio) + ":1，低于 4.5:1，不可读",
+                    ratio >= 4.5);
+        }
+
+        // 2) 三个文字色状态表：聚焦/按下取填充的配对 on-色，默认态回到非聚焦原色。
+        String[][] stateLists = {
+                {"app/src/main/res/color/update_version_item_title.xml", "@color/webhtv_color_on_surface"},
+                {"app/src/main/res/color/update_version_item_meta.xml", "@color/webhtv_color_on_surface_variant"},
+                {"app/src/main/res/color/update_version_item_accent.xml", "@color/webhtv_color_primary"},
+        };
+        for (String[] entry : stateLists) {
+            String path = entry[0];
+            assertTrue(path + " 必须存在，否则卡片文字会退回静态色（49b28bd91f9 的回归）",
+                    Files.exists(Path.of(path)) || Files.exists(Path.of("..").resolve(path)));
+            String selector = values(read(path));
+            for (String state : new String[]{"android:state_focused=\"true\"", "android:state_pressed=\"true\""}) {
+                assertEquals(path + " 的 " + state + " 分支必须取填充的配对 on-色"
+                                + "（聚焦填充是 colorPrimary），否则文字会与填充同色",
+                        "@color/webhtv_color_on_primary", branchColor(selector, state));
+            }
+            assertEquals(path + " 的默认分支必须回到非聚焦态的原色",
+                    entry[1], branchColor(selector, ""));
+        }
+
+        // 3) 两布局必须真的**绑定**这三个表，并让状态传到文字上。
+        //    只断言状态表文件自身是不够的：把 8 处 textColor 换回静态 ?attr/colorOnSurface
+        //    就整体撤销了修复，而孤立的状态表文件仍然存在——那正是本仓库踩过的
+        //    「只测辅助函数未测调用点」陷阱。所以这里逐节点钉死绑定的字面量。
+        String[][] bindings = {
+                {"stableName", "@color/update_version_item_title"},
+                {"betaName", "@color/update_version_item_title"},
+                {"stableDesc", "@color/update_version_item_title"},
+                {"betaDesc", "@color/update_version_item_title"},
+                {"stableVersion", "@color/update_version_item_meta"},
+                {"betaVersion", "@color/update_version_item_meta"},
+                {"stableExpand", "@color/update_version_item_accent"},
+                {"betaExpand", "@color/update_version_item_accent"},
+        };
+        for (String layout : new String[]{UPDATE_LEANBACK, UPDATE_MOBILE}) {
+            String body = read(layout);
+            for (String[] binding : bindings) {
+                String id = binding[0];
+                String node = nodeOf(body, id);
+                assertTrue(layout + " 的 " + id + " 必须声明 android:duplicateParentState=\"true\"，"
+                                + "否则版本卡聚焦时它仍留在静态色上（49b28bd91f9 的回归）",
+                        node.contains("android:duplicateParentState=\"true\""));
+                assertTrue(layout + " 的 " + id + " 必须把 android:textColor 绑到 " + binding[1]
+                                + "，否则卡片聚焦时文字不会跟着翻色（49b28bd91f9 的回归）；实际是 "
+                                + textColourOrNone(node),
+                        node.contains("android:textColor=\"" + binding[1] + "\""));
+            }
+            for (String id : new String[]{"stableContent", "betaContent"}) {
+                assertTrue(layout + " 的 " + id + " 必须声明 android:duplicateParentState=\"true\"，"
+                                + "否则版本卡聚焦时它仍留在静态色上（49b28bd91f9 的回归）",
+                        nodeOf(body, id).contains("android:duplicateParentState=\"true\""));
+            }
+            // 卡片里那个无 id 的 header 容器装着 Name/Status/Expand，同样必须透传状态。
+            java.util.regex.Matcher headers = java.util.regex.Pattern
+                    .compile("                <androidx\\.appcompat\\.widget\\.LinearLayoutCompat\n(.*?)>",
+                            java.util.regex.Pattern.DOTALL)
+                    .matcher(body);
+            int headerCount = 0;
+            while (headers.find()) {
+                String header = headers.group(1);
+                if (!header.contains("android:orientation=\"horizontal\"")) continue;
+                headerCount++;
+                assertTrue(layout + " 的版本卡 header 容器必须声明 android:duplicateParentState=\"true\"，"
+                                + "否则 Name/Expand 的文字色拿不到卡片焦点状态",
+                        header.contains("android:duplicateParentState=\"true\""));
+            }
+            assertEquals(layout + " 必须有 stable/beta 两个版本卡 header 容器", 2, headerCount);
+        }
+    }
+
+    /** 取节点体内声明的 {@code android:textColor}；未声明时返回「未声明」。 */
+    private static String textColourOrNone(String node) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("android:textColor=\"([^\"]+)\"").matcher(node);
+        return m.find() ? m.group(1) : "未声明";
+    }
+
+    /** 取 {@code @+id/xxx} 节点的标签体（到该标签自己的 {@code />} 或 {@code >} 为止）。 */
+    private static String nodeOf(String layout, String id) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("@\\+id/" + java.util.regex.Pattern.quote(id) + "\"(.*?)(?:/>|</)",
+                        java.util.regex.Pattern.DOTALL)
+                .matcher(layout);
+        assertTrue("布局里必须能找到 @+id/" + id, matcher.find());
+        return matcher.group(1);
+    }
+
     private static int countOf(String haystack, String needle) {
         int n = 0, at = 0;
         while ((at = haystack.indexOf(needle, at)) >= 0) { n++; at += needle.length(); }
