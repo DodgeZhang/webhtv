@@ -7,6 +7,7 @@
 - 保护面：任务开始时工作树仅 `.design-evidence/`（未跟踪，预存脏路径）；分支 `dev4`，HEAD `cef7ba60432b4c0a9415f4a31f77ad8df6fc8474`。
 - 验收：① 版本更新弹窗三个主按钮都带 `@color/focus_ring_primary` + `@dimen/webhtv_focus_ring_width`；② 齿轮未聚焦态与面板 ≥3:1、聚焦态与主题色填充 ≥3:1；③ 契约测试新增 3 项并全绿（22/22）；④ 5561 真机对照：齿轮 1.05:1 → 7.93:1，`cancel` 焦点环 `#062E6F` 3px 与关于弹窗一致。
 - 回滚：撤销本任务原子提交即可；无数据迁移。
+- 交付坐标：提交 `f5d08659fcd`（dev4），recovery tag `recovery/TV-FOCUS-RING-DIALOG-20261019/20261019134000`；未推送。
 - 下一步唯一动作：无。已知遗留（未获授权，未改动）：其余消费 `dialog_primary_button_bg` 但无环的弹窗，见 §6。
 
 ## 1. 现象与根因
