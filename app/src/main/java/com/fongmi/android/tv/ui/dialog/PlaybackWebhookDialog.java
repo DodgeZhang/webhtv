@@ -583,15 +583,19 @@ public class PlaybackWebhookDialog extends BaseAlertDialog {
      * A suspended row is the one row that must read as "attention" rather than "normal", so
      * it keeps a distinct fill - now the semantic error container ({@code #F9DEDC} day /
      * {@code #93000A} night) instead of a fixed light pink that only worked in the day table.
-     * The stroke is the shared semantic hairline; see
-     * {@code ViewingRecordSyncDialog.rowBackground}.
+     * Its stroke is the paired {@code colorError}, as in {@code CustomCspDialog.rowBackground},
+     * so the cue survives for a viewer who cannot separate the two fills by hue: the fills
+     * differ by only 1.15:1 in the day table. Every other row takes the shared semantic
+     * hairline; see {@code ViewingRecordSyncDialog.rowBackground}.
      */
     private GradientDrawable rowBackground(WebhookConfig config) {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(config.suspended
                 ? ThemeController.current().colorErrorContainer()
                 : ThemeController.current().colorSurfaceContainerLow());
-        drawable.setStroke(dp(1), ThemeController.current().colorOutlineVariant());
+        drawable.setStroke(dp(1), config.suspended
+                ? ThemeController.current().colorError()
+                : ThemeController.current().colorOutlineVariant());
         drawable.setCornerRadius(dp(6));
         return drawable;
     }

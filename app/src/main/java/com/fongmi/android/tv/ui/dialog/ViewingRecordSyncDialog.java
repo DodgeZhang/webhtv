@@ -253,7 +253,7 @@ public class ViewingRecordSyncDialog extends BaseAlertDialog {
      * and {@code colorOutlineVariant} its paired hairline.
      *
      * <p>The previous two stroke greys ({@code #DADCE0} usable / {@code #E2E5E8} not) differed
-     * by 1.02:1, which carried no readable information - usability is already stated by the
+     * by 1.09:1, which carried no readable information - usability is already stated by the
      * badge text - so both branches now share one semantic outline.
      */
     private GradientDrawable rowBackground() {

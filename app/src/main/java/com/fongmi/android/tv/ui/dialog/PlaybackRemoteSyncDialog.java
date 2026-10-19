@@ -164,7 +164,7 @@ public class PlaybackRemoteSyncDialog extends BaseAlertDialog {
         LinearLayoutCompat root = new LinearLayoutCompat(requireContext());
         root.setOrientation(LinearLayoutCompat.VERTICAL);
         root.setPadding(dp(10), dp(9), dp(10), dp(9));
-        root.setBackground(rowBackground(config));
+        root.setBackground(rowBackground());
         root.setFocusable(true);
         root.setClickable(true);
         root.setOnClickListener(view -> showEdit(copy(config)));
@@ -480,7 +480,7 @@ public class PlaybackRemoteSyncDialog extends BaseAlertDialog {
      * {@code ViewingRecordSyncDialog.rowBackground} for why the fixed light literals could
      * not be rescued by {@code ThemeBinder}.
      */
-    private GradientDrawable rowBackground(RemoteSyncConfig config) {
+    private GradientDrawable rowBackground() {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(ThemeController.current().colorSurfaceContainerLow());
         drawable.setStroke(dp(1), ThemeController.current().colorOutlineVariant());
