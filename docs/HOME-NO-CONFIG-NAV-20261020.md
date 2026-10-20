@@ -26,12 +26,12 @@
 
 | 端 | 无配置时的行为 |
 |---|---|
-| leanback | `showNoConfig()` → `showContent()`（导航/标题/logo 全部就位）；`setFunc()` 在配置为空时追加一个「添加接口」按钮（点击 → `HistoryDialog.vod().manage()`） |
-| mobile | `VodFragment.showNoConfig()` → `hideState()` + `showNativeContent()`（不再独占整屏）；`HomeActivity` 在底部导航栏动态加一个「添加接口」项（点它开接口管理并保持当前选中页） |
+| leanback | `showNoConfig()` → `showContent()`（导航/标题/logo 全部就位），导航行只由既有按钮构成 |
+| mobile | `VodFragment.showNoConfig()` → `hideState()` + `showNativeContent()`（不再独占整屏），底部导航只由既有项构成 |
 
-两端同一条规则：**引导放进用户已经在看的那一条导航栏，而不是拿一个铺满首页的空态把导航一起接管。**
+两端同一条规则：**无配置时首页保持正常形态，导航可用；不再用一个铺满首页的空态把导航一起接管。**
 
-手机端实现要点（真机踩到过）：`HistoryDialog.onAttach` 会把宿主强转 `ConfigListener`，手机端宿主是 `VodFragment`，所以入口必须经 `VodFragment.openVodConfig()` 承载；直接用 Activity 承载会 `ClassCastException`（首次真机验证就崩了，已修）。
+> 2026-10-20 追加（按用户要求）：第一版在导航行/底部导航里各加了一个「添加接口」入口，用户看过真机截图后明确 **"不需要这个按钮"**，已整段移除（电视端 `noConfigFunc()` 与 `onItemClick` 分支、手机端 `setNoConfigNavEntry()`/`MENU_NO_CONFIG`/`onNavigationItemSelected` 分支、以及两端的配置对话框路由）。现在两端只是"导航回来、内容为空"，添加入口回归既有的 设置 → 接口管理。
 
 ## 2. 验证（证据）
 
@@ -41,21 +41,21 @@
 **5557（SM-N9700 / 1920x1080，TV 包）**：`install -r` → `pm clear` → 冷启动 → `uiautomator dump`：
 
 ```
-text="搜索"  text="收藏"  text="推送"  text="设置"  text="添加接口"
-text="最近观看"  text="更新推荐"  text="默影视"  text="18:24:40"
+text="搜索"  text="收藏"  text="推送"  text="设置"
+text="最近观看"  text="更新推荐"  text="默影视"  text="18:55:31"
 ```
 
-- 导航行回来了；「添加接口」是这一行的第 5 个 chip，`focused="true" selected="true"` 可聚焦。
-- 按 `DPAD_CENTER` → 进入接口列表（整屏只剩 `text="新增"`），说明主动作真的能出去。
-- 注：清数据后 **直播** 仍不显示（`LiveConfig.hasUrl()` 为假）、**点播** chip 默认不显示（`HomeButton.getDefaultButtons()` 在"首页自动加载点播"开启时不含 id 0）——两者都是既有设计，不是本次回归。
+- 导航行回来了，且**没有**「添加接口」按钮（用户要求移除）。
+- 注：清数据后 **直播** 不显示（`LiveConfig.hasUrl()` 为假）、**点播** chip 默认不显示（`HomeButton.getDefaultButtons()` 在"首页自动加载点播"开启时不含 id 0）——两者都是既有设计，不是本次回归。
 
 **emulator-5560（手机包）**：`install -r` → `pm clear` → 冷启动 → dump：
 
 ```
-content-desc="点播"  content-desc="设置"  content-desc="添加接口"(clickable="true")
+content-desc="点播"  content-desc="设置"
+appBar / toolbar / type / pager / navigation 均在，state 浮层不存在
 ```
 
-点「添加接口」→ 弹出接口列表（`text="新增"`），无新 crash；顶部 `appBar/typeBar/pager` 与底部导航同时存在，首页不再是全屏空态。
+无「添加接口」项，crash 计数 0；首页是正常形态而不是全屏空态。
 
 ## 3. 未在设备上覆盖的残留
 

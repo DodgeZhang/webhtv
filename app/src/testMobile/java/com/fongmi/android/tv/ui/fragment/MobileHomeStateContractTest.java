@@ -178,21 +178,11 @@ public class MobileHomeStateContractTest {
         assertTrue("未配置必须回到原生内容态", showNoConfig.contains("showNativeContent()"));
         assertFalse("未配置不得再用全屏空态", showNoConfig.contains("showEmpty()"));
         assertFalse("未配置态的主动作不得是重试", showNoConfig.contains("retryConfig"));
-        // 引导改为底部导航栏里的临时项（与电视端同一条规则：引导放进用户已经在看的那一栏）。
-        String nav = methodBody(home, "private void setNoConfigNavEntry(boolean show)");
-        assertTrue("导航栏必须能加「添加接口」项", nav.contains("home_no_config_action"));
-        assertTrue("配置就绪后必须能移除该项", nav.contains("removeItem(MENU_NO_CONFIG)"));
-        String select = methodBody(home, "public boolean onNavigationItemSelected(");
-        assertTrue("「添加接口」不是一页：点它直接开接口管理",
-                select.contains("MENU_NO_CONFIG") && select.contains("openVodConfig()"));
-        assertTrue("手机端接口管理必须由点播 Fragment 承载（HistoryDialog 需要 ConfigListener 宿主）",
-                methodBody(home, "private void openVodConfig()").contains("openVodConfig()"));
-        assertTrue("接口管理必须落到既有的接口列表（自带新增，不另写第二个入口）",
-                methodBody(fragment, "public void openVodConfig()").contains("HistoryDialog.create().vod().manage()"));
-        assertTrue("默认字符串表必须声明 home_no_config_action",
-                read(STRINGS).contains("name=\"home_no_config_action\""));
-        assertTrue("简中字符串表必须声明 home_no_config_action",
-                read(STRINGS_CN).contains("name=\"home_no_config_action\""));
+        // 导航栏只由既有项构成：未配置时不再额外插入任何入口。
+        assertFalse("未配置不得在导航栏里插入额外项",
+                home.contains("home_no_config_action") || home.contains("MENU_NO_CONFIG"));
+        assertFalse("未配置不再要求 Fragment 承载第二个配置入口",
+                fragment.contains("openVodConfig"));
     }
 
     /**

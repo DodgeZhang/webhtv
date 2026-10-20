@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.RelativeLayout;
@@ -75,10 +74,6 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     public static final String EXTRA_NAV_POSITION = "nav_position";
     private static final String STATE_RETURN_VOD_FROM_ENHANCE = "returnVodFromEnhance";
     private static final String STATE_CURRENT_POSITION = "currentPosition";
-    // 未配置时才存在的临时导航项（不是一页，点它直接开接口管理）；用固定 id 方便移除与拦截。
-    private static final int MENU_NO_CONFIG = 0x00C0FFEE;
-    private static final int MENU_NO_CONFIG_ORDER = 4;
-    private static final int MENU_MAX_ITEMS = 5;
 
     private FragmentStateManager mManager;
     private ActivityHomeBinding mBinding;
@@ -128,8 +123,7 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     protected void onResume() {
         super.onResume();
         if (mBinding.navigation.getMenu().findItem(R.id.lab).isVisible() != LabConfig.get().getNavEntry()
-                || mBinding.navigation.getMenu().findItem(R.id.following).isVisible() != FollowingSettings.isEnabled()
-                || (mBinding.navigation.getMenu().findItem(MENU_NO_CONFIG) != null) != VodConfig.get().getSites().isEmpty()) setNavigation();
+                || mBinding.navigation.getMenu().findItem(R.id.following).isVisible() != FollowingSettings.isEnabled()) setNavigation();
         updateFollowingBadge();
     }
 
@@ -265,42 +259,8 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
         mBinding.navigation.getMenu().findItem(R.id.lab).setVisible(LabConfig.get().getNavEntry());
         mBinding.navigation.getMenu().findItem(R.id.live).setVisible(LiveConfig.hasUrl());
         mBinding.navigation.getMenu().findItem(R.id.following).setVisible(FollowingSettings.isEnabled());
-        setNoConfigNavEntry(VodConfig.get().getSites().isEmpty());
         updateFollowingBadge();
         syncNavigationSelection();
-    }
-
-    /**
-     * 没有配置接口时，在底部导航栏里并一个「添加接口」入口。
-     *
-     * <p>与电视端同一条规则：引导放进用户已经在看的那一条导航栏，而不是用一个铺满首页的
-     * 空态把内容和顶栏一起接管——那样新装用户除了这个按钮哪儿也去不了。配置就绪后
-     * {@link #setNavigation()} 会把这一临时项移除。
-     */
-    private void setNoConfigNavEntry(boolean show) {
-        Menu menu = mBinding.navigation.getMenu();
-        MenuItem existing = menu.findItem(MENU_NO_CONFIG);
-        if (show && existing == null) {
-            // NavigationBarView 硬上限 5 项，加上临时项就超了的话宁可不显示，也不能崩。
-            if (visibleItemCount(menu) >= MENU_MAX_ITEMS) return;
-            MenuItem item = menu.add(Menu.NONE, MENU_NO_CONFIG, MENU_NO_CONFIG_ORDER, R.string.home_no_config_action);
-            item.setIcon(R.drawable.ic_action_plus);
-            item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        } else if (!show && existing != null) {
-            menu.removeItem(MENU_NO_CONFIG);
-        }
-    }
-
-    private int visibleItemCount(Menu menu) {
-        int count = 0;
-        for (int i = 0; i < menu.size(); i++) if (menu.getItem(i).isVisible()) count++;
-        return count;
-    }
-
-    private void openVodConfig() {
-        // 交给点播 Fragment 承载：HistoryDialog 的宿主必须实现 ConfigListener，手机端是 VodFragment。
-        VodFragment fragment = (VodFragment) mManager.getFragment(0);
-        if (fragment != null) fragment.openVodConfig();
     }
 
     private boolean openLive() {
@@ -361,11 +321,6 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         returnVodFromEnhance = false;
         setNavigationVisible(true);
-        // 「添加接口」不是一页：点它直接开接口管理列表，并保持当前选中项不变。
-        if (item.getItemId() == MENU_NO_CONFIG) {
-            openVodConfig();
-            return false;
-        }
         if (item.getItemId() == R.id.setting) return changeFragment(1);
         if (item.getItemId() == R.id.lab) {
             LabActivity.start(this);

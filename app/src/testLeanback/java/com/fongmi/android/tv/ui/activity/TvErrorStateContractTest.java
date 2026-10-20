@@ -171,23 +171,10 @@ public class TvErrorStateContractTest {
         assertTrue("未配置必须回到内容态（导航可用）", showNoConfig.contains("showContent()"));
         assertFalse("未配置不得再用全屏空态接管首页", showNoConfig.contains("showEmpty()"));
         assertFalse("未配置不得调用 showError", showNoConfig.contains("showError("));
-        // 引导改为导航行里追加的一个按钮：条件、文案、动作都落在真实代码上。
+        // 导航行只由既有按钮构成：未配置时不再额外插入任何入口。
         String setFunc = methodBody(home, "private void setFunc()");
-        assertTrue("未配置时导航行必须多一个「添加接口」", setFunc.contains("noConfigFunc()"));
-        assertTrue("只有配置为空时才追加", setFunc.contains("getSites().isEmpty()"));
-        assertTrue("引导按钮的文案必须是「添加接口」",
-                methodBody(home, "private Func noConfigFunc()").contains("home_no_config_action"));
-        String click = methodBody(home, "public void onItemClick(Func item)");
-        assertTrue("「添加接口」必须能打开接口管理",
-                click.contains("home_no_config_action") && click.contains("openVodConfig()"));
-        assertTrue("接口管理必须落到既有的接口列表（自带新增，不另写第二个入口）",
-                methodBody(home, "private void openVodConfig()").contains("HistoryDialog.create().vod().manage()"));
+        assertFalse("未配置不得在导航行里插入额外按钮", setFunc.contains("home_no_config"));
         assertFalse("未配置态的主动作不得是重试", showNoConfig.contains("error_retry"));
-        String action = "home_no_config_action";
-        assertTrue("默认字符串表必须声明 " + action,
-                read("app/src/main/res/values/strings.xml").contains("name=\"" + action + "\""));
-        assertTrue("简中字符串表必须声明 " + action,
-                read("app/src/main/res/values-zh-rCN/strings.xml").contains("name=\"" + action + "\""));
     }
 
     /**

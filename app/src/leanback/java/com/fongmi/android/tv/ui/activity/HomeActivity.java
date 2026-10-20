@@ -678,10 +678,6 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         showContent();
     }
 
-    private void openVodConfig() {
-        HistoryDialog.create().vod().manage().show(this);
-    }
-
     private void showContent() {
         SpiderDebug.log("startup", "home showContent start cost=%sms", System.currentTimeMillis() - App.time());
         mBinding.progressLayout.showContent();
@@ -842,26 +838,7 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         for (com.fongmi.android.tv.bean.HomeButton button : com.fongmi.android.tv.bean.HomeButton.getVisibleButtons()) {
             items.add(Func.create(button.getResId()));
         }
-        // 没有配置时在导航行里并一个「添加接口」：引导放在用户已经在看的那一行，
-        // 不必用一个铺满首页的空态把点播/直播/设置一起藏掉。配置就绪后这里自然不再追加，
-        // onResume() 与配置事件都会重算这一行。
-        if (VodConfig.get().getSites().isEmpty()) items.add(noConfigFunc());
         mFuncAdapter.setItems(items, new BaseDiffCallback<Func>());
-    }
-
-    /**
-     * 导航行里的「添加接口」按钮。
-     *
-     * <p>{@link Func} 的图标是按字符串资源 id 在 bean 里写死映射的。这里不为一次性的
-     * 「未配置」状态去动那张公共表，只在本场景覆盖图标。
-     */
-    private Func noConfigFunc() {
-        return new Func(R.string.home_no_config_action) {
-            @Override
-            public int getDrawable() {
-                return R.drawable.ic_action_plus;
-            }
-        };
     }
 
     private void refreshFollowingCount() {
@@ -1060,7 +1037,6 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         else if (item.getResId() == R.string.home_cast) PushActivity.start(this, 3);
         else if (item.getResId() == R.string.home_history_button) HistoryActivity.start(this);
         else if (item.getResId() == R.string.home_custom_csp) openCustomCsp();
-        else if (item.getResId() == R.string.home_no_config_action) openVodConfig();
     }
 
     private void openCustomCsp() {
