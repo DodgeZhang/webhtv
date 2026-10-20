@@ -1,4 +1,4 @@
-# C83 — 合并上游 `webhtv/webhtv` 分支 `Silent1566`（一键同步方向选择器）
+# C85 — 合并上游 `webhtv/webhtv` 分支 `Silent1566`（一键同步方向选择器）
 
 ## Recovery anchor
 
@@ -14,11 +14,11 @@
   8. 任务文档与评估索引行原子提交，并生成 annotated recovery tag。
 - **Lane**：`upstream`
 - **Scope**：`app/`、`docs/`
-- **任务守卫**：`C83-upstream-sync-silent1566`，base HEAD `0e81bae1c7d1a91cd229dc5e1663d62f202548b3`，branch `dev3`，受保护脏路径 0
+- **任务守卫**：`C85-upstream-sync-silent1566`，base HEAD `0e81bae1c7d1a91cd229dc5e1663d62f202548b3`，branch `dev3`，受保护脏路径 0
 - **当前状态**：**已完成**（合并、验证、提交、tag 全部落地；未推送）
 - **交付坐标**：合并提交 `f6e122c03847e1fc8c5ef83acdad0cbc3e024609`（双父 `0e81bae1c7` + `3f30bebe7e`）；回填提交 `c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf`；recovery tag `recovery/C81-upstream-sync-silent1566/20261019074414-f6e122c03847` 与 `recovery/C81-coords/20261019074552-c88f2896ac00`
 - **下一动作**：无（本任务已闭环）。后续由 `C84-beta-merge-review-dev3-20261019` 接手：把 `origin/beta` 合并进 `dev3` 并复评本任务带入的改动
-- **标识符映射说明**：本任务在提交与 tag 落盘后才因评估索引 ID 撞号改号为 `C83`，已提交的 commit subject（`merge(C81)` / `docs(C81)`）与 recovery tag 名仍含 `C81`。按 AGENTS.md §6「不回写已发布历史」，这些标识符**保持原样**，仅在此记录映射：提交/tag 中的 `C81` ≡ 本文档的 `C83`；仓库中另有一个真实的 dev4 `C81`（评估索引 `docs/upstream-player-dependency-merge-assessment-2026-08-20.md` 第 59 行），两者不可混淆。
+- **标识符映射说明**：本任务在提交与 tag 落盘后才因评估索引 ID 撞号改号为 `C83`，其后 beta 发布 dev4 的 `C83`，本任务二次让位改 `C85`，已提交的 commit subject（`merge(C81)` / `docs(C81)`）与 recovery tag 名仍含 `C81`。按 AGENTS.md §6「不回写已发布历史」，这些标识符**保持原样**，仅在此记录映射：提交/tag 中的 `C81` ≡ 本文档的 `C83`；仓库中另有一个真实的 dev4 `C81`（评估索引 `docs/upstream-player-dependency-merge-assessment-2026-08-20.md` 第 59 行），两者不可混淆。
 
 ---
 
@@ -199,8 +199,8 @@ UI_TOKEN_STATUS PASS
 | --- | --- | --- |
 | `app/src/main/java/com/fongmi/android/tv/ui/dialog/OneKeySyncDialog.java` | 上游 `b6f8e0fda7` + `3f30bebe7e` | `modeButton` 删除、`toggleMode`→`setToRemote`、新增 `updateDirectionGroup()`、`directionGroup` 监听接线 |
 | `app/src/main/res/layout/dialog_one_key_sync.xml` | 上游 `b6f8e0fda7` + `3f30bebe7e` | `actionBar` 改垂直两段、新增 `directionGroup`/`directionPush`/`directionPull`、删除 `modeButton`、`mode` 去 `clickable` |
-| `docs/C83-upstream-sync-silent1566.md` | 本任务 | 任务文档（新增；原名 `docs/C81-upstream-sync-silent1566.md`，因评估索引 ID 撞号在合并冲突解决时 `git mv` 改名） |
-| `docs/upstream-player-dependency-merge-assessment-2026-08-20.md` | 本任务 | 评估索引新增 `C83` 行（原 `C81` 与 beta 已发布的 dev4 `C81` 撞号，本任务让位改 `C83`） |
+| `docs/C85-upstream-sync-silent1566.md` | 本任务 | 任务文档（新增；原名 `docs/C81-upstream-sync-silent1566.md`，因评估索引 ID 撞号在合并冲突解决时 `git mv` 改名） |
+| `docs/upstream-player-dependency-merge-assessment-2026-08-20.md` | 本任务 | 评估索引新增 `C85` 行（原 `C81` 与 beta 已发布的 dev4 `C81` 撞号，本任务让位改 `C83`；随后 beta 又发布 dev4 的 `C83`，本任务二次让位改 `C85`） |
 
 合并提交为双父 `--no-ff` 合并提交（父 = `0e81bae1c7` + `3f30bebe7e`）。
 
@@ -216,4 +216,4 @@ UI_TOKEN_STATUS PASS
 - **回填提交**：`c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf`（`docs(C81): 回填评估索引交付坐标与验证结论`）
 - **recovery tag**：`recovery/C81-upstream-sync-silent1566/20261019074414-f6e122c03847`、`recovery/C81-coords/20261019074552-c88f2896ac00`
 - **推送状态**：未推送（`dev3` 相对 `origin/dev3` ahead 4）
-- **下一步**：无。本任务已闭环，改号 `C83` 的映射见 §Recovery anchor；后续 `origin/beta` 合并与复评由 `C84-beta-merge-review-dev3-20261019` 承担。
+- **下一步**：无。本任务已闭环，两次改号（`C81`→`C83`→`C85`）的映射见 §Recovery anchor；后续 `origin/beta` 合并与复评由 `C84-beta-merge-review-dev3-20261019` 承担。

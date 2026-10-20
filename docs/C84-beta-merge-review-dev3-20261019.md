@@ -39,7 +39,7 @@
 
 配套改名（同一原子改动内完成）：
 
-- `git mv docs/C81-upstream-sync-silent1566.md docs/C83-upstream-sync-silent1566.md`
+- `git mv docs/C81-upstream-sync-silent1566.md docs/C83-upstream-sync-silent1566.md`（本任务之后，因 beta 又发布 dev4 的 `C83`，该文档在 `C84-conflict` 会话中二次改名为 `docs/C85-upstream-sync-silent1566.md`）
 - 文档内 `# C81 —` → `# C83 —`、`C81-upstream-sync-silent1566` → `C83-upstream-sync-silent1566`、改动清单路径行、索引行说明
 - 索引行 `[C83-upstream-sync-silent1566.md](C83-upstream-sync-silent1566.md)` 链接与撞号让位说明
 
@@ -56,22 +56,22 @@
 | 判据 | 含义 | 结果 |
 | --- | --- | --- |
 | 路径数 | merge / beta / dev3 | 5152 / 5151 / 5145 |
-| **A** | 合并树 − `beta` 树（路径级） | **1**，仅 `docs/C83-upstream-sync-silent1566.md`（本任务自己的新文档） |
+| **A** | 合并树 − `beta` 树（路径级） | **1**，仅 `docs/C85-upstream-sync-silent1566.md`（本任务自己的新文档） |
 | **B** | `beta` 树 − 合并树（丢失面） | **0** |
 | revert 集合 | 主题行锚定（`tolower(subject)` 以 `revert`/`回退`/`撤销` 开头，限 dev3+beta lineage） | 27 提交 / 44 条删除路径 |
 | **C** | revert 删除 ∧ 不在 `beta` 树 ∧ 在合并树（复活面） | **0** |
 | **D** | 检测器自检 | 探针 `app/src/main/assets/themes/index.json` 确为 revert 删除且不在 `beta` 树（有效探针），注入伪造合并树后如期报出 ⇒ 检测器非空转 |
 | **E** | 内容级 `git diff origin/beta <merge_tree>` | 恰 **4** 路径，全部为本地未推送内容 |
 
-**E 的 4 路径**：`app/src/main/java/com/fongmi/android/tv/ui/dialog/OneKeySyncDialog.java`、`app/src/main/res/layout/dialog_one_key_sync.xml`、`docs/C83-upstream-sync-silent1566.md`、`docs/upstream-player-dependency-merge-assessment-2026-08-20.md`。
+**E 的 4 路径**：`app/src/main/java/com/fongmi/android/tv/ui/dialog/OneKeySyncDialog.java`、`app/src/main/res/layout/dialog_one_key_sync.xml`、`docs/C85-upstream-sync-silent1566.md`、`docs/upstream-player-dependency-merge-assessment-2026-08-20.md`。
 
 ### 2.1 共享 UI 文件核查（关键）
 
 merge-base `0e81bae1c7` = `review(ui): 补全观影记录同步守卫契约并消除配平器静默失准`。
 
 - `git diff <base> origin/beta -- OneKeySyncDialog.java dialog_one_key_sync.xml` = **空** ⇒ `beta` 未触碰这两个文件。
-- `git diff dev3 <merge_tree> -- <同两文件>` = **空** ⇒ 合并结果逐字节保留 dev3 版本（含 `C83` 的主题 token 化与方向选择器）。
-- `git diff dev3 origin/beta` 显示 `beta` 侧这两个文件仍是**上游旧版**（`modeButton`/`toggleMode`），即 `beta` 确实落后于 dev3 的 `C81`/`C83` 成果，合并方向正确。
+- `git diff dev3 <merge_tree> -- <同两文件>` = **空** ⇒ 合并结果逐字节保留 dev3 版本（含 `C85` 的主题 token 化与方向选择器）。
+- `git diff dev3 origin/beta` 显示 `beta` 侧这两个文件仍是**上游旧版**（`modeButton`/`toggleMode`），即 `beta` 确实落后于 dev3 的 `C81`/`C85` 成果，合并方向正确。
 
 ---
 
@@ -115,7 +115,7 @@ merge-base `0e81bae1c7` = `review(ui): 补全观影记录同步守卫契约并�
 
 ### 4.3 已修复（文档侧）
 
-- `docs/C83-upstream-sync-silent1566.md`：§9「交付坐标与下一步」由「（实施后填写）」改为实际坐标；Recovery anchor 的「当前状态」/「下一动作」更新为已交付；§5.2 净值陈述改为与命令相符（预览树只含上游 2 路径，真实交付树净差 4 路径）；§6.2 编译命令拆成可照抄的多行；§7 补记任务文档自身的 `R097` 重命名；补 `C81`→`C83` 标识符映射说明；§6.5 补 `C84` 复评对该弹窗的两处修复。
+- `docs/C85-upstream-sync-silent1566.md`：§9「交付坐标与下一步」由「（实施后填写）」改为实际坐标；Recovery anchor 的「当前状态」/「下一动作」更新为已交付；§5.2 净值陈述改为与命令相符（预览树只含上游 2 路径，真实交付树净差 4 路径）；§6.2 编译命令拆成可照抄的多行；§7 补记任务文档自身的 `R097` 重命名；补 `C81`→`C83` 标识符映射说明；§6.5 补 `C84` 复评对该弹窗的两处修复。
 - `docs/PC-REALTIME-SYNC-01-android-contract-gap.md`：§10.1 的「17 个用例」改为 18（8+4+6）；§6 V1 补 `substr` 守卫判据、V2 标注未自动化并点明 405/403 无证据；§10.3 第 1 项标注静态初始化顺序约束已废止；新增 §11.7 记录本轮 403 门控、固定文案、`total` 语义、`episodeId` 已知限制与同名不同义。
 - `docs/upstream-player-dependency-merge-assessment-2026-08-20.md`：`C83` 行的验证陈述改为与实测相符。
 
@@ -155,7 +155,7 @@ merge-base `0e81bae1c7` = `review(ui): 补全观影记录同步守卫契约并�
 - **未做设备端实机验证**：本轮修复不改成功路径的响应形态（第 1 项只在开关关闭时生效、第 2 项只换文案、第 9/10 项是 UI 着色与请求自洽），故沿用 `docs/PC-REALTIME-SYNC-01-android-contract-gap.md` §10.2 的 `192.168.50.3:5561` 实测证据，未重装 APK。
 - **新增 `403` 门控与 `405` 优先级无实测证据**：已在 §4.3 的文档修正中标注为已知缺口。
 - **`PC` 端联调未覆盖**：`episodeId` 匹配与回推的端到端效果属对侧验收。
-- **方向选择器的接线仍无回归锁**：仓库现有唯一涉及该弹窗的测试只断言圆角 drawable，见 `docs/C83-upstream-sync-silent1566.md` §6.5。
+- **方向选择器的接线仍无回归锁**：仓库现有唯一涉及该弹窗的测试只断言圆角 drawable，见 `docs/C85-upstream-sync-silent1566.md` §6.5。
 
 ---
 
@@ -173,3 +173,79 @@ merge-base `0e81bae1c7` = `review(ui): 补全观影记录同步守卫契约并�
 - **recovery tag**：`recovery/C84-beta-merge-review-dev3-20261019/20261019184918-13a093ad3745`。
 - **推送**：`dev3` 已推送（`0e81bae1c7..13a093ad37`）。
 - **PR**：<https://github.com/Silent1566/webhtv/pull/463>（`base=beta`、`head=dev3`、`state=OPEN`、`mergedAt=null`；按用户要求**只创建不合并**）。
+
+---
+
+## 8. 第二轮：PR #463 冲突解决（守卫 `C84-conflict`，2026-10-20）
+
+PR #463 创建后 `beta` 又前进到 `e0cb0ea2d5`（`Merge pull request #462 from Silent1566/dev4`，7 个提交，
+主体是 TV 焦点环第二轮：主按钮聚焦态改 container 配对 `49b28bd91f`、版本更新弹窗补环 `f5d08659fc`），
+GitHub 报告 `mergeable=CONFLICTING` / `mergeStateStatus=DIRTY`。按用户要求「合并冲突请解决」重新执行
+`git merge --no-ff --no-commit origin/beta`，出现 **2 处冲突**。
+
+### 8.1 冲突一：`app/src/main/res/layout/dialog_one_key_sync.xml`
+
+- **beta 侧**（`0bb2601e38..e0cb0ea2d5`）对本文件只改 3 行：给 `@+id/start` 追加
+  `app:strokeWidth="@dimen/webhtv_focus_ring_width"` + `app:strokeColor="@color/focus_ring_primary_container"`。
+- **dev3 侧**（`C85` 上游同步）把 `actionBar` 由 `horizontal` 重排为 `vertical`，新增
+  `MaterialButtonToggleGroup @+id/directionGroup`，并把 `@+id/start` 移入新的内层 `LinearLayoutCompat`。
+- **解决**：结构取 dev3（方向选择器是本次功能主体），把 beta 的两个焦点环属性搬到内层容器里的
+  `@+id/start` 上。二者不冲突——一个是结构重排，一个是给主按钮补描边环。
+- **这不是可选美化而是硬约束**：beta 新增的 `TvFocusRingContractTest#everyPrimaryButtonCarriesItsOwnRingAndStatefulText`
+  会枚举三个 `layout/` 目录下**所有**消费 `@color/dialog_primary_button_bg` 的按钮，要求同时具备
+  `app:strokeColor="@color/focus_ring_primary_container"`、`app:strokeWidth="@dimen/webhtv_focus_ring_width"`、
+  `android:textColor="@color/dialog_primary_button_text"`，且 `sites >= 40`。漏搬即转红。
+- 本地 token 均存在：`values/webhtv_dimens.xml` 的 `webhtv_focus_ring_width` = `1.5dp`、
+  `res/color/focus_ring_primary_container.xml`。
+- 合并后 id 唯一性核对：`start`/`directionGroup`/`directionPush`/`directionPull`/`mode`/`localCard`/
+  `remoteCard`/`selectAll` 各 1 处；XML 可解析。
+
+### 8.2 冲突二：`docs/upstream-player-dependency-merge-assessment-2026-08-20.md`（ID 二次撞号）
+
+beta 这次发布的是 **dev4 的 `C83`**（TV 焦点环任务），而 dev3 上一轮已把自己的上游同步任务让位改号为 `C83`
+——于是同一编号再次相撞。
+
+- **解决**：沿用「未推送让位已发布」先例，beta 的 `C83` 行保留，dev3 的上游同步任务**二次让位改号 `C85`**
+  （`C85` 全仓零引用，确认可用）。索引行、任务文档 `git mv docs/C83-upstream-sync-silent1566.md →
+  docs/C85-upstream-sync-silent1566.md`、该文档内标题/守卫 id/改动清单/§9 下一步，以及本文档内对它的
+  引用（路径、`C83` 的主题 token 化、`dev3` 的 `C81`/`C83` 成果）全部同步。
+- **标识符沿革（如实记录）**：该上游同步任务经历 `C81`（提交与 recovery tag 里的原名）→ `C83` → `C85`。
+  已发布的历史 tag 与 commit subject 按 AGENTS.md §6 不回写，映射关系记录在
+  `docs/C85-upstream-sync-silent1566.md` 的 §Recovery anchor。
+
+### 8.3 本轮发现并修复的既有缺陷（beta 侧，非合并引入）
+
+`TvFocusRingContractTest#focusedVersionCardKeepsItsTextReadable` 在 Windows 检出上**恒红**：
+
+- 断言用 `Pattern.compile("                <androidx\.appcompat\.widget\.LinearLayoutCompat
+(.*?)>")`
+  匹配「16 空格缩进 + 换行」，但 `core.autocrlf=true` 让检出的 XML 是 CRLF，`
+` 不匹配 `
+` ⇒ 计数恒为 0。
+- **证明是 beta 自身缺陷而不是合并引入**：`git hash-object` 与 `git rev-parse e0cb0ea2d5:<path>` 逐字节相同
+  ——`TvFocusRingContractTest.java` `1a581101f3`、`leanback/dialog_update.xml` `5e3b24f885`、
+  `mobile/dialog_update.xml` `1d42ba6bbb` 三个 blob 与 beta tip 完全一致，且 dev3 相对 merge-base 未改这三个文件。
+- **修复**：正则改为 `
+?
+`，并注明显式理由（硬写 `
+` 会在 Windows 恒红、在 LF 的 Linux CI 恒绿）。
+
+### 8.4 验证（第二轮）
+
+| # | 项 | 结果 |
+| --- | --- | --- |
+| 1 | 双 flavor arm64 Debug Java 编译 | BUILD SUCCESSFUL |
+| 2 | 定向单测（含 `TvFocusRingContractTest` 27、`Theme*` 全家、`HistoryDaoTest`、`playback.*`、`PreCachePolicyTest`、`ui.dialog.*`、`ui.style.*`、`UiTokenGatePortabilityContractTest`） | **396 例 0 失败 0 错误** |
+| 3 | `bash scripts/check_ui_tokens.sh` | PASS（`violations=0 legacy=0`、`hex_layouts=0 hex_drawables=0 hex_colors=0`、38 对 0 失败 min=4.28） |
+| 4 | 变异探针：移除 `dialog_one_key_sync.xml` 中 `start` 的两个环属性 | `everyPrimaryButtonCarriesItsOwnRingAndStatefulText` **如期 FAILED**；还原后 `git hash-object` = `8ffe6b4036`，复跑 BUILD SUCCESSFUL ⇒ 该契约确实守护了本次冲突解决结果 |
+| 5 | 冲突标记与空白 | `git grep -E '^(<<<<<<<|>>>>>>>|\|\|\|\|\|\|\|)'` 为空、`git diff --check` 通过 |
+| 6 | 实机（`emulator-5558`，即 adb 控制台端口 **5559**，V1923A / Android 9 / SDK 28） | APK 安装 `Success`；`com.silent.android.webhtv` 启动进首页并正常渲染片单；设置 → 增强功能 → 一键同步弹窗可打开（空态「未发现设备」）；`logcat` 无 `FATAL EXCEPTION` |
+
+**实机验证的边界（如实声明）**：`actionBar`（含 `directionGroup` 与两张方向卡）只在发现对端设备后
+`setSelected()` 才 `setVisibility(VISIBLE)`，本机无第二台同网段 WebHTV 设备，故方向选择器**未在实机上目视**。
+其正确性由 8.4 第 4 项的变异探针 + 第 2 项的 27 条焦点环契约 + XML 结构核对共同保证。
+
+### 8.5 第二轮提交坐标
+
+- 见本文件所在提交（守卫 `C84-conflict`，`--no-ff` 双父：`a004e4a18e` + `e0cb0ea2d5`）。
+- PR #463 随 `dev3` 推送自动更新。
