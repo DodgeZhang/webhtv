@@ -1,4 +1,4 @@
-# C84-beta-merge-review-dev3-20261019
+# C86-beta-merge-review-dev3-20261019
 
 ## Recovery anchor
 
@@ -11,7 +11,7 @@
   5. 推送 `dev3`，创建到 `beta` 的 PR（中文描述，只创建不合并）。
 - **Lane**：`standard`
 - **Scope**：`app/`、`docs/`
-- **任务守卫**：`C84-beta-merge-review-dev3-20261019`，base HEAD `c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf`，branch `dev3`，受保护脏路径 0
+- **任务守卫**：`C84-beta-merge-review-dev3-20261019`（本任务后续因评估索引 ID 三次撞号让位改号 `C86`；已落盘的提交 subject 与 recovery tag 名仍含 `C84`，按 AGENTS.md §6 不回写历史），base HEAD `c88f2896ac00d4ea663d7a56b4c16dfa4274a1cf`，branch `dev3`，受保护脏路径 0
 - **基线**：merge-base `0e81bae1c7d1a91cd229dc5e1663d62f202548b3`（= `dev3` HEAD~2，`beta` 已验证包含它）
 - **当前状态**：**已完成**（合并、复评、修复、验证、提交、推送、PR 全部落地）
 - **交付坐标**：合并提交 `13a093ad3745b85f6cece8e501d45cb76762b917`；recovery tag `recovery/C84-beta-merge-review-dev3-20261019/20261019184918-13a093ad3745`；已推送 `dev3`；PR **#463**（`base=beta`/`state=OPEN`/`mergedAt=null`，只创建不合并）
@@ -248,4 +248,62 @@ beta 这次发布的是 **dev4 的 `C83`**（TV 焦点环任务），而 dev3 �
 ### 8.5 第二轮提交坐标
 
 - 见本文件所在提交（守卫 `C84-conflict`，`--no-ff` 双父：`a004e4a18e` + `e0cb0ea2d5`）。
+- PR #463 随 `dev3` 推送自动更新。
+
+---
+
+## 9. 第三轮：beta 再次前进导致的冲突（守卫 `C84-conflict2`，2026-10-20）
+
+第二轮提交 `4e7b24b5f7` 推送后，`beta` 又前进到 `f289207bce`（`Merge pull request #464 from Silent1566/dev2`，
+5 个提交，主体是 dev2 的「切换线路不自动播放」开关 `ad7f5834de` 与它自己的 `C84` 复评 `70a3fe757f`）。
+再次 `git merge --no-ff --no-commit origin/beta`，**2 处冲突**。
+
+### 9.1 冲突一：`TvFocusRingContractTest.java`（同一缺陷被两侧各自修复）
+
+- **dev2 独立修了与本任务第二轮完全相同的 CRLF 缺陷**（`70a3fe757f`）：把
+  `Pattern.compile("...LinearLayoutCompat
+(.*?)>")` 改为 `?
+`。
+- `git diff :2: :3:` 显示两侧**语义完全相同**，只差注释措辞（我方写「Windows 恒红 / LF 恒绿」，
+  dev2 写「headerCount 恒为 0，以找不到容器而非容器缺状态失败」）。
+- **解决**：取 beta 已发布版本（`git checkout --theirs`），不重复造轮子；我方注释措辞放弃。
+  理由：beta 侧已发布，按「未推送让位已发布」同源原则处理，且两者正则逐字符相同、行为无差异。
+
+### 9.2 冲突二：评估索引 `C84` 第三次撞号
+
+beta 这次发布的是 **dev2 的 `C84`**，而本任务上一轮已占用 `C84`。按同一让位原则：
+
+- beta 的 dev2 `C84` 行保留在前；
+- 本任务（dev3）**三次让位改号 `C86`**（`C86` 全仓零引用）；
+- 索引行、`git mv docs/C84-beta-merge-review-dev3-20261019.md → docs/C86-...`、
+  本文档标题与守卫说明、`docs/C85-upstream-sync-silent1566.md` 内两处指向本任务的引用全部同步。
+
+**标识符沿革汇总**（四个任务、三个编号段）：
+
+| 任务 | 沿革 | 已发布标识符是否回写 |
+| --- | --- | --- |
+| 上游同步（dev3） | `C81` → `C83` → `C85` | 否（`merge(C81)`/`docs(C81)` 与 `recovery/C81-*` tag 保留） |
+| 本任务（dev3 beta 复评） | `C84` → `C86` | 否（`merge+review(C84)` 提交与 `recovery/C84-*` tag 保留） |
+| dev4 TV 焦点环 | `C83` | 是 beta 已发布 |
+| dev2 beta 复评 | `C84` | 是 beta 已发布 |
+
+### 9.3 验证（第三轮）
+
+| # | 项 | 结果 |
+| --- | --- | --- |
+| 1 | 双 flavor arm64 Debug Java 编译 | BUILD SUCCESSFUL |
+| 2 | 定向单测（含新带入的 `FlagSwitchPlaybackPolicyTest`/`FlagSwitchPlaybackWiringTest`、`TvFocusRingContractTest` 27、`Theme*`、`playback.*`、`PreCachePolicyTest`、`ui.dialog.*`、`ui.style.*`、`HistoryDaoTest`） | **404 例 0 失败 0 错误** |
+| 3 | `bash scripts/check_ui_tokens.sh` | PASS（`violations=0 legacy=0`、`hex_layouts=0 hex_drawables=0 hex_colors=0`、38 对 0 失败 min=4.28） |
+| 4 | 全量 leanback 单测（4419 例） | 8 失败，**全部为既有基线**：测试文件与所读资产与 beta tip `f289207bce` 逐字节相同（`WebThemeTokenSourceTest`/`eclipse.html`/`eclipse-detail.html`/`NativeEnhancedPlaybackStyleFocusTest`/`SearchResultDownFocusTest` 的 `git hash-object` 与 `git rev-parse f289207bce:<path>` 相等），`TmdbSourceOnlyInteractionTest`/`MpvFontConfigTest` 的 `git diff` 对 beta 为空（仅工作区 CRLF 归一差异）；均不在本任务 staged 面内 |
+| 5 | 冲突标记与空白 | `git grep -E '^(<<<<<<<|>>>>>>>)'` 为空、`git diff --cached --check` 通过 |
+| 6 | 实机（`emulator-5558` = adb 控制台端口 **5559**，V1923A / Android 9 / SDK 28） | APK `install -r` **Success**；`com.silent.android.webhtv` 启动进首页并渲染片单；点开影片详情页正常（标题/评分/线路/选集齐全）；设置 → 播放设置可见新带入的「**切换线路不自动播放**」行（默认 `关`）；点击切到 `开`、再点回 `关`，磁盘 `shared_prefs/com.silent.android.webhtv_preferences.xml` 中 `player_defer_flag_switch` 已落盘为 `false`；`logcat` 无 `FATAL EXCEPTION` |
+
+**实机验证的边界（如实声明）**：`WebThemeTokenSourceTest` 的 2 条断言用 `":root {
+"` 锚定 CSS 块，
+在 CRLF 检出下同样恒红（与 §8.3 同源），属 beta 既有缺陷，**未在本次修**（超出冲突解决范围，
+且修复点在 beta 自己的测试与资产，建议由 beta 侧统一处理）。方向选择器仍因无第二台同网段设备未目视。
+
+### 9.4 第三轮提交坐标
+
+- 见本文件所在提交（守卫 `C84-conflict2`，`--no-ff` 双父：`4e7b24b5f7` + `f289207bce`）。
 - PR #463 随 `dev3` 推送自动更新。

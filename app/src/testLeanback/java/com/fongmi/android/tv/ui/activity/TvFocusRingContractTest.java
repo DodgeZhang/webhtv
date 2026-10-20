@@ -1388,8 +1388,9 @@ public class TvFocusRingContractTest {
                         nodeOf(body, id).contains("android:duplicateParentState=\"true\""));
             }
             // 卡片里那个无 id 的 header 容器装着 Name/Status/Expand，同样必须透传状态。
-            // 行尾必须写 \r?\n 而不是 \n：本仓库 core.autocrlf=true，Windows 检出是 CRLF，
-            // 硬写 \n 会让本断言在 Windows 上恒红、在 LF 检出（Linux CI）上恒绿。
+            // 行尾必须容忍 CRLF：`read()` 读的是工作区文件，而 Windows 上 core.autocrlf=true
+            // 会把签出的 XML 还原成 CRLF，只锚 `\n` 的写法在那种检出下永远匹配不到，
+            // 于是 headerCount 恒为 0 —— 本契约会以「找不到容器」而不是「容器缺状态」失败。
             java.util.regex.Matcher headers = java.util.regex.Pattern
                     .compile("                <androidx\\.appcompat\\.widget\\.LinearLayoutCompat\r?\n(.*?)>",
                             java.util.regex.Pattern.DOTALL)
