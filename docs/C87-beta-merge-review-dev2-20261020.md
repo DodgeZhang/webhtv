@@ -168,6 +168,8 @@ L4 的主题行锚定不完备（纯描述式撤换标题会漏）。完备性�
 
 ## 7. 交付坐标
 
-- 合并提交：`2b098a691b6b6a36a8b64984c6673bcc2674b315`（双父 `fbd31c11f4fe73b3f3377d46b68bf94841e89142` + `ee8b058a972577e282ed556ed9f0c4defec1869c`）。
-- recovery tag：`recovery/C87-beta-merge-review-dev2-20261020/20261020112015-2b098a691b6b`。
-- 复评修复提交、分支推送与 PR 坐标见下一次「交付坐标」文档提交。
+- 合并提交：`2b098a691b6b6a36a8b64984c6673bcc2674b315`（双父 `fbd31c11f4fe73b3f3377d46b68bf94841e89142` + `ee8b058a972577e282ed556ed9f0c4defec1869c`），recovery tag：`recovery/C87-beta-merge-review-dev2-20261020/20261020112015-2b098a691b6b`。
+- 复评修复提交：`541220ac7cdb5472cd6570ccd5c0ca6031551727`（10 files changed, +467 −44；含新增 `OneKeySyncGenerationGuardTest` 与本任务文档），recovery tag：`recovery/C87-review-fixes/20261020142356-541220ac7cdb`。
+- 分支 `dev2` 已推送：`5591f92612..541220ac7c`（首次 `git push` 遇到 GitHub 侧瞬时 `remote: fatal error in commit_refs`，原样重试一次即成功；非本地状态问题）。
+- PR [#465](https://github.com/Silent1566/webhtv/pull/465) → `beta`，`state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=11`（+558 / −93），**只创建、不合并**。
+- PR 文件集与 `git diff --name-only origin/beta origin/dev2` 逐项一致（11/11）；本「交付坐标」文档提交属于同一 PR 的后续提交。
