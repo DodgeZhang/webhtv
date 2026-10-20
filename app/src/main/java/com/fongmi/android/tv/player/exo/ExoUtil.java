@@ -374,8 +374,16 @@ public class ExoUtil {
         return extras.keySet().stream().filter(key -> extras.getString(key) != null).collect(Collectors.toMap(key -> key, extras::getString));
     }
 
+    /**
+     * 硬解仍然让系统 MediaCodec 先接管，但必须保留 ffmpeg 作为最后一级视频回退。
+     * <p>
+     * 用 {@link DefaultRenderersFactory#EXTENSION_RENDERER_MODE_ON} 而不是 OFF：附加的 ffmpeg
+     * 渲染器排在所有 MediaCodec 渲染器之后，只有当平台根本没有该编码的解码器（AVS2/AVS3、
+     * 部分 HEVC profile 等）时才接手。旧的 OFF 会让超类完全不注册视频扩展渲染器，视频轨被判
+     * 定为不支持的子类型后整轨丢弃、音频继续播，用户看到的就是「只有声音没有画面」。
+     */
     private static int getVideoRenderMode(int decode) {
-        return decode == PlayerEngine.HARD ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER;
+        return decode == PlayerEngine.HARD ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER;
     }
 
     private static int getAudioRenderMode() {
@@ -1154,7 +1162,7 @@ public class ExoUtil {
             } catch (Throwable ignored) {
             }
             if (decoderRuntimeSession != null
-                    && videoRenderMode == EXTENSION_RENDERER_MODE_OFF) {
+                    && videoRenderMode != EXTENSION_RENDERER_MODE_PREFER) {
                 out.add(new ExoRuntimeAwareVideoRenderer(
                         context,
                         getCodecAdapterFactory(),
@@ -1187,13 +1195,12 @@ public class ExoUtil {
             } catch (Throwable ignored) {
             }
             // Video decode mode is explicit for extension renderers: hardware mode
-            // must never register an FFmpeg video fallback, including for AVS3.
-            // getVideoCodecSelector is the one deliberate exception, and only at the
-            // MediaCodec level: it keeps a platform software decoder as the last
-            // resort so the track stays alive instead of being dropped. PlayerManager
-            // reads that state as "hard decode has no hardware video path" and moves
-            // the session to soft decode, so the two must stay consistent.
-            // Audio has its own policy.
+            // Video decode mode is explicit for extension renderers: hardware mode keeps the
+            // system MediaCodec renderers first and only appends FFmpeg afterwards, so a codec
+            // without any platform decoder (AVS2/AVS3, unsupported HEVC profiles) still gets a
+            // video path instead of being dropped as an unsupported subtype while audio keeps
+            // playing. getVideoCodecSelector narrows the MediaCodec list in hard mode, so the
+            // two must stay consistent. Audio has its own policy.
             if (videoRenderMode == EXTENSION_RENDERER_MODE_OFF) return;
             try {
                 out.add(getExtensionRendererIndex(videoRenderMode, videoPrefer, out), buildFfmpegVideoRenderer(allowedVideoJoiningTimeMs, eventHandler, eventListener));
@@ -1207,7 +1214,7 @@ public class ExoUtil {
         }
 
         private MediaCodecSelector getVideoCodecSelector(MediaCodecSelector mediaCodecSelector) {
-            if (videoRenderMode != EXTENSION_RENDERER_MODE_OFF) return mediaCodecSelector;
+            if (videoRenderMode == EXTENSION_RENDERER_MODE_PREFER) return mediaCodecSelector;
             return (mimeType, requiresSecureDecoder, requiresTunnelingDecoder) -> {
                 List<MediaCodecInfo> infos = mediaCodecSelector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
                 if (mimeType == null || !mimeType.startsWith("video/")) return infos;
