@@ -169,7 +169,7 @@ public class MobileHomeStateContractTest {
         assertTrue("Fragment 必须处理 NO_CONFIG 分支", handler.contains("case NO_CONFIG:"));
         // NO_CONFIG 是最后一个分支，取到方法体末尾即可（用固定结尾串切分会踩 CRLF 的坑）。
         String noConfigCase = handler.substring(handler.indexOf("case NO_CONFIG:"));
-        assertTrue("NO_CONFIG 必须显示空态而不是错误态", noConfigCase.contains("showNoConfig()"));
+        assertTrue("NO_CONFIG 必须走 showNoConfig() 而不是显示错误态", noConfigCase.contains("showNoConfig()"));
         assertFalse("NO_CONFIG 不得渲染错误态", noConfigCase.contains("showError("));
 
         String showNoConfig = methodBody(fragment, "private void showNoConfig()");

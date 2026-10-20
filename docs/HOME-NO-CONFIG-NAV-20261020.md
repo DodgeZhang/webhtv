@@ -2,10 +2,10 @@
 
 ## Recovery anchor
 
-- 目标：无配置（重置/重装/恢复出厂）时首页仍是**正常首页**——导航可用、有常驻的「添加接口」入口；不再由全屏状态浮层接管首页。两端（leanback / mobile）同一规则。
+- 目标：无配置（重置/重装/恢复出厂）时首页仍是**正常首页**——导航可用、**不新增任何入口**（添加接口走既有的「设置 → 点播」管理面板）；不再由全屏状态浮层接管首页。两端（leanback / mobile）同一规则。
 - 允许路径：`app/src/leanback/java/com/fongmi/android/tv/ui/activity/HomeActivity.java`、`app/src/mobile/java/com/fongmi/android/tv/ui/activity/HomeActivity.java`、`app/src/mobile/java/com/fongmi/android/tv/ui/fragment/VodFragment.java`、两端 `home-state` 契约测试、本文件。
 - 保护面：任务开始时工作树干净（仅未跟踪 `.wh_diag/`）；分支 `dev2`，HEAD `5591f92612`。
-- 验收：①5557 上 `pm clear` 后冷启动，首页渲染出导航行（含「添加接口」）而不是空态三件套；②点「添加接口」能进入接口列表；③手机端底部导航同样保留且有该入口；④两端契约测试全绿。
+- 验收：①5557 上 `pm clear` 后冷启动，首页渲染出导航行而不是空态三件套，且导航行里**没有**「添加接口」按钮；②添加接口仍可从「设置 → 点播」的管理面板进入（`HistoryDialog` 的「添加」→ `ConfigDialog`）；③手机端底部导航同样保留、同样无额外入口；④两端契约测试全绿。
 - 回滚：撤销本任务原子提交即回到「无配置 = 全屏空态」的旧行为；无数据迁移、无 schema 变更。
 
 ## 0. 现象与根因
@@ -31,7 +31,7 @@
 
 两端同一条规则：**无配置时首页保持正常形态，导航可用；不再用一个铺满首页的空态把导航一起接管。**
 
-> 2026-10-20 追加（按用户要求）：第一版在导航行/底部导航里各加了一个「添加接口」入口，用户看过真机截图后明确 **"不需要这个按钮"**，已整段移除（电视端 `noConfigFunc()` 与 `onItemClick` 分支、手机端 `setNoConfigNavEntry()`/`MENU_NO_CONFIG`/`onNavigationItemSelected` 分支、以及两端的配置对话框路由）。现在两端只是"导航回来、内容为空"，添加入口回归既有的 设置 → 接口管理。
+> 2026-10-20 追加（按用户要求）：第一版在导航行/底部导航里各加了一个「添加接口」入口，用户看过真机截图后明确 **"不需要这个按钮"**，已整段移除（电视端 `noConfigFunc()` 与 `onItemClick` 分支、手机端 `setNoConfigNavEntry()`/`MENU_NO_CONFIG`/`onNavigationItemSelected` 分支、以及两端的配置对话框路由）。现在两端只是"导航回来、内容为空"，添加接口回归既有的「设置 → 点播」管理面板（`HistoryDialog` 的「添加」）。
 
 ## 2. 验证（证据）
 
@@ -59,7 +59,8 @@ appBar / toolbar / type / pager / navigation 均在，state 浮层不存在
 
 ## 3. 未在设备上覆盖的残留
 
-- 「配置就绪后入口自动消失」只在代码路径上验证（`setNavigation()` 由 `onConfigEvent`/`onResume` 触发；电视端 `onResume()` 会重算 `setFunc()`），未在真机上走一遍"新增接口→返回→入口消失"。
+- 设备上只验证了「清数据 → 冷启动 → 首页正常形态」；**未**再走一遍「设置 → 点播 → 添加接口 → 返回首页」的完整闭环。配置就绪后状态浮层自收仍只在代码路径上验证，且两支是分开的：手机端收浮层由 `VodFragment.dismissStateIfConfigured()`（经 `onRefreshEvent` 的 HOME 分支）与 `showContent()` 负责，底部导航项可见性由 `HomeActivity.setNavigation()` 负责、且它的 `onResume()` 是**有条件**才调（`mobile/HomeActivity:126`）；电视端 `onResume()` 无条件重算 `setFunc()`（`leanback/HomeActivity:1341`）。
+- 三语 `home_no_config_title/description/action` 已无任何 `R.string` 引用（入口移除后成为孤儿资源）；仍有两处契约测试以**字面量**做反向断言（`TvErrorStateContractTest:176` 的 `home_no_config`、`MobileHomeStateContractTest:183` 的 `home_no_config_action`/`MENU_NO_CONFIG`），它们拦的是「有人重新插回入口」，不构成引用。刻意保留不删：`HOME-STATE-NO-CONFIG-20261018` 留下的同族文案，且「错误态也保留导航」这个候选任务若实现独立的无用例说明卡可能会复用；删除属可选清理，不在本次行为范围内。
 - 两端"错误态"（配置存在但加载失败）仍走全屏错误浮层，导航依旧不可用——这是 `f838870134` 的既有行为，本次按范围未动；如需统一，另开任务。
 
 ## 4. 下一步唯一动作

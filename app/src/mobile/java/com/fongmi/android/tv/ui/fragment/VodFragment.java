@@ -497,8 +497,9 @@ public class VodFragment extends BaseFragment implements ConfigListener, SiteLis
                 showError(event.message());
                 break;
             case NO_CONFIG:
-                // 还没配接口：不是失败，所以不给"重试"（它永远不会成功），而是给一个
-                // 真的能把用户带出去的主动作——去添加接口。
+                // 还没配接口：不是失败，所以不给"重试"（它永远不会成功），也不接管首页——
+                // 收起状态浮层回到原生内容态，底部导航照常可用；添加接口走既有的
+                // 「设置 → 点播」管理面板。
                 hideProgress();
                 showNoConfig();
                 break;
