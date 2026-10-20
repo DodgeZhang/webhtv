@@ -165,6 +165,9 @@ public class PlayerManager implements ParseCallback {
     private static final long EXO_DV7_FIRST_FRAME_FALLBACK_DELAY_MS = 1200;
     private static final long MPV_AUTO_OUTPUT_PROBE_INTERVAL_MS = 250;
     private static final int LOCAL_PROXY_MAX_RETRY = 2;
+    /** 直播合并源会整段返回空体/400：取不到流时重试本项远比重试换内核有效。 */
+    private static final int TRANSIENT_SOURCE_MAX_RETRY = 6;
+    private static final long[] TRANSIENT_SOURCE_RETRY_DELAYS_MS = {600, 1200, 2000, 3000, 3000, 3000};
     // 以内核常量为下标，长度随顺序表推导，避免新增内核时标记表长度漏改。
     private static final int PLAYER_COUNT = PlayerSetting.kernelIndexSize();
     private static final int MPV_AUTO_OUTPUT_PROBE_MAX_ATTEMPTS = 20;
@@ -311,6 +314,7 @@ public class PlayerManager implements ParseCallback {
     private int playerType;
     private int retry;
     private int localProxyRetry;
+    private int transientSourceRetry;
     private int prepareSeq;
     private int lutApplySeq;
     private long parseHealthStartedAt;
@@ -1807,6 +1811,7 @@ public class PlayerManager implements ParseCallback {
         else resetNetworkProtectionSession("reset");
         retry = 0;
         localProxyRetry = 0;
+        transientSourceRetry = 0;
         resetPlayerFallback();
         hardDecodeSwitchRetryArmed = false;
         clearPendingSwitchRestore();
@@ -8750,6 +8755,7 @@ public void resetTrack(int type) {
             if (decoderRuntimeObserved && retryExoDecoderRuntimeFailure(e)) return;
             if (action == PlayerEngine.ErrorAction.DECODE && retryHardDecodeSwitch(e)) return;
             if (action == PlayerEngine.ErrorAction.FATAL && retryLocalProxy(e)) return;
+            if (retryTransientSourceFailure(e, failure)) return;
             if (shouldStopOnManualSwitchFailure(manualPlayerSwitchPending, action)) {
                 finishPlaybackProfileAbSession(
                         "manual-switch-error", SystemClock.elapsedRealtime());
@@ -9287,6 +9293,51 @@ public void resetTrack(int type) {
         return true;
     }
 
+    /**
+     * 取不到/读不懂流时重试本项，而不是换内核。
+     * <p>
+     * 实测（2026-10，本地包直播）：合并源会整段返回空体 / 400 / 非 m3u8 文本，
+     * EXO 报 {@code code=2000}，旧逻辑立刻换内核（EXO→系统→软解）把可用内核一并烧掉，
+     * 用户看到的就是「0 KB/s 黑屏、标签一路变」。这类失败与解码器无关，重试本项才有意义；
+     * 重试窗口用完才继续走换线/换源的既有路径。
+     */
+    private boolean retryTransientSourceFailure(PlaybackException e, PlaybackErrorClassifier.Failure failure) {
+        if (spec == null || spec.getUrl() == null || engine == null || failure == null) return false;
+        PlaybackErrorClassifier.Stage stage = failure.stage();
+        if (stage != PlaybackErrorClassifier.Stage.NETWORK_IO
+                && stage != PlaybackErrorClassifier.Stage.MEDIA_PARSING
+                && stage != PlaybackErrorClassifier.Stage.LOCAL_ENDPOINT) return false;
+        if (transientSourceRetry >= TRANSIENT_SOURCE_MAX_RETRY) return false;
+        int attempt = ++transientSourceRetry;
+        long delay = TRANSIENT_SOURCE_RETRY_DELAYS_MS[Math.min(attempt - 1, TRANSIENT_SOURCE_RETRY_DELAYS_MS.length - 1)];
+        PlaybackTrace.log("player", playbackTrace.current(),
+                "transient-source-retry attempt=%d delay=%d stage=%s errorCode=%s",
+                attempt, delay, stage.label(), failure.errorCode());
+        App.removeCallbacks(runnable);
+        App.post(() -> {
+            if (spec == null || attempt != transientSourceRetry) return;
+            setMediaItem();
+        }, delay);
+        return true;
+    }
+
+    /**
+     * 网络/解析/本机端点故障只是「取不到流」，换内核解不了它；只有解码器相关失败才值得换核。
+     */
+    private boolean isKernelFallbackEligible(PlaybackException e) {
+        PlaybackErrorClassifier.Failure failure = PlaybackErrorClassifier.classify(e, getEffectivePlaybackRoute());
+        switch (failure.stage()) {
+            case LOCAL_ENDPOINT, NETWORK_IO, MEDIA_PARSING -> {
+                PlaybackTrace.log("player", playbackTrace.current(),
+                        "skip-kernel-fallback stage=%s errorCode=%s", failure.stage().label(), failure.errorCode());
+                return false;
+            }
+            default -> {
+                return true;
+            }
+        }
+    }
+
     private boolean fallbackPlayback(PlaybackException e) {
         if (engine == null) return false;
         if (retryMpvGpuCopyFailure(e)) return true;
@@ -9309,6 +9360,7 @@ public void resetTrack(int type) {
 
     private boolean fallbackPlayer(PlaybackException e) {
         if (spec == null || spec.getUrl() == null || engine == null) return false;
+        if (!isKernelFallbackEligible(e)) return false;
         int next = nextFallbackPlayer();
         if (next == PlayerSetting.NONE) return false;
         String from = getPlayerText(playerType);
