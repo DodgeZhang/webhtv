@@ -199,5 +199,8 @@ grep -rn 'compile(" \{8,\}' --include=*.java app/src/test app/src/testLeanback a
 ## 7. 交付坐标
 
 - 合并提交：`c5323524c1b3c2cb27314e7365abfefc5f726876`（双父：`ad7f5834de429a35fb729c27744110226d800c0c` + `e0cb0ea2d53a48cb2ed463ba169e2712c405c238`）。
-- recovery tag：见本任务 guard session 输出。
-- 分支 `dev2` 已推送；PR → `beta`，**只创建、不合并**。
+- 复评修复提交：`70a3fe757fb8ae78866d35e0b9a0ec7389d7c6f0`（3 files changed, 208 insertions(+), 1 deletion(-)）。
+- recovery tag：`recovery/C84-beta-merge-review-dev2-20261020/20261020034215-70a3fe757fb8`。
+- 分支 `dev2` 已推送（`51d805e4a8..70a3fe757f`）。
+- PR [#464](https://github.com/Silent1566/webhtv/pull/464) → `beta`，`state=OPEN`、`mergedAt=null`、`mergeable=MERGEABLE`、`changedFiles=16`（+507 / -1），**只创建、不合并**。
+- PR 文件集与 `git diff --name-only origin/beta origin/dev2` 逐项一致（16/16）。
