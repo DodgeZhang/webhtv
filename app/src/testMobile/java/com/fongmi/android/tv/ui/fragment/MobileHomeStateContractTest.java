@@ -173,17 +173,26 @@ public class MobileHomeStateContractTest {
         assertFalse("NO_CONFIG 不得渲染错误态", noConfigCase.contains("showError("));
 
         String showNoConfig = methodBody(fragment, "private void showNoConfig()");
-        for (String string : new String[]{
-                "home_no_config_title", "home_no_config_description", "home_no_config_action"}) {
-            assertTrue("必须引用 " + string, showNoConfig.contains(string));
-            assertTrue("默认字符串表必须声明 " + string, read(STRINGS).contains("name=\"" + string + "\""));
-            assertTrue("简中字符串表必须声明 " + string, read(STRINGS_CN).contains("name=\"" + string + "\""));
-        }
-        // 主动作必须是"添加接口"这种真的能出去的动作，不能是重试。
-        assertTrue("主动作必须打开接口管理", showNoConfig.contains("openVodConfig()"));
-        assertTrue("接口管理必须落到既有的接口列表（自带新增，不另写第二个入口）",
-                methodBody(fragment, "private void openVodConfig()").contains("HistoryDialog.create().vod().manage()"));
+        // 未配置不再独占首页：收起状态浮层、回到原生内容态，底部导航（点播/设置）照常可用。
+        assertTrue("未配置必须收起状态浮层", showNoConfig.contains("hideState()"));
+        assertTrue("未配置必须回到原生内容态", showNoConfig.contains("showNativeContent()"));
+        assertFalse("未配置不得再用全屏空态", showNoConfig.contains("showEmpty()"));
         assertFalse("未配置态的主动作不得是重试", showNoConfig.contains("retryConfig"));
+        // 引导改为底部导航栏里的临时项（与电视端同一条规则：引导放进用户已经在看的那一栏）。
+        String nav = methodBody(home, "private void setNoConfigNavEntry(boolean show)");
+        assertTrue("导航栏必须能加「添加接口」项", nav.contains("home_no_config_action"));
+        assertTrue("配置就绪后必须能移除该项", nav.contains("removeItem(MENU_NO_CONFIG)"));
+        String select = methodBody(home, "public boolean onNavigationItemSelected(");
+        assertTrue("「添加接口」不是一页：点它直接开接口管理",
+                select.contains("MENU_NO_CONFIG") && select.contains("openVodConfig()"));
+        assertTrue("手机端接口管理必须由点播 Fragment 承载（HistoryDialog 需要 ConfigListener 宿主）",
+                methodBody(home, "private void openVodConfig()").contains("openVodConfig()"));
+        assertTrue("接口管理必须落到既有的接口列表（自带新增，不另写第二个入口）",
+                methodBody(fragment, "public void openVodConfig()").contains("HistoryDialog.create().vod().manage()"));
+        assertTrue("默认字符串表必须声明 home_no_config_action",
+                read(STRINGS).contains("name=\"home_no_config_action\""));
+        assertTrue("简中字符串表必须声明 home_no_config_action",
+                read(STRINGS_CN).contains("name=\"home_no_config_action\""));
     }
 
     /**

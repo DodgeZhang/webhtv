@@ -542,17 +542,26 @@ public class VodFragment extends BaseFragment implements ConfigListener, SiteLis
      * 用户此刻唯一能做的是添加一个接口，所以动作落到既有的接口管理列表
      * （{@code HistoryDialog.manage()} 自带「新增」）。
      */
+    /**
+     * 还没配接口：这不是失败，也不该由本 Fragment 独占整屏。
+     *
+     * <p>与电视端同一条规则——配置为空时首页仍然是"正常首页"：底部导航（点播/设置）可用，
+     * 添加入口由 {@code HomeActivity} 并入那一条导航栏（见 {@code setNoConfigNavEntry}）。
+     * 状态浮层只留给真正的加载失败，否则新装用户除了一个按钮哪儿也去不了。
+     */
     private void showNoConfig() {
-        mBinding.state.setVisibility(View.VISIBLE);
-        mBinding.state.setEmptyContent(
-                R.string.home_no_config_title,
-                R.string.home_no_config_description,
-                R.string.home_no_config_action,
-                view -> openVodConfig());
-        mBinding.state.showEmpty();
+        hideState();
+        showNativeContent();
     }
 
-    private void openVodConfig() {
+    /**
+     * 打开接口管理列表（自带「新增」）。
+     *
+     * <p>必须**由本 Fragment 承载**：{@code HistoryDialog} 在 onAttach 里把宿主强转成
+     * {@code ConfigListener}，手机端的宿主是 VodFragment（电视端是 HomeActivity）。
+     * 直接用 Activity 承载会在点击时 ClassCastException。
+     */
+    public void openVodConfig() {
         HistoryDialog.create().vod().manage().show(this);
     }
 

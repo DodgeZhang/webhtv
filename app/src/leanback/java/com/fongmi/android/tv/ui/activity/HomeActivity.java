@@ -666,19 +666,16 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
     }
 
     /**
-     * 还没有配置内容源：进入空态，主动作打开接口列表让用户添加。
+     * 还没有配置内容源：这不是失败，所以**不接管首页**。
      *
-     * <p>刻意不复用错误态：没有失败原因可显示，重试也没有意义；用户此时唯一能做的是
-     * 「添加一个接口」。动作直接落到既有的 {@link HistoryDialog}（它自带「新增」，且
-     * 空列表时会自己关掉并让位给 ConfigDialog），不新写第二条配置入口。
+     * <p>点播/直播/设置这一行不是独立导航栏，而是首页列表的第一行（{@link #setFunc()}
+     * 往 {@code mFuncAdapter} 里填按钮）；一旦走 {@code progressLayout.showEmpty()}，
+     * {@code ProgressLayout} 会把内容视图整块 INVISIBLE，导航行跟着消失——新装用户只剩一个
+     * 「添加接口」按钮，连设置都进不去。因此这里照常进入内容态（导航恢复），添加入口作为
+     * 额外一个按钮并入导航行。
      */
     private void showNoConfig() {
-        mBinding.progressLayout.setEmptyContent(
-                R.string.home_no_config_title,
-                R.string.home_no_config_description,
-                R.string.home_no_config_action,
-                view -> openVodConfig());
-        mBinding.progressLayout.showEmpty();
+        showContent();
     }
 
     private void openVodConfig() {
@@ -845,7 +842,26 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         for (com.fongmi.android.tv.bean.HomeButton button : com.fongmi.android.tv.bean.HomeButton.getVisibleButtons()) {
             items.add(Func.create(button.getResId()));
         }
+        // 没有配置时在导航行里并一个「添加接口」：引导放在用户已经在看的那一行，
+        // 不必用一个铺满首页的空态把点播/直播/设置一起藏掉。配置就绪后这里自然不再追加，
+        // onResume() 与配置事件都会重算这一行。
+        if (VodConfig.get().getSites().isEmpty()) items.add(noConfigFunc());
         mFuncAdapter.setItems(items, new BaseDiffCallback<Func>());
+    }
+
+    /**
+     * 导航行里的「添加接口」按钮。
+     *
+     * <p>{@link Func} 的图标是按字符串资源 id 在 bean 里写死映射的。这里不为一次性的
+     * 「未配置」状态去动那张公共表，只在本场景覆盖图标。
+     */
+    private Func noConfigFunc() {
+        return new Func(R.string.home_no_config_action) {
+            @Override
+            public int getDrawable() {
+                return R.drawable.ic_action_plus;
+            }
+        };
     }
 
     private void refreshFollowingCount() {
@@ -1044,6 +1060,7 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         else if (item.getResId() == R.string.home_cast) PushActivity.start(this, 3);
         else if (item.getResId() == R.string.home_history_button) HistoryActivity.start(this);
         else if (item.getResId() == R.string.home_custom_csp) openCustomCsp();
+        else if (item.getResId() == R.string.home_no_config_action) openVodConfig();
     }
 
     private void openCustomCsp() {

@@ -164,24 +164,30 @@ public class TvErrorStateContractTest {
 
         String home = read(HOME);
         assertTrue("HomeActivity 必须实现 noConfig 回调", home.contains("public void noConfig()"));
-        assertTrue("未配置必须进入空态而不是错误态", home.contains("showNoConfig()"));
+        assertTrue("未配置必须走 noConfig 分支", home.contains("showNoConfig()"));
         String showNoConfig = methodBody(home, "private void showNoConfig()");
-        for (String string : new String[]{
-                "home_no_config_title", "home_no_config_description", "home_no_config_action"}) {
-            assertTrue("必须引用 " + string, showNoConfig.contains(string));
-            assertTrue("默认字符串表必须声明 " + string,
-                    read("app/src/main/res/values/strings.xml").contains("name=\"" + string + "\""));
-            assertTrue("简中字符串表必须声明 " + string,
-                    read("app/src/main/res/values-zh-rCN/strings.xml").contains("name=\"" + string + "\""));
-        }
-        // 主动作必须是"添加接口"这种真的能出去的动作，不能是重试。
-        assertTrue("主动作必须打开接口管理", showNoConfig.contains("openVodConfig()"));
+        // 未配置 = 正常首页：点播/直播/设置这一行是首页列表的第一行，任何铺满首页的状态浮层
+        // 都会把它整块隐藏（ProgressLayout 把内容视图置为 INVISIBLE），新装用户就只剩一个按钮。
+        assertTrue("未配置必须回到内容态（导航可用）", showNoConfig.contains("showContent()"));
+        assertFalse("未配置不得再用全屏空态接管首页", showNoConfig.contains("showEmpty()"));
+        assertFalse("未配置不得调用 showError", showNoConfig.contains("showError("));
+        // 引导改为导航行里追加的一个按钮：条件、文案、动作都落在真实代码上。
+        String setFunc = methodBody(home, "private void setFunc()");
+        assertTrue("未配置时导航行必须多一个「添加接口」", setFunc.contains("noConfigFunc()"));
+        assertTrue("只有配置为空时才追加", setFunc.contains("getSites().isEmpty()"));
+        assertTrue("引导按钮的文案必须是「添加接口」",
+                methodBody(home, "private Func noConfigFunc()").contains("home_no_config_action"));
+        String click = methodBody(home, "public void onItemClick(Func item)");
+        assertTrue("「添加接口」必须能打开接口管理",
+                click.contains("home_no_config_action") && click.contains("openVodConfig()"));
         assertTrue("接口管理必须落到既有的接口列表（自带新增，不另写第二个入口）",
                 methodBody(home, "private void openVodConfig()").contains("HistoryDialog.create().vod().manage()"));
         assertFalse("未配置态的主动作不得是重试", showNoConfig.contains("error_retry"));
-        // 未配置态必须走空态（标题不用错误色、插画保留），不能借道错误态。
-        assertTrue("未配置必须切到空态", showNoConfig.contains("showEmpty()"));
-        assertFalse("未配置不得调用 showError", showNoConfig.contains("showError("));
+        String action = "home_no_config_action";
+        assertTrue("默认字符串表必须声明 " + action,
+                read("app/src/main/res/values/strings.xml").contains("name=\"" + action + "\""));
+        assertTrue("简中字符串表必须声明 " + action,
+                read("app/src/main/res/values-zh-rCN/strings.xml").contains("name=\"" + action + "\""));
     }
 
     /**
