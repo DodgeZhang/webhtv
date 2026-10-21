@@ -88,7 +88,8 @@
 
 ## 6. 交付坐标
 
-- 合并提交：`（见提交历史，双父 944dd6419f + 687a6b65da）`
-- recovery tag：`（见 .codex/task-state 归档与 git tag）`
-- 推送：`dev2`；PR：`base=beta`（中文描述，只创建不合并）
-- 回填：本条坐标由后续 docs-only 提交补全（同一任务，先提交后回填，与 C88/C89 的做法一致）
+- 合并提交：`dbed4ad5439c8986df0588209c0726dc5398f01c`（双父 `944dd6419f` + `687a6b65da`）
+- recovery tag：`recovery/C90-beta-merge-review-dev2-20261021/20261021040001-dbed4ad5439c`
+- 推送：`dev2`（`4a85e49fd2..dbed4ad543`）
+- PR：**#468**（`base=beta`，中文描述，只创建不合并）
+- 拉取：合并提交后执行 `git fetch origin` + `git pull --ff-only`，确认与远端一致
