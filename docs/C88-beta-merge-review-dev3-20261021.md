@@ -88,8 +88,9 @@
 
 ## 7. 交付坐标
 
-- 合并提交：`<fill-after-commit>`（双父 `8d47a5dd34` + `77e2fbefdc`）
-- Recovery tag：`<fill-after-tag>`
-- 推送：`dev3`
-- PR：`<fill-after-pr>`
-- 拉取远端最新代码：`<fill-after-pull>`
+- 合并提交：`977ddf4343882cffe3623a126e76bc490f884c29`（双父 `8d47a5dd34618af520ba8f01c2d6aaa6a28f78e7` + `77e2fbefdc30c501c3646b066826a714f54b3f38`）
+- Recovery tag：`recovery/C88-beta-merge-review-dev3-20261021/20261021010236-977ddf434388`
+- 推送：`dev3`（`f70fa8c5fd..977ddf4343`）
+- PR：**#466** <https://github.com/Silent1566/webhtv/pull/466>（`base=beta` / `state=OPEN` / `mergedAt=null`，只创建不合并）
+- 拉取远端最新代码：`git pull --ff-only origin dev3` → `Already up to date`；`git fetch origin beta` → `77e2fbefdc`（= 合并目标）
+- 口径提示：本仓库有两个 remote，`gh pr create` 不带 `-R Silent1566/webhtv` 时解析到 upstream `fish2018/webhtv`，会报 `No commits between beta and dev3`；创建 PR 必须显式指定 `-R`。
