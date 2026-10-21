@@ -1015,6 +1015,7 @@
     <string name="cache_cleanup_failed">暫存清理失敗</string>
     <string name="cache_cleanup_cancelled">暫存清理已取消</string>
     <string name="cache_cleanup_full_started">正在清理全部暫存…</string>
+    <string name="cache_cleanup_busy">正在清理，請稍候</string>
     <string name="cache_module_exo">Exo 播放暫存</string>
     <string name="cache_module_mpv_hls">MPV HLS/ISO 分片</string>
     <string name="cache_module_mpv_demuxer">MPV demuxer 預載</string>
