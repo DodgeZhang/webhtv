@@ -20,8 +20,8 @@ import java.util.List;
  * meant for background runs. An explicit request must ignore that window while still protecting a
  * transfer that is running right now.</p>
  *
- * <p>2. The settings row's long-press shortcut has to clear everything the way the pre-split
- * one-key clear did, which needs a residual sweep over whatever no module claims.</p>
+ * <p>2. The settings row's plain click has to clear everything the way the pre-split one-key clear
+ * did, which needs a residual sweep over whatever no module claims.</p>
  */
 public class CacheFullCleanupTest {
 
@@ -127,7 +127,7 @@ public class CacheFullCleanupTest {
 
     /**
      * Every age-windowed module decides through one shared rule, so the reported defect can not
-     * come back at a single call site. The row's own button (MODULE) and the long-press shortcut
+     * come back at a single call site. The row's own button (MODULE) and the row's plain click
      * (FULL) are explicit requests; the tiered and automatic runs keep the background window.
      */
     @Test

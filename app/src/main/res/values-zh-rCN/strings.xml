@@ -679,6 +679,7 @@
     <string name="setting_proxy">Proxy</string>
     <string name="setting_cache">缓存</string>
     <string name="cache_management_title">缓存管理</string>
+    <string name="cache_row_hint">短按清理 · 长按管理</string>
     <string name="cache_management_scanning">计算中…</string>
     <string name="cache_management_summary">共 %1$s</string>
     <string name="cache_management_summary_with_quota">共 %1$s / 系统配额 %2$s</string>
@@ -725,6 +726,7 @@
     <string name="cache_cleanup_failed">缓存清理失败</string>
     <string name="cache_cleanup_cancelled">缓存清理已取消</string>
     <string name="cache_cleanup_full_started">正在清理全部缓存…</string>
+    <string name="cache_cleanup_busy">正在清理，请稍候</string>
     <string name="cache_module_exo">Exo 播放缓存</string>
     <string name="cache_module_mpv_hls">MPV HLS/ISO 分片</string>
     <string name="cache_module_mpv_demuxer">MPV demuxer 预载</string>

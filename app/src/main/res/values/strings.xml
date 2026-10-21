@@ -681,6 +681,7 @@
     <string name="setting_proxy">Proxy</string>
     <string name="setting_cache">Cache</string>
     <string name="cache_management_title">Cache management</string>
+    <string name="cache_row_hint">Tap to clean · Hold to manage</string>
     <string name="cache_management_scanning">Calculating…</string>
     <string name="cache_management_summary">Total %1$s</string>
     <string name="cache_management_summary_with_quota">Total %1$s / %2$s system quota</string>
@@ -727,6 +728,7 @@
     <string name="cache_cleanup_failed">Cache cleanup failed</string>
     <string name="cache_cleanup_cancelled">Cache cleanup cancelled</string>
     <string name="cache_cleanup_full_started">Cleaning all cache…</string>
+    <string name="cache_cleanup_busy">Cleaning, please wait</string>
     <string name="cache_module_exo">Exo playback cache</string>
     <string name="cache_module_mpv_hls">MPV HLS/ISO segments</string>
     <string name="cache_module_mpv_demuxer">MPV demuxer preload</string>

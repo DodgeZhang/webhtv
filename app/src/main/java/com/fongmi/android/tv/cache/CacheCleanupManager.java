@@ -150,8 +150,8 @@ public final class CacheCleanupManager {
     /**
      * Clears everything the registry can name, then whatever no module claimed.
      *
-     * <p>The settings row's long-press shortcut is documented as "the one-key clear from before the
-     * cache management split", so it must not inherit the tiered plans' deliberate omissions: L1/L2
+     * <p>The settings row's plain click is the one-key clear from before the cache management
+     * split, so it must not inherit the tiered plans' deliberate omissions: L1/L2
      * keep age windows, L3 still skips the diagnostic log family and the report-only unclassified
      * cache. Here every module is cleaned through its owner first - several caches (Exo's
      * SimpleCache, Glide's disk cache, the rolling diagnostic log) must be released by their owner

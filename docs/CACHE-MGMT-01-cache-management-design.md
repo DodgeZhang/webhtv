@@ -8,7 +8,8 @@
 
 ## Recovery anchor
 
-- 当前追加修复（2026-10-09，`cache-full-cleanup-and-temp-fix`）：用户反馈①「缓存管理里的临时文件清理不了」，②「新增长按缓存管理按钮清理全部（即拆分前的缓存一键清理效果）」。已完成：`explicitRequest(mode)` 让显式请求（`MODULE`/`FULL`）忽略后台保留期，新增 `CacheCleanupMode.FULL` + `CacheCleanupManager.cleanEverything()/sweepResidual()`，长按入口接到 TV `SettingActivity` 与移动端 `SettingFragment`（最终为 `CacheManagementDialog.cleanEverything()`，**不打开面板**）。代码仅限缓存包、`CacheManagementDialog`、两个设置入口与缓存测试，未改播放器、布局和清理策略。验证：缓存包单元测试 **69/69 通过**，双形态 Debug Java 编译通过；**设备（5563，leanback arm64 debug 覆盖安装）两项均已实测通过**：模块行「清理」`释放 3 MB · 删除 1 个文件`（新建临时包被删、其他模块不动），长按设置页缓存行 `释放 6.6 MB · 删除 119 个文件` 且总量变「共 无」、cache 目录清空，两者 journal 均 `COMPLETED/warnings=[]`；设置行自动刷新为「无」；全清后冷启动无崩溃且 chaquopy/WebView 缓存自动重建。两项需求已完成验证，无未完成项。**后续修正（同日，用户指正）**：长按一键全清原本会打开面板，已改为不弹面板、后台执行并以 Toast 报告结果（见下 2026-10-09 记录 ⑦），并按此重新实测（长按后 `mResumedActivity` 仍为 `SettingActivity`、无障碍树无面板节点、Toast「释放 2.3 MB · 删除 7 个文件」、journal `mode=FULL/reason=shortcut/deletedFiles=7/COMPLETED`）。**评审轮（同日，`cache-full-cleanup-review`）**：对本分支 3 个已提交未推送提交逐文件评审，确认无功能缺陷，修复 2 项真问题并补 2 例回归测试——①保留期判定收敛为单一表达式 `CacheCleanupManager.explicitRetention(mode, backgroundRetentionMs)`，使「临时文件清理无效」缺陷真正被回归锁锁住（此前用例把窗口写死成 `0L`，把行内按钮改回 24 小时窗口仍会全绿）；②`describe(result, resources)` 由调用方提供资源，面板恢复走 Activity 资源、长按 Toast 走 `Setting.wrapLanguage(App.get())`，避免应用内语言与系统语言不一致时状态行/Toast 退回简体。验证：缓存包单测 **71/71 通过**、`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 通过。残留未覆盖：移动端 flavor、播放中长按，以及同一进程内「全清后立即播放」的 Exo 缓存写回路径（见下 2026-10-09 评审轮记录）。
+- 当前追加修复（2026-10-21，`cache-row-gesture-swap`，用户反馈）：设置页缓存行手势反转——**短按直接 FULL 全清、长按打开缓存管理面板**，行内常显「短按清理 · 长按管理」。核对拆分前 `SettingActivity.onCache()` 即 `FileUtil.clearCache()`（无确认，历史提交 `3192791d22`），反馈成立且与该应用 `vod`/`live`/`wall` 行「点击=主操作、长按=编辑」惯例一致；该反转同时改写 §14.1「不直接把第一层点击改成清空全部」与 §15.2「不能依赖长按作为唯一入口」两条原决定，以行内常显手势提示补偿面板可发现性，`cache_mgmt_enabled=false` 回滚为旧行为（提示隐藏、短按走 `FileUtil.clearCache()`、长按沿用短按）。代码仅限两个设置入口（`onCacheClear`/`onCacheManage`）、两套设置布局（标题+`cacheHint` 两行）、三语 strings、`CacheManagementDialog`（`cleanEverything()` 升为设置行主操作、`reason=settings_row`、清理进行中改提示 `cache_cleanup_busy`）与缓存包/测试注释；清理策略、FULL 保护名单、数据模型均未变。验证：`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 与 `:app:compileMobileArm64_v8aDebugJavaWithJavac` 通过、缓存包单测 **71/71 通过**；设备 `127.0.0.1:5557`（1920×1080/280dpi，覆盖安装 `versionText=5.6.0-202610211618`）实测：短按（首次触摸仅聚焦、再次点击触发）不弹面板、行刷新「无 / 335.1 MB」、journal `mode=FULL/reason=settings_row/bytesBefore=35047222/bytesAfter=0/deletedFiles=257/COMPLETED`；长按打开面板（标题「缓存管理」、`共 无 / 系统配额 335.1 MB`、模块行「清理/上限」齐全）。未覆盖：移动端 flavor、播放中短按、功能开关关闭分支（静态审查）。
+- 上一轮修复（2026-10-09，`cache-full-cleanup-and-temp-fix`）：用户反馈①「缓存管理里的临时文件清理不了」，②「新增长按缓存管理按钮清理全部（即拆分前的缓存一键清理效果）」。已完成：`explicitRequest(mode)` 让显式请求（`MODULE`/`FULL`）忽略后台保留期，新增 `CacheCleanupMode.FULL` + `CacheCleanupManager.cleanEverything()/sweepResidual()`，长按入口接到 TV `SettingActivity` 与移动端 `SettingFragment`（最终为 `CacheManagementDialog.cleanEverything()`，**不打开面板**）。代码仅限缓存包、`CacheManagementDialog`、两个设置入口与缓存测试，未改播放器、布局和清理策略。验证：缓存包单元测试 **69/69 通过**，双形态 Debug Java 编译通过；**设备（5563，leanback arm64 debug 覆盖安装）两项均已实测通过**：模块行「清理」`释放 3 MB · 删除 1 个文件`（新建临时包被删、其他模块不动），长按设置页缓存行 `释放 6.6 MB · 删除 119 个文件` 且总量变「共 无」、cache 目录清空，两者 journal 均 `COMPLETED/warnings=[]`；设置行自动刷新为「无」；全清后冷启动无崩溃且 chaquopy/WebView 缓存自动重建。两项需求已完成验证，无未完成项。**后续修正（同日，用户指正）**：长按一键全清原本会打开面板，已改为不弹面板、后台执行并以 Toast 报告结果（见下 2026-10-09 记录 ⑦），并按此重新实测（长按后 `mResumedActivity` 仍为 `SettingActivity`、无障碍树无面板节点、Toast「释放 2.3 MB · 删除 7 个文件」、journal `mode=FULL/reason=shortcut/deletedFiles=7/COMPLETED`）。**评审轮（同日，`cache-full-cleanup-review`）**：对本分支 3 个已提交未推送提交逐文件评审，确认无功能缺陷，修复 2 项真问题并补 2 例回归测试——①保留期判定收敛为单一表达式 `CacheCleanupManager.explicitRetention(mode, backgroundRetentionMs)`，使「临时文件清理无效」缺陷真正被回归锁锁住（此前用例把窗口写死成 `0L`，把行内按钮改回 24 小时窗口仍会全绿）；②`describe(result, resources)` 由调用方提供资源，面板恢复走 Activity 资源、长按 Toast 走 `Setting.wrapLanguage(App.get())`，避免应用内语言与系统语言不一致时状态行/Toast 退回简体。验证：缓存包单测 **71/71 通过**、`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 通过。残留未覆盖：移动端 flavor、播放中长按，以及同一进程内「全清后立即播放」的 Exo 缓存写回路径（见下 2026-10-09 评审轮记录）。
 - 上一轮修复（2026-10-06，`mobile-cache-layout`，已提交 `58ebb653ff`）：用户截图证实手机窄屏下模块文字被同排按钮挤成窄列，底部策略/清理按钮被裁切。范围仅限 `CacheManagementDialog` 的 mobile 排版/焦点分支、mobile 专用布局及 `CacheManagementDialogLayoutTest`，TV 原布局、缓存策略和确认流程不变；基线 `d042cd542b8768ec9dbd2582923088e54a7bfeb1` / `Silent1566`，保护原有 `app/.cxx/`。基线 arm64 mobile 包和测试包均以 `adb install -r` 覆盖安装，4/4 布局用例按预期失败，320dp/2 倍字体的明细宽度仅 16px（应为 464px）。修复后 `:app:assembleMobileArm64_v8aDebug` 与对应 AndroidTest 构建成功，4/4 用例通过；TV 公共布局 XML 未改动。emulator-5560 实测 720×1600、320dpi、1.3 倍字体：模块详情占满宽度，按钮分成独立两列，向下滚动后“轻度/标准/深度清理、刷新、确定”均完整可见；截图与 UIAutomator 均无文字截断，测试结束后尺寸、密度、字体和旋转已恢复。
 
 - 目标：把设置页现有“缓存大小 + 一键全删”升级为可观测、可分级清理、可配置上限、可自动维护的缓存管理中心。
@@ -119,6 +120,13 @@
   未覆盖（沿用上条 ⑥，另加一项）：移动端 flavor 与「播放中长按」仍未实测；**同一进程内「全清后立即播放」的 Exo 缓存写回路径未实测**——全清会把 owner 刚重建（`clearCacheIfIdle()` 末尾的 `getCache()`）的 `cache/exo` 一并删掉，而 `MediaSourceFactory.cache` 仍持有该实例，缓存写入要等下一次 owner 重建或进程重启才恢复正常；该行为与拆分前一致，但尚无同进程实测证据。
   验证：缓存包单测 **71/71 通过**（`CacheFullCleanupTest` 由 5 例增至 7 例）；`:app:compileMobileArm64_v8aDebugJavaWithJavac` 与 `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 均通过。
 - 设计第 24 节第 4 条边界场景现状：①**播放中执行清理且播放不中断** —— 5563 已实测通过（清理前后 `state=3`、`speed=1.0`，位置持续推进）。②**低空间触发自动清理** —— 调度执行链已设备验证（持久化 Job 真实运行、`reason=periodic` 自动清理入库），低空间判定阈值与「连续 2 次采样」由 `CacheAutoCleanupPolicyTest` 覆盖；真实低空间条件受限于 31 GB 可用空间未做破坏性模拟。③**系统 quota 生效** —— 设备界面实测读取并展示「系统配额 478.9 MB」，有效上限收敛由 `CacheTotalLimitPolicyTest` 覆盖。
+- 2026-10-21（`cache-row-gesture-swap`，用户反馈）：**设置页缓存行手势反转——短按直接全清、长按打开缓存管理面板**。用户反馈「清理缓存建议短按直接清除（和原来操作习惯一致），长按调出详细菜单」。
+  ①**反馈核验**：拆分前 `SettingActivity.onCache()` 直接调 `FileUtil.clearCache()`（历史提交 `3192791d22`，无确认），"原来习惯"成立；同应用 `vod`/`live`/`wall` 行本来就是"点击=主操作、长按=编辑/详情"，反馈与该惯例一致。当前映射（单击开面板、长按全清）是缓存管理拆分时新引入的（`f0da126a2c`/`f9f47c24ae`）。
+  ②**改判与补偿**：该反转同时改写两条既有设计决定——§14.1「不直接把第一层点击改成清空全部，降低误删概率」与 §15.2「不能依赖长按作为唯一入口」。按用户决定反转，补偿项是行内常显手势提示 `cache_row_hint`（zh-rCN「短按清理 · 长按管理」/ zh-rTW「短按清理 · 長按管理」/ en「Tap to clean · Hold to manage」），使面板无需先知道长按即可被发现；标题由 `cache_management_title`（缓存管理）改为 `setting_cache`（缓存/暫存/Cache），因为单击已不再"进入管理"；面板内部标题不变。功能开关 `cache_mgmt_enabled=false` 时提示隐藏、单击走旧 `FileUtil.clearCache()`、长按沿用单击（无面板），即回到拆分前行为。
+  ③**不引入二次确认**：用户明确要求"直接清除"，且拆分前同样无确认；FULL 的既有豁免（进行中传输、播放中延后的播放缓存根、`mpv-playback-recovery.*`、符号链接）与清理策略、保护名单、数据模型均未改动。残留风险与拆分前一致（`NanoHTTPD-*` 上传分片、无撤销），记录在 §1 既有评审结论中。
+  ④**代码**：`SettingActivity`/`SettingFragment` 的 `onCache`→`onCacheClear`（FULL 全清）与 `onCacheLongClick`→`onCacheManage`（开面板）；`CacheManagementDialog.cleanEverything()` 由"长按快捷入口"改为"设置行主操作"，journal `reason` 由 `shortcut` 改为 `settings_row`，`shortcutResources()`→`rowResources()`；清理进行中再次短按由静默 return 改为提示新增串 `cache_cleanup_busy`（作为主手势，静默失败不可接受）；两套设置布局把标题包成两行并新增 `cacheHint`（TV 18sp/12sp、移动端 16sp/12sp，`@color/white_60`）；`CacheCleanupMode`/`CacheCleanupManager`/`CachePolicyEngine` 与两条缓存测试的注释同步为"设置行单击"。
+  ⑤**验证**：`:app:compileLeanbackArm64_v8aDebugJavaWithJavac` 与 `:app:compileMobileArm64_v8aDebugJavaWithJavac` 通过；缓存包单测 **71/71 通过**（0 失败/0 跳过）；设备 `127.0.0.1:5557`（1920×1080/280dpi，`adb install -r` 覆盖安装，`versionText=5.6.0-202610211618`）实测：设置行渲染「缓存 / 短按清理 · 长按管理 / 33.8 MB / 335.1 MB」（触摸首击只聚焦，再次点击触发短按）→ **不弹面板**（`mResumedActivity` 仍为 `SettingActivity`，无障碍树无面板标题节点），行刷新为「无 / 335.1 MB」，journal 末条 `{"mode":"FULL","reason":"settings_row","bytesBefore":35047222,"bytesAfter":0,"deletedFiles":257,"skippedFiles":0,"warnings":[],"status":"COMPLETED"}`；长按（`input swipe 496 896 496 896 1400`）→ 面板打开，标题「缓存管理」、`共 无 / 系统配额 335.1 MB`、`扫描于` 行与各模块「清理/上限」按钮齐全。设备恢复：两次 BACK 退出面板，前台回到原 `com.silent.android.webhtv`。
+  ⑥**未覆盖**：移动端 flavor 实测（设备为 leanback 形态，移动端入口与 TV 共用同一方法与布局改动，仅编译验证）；"播放中短按"（设备无可用 VOD/EPG 配置，FULL 的 DEFERRED 保护沿用既有代码与单测）；功能开关关闭分支（无 UI 入口，静态审查：`setCacheText()` 读取点、`cacheHint` GONE 分支、`FileUtil.clearCache` 调用、`onCacheManage` 回落）。
 
 当前设置页在移动端和 TV 端的“缓存”入口都只有两个行为：
 
@@ -1191,20 +1199,24 @@ lowSpace = availableBytes < max(512MB, totalBytes * 10%)
 缓存                                       1.8 GB
 ```
 
-改为：
+改为（2026-10-21 按用户反馈改判，见实施记录）：
 
 ```text
-缓存管理                                   1.8 GB / 3.0 GB
+缓存                                       1.8 GB / 3.0 GB
+短按清理 · 长按管理
 ```
 
 行为：
 
-- 点击进入缓存管理页
+- 短按（触摸点击 / 遥控确认键）直接执行 FULL 全清，复刻缓存管理拆分前的一键清理：不打开面板、后台执行、以 Toast 报告结果，设置行数值在同一页自动刷新
+- 长按打开“缓存管理”面板（分级清理、模块行清理、模块上限、自动清理、进度与取消）
 - 右侧显示总用量/有效上限
 - 若正在扫描，右侧显示“计算中”
 - 若扫描失败，显示“无法读取”
+- 行内常显手势提示（`cache_row_hint`）：短按清理 · 长按管理；功能开关关闭时提示隐藏
+- 功能开关关闭时：短按仍走旧 `FileUtil.clearCache()`，长按沿用短按（没有面板可开）
 
-不直接把第一层点击改成“清空全部”，降低误删概率。
+> 2026-10-21 改判记录：原设计曾明确“不直接把第一层点击改成‘清空全部’，降低误删概率”，并按 §15.2 把长按定为非唯一入口的快捷方式（单击进面板）。用户反馈“清理缓存建议短按直接清除（和原来操作习惯一致），长按调出详细菜单”，与拆分前 `onCache()` 直接 `FileUtil.clearCache()` 的行为一致，故按用户决定反转。补偿项是行内可见手势提示；未引入二次确认（与拆分前一致）。
 
 ### 14.2 第二层页面结构
 
@@ -1352,6 +1364,8 @@ lowSpace = availableBytes < max(512MB, totalBytes * 10%)
 - 返回键逐层返回，不直接退出设置
 - 所有按钮有明确焦点态
 - 进度对话框处理返回键：运行中只请求取消，不直接关闭
+
+> 2026-10-21 偏离说明：缓存管理面板的唯一入口已按用户反馈改为设置页缓存行的长按（短按恢复为拆分前的一键全清，见 §14.1）。为保留本条“不能依赖长按作为唯一入口”的意图，缓存行在标题下常显手势提示 `短按清理 · 长按管理`（TV 与移动端一致，功能开关关闭时隐藏），使用户无需先知道手势即可发现面板；该偏离是用户决策，回滚手段为 `CachePolicyStore.putManagementEnabled(false)`（恢复拆分前的单击全清 + 无面板）。
 
 ### 15.3 大屏信息密度
 
@@ -1729,9 +1743,9 @@ bash scripts/build_arm64_debug_install.sh
 | §11.2 触发条件可配置 | 可选「仅空间不足/每周/启动时」 | 固定策略：启动延迟 30s + 每 7 天 + 低空间连续两次 | 当前 UI 只暴露开关与保留期限，没有触发条件选择项；固定策略覆盖三类触发但不支持用户裁剪 |
 | §11.2 临时文件保留期 | 可选 6/24/72 小时 | 固定 24 小时（`TEMP_RETENTION_MS`），另受模块字节上限约束 | 临时文件按 24h + 上限双重约束，未暴露独立保留期配置 |
 | §14.6 空状态/边界文案 | 独立文案（暂无缓存/空间充足/空间紧张等） | 复用更紧凑的等价展示（`共 X / 系统配额 Y`、`部分结果 · N 项警告`、模块行「无 · 0 个文件 · 最近 无」） | 信息等价但文案不完全一致；界面密度更适合 TV 大屏 |
-| §23.1 功能开关 | `cache_mgmt_enabled` 开关用于回滚 | 已实现 `CachePolicyStore.isManagementEnabled()`（默认开）；关闭时设置页恢复旧行为：只显示 `FileUtil.getCacheSize()` 并点击执行旧的一键 `FileUtil.clearCache()` | 设备实测：关闭开关后设置页显示 `60.3 MB`（无系统配额后缀），点击缓存行不弹新面板、直接全清并回显「无」，cache 目录降至 4KB；随后已恢复默认开启 |
+| §23.1 功能开关 | `cache_mgmt_enabled` 开关用于回滚 | 已实现 `CachePolicyStore.isManagementEnabled()`（默认开）；关闭时设置页恢复旧行为：只显示 `FileUtil.getCacheSize()`、隐藏手势提示行、单击执行旧的一键 `FileUtil.clearCache()`，长按沿用单击且不弹面板 | 开关是本次手势反转的唯一回滚通道（无 UI 入口，需写 Prefers）；关闭分支由静态审查覆盖（读取点 + `cacheHint` GONE 分支 + `FileUtil.clearCache` 调用） |
 | §11.2 插件上限自动淘汰 | 插件模块上限应能自动淘汰超限文件 | 插件项上限可配置并持久化，但**不参与自动淘汰**：`CachePolicyEngine.directCleanupStatus` 对 `PLUGIN_SCRIPTS` 恒返回 `NOT_ALLOWED`，UI 将插件「清理」按钮显示为「由模块管理」并禁用；`applyConfiguredLimits()` 也不淘汰插件文件 | 这是有意的安全决策：暂停/卸载运行中插件尚未实现，后台自动删除 jar/py/js 可能导致插件突然失效或播放回归（见 §P2C 记录）。设备实测确认：放入 80MB `cache/js/*.js` 并将插件上限设为 64MB 后执行深度清理，插件文件仍被保留（清理只释放其他模块的 8.7MB/56 文件），符合「宁可保留也不误删」的取向。若未来实现运行中插件暂停，再开放该项自动淘汰 |
-| §23.1 兼容入口 | 保留 `FileUtil.getCacheSize()` / `clearCache()` 直到功能稳定 | 两个方法仍保留在 `FileUtil` 中；面板入口不再调用它们，但设置页缓存行的**长按**会以 `CacheCleanupMode.FULL` 复现拆分前的「一键全清」效果（功能开关关闭时点击仍走 `FileUtil.clearCache()`） | 满足 §24 第 6 条「明确标注为兼容入口」；如需回滚到旧行为可直接接回调用方 |
+| §23.1 兼容入口 | 保留 `FileUtil.getCacheSize()` / `clearCache()` 直到功能稳定 | 两个方法仍保留在 `FileUtil` 中；设置页缓存行的**单击**现在以 `CacheCleanupMode.FULL` 复现拆分前的「一键全清」（`CacheManagementDialog.cleanEverything()`，journal `reason=settings_row`），**长按**才打开管理面板；功能开关关闭时单击仍走 `FileUtil.clearCache()` | 满足 §24 第 6 条「明确标注为兼容入口」；如需回滚到旧行为可直接接回调用方。2026-10-21 手势反转后，原「长按=兼容入口」的表述已失效并更新 |
 
 上述偏离不影响 §20.1-§20.5 的功能与安全验收；如需回到设计原文的分模块档位、可选择触发条件或默认开启自动清理，应作为独立增量需求实施。
 
