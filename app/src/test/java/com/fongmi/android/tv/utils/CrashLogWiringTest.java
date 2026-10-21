@@ -42,6 +42,8 @@ public class CrashLogWiringTest {
                 "app/src/leanback/res/layout/activity_crash.xml",
                 "app/src/mobile/res/layout/activity_crash.xml"}) {
             String layout = read(file);
+            assertTrue(file + " must scroll, so a small or landscape screen still reaches every entry",
+                    layout.contains("<ScrollView") && layout.contains("android:fillViewport=\"true\""));
             for (String id : new String[]{"logTitle", "logAddress", "logHint", "copyLogAddress", "openLog"}) {
                 assertTrue(file + " must declare " + id, layout.contains("android:id=\"@+id/" + id + "\""));
             }
@@ -67,6 +69,8 @@ public class CrashLogWiringTest {
         assertTrue(page.contains("DebugLogStore.isCrashSessionTemporary()"));
         assertTrue(page.contains("崩溃会话"));
         assertTrue(page.contains("crash-banner"));
+        assertTrue("the poll refresh must not overwrite the crash-session label with 记录中",
+                page.contains("crashSession") && page.contains("'崩溃会话 · 自动开启'"));
         assertTrue(page.contains("崩溃会话临时日志：本页自动开启，重启后恢复原设置。"));
     }
 
@@ -76,6 +80,8 @@ public class CrashLogWiringTest {
 
         assertTrue(session.contains("CrashReport.readRecent(context)"));
         assertTrue(session.contains("\"logcat\""));
+        assertTrue("coverage must not claim a logcat tail when the tail is empty",
+                session.contains("!logcat.isEmpty()"));
         assertTrue(session.contains("DebugLogStore.appendCrashContext"));
         assertTrue(session.contains("CrashLogText.filterLogcat"));
     }

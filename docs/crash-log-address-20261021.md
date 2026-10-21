@@ -131,3 +131,14 @@ bash ./gradlew :app:testLeanbackArm64_v8aDebugUnitTest \
 ## 7. 回滚
 
 单一提交回滚即可；无偏好/数据库迁移。`filesDir/crash/` 最多 3 个 ≤96KB 文件，随应用数据清除。
+
+## 8. 评审（2026-10-21 23:1x–23:5x +08:00，C95 合并 beta 后复评）
+
+首轮评审 5 项，修复后第二轮复评通过；详细证据见 `docs/C95-beta-merge-review-dev3-20261021.md` §3–§5。
+
+- **高（已修）**：两份 `activity_crash.xml` 原为不可滚动的居中 `LinearLayout`，新增地址与两个按钮后，横屏/小屏会把「重新启动/静默重启/错误信息」裁出屏幕，而返回键被屏蔽，用户可能无法重启。改为 `ScrollView(fillViewport)`；`wm size 800x480; wm density 320` 下滚动可到达全部三个原按钮。
+- **中（已修）**：调试日志页轮询 1.5 秒后把「崩溃会话 · 自动开启」改写为「记录中」。轮询脚本注入 `crashSession` 标记，只刷新字节数。
+- **低（已修）**：`logcat` 尾巴为空时页面仍声明 `logcat=own-uid-tail`；改为 `logcat != null && !logcat.isEmpty()`，与正文“系统日志不可用”一致。
+- **低（已修）**：`CrashReport.readRecent` 遇第一份过期报告即停止，墙钟回拨时可能漏读较新报告；改为遍历最多 3 份并取第一份新鲜报告。
+- **提示（已固化）**：崩溃写入器必须位于 CAOC 处理器外层（依赖 `CaocInitProvider` 的 `initOrder="101"` 先于 androidx.startup 初始化）；已在 `CrashReport.install()` 注释中记录该顺序约束。
+- 验证：mobile 26 例 / leanback 19 例定向单测全绿，`assembleMobileArm64_v8aDebug` 成功；模拟器复测临时会话标题、下载内容与关闭日志时 `debug_log` 保持 `false`。

@@ -41,7 +41,16 @@ public final class CrashReport {
     private CrashReport() {
     }
 
-    /** Chain a crash writer in front of the configured handler (CustomActivityOnCrash). Idempotent. */
+    /**
+     * Chain a crash writer in front of the configured handler (CustomActivityOnCrash). Idempotent.
+     *
+     * <p>Order matters: CAOC's normal crash path shows the error activity and kills the process
+     * without calling the handler it wrapped, so this writer must be the outermost handler.
+     * CAOC installs itself from {@code CaocInitProvider} with {@code initOrder="101"}, which runs
+     * before androidx.startup's {@code InitializationProvider}; this call from {@code Startup}
+     * therefore lands on top of CAOC's handler. Do not move it earlier, and do not let the provider
+     * order change: the report would silently stop being written while everything else kept working.
+     */
     public static void install(Context context) {
         if (installed) return;
         Context app = application(context);
@@ -102,9 +111,9 @@ public final class CrashReport {
         for (File file : files) {
             String text = read(file);
             if (text == null || text.isEmpty()) continue;
+            // Do not stop at the first stale report: names are wall-clock based, so a clock jump
+            // can make an older report sort first while a fresher one still exists.
             if (CrashLogText.isFresh(CrashLogText.reportElapsed(text), now, CrashLogText.FRESH_WINDOW_MS)) return text;
-            // The newest stale report means every other report is even older.
-            break;
         }
         return null;
     }

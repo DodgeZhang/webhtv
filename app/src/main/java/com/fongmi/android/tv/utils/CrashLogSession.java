@@ -35,7 +35,7 @@ public final class CrashLogSession {
             boolean temporary = DebugLogStore.beginCrashSession();
             String report = CrashReport.readRecent(context);
             List<String> logcat = logcatTail(CrashLogText.reportPid(report));
-            String body = CrashLogText.composeSession(report, logcat, logcat != null, report != null, !temporary);
+            String body = CrashLogText.composeSession(report, logcat, logcat != null && !logcat.isEmpty(), report != null, !temporary);
             for (String line : body.split("\n", -1)) {
                 if (!line.isEmpty()) DebugLogStore.appendCrashContext(line);
             }

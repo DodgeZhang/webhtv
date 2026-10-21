@@ -5066,3 +5066,12 @@ C3 的触发来源主要是 media `990abc2368fd74779f525ee345734470659f3d53`（`
 - 验证：双 flavor arm64 Debug Java 编译通过；缓存包 13 个测试类 **64 用例 0 failure 0 error**；`check_ui_tokens.sh --strict` 相对合并前基线零新增违规（`hex_drawables` 553→553 中的 1 个新增已消除，`violations=1` 仍为既有 `item_following.xml`）；TV（emulator-5556）与手机（emulator-5560）实机覆盖安装后主路径通过——弹窗 90%×90% 渲染 15 个模块、全部操作控件可见可聚焦、确认框默认焦点在「取消」、模块级真实清理（TV 释放 13.4 MB / 6 文件，手机释放 12.5 MB / 5 文件）与 `cache_mgmt_cleanup_history` 记录一致、设置行经 `RefreshEvent.CACHE` 即时刷新（TV 203.4→190 MB、手机 54→40.8 MB，无需离开页面重进）。
 - 未执行：完整 Instrumentation 测试、低空间/系统配额极限场景、native 重建；上游自述的三项环境/设计边界（应用更新闭环受 `ApkUrlPolicy` 限制、插件模块上限自动淘汰暂不启用、冷启动首次扫描 2 秒预算截断）为上游既有已知边界，非本次合并引入。
 - 下一动作：由当前 C37 guard 生成双亲 merge commit 和 annotated recovery tag，不推送。
+
+## 检查点 62：2026-10-21 C95 dev3 合并 beta 并评审崩溃日志地址功能
+
+- 基线：`dev3@30324abe36`（崩溃日志地址功能）；目标：`origin/beta@590c424568`（PR #473 后）。合并提交 `0c2d6d9ac6d7d030d2d54237f3bf1808448102e6`，双亲 `30324abe36` / `590c424568`，0 冲突、25 个带入路径、0 丢失、0 复活。
+- 评审范围：全量评审 `30324abe36` 的 18 个崩溃功能路径；C92（已评审 `231bbea99b`）与 C93/C94（dev2/dev4 已评审，合并 0 冲突且路径仅 `strings.xml` 相邻新增行）按“已评审 + 无合入冲突”跳过并留证。
+- 首轮发现 5 项（高 1 / 中 1 / 低 2 / 提示 1）：崩溃布局不可滚动导致横屏/小屏重启按钮被裁（修 ScrollView）、崩溃会话页轮询覆盖「崩溃会话」标题（修轮询标记）、空 logcat 仍声明覆盖（修判定）、报告按文件名首份过期即停（修为遍历）、崩溃写入器依赖 CAOC `initOrder` 顺序（注释固化）。修复后第二轮复评通过。
+- 验证：mobile 26 例 / leanback 19 例定向单测 0 failure/0 skipped；`assembleMobileArm64_v8aDebug` 成功；emulator-5554 横屏全按钮可见、800×480 极小屏滚动可达重启/错误信息、关闭日志时临时会话页面标题与下载内容正确且 `debug_log` 保持 `false`。
+- 未执行：TV 真机 leanback 焦点滚动复测、native 崩溃路径；不在本功能范围。
+- 下一动作：由当前 C95 guard 提交修复与文档并打 recovery tag，推送 `dev3`、创建到 `beta` 的 PR、拉取远端最新代码。
