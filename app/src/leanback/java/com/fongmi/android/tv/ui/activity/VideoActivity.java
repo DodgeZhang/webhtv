@@ -4860,8 +4860,14 @@ private boolean runtimeSourceOnly;
     }
 
     private void onRefresh() {
-        invalidateShortDramaQueue("refresh");
         saveHistory();
+        // 「切换线路不自动播放」：线路点击只换线路/选集列表，旧流继续播。
+        // 抑制必须先于拆流，否则用户还没点具体集数，正在看的视频就先被停掉了。
+        if (mDeferFlagSwitchPlayback) {
+            mDeferFlagSwitchPlayback = false;
+            return;
+        }
+        invalidateShortDramaQueue("refresh");
         if (mViewModel != null) mViewModel.cancelPlayerContent();
         invalidatePlayerContent();
         subtitlePlaybackSession.stop(this);
@@ -4870,10 +4876,6 @@ private boolean runtimeSourceOnly;
         mClock.setCallback(null);
         if (mFlagAdapter.getItemCount() == 0) return;
         if (mEpisodeAdapter.getItemCount() == 0) return;
-        if (mDeferFlagSwitchPlayback) {
-            mDeferFlagSwitchPlayback = false;
-            return;
-        }
         getPlayer(getFlag(), getEpisode());
     }
 
