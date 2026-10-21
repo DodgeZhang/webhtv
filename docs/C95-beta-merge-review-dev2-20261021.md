@@ -12,8 +12,8 @@
 - **Lane**：`upstream`
 - **Scope**：`app/`、`docs/`
 - **任务守卫**：`C95-beta-merge-dev2-20261021`，base HEAD `ae0c82e7b66fbd452803525f1f0f85dd68c3e740`，branch `dev2`，受保护脏路径 `127` 条（全部在 `.wh_diag/` 下，未跟踪，保持不动）
-- **当前状态**：合并、复评、验证、第二轮评审完成；待提交/推送/PR/拉取
-- **下一动作**：任务守卫 `finish` 提交并打 tag，推送 `dev2`，创建到 `beta` 的 PR，拉取远端最新代码
+- **当前状态**：已完成；合并提交 `573c8e5114`、recovery tag 已生成、`dev2` 已推送、PR #474 已创建、远端最新已拉取
+- **下一动作**：无（等待 PR #474 人工评审/合并；本任务不再改动代码）
 
 ---
 
@@ -87,8 +87,8 @@
 
 ## 7. 交付坐标
 
-- 合并/复评提交：待 `finish` 后回填（双父：`ae0c82e7b66fbd452803525f1f0f85dd68c3e740` + `590c424568d5d1eaa713fe8a06c6c57cd013f42c`）
-- recovery tag：待回填
-- 推送 `dev2` / PR 到 `beta` / 拉取远端最新：待回填
-
-（按仓库既有流程，提交坐标与 PR 号在推送、创建 PR、拉取后由 `C95-docs-backfill-dev2-20261021` 任务守卫会话回填本文件与评估索引。）
+- 合并/复评提交：`573c8e5114d988c2285416785d2ea651f04916df`（双父 `ae0c82e7b66fbd452803525f1f0f85dd68c3e740` + `590c424568d5d1eaa713fe8a06c6c57cd013f42c`），树 `ace0f9afc626ff5dd067df4255f13c06f6c15795`；相对 `origin/beta` 净差 = 9 路径 `+231 −3`（7 个功能路径 `+136 −3` + 本评审文档 + 评估索引 1 行）。
+- recovery tag：`recovery/C95-beta-merge-dev2-20261021/20261021160321-573c8e5114d9`
+- 推送 `dev2`：`9c7b3ce1fb..573c8e5114`（含此前未推送的 `ae0c82e7b6` 与本轮合并提交），推送后 `origin/dev2 = 573c8e5114`、`git pull --ff-only origin dev2` 为 `Already up to date`。
+- PR：**#474** <https://github.com/Silent1566/webhtv/pull/474>（`base=beta`/`head=dev2`/`OPEN`/`mergedAt=null`/`MERGEABLE`+`CLEAN`，只创建不合并）。
+- 拉取远端最新：`git fetch origin --prune` 后 `origin/beta` 仍为 `590c424568d5d1eaa713fe8a06c6c57cd013f42c`（PR #474 未合并，符合预期）；本次回填提交推送后再执行一次 `git pull --ff-only origin dev2`，保持本地与远端一致。
