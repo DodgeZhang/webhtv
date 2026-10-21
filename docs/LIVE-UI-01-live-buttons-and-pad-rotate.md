@@ -73,7 +73,13 @@ bash gradlew :app:assembleMobileArm64_v8aDebug :app:assembleLeanbackArm64_v8aDeb
 
 截图与日志位于 `C:\Users\Maple\AppData\Local\Temp\webhtv-verify-4\`（control.png=显示态、live_hidden_real2.png=隐藏态、rotate2.png=竖屏全屏、live_restored2.png=恢复态）。
 
+## C93 复评补强（2026-10-21 18:40，dev1）
+
+- **必修项（中）**：两份 `LiveActivity#showControl` 未重算轨道按钮。点播 `showControl` 会调 `setTrackVisible()`，直播没有；而 `applyActionButtonVisibility()` 只恢复无动态条件的 player/decode/playParams/scale/change，text/audio/video 依赖动态判定。直播存活期间（如 PiP）在设置里重新开启字幕/音轨/视轨后，这些按钮本会话不会回来。
+- **修复**：mobile `showControl()` 在 service 守卫后调用 `setTrackVisible()`；leanback `showControl(View)` 以 `service() != null` 守卫后同样调用。
+- **守卫测试**：`LiveActivityLayoutTest#liveControlRevealRefreshesTrackButtons`（两 flavor 断言 `setTrackVisible()` 存在且先于 `setPlayParamsState()`）。修复前 FAILED，修复后 18/18 BUILD SUCCESSFUL；`assembleMobileArm64_v8aDebug` 与 `assembleLeanbackArm64_v8aDebug` 均通过。完整记录见 `docs/C93-beta-merge-review-dev1-20261021.md`。
+
 ## Recovery anchor
 
-- 状态：实现 + 单测 + 平板/手机真机（模拟器）验收全部完成，设备 prefs 已恢复原值（`player_button_multithread` 语义等价：仅 `multi_thread_proxy` 隐藏）。
+- 状态：实现 + 单测 + 平板/手机真机（模拟器）验收完成；C93 复评补强（控制栏唤出重算轨道按钮）已修复并验证，设备 prefs 已恢复原值（`player_button_multithread` 语义等价：仅 `multi_thread_proxy` 隐藏）。
 - 下一步（唯一）：无；如需继续可基于本文件扩展直播专属按钮（配置/直播源/线路/反色/跨类）的可配置化。

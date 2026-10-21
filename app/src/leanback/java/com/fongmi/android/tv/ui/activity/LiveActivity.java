@@ -777,6 +777,8 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void showControl(View view) {
+        // 与 mobile 一致：唤出控制栏时重算轨道类按钮，用户重新开启后不必等下一次轨道变化。
+        if (service() != null) setTrackVisible();
         setPlayParamsState();
         mBinding.control.getRoot().setVisibility(View.VISIBLE);
         // 控制栏显示时统一由 PlayerOsdController 显示标题、分辨率和时间，避免旧栏重影

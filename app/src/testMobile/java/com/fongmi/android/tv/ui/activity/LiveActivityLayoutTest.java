@@ -461,6 +461,25 @@ public class LiveActivityLayoutTest {
     }
 
     @Test
+    public void liveControlRevealRefreshesTrackButtons() throws Exception {
+        assertShowControlRefreshesTracks(findMobileJavaPath(), "private void showControl()");
+        assertShowControlRefreshesTracks(findLeanbackJavaPath(), "private void showControl(View view)");
+    }
+
+    private static void assertShowControlRefreshesTracks(Path javaRoot, String signature) throws Exception {
+        Path sourcePath = javaRoot.resolve(Path.of(
+                "com", "fongmi", "android", "tv", "ui", "activity", "LiveActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        String showBody = section(source, signature, "private void hideControl()");
+
+        assertFalse(sourcePath + " is missing " + signature, showBody.isEmpty());
+        assertTrue("revealing live controls must recompute the track buttons so re-enabled text/audio/video return",
+                showBody.contains("setTrackVisible();"));
+        assertTrue("dynamic track buttons must be recomputed before the configured-hidden overlay is applied",
+                showBody.indexOf("setTrackVisible();") < showBody.indexOf("setPlayParamsState();"));
+    }
+
+    @Test
     public void livePlayParamsEntryFollowsTheSharedSetting() throws Exception {
         Path sourcePath = findMobileJavaPath().resolve(Path.of(
                 "com", "fongmi", "android", "tv", "ui", "activity", "LiveActivity.java"));
