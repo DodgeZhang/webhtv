@@ -13,7 +13,7 @@
 - **Scope**：`app/src/leanback/.../ui/activity`、`app/src/mobile/.../ui/activity`、`app/src/main/java/.../player/exo`、`app/src/main/java/.../setting`、`app/src/test/java/...`、`docs/`
 - **任务守卫**：`C92-beta-merge-review-dev2-20261021`，base HEAD `0a530b82ae48d1b9a91b6aa7ad8f2360c313de08`，branch `dev2`，受保护脏路径为任务前既有的未跟踪 `.wh_diag/`（127 个文件）
 - **基线**：`dev2` HEAD = `0a530b82ae`（相对 `origin/dev2` ahead 1，未推送）；merge-base = `35d6dae6b6`
-- **当前状态**：复评、修复、验证完成；交付坐标见 §6（推送/PR/拉取后回填）
+- **当前状态**：全部完成；交付坐标见 §6
 - **下一动作**：无
 
 ---
@@ -78,8 +78,8 @@
 
 ## 6. 交付坐标
 
-- 合并提交：待 `finish` 落盘后回填
-- recovery tag：待 `finish` 落盘后回填
-- 推送：待推送后回填
-- PR：待创建后回填
-- 拉取远端最新代码：待执行后回填
+- 合并提交：`08618b49ec1177344f9f389f47e596cdef022962`（双父 `0a530b82ae48d1b9a91b6aa7ad8f2360c313de08` + `a0641ef0e22e6b1353ecfbc5f86c93c34f91c051`）
+- recovery tag：`recovery/C92-beta-merge-review-dev2-20261021/20261021073428-08618b49ec11`
+- 推送：`dev2`（`35d6dae6b6..08618b49ec`）
+- PR：**#470** <https://github.com/Silent1566/webhtv/pull/470>（`base=beta` / `head=dev2` / `state=OPEN` / `mergedAt=null`，只创建不合并）
+- 拉取远端最新代码：`git fetch origin --prune` + `git pull --ff-only origin dev2` → `Already up to date`；`origin/beta` 仍为 `a0641ef0e2`（= 本次合并目标）
