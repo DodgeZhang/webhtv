@@ -194,6 +194,21 @@ final class ExoDecoderRuntimeProfileStore {
         return entries.size();
     }
 
+    /**
+     * Current persistent decoder exclusions, newest first. Read-only: used to make the silent
+     * hardware-decoder blacklist visible to the user and to diagnostics.
+     */
+    synchronized List<Entry> activeBlacklist(long nowEpochMs) {
+        ensureLoaded(nowEpochMs);
+        if (prune(nowEpochMs)) save();
+        List<Entry> result = new ArrayList<>();
+        for (Entry entry : entries.values()) {
+            if (entry.blacklisted()) result.add(entry);
+        }
+        result.sort(Comparator.comparingLong(Entry::updatedAtEpochMs).reversed());
+        return result;
+    }
+
     synchronized void clear() {
         loaded = true;
         entries.clear();

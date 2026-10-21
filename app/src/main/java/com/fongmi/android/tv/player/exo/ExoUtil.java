@@ -100,7 +100,9 @@ import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegVideoRenderer;
 
 public class ExoUtil {
 
-    static final long ENHANCED_LATE_THRESHOLD_TO_DROP_INPUT_US = 5_000L;
+    // Upstream (media3 1.9.0-rc01+) default is 15 ms. This build previously used 5 ms, which
+    // pre-emptively dropped decoder input frames that upstream would still have presented.
+    static final long ENHANCED_LATE_THRESHOLD_TO_DROP_INPUT_US = 15_000L;
     private static final long ENHANCED_ADAPT_COOLDOWN_MS = 15_000L;
     private static final int ENHANCED_DROPPED_FRAMES_THRESHOLD = 24;
     private static final int ENHANCED_DROPPED_FRAMES_PER_SECOND_THRESHOLD = 4;

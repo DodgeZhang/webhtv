@@ -4,6 +4,8 @@ import com.fongmi.android.tv.setting.PlayerSetting;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Prefers;
 
+import java.util.List;
+
 /** Process-level access to persistent EXO video decoder runtime profiles. */
 public final class ExoDecoderRuntimeProfiles implements ExoDecoderRuntimeSession.ProfileAccess {
 
@@ -108,6 +110,38 @@ public final class ExoDecoderRuntimeProfiles implements ExoDecoderRuntimeSession
                 key.secure(),
                 key.outputTarget().name().toLowerCase(java.util.Locale.US),
                 key.tunneling());
+    }
+
+    /** Number of decoder+format combinations currently excluded for this device. */
+    public int blacklistedCount() {
+        return store.activeBlacklist(System.currentTimeMillis()).size();
+    }
+
+    /**
+     * Human-readable description of the current persistent decoder exclusions, or {@code ""} when
+     * none is active. The exclusions are otherwise silent: playback simply falls back to software
+     * decoding, which on 4K content looks like unexplained frame drops.
+     */
+    public String blacklistSummary() {
+        List<ExoDecoderRuntimeProfileStore.Entry> active =
+                store.activeBlacklist(System.currentTimeMillis());
+        if (active.isEmpty()) return "";
+        ExoDecoderRuntimeKey.Key latest = active.get(0).key();
+        String size = latest.width() > 0 && latest.height() > 0
+                ? " " + latest.width() + "×" + latest.height() : "";
+        return "硬解已排除 " + active.size() + " 条（" + mimeLabel(latest.mimeType()) + size + "）";
+    }
+
+    private static String mimeLabel(String mimeType) {
+        if (mimeType == null) return "未知格式";
+        return switch (mimeType) {
+            case "video/hevc" -> "HEVC";
+            case "video/avc" -> "H.264";
+            case "video/av01" -> "AV1";
+            case "video/x-vnd.on2.vp9" -> "VP9";
+            case "video/dolby-vision" -> "DV";
+            default -> mimeType;
+        };
     }
 
     private static void log(
