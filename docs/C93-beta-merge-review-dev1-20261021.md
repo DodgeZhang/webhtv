@@ -86,8 +86,8 @@
 ## 7. 交付坐标
 
 - 合并提交：`560d5e626315069050e5b20721e92a2810cf3207`（`dev1`，双父：`d9a0cc5c69` + `3964eeae7c`）
-- 复评修复提交：待回填
-- recovery tag：待回填
-- 推送：待回填
-- PR：待回填（`dev1` → `beta`，中文描述，只创建不合并）
-- 拉取：待回填
+- 复评修复提交：`4e8fa44848361f0eab2b9c4b1534f74b1df49539`
+- recovery tag：`recovery/C93-BETA-MERGE-DEV1-20261021/20261021104411-4e8fa4484836`
+- 推送：`origin/dev1`（`2375d5a291..4e8fa44848`）
+- PR：<https://github.com/Silent1566/webhtv/pull/472>（`dev1` → `beta`，中文描述，只创建不合并；创建时 `MERGEABLE` / `CLEAN`）
+- 拉取：`git fetch origin --prune && git pull --ff-only origin dev1` → `Already up to date`；`origin/dev1...HEAD` = `0/0`；拉取时 `origin/beta` 仍为 `3964eeae7c`（未前进），PR 相对该 head 保持 `MERGEABLE`
