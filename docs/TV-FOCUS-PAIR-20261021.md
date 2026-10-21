@@ -78,15 +78,19 @@ F2 同步按同一判据收敛：填充改半透明叠加层（`white_10`/`white
 
 ### 3.2 `selector_display_option.xml`（屏显弹窗芯片，手机/电视共用）
 
-| 状态 | 填充 | 环 |
-|---|---|---|
-| pressed | `@color/white_10` | 1dp `@color/white_40` |
-| **focused+selected（新增）** | 琥珀 `..._control_active` | 1.5dp `@android:color/black` |
-| focused | `@color/white_20` | 1.5dp `?attr/tvPlayerRing` |
-| selected | 琥珀（不变） | 1dp `@color/webhtv_color_player_control`（不变） |
-| default | `@color/white_10` | 1dp `@color/white_40` |
+| 顺序 | 状态 | 填充 | 环 |
+|---|---|---|---|
+| 1 | **focused+selected（新增）** | 琥珀 `..._control_active` | 1.5dp `@android:color/black` |
+| 2 | focused | `@color/white_20` | 1.5dp `?attr/tvPlayerRing` |
+| 3 | selected | 琥珀（不变） | 1dp `@color/webhtv_color_player_control`（不变） |
+| 4 | pressed（复评删除） | 沿用默认 `white_10` | 1dp `@color/white_40` |
+| 5 | default | `@color/white_10` | 1dp `@color/white_40` |
 
-`display_option_text.xml` **未改**：选中态黑字不变；焦点/按下在「焦点+按下」时由 focused 分支给白字；触摸单按下走默认 `muted`，压在 10% 白底上仍 ≥4.5:1。
+**顺序判据（复评修正）**：Android selector 取首个匹配项，按下不能排在焦点/选中**之前**。电视端按确认键时 `state_pressed` 与 `state_focused` 同时成立，按下若排在最前，按住确认键的瞬间会顶掉焦点分支——焦点环消失、填充从 `white_20` 退回更暗的 `white_10`，形成「按下＝失去焦点」的反向反馈；原实现把按下放在第一位，也与本节「焦点+按下时由 focused 给白字」的描述相互矛盾。
+
+**按下分支删除（复评修正）**：按下若保持 `white_10`，它与默认态完全同底，是无反馈的死分支；若调亮到 `white_20`/`white_30`，默认文字 `muted`（`#CCFFFFFF`）在 `0x7C7C7C` 亮画面上分别只有 **4.33:1 / 3.38:1**（`white_10` 为 5.58:1），会引入新的正文不达标。因此删除按下分支：触摸端按下＝默认态，电视端按下由焦点分支表达。守卫里的 `tv.displayOption.pressed` 注册项保留，它现在解析到默认分支（5.58–8.69:1），仍能拦住「未来新增更亮按下底」这类回归。
+
+`display_option_text.xml` **未改**：选中态黑字不变；焦点/按下在「焦点+按下」时由 focused 分支给白字；触摸单按下走默认 `muted`，压在 `white_10` 上亮画面仍有 5.58:1。
 
 ### 3.3 `shape_keyboard_normal.xml`（搜索键盘按键，按实测判定）
 

@@ -10,6 +10,7 @@
 脚本内统一换算回原生像素（见 PREVIEW_TO_NATIVE），改设备分辨率时需要同步调整。
 
 判定：正文 4.5:1（WCAG 2.2 SC 1.4.3），焦点环 3:1（SC 1.4.11）。
+退出码：0 全部达标；1 有用例不达标；2 截图缺失/为空跑（不构成验证通过）。
 """
 import sys
 from collections import Counter
@@ -76,13 +77,24 @@ CASES = [
 def main(directory):
     root = Path(directory)
     rows = []
+    missing = []
     for _, file, label, fill_box, text_box, threshold in CASES:
         path = root / file
         if not path.is_file():
-            print(f"SKIP: 缺少截图 {path}")
+            missing.append(str(path))
             continue
         rows.append(sample(path, label, fill_box, text_box, threshold))
+    if missing:
+        print("SKIP: 缺少截图\n  " + "\n  ".join(missing))
+    # 空跑不能算通过：没有任何一例跑过说明证据缺失（目录写错、没截图），必须显式失败，
+    # 否则这条「验证」在任何环境下都返回 0，等于没有验证。
+    if not rows:
+        print("FAIL: 没有可判定的截图，未完成任何验证")
+        return 2
     failed = [row for row in rows if row[1] == "FAIL"]
+    if missing:
+        print(f"FAIL: {len(missing)} 张截图缺失，覆盖不完整")
+        return 2
     return 1 if failed else 0
 
 
