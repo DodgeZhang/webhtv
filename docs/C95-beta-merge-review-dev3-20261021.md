@@ -12,8 +12,8 @@
 - **Lane**：`upstream`
 - **Scope**：`app/`、`docs/`
 - **任务守卫**：`C95-beta-merge-review-dev3-20261021`，base HEAD `0c2d6d9ac6d7d030d2d54237f3bf1808448102e6`（合并提交），branch `dev3`，受保护脏路径 0
-- **当前状态**：合并、首轮评审、修复、验证、第二轮复评均完成；待提交/推送/PR/拉取
-- **下一动作**：任务守卫 `finish` 提交并打 tag，推送 `dev3`，创建到 `beta` 的 PR，拉取远端最新代码
+- **当前状态**：合并、首轮评审、修复、验证、第二轮复评、提交、推送、PR、拉取均完成；工作树干净
+- **下一动作**：无；等待 PR 评审/合并（本轮只创建 PR，不合并）
 
 ---
 
@@ -87,4 +87,10 @@ bash ./gradlew :app:assembleMobileArm64_v8aDebug --no-daemon
 
 ## 7. 交付坐标
 
-待回填（守卫 finish 后记录提交、recovery tag、推送、PR、拉取）。
+- 评审/修复提交：`c5ef7ec829b75ad3291b6ae5b11d26378d68090a`（在合并提交 `0c2d6d9ac6` 之上）。
+- Recovery tag：`recovery/C95-beta-merge-review-dev3-20261021/20261021161216-c5ef7ec829b7`。
+- 推送：`origin/dev3` `8a58112b53..c5ef7ec829`（随后回填本节的文档提交再次推送）。
+- PR：[#475](https://github.com/Silent1566/webhtv/pull/475)（`dev3` → `beta`，中文描述，只创建不合并）。
+- 拉取：`git fetch origin --prune` + `git pull --ff-only origin dev3`，`dev3` 与 `origin/dev3` 同步；`origin/beta` 仍为 `590c424568`。
+- 工作树：干净；本节回填为文档单提交。
+
