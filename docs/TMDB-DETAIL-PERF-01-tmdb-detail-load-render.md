@@ -173,17 +173,39 @@ bash gradlew :app:assembleMobileArm64_v8aDebug \
 - `TmdbDetailDisambiguationPerfSourceTest`（2）：消歧走 lite + 有界并发 + 赢家升级；rail 走小档位而 hero/viewer/保存保持 original。
 - `TmdbDetailPrefetchWiringSourceTest`（3）：预热在站点详情之前启动、identity 路径消费预热而不二次请求、源 payload 路径丢弃预热且 `onDestroy` 取消。
 
-### 9.1 未验证项（如实记录）
+### 9.1 设备实测（2026-10-22，`127.0.0.1:5561`）
 
-- **未做设备端端到端计时**：当前配置好的模拟器（`emulator-5554`，`debug_log=true`、TMDB 已配置、`detail_open_mode=1`）里没有可复现的视频 `key/id`（历史库只有音频条目），无法在不改动用户设备配置的前提下构造一次真实详情加载。字节收益来自对真实 TMDB 响应的直接测量（§4），墙钟收益的端到端数字待有可复现条目后补测。
-- 复现方式（供补测）：`adb shell am start -n com.silent.android.webhtv/com.fongmi.android.tv.ui.activity.TmdbDetailActivity --es key <站点key> --es id <vodId> --es name "<片名>" --ei tmdb_id <id> --es tmdb_media_type tv --ei detail_mode 1`，抓 `tmdb-detail-flow` 与 `tmdb` 两个 tag 的日志。
+设备：HD1910 / Android 9 / 1920x1080；debug 构建、`debug_log=true`、`detail_open_mode=1`（单遍独立模式）、TMDB Key 已配置。
+条目：站点 `rebang` / `vod 46233` / TMDB `tv 101172`（吞噬星空）。
+方法：每次运行前 `force-stop` + 清 `cache/tmdb` 与 `cache/image_manager_disk_cache`（自动匹配另清 `cache/app_cache`）；先启动首页让订阅配置就绪，再用 `run-as am start --user 0` 打开详情；阶段耗时取应用自身 `tmdb-detail-flow` 日志（`load start` → `apply loaded`）。
+
+**W1（identity 已知）成对交替 A/B**（同一时间窗内 base/new 各一次，共 3 对，消除网络漂移）：
+
+| 对 | 基线总耗时 | 新构建总耗时 | 差值 |
+| ---: | ---: | ---: | ---: |
+| 1 | 4384 ms | 3985 ms | **−399 ms** |
+| 2 | 3343 ms | 2835 ms | **−508 ms** |
+| 3 | 3739 ms | 2361 ms | **−1378 ms** |
+
+- 3/3 对新构建更快；中位 −508 ms（−15%），均值 −762 ms（−21%）。站点详情在该设备约 450–690 ms，收益上界即这段重叠时间。
+- 机制证据（新构建每次都有）：`tmdb prefetch cost=` 的起点等于 `load start`（`prefetch_to_load_ms ≈ prefetch_ms`，即与站点请求并行启动）、`tmdb prefetch hit`、`tmdb bundle cost=2–6 ms`（复用预热结果，**没有第二次详情请求**）。
+- 未配对的批量样本（base n=6 / new n=6）不可作为结论：TMDB 详情请求本身在 1.5–4.7 s 之间漂移，完全盖过 0.5 s 级收益。这也是改用成对交替的原因。
+
+**W3（自动匹配消歧）**：该条目上搜索命中后首个候选即被接受，两个构建都只发 1 次详情请求、未进入消歧路径（成对 2 组：−207 ms / +811 ms，差异来自 2.5–3.0 s 的搜索请求抖动）。因此 W3 的收益目前只有载荷级证据（§4：TV −25%、电影 −71%），尚未在真实消歧场景做端到端计时。
+
+**W4（图片档位）**：设备级聚合字节不可用——首页在详情窗口内仍有后台图片加载，`/proc/net/xt_qtaguid/stats` 的 uid 增量把两者混在一起（测得 base 4.1 MB / new 7.5 MB，方向与预期相反，判定为测量污染而不是回归）。W4 仍以真实 TMDB 资源字节为准：poster original 1,187,694 B → w500 85,680 B / w780 201,063 B，backdrop original 982,744 B → w780 48,585 B（§4）。
+
+### 9.2 其它未验证项
+
 - 4K 屏下 hero 海报由 original 降到 w780：hero 显示尺寸远小于原图，按显示尺寸解码后无可见差异；若后续有 4K 实机反馈明显变软，只需把 `heroPosterTier` 改回 `originalUrl`（单点回退）。
-- W1 的墙钟收益（省 1 个 RTT）与「T3/T4 源多 1 次预热请求」同样只有源码级契约与并发语义测试，未做真实网络抓包/设备计时；预热失败时的回落会再发一次详情请求（与改造前单次尝试相比多一次重试机会，属容错放宽，已在此记录）。
+- 预热失败时的回落会再发一次详情请求（与改造前单次尝试相比多一次重试机会，属容错放宽）。
+- 设备安装环境坑（非代码问题）：本模拟器的 PackageManager 曾卡死在 install-commit，重启模拟器后 `cmd package install-create/write/commit` 正常（≤1 s）。
 
 ## 10. 后续（未做）
 
 1. **W2 共享线程池阻塞**：把 `loadContent` 的 `Future.get()` 换成回调续接，属结构性改动，收益在并发场景。
 2. **W5 主线程渲染去重**：需先补设备端「loading 消失那一帧」的 UI 线程耗时基线。
+3. **W3 端到端复核**：需要一条同名多候选（会真正进入消歧）的条目；拿到后按 §9.1 的成对方法复测。
 
 ## 11. 回滚
 
