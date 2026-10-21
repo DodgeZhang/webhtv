@@ -28,7 +28,6 @@ public final class LiveManifestRetryPolicy implements LoadErrorHandlingPolicy {
     private static final int MAX_MANIFEST_RETRIES = 8;
     private static final long BASE_DELAY_MS = 400L;
     private static final long MAX_DELAY_MS = 3_000L;
-    private static final int MIN_LOADABLE_RETRY_COUNT = 5;
 
     private final DefaultLoadErrorHandlingPolicy delegate = new DefaultLoadErrorHandlingPolicy();
 
@@ -53,7 +52,10 @@ public final class LiveManifestRetryPolicy implements LoadErrorHandlingPolicy {
 
     @Override
     public int getMinimumLoadableRetryCount(int dataType) {
-        return Math.max(delegate.getMinimumLoadableRetryCount(dataType), MIN_LOADABLE_RETRY_COUNT);
+        int base = delegate.getMinimumLoadableRetryCount(dataType);
+        // 只抬高 manifest 的重试次数：这是本地包直播真正会返回空体的环节。
+        // 媒体分片沿用上层策略，避免点播死链/404 因为多出的重试而延后十几秒才失败。
+        return dataType == C.DATA_TYPE_MANIFEST ? Math.max(base, MAX_MANIFEST_RETRIES) : base;
     }
 
     /**
@@ -61,7 +63,8 @@ public final class LiveManifestRetryPolicy implements LoadErrorHandlingPolicy {
      * 直接把视频轨丢掉。
      */
     static boolean isTransientManifestFailure(@Nullable Throwable error) {
-        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
+        int depth = 0;
+        for (Throwable t = error; t != null && depth++ < 12; t = t.getCause() == t ? null : t.getCause()) {
             if (t instanceof UnrecognizedInputFormatException) return true;
             String name = t.getClass().getName();
             if (name.equals("androidx.media3.extractor.ParserException")) return true;

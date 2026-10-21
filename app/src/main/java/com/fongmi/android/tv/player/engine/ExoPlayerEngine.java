@@ -167,7 +167,9 @@ public class ExoPlayerEngine implements PlayerEngine {
      */
     private static void logPlaybackError(PlaybackException error) {
         StringBuilder chain = new StringBuilder();
-        for (Throwable t = error.getCause(); t != null && chain.length() < 512; t = t.getCause() == t ? null : t.getCause()) {
+        int depth = 0;
+        for (Throwable t = error.getCause(); t != null && depth++ < 8 && chain.length() < 512;
+             t = t.getCause() == t ? null : t.getCause()) {
             if (chain.length() > 0) chain.append(" <- ");
             chain.append(t.getClass().getSimpleName());
             if (t.getMessage() != null) chain.append('(').append(t.getMessage().replace('\n', ' ')).append(')');

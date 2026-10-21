@@ -167,6 +167,8 @@ public class PlayerManager implements ParseCallback {
     private static final int LOCAL_PROXY_MAX_RETRY = 2;
     /** 直播合并源会整段返回空体/400：取不到流时重试本项远比重试换内核有效。 */
     private static final int TRANSIENT_SOURCE_MAX_RETRY = 6;
+    /** 点播失败要尽快暴露给换源/换线路径，只给两次短重试，避免死链让用户等十几秒。 */
+    private static final int TRANSIENT_SOURCE_VOD_MAX_RETRY = 2;
     private static final long[] TRANSIENT_SOURCE_RETRY_DELAYS_MS = {600, 1200, 2000, 3000, 3000, 3000};
     // 以内核常量为下标，长度随顺序表推导，避免新增内核时标记表长度漏改。
     private static final int PLAYER_COUNT = PlayerSetting.kernelIndexSize();
@@ -6044,6 +6046,7 @@ public void resetTrack(int type) {
         this.playWhenReady = playWhenReady;
         manualPlayerSwitchPending = false;
         localProxyRetry = 0;
+        transientSourceRetry = 0;
         resetPlayerFallback();
         hardDecodeSwitchRetryArmed = false;
         softDecodeFallbackAttempted = false;
@@ -9303,16 +9306,15 @@ public void resetTrack(int type) {
      */
     private boolean retryTransientSourceFailure(PlaybackException e, PlaybackErrorClassifier.Failure failure) {
         if (spec == null || spec.getUrl() == null || engine == null || failure == null) return false;
-        PlaybackErrorClassifier.Stage stage = failure.stage();
-        if (stage != PlaybackErrorClassifier.Stage.NETWORK_IO
-                && stage != PlaybackErrorClassifier.Stage.MEDIA_PARSING
-                && stage != PlaybackErrorClassifier.Stage.LOCAL_ENDPOINT) return false;
-        if (transientSourceRetry >= TRANSIENT_SOURCE_MAX_RETRY) return false;
+        if (!PlaybackErrorClassifier.isTransientSourceFailure(failure.stage(), e.errorCode)) return false;
+        // 直播端点抖动值得多等；点播死链不该把「换源」推迟十几秒，因此用更小的窗口让上层尽早接管。
+        int maxRetry = isLive() ? TRANSIENT_SOURCE_MAX_RETRY : TRANSIENT_SOURCE_VOD_MAX_RETRY;
+        if (transientSourceRetry >= maxRetry) return false;
         int attempt = ++transientSourceRetry;
         long delay = TRANSIENT_SOURCE_RETRY_DELAYS_MS[Math.min(attempt - 1, TRANSIENT_SOURCE_RETRY_DELAYS_MS.length - 1)];
         PlaybackTrace.log("player", playbackTrace.current(),
-                "transient-source-retry attempt=%d delay=%d stage=%s errorCode=%s",
-                attempt, delay, stage.label(), failure.errorCode());
+                "transient-source-retry attempt=%d/%d delay=%d stage=%s errorCode=%s",
+                attempt, maxRetry, delay, failure.stage().label(), failure.errorCode());
         App.removeCallbacks(runnable);
         App.post(() -> {
             if (spec == null || attempt != transientSourceRetry) return;
@@ -9323,19 +9325,18 @@ public void resetTrack(int type) {
 
     /**
      * 网络/解析/本机端点故障只是「取不到流」，换内核解不了它；只有解码器相关失败才值得换核。
+     * <p>
+     * 这里必须比 {@link #retryTransientSourceFailure} 更严格：媒体容器/编解码「不支持」是内容
+     * 能力边界，换 IJK/MPV 往往仍能播（AVS3、RMVB 等），把整类 MEDIA_PARSING 都挡在内核回退
+     * 之外会让这些源从「换核可播」退化成「直接报错」，所以只把 manifest 格式错误视为临时失败，
+     * 其余解析失败仍允许换核。
      */
     private boolean isKernelFallbackEligible(PlaybackException e) {
         PlaybackErrorClassifier.Failure failure = PlaybackErrorClassifier.classify(e, getEffectivePlaybackRoute());
-        switch (failure.stage()) {
-            case LOCAL_ENDPOINT, NETWORK_IO, MEDIA_PARSING -> {
-                PlaybackTrace.log("player", playbackTrace.current(),
-                        "skip-kernel-fallback stage=%s errorCode=%s", failure.stage().label(), failure.errorCode());
-                return false;
-            }
-            default -> {
-                return true;
-            }
-        }
+        if (!PlaybackErrorClassifier.isTransientSourceFailure(failure.stage(), e.errorCode)) return true;
+        PlaybackTrace.log("player", playbackTrace.current(),
+                "skip-kernel-fallback stage=%s errorCode=%s", failure.stage().label(), failure.errorCode());
+        return false;
     }
 
     private boolean fallbackPlayback(PlaybackException e) {

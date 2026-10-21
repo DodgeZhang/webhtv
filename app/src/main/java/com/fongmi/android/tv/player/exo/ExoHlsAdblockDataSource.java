@@ -155,7 +155,10 @@ final class ExoHlsAdblockDataSource implements DataSource {
     private static boolean isSegmentContentType(String value) {
         String type = value.toLowerCase(Locale.ROOT);
         if (isHlsContentType(type)) return false;
-        return type.contains("mp2t") || type.contains("octet-stream") || type.startsWith("video/") || type.startsWith("audio/");
+        // application/octet-stream 不能当「分片」证据：不少静态服务器没配 m3u8 的 MIME，
+        // 真播放列表也返回 octet-stream。把它留给 URL 后缀 + looksLikePlaylist 正文明判，
+        // 既不影响分片透传，也不会让这类服务器的广告过滤整体失效。
+        return type.contains("mp2t") || type.startsWith("video/") || type.startsWith("audio/");
     }
 
     private static boolean isHlsContentType(String value) {

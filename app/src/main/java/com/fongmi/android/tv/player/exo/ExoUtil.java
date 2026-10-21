@@ -375,15 +375,21 @@ public class ExoUtil {
     }
 
     /**
-     * 硬解仍然让系统 MediaCodec 先接管，但必须保留 ffmpeg 作为最后一级视频回退。
+     * 硬解仍然让系统 MediaCodec 先接管；「解码器兜底」开启时再把 ffmpeg 作为最后一级视频回退。
      * <p>
      * 用 {@link DefaultRenderersFactory#EXTENSION_RENDERER_MODE_ON} 而不是 OFF：附加的 ffmpeg
      * 渲染器排在所有 MediaCodec 渲染器之后，只有当平台根本没有该编码的解码器（AVS2/AVS3、
      * 部分 HEVC profile 等）时才接手。旧的 OFF 会让超类完全不注册视频扩展渲染器，视频轨被判
      * 定为不支持的子类型后整轨丢弃、音频继续播，用户看到的就是「只有声音没有画面」。
+     * <p>
+     * 关闭兜底开关时仍用 OFF：那个开关的合同是「只想快速暴露硬件问题」，此时让 ffmpeg 悄悄
+     * 在硬解标签下接管会同时违背开关语义与 {@code PlayerManager} 的软解切换判断。
      */
     private static int getVideoRenderMode(int decode) {
-        return decode == PlayerEngine.HARD ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER;
+        if (decode != PlayerEngine.HARD) return DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER;
+        return PlaybackPerformanceSetting.isDecoderFallbackEnabled()
+                ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF;
     }
 
     private static int getAudioRenderMode() {
@@ -1194,13 +1200,13 @@ public class ExoUtil {
                         dolbyVisionPlaybackState));
             } catch (Throwable ignored) {
             }
-            // Video decode mode is explicit for extension renderers: hardware mode
-            // Video decode mode is explicit for extension renderers: hardware mode keeps the
-            // system MediaCodec renderers first and only appends FFmpeg afterwards, so a codec
-            // without any platform decoder (AVS2/AVS3, unsupported HEVC profiles) still gets a
-            // video path instead of being dropped as an unsupported subtype while audio keeps
-            // playing. getVideoCodecSelector narrows the MediaCodec list in hard mode, so the
-            // two must stay consistent. Audio has its own policy.
+            // Video decode mode is explicit for extension renderers: with 「解码器兜底」 on, hardware
+            // mode keeps the system MediaCodec renderers first and only appends FFmpeg afterwards,
+            // so a codec without any platform decoder (AVS2/AVS3, unsupported HEVC profiles) still
+            // gets a video path instead of being dropped as an unsupported subtype while audio keeps
+            // playing. With the switch off the mode stays OFF and no FFmpeg video renderer is added.
+            // getVideoCodecSelector narrows the MediaCodec list in hard mode, so the two must stay
+            // consistent. Audio has its own policy.
             if (videoRenderMode == EXTENSION_RENDERER_MODE_OFF) return;
             try {
                 out.add(getExtensionRendererIndex(videoRenderMode, videoPrefer, out), buildFfmpegVideoRenderer(allowedVideoJoiningTimeMs, eventHandler, eventListener));
