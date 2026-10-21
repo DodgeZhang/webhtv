@@ -81,8 +81,10 @@
 
 ## 7. 交付坐标
 
-- 合并提交：`fa7392a371572e85a5e2239630bd3784b1ee89d4`（`dev4`，双父）
-- 复评修复提交与 recovery tag：见本任务 `finish` 输出
-- 推送：`origin/dev4`
-- PR：`dev4` → `beta`（中文描述，只创建不合并）
-- 拉取：`git pull --ff-only origin dev4` 后记录远端最新
+- 合并提交：`fa7392a371572e85a5e2239630bd3784b1ee89d4`（`dev4`，双父：`7eb229f50aa` + `a0641ef0e22`）
+- 复评修复提交：`231bbea99bab2f11f9644e02459e14a860bcfed2`
+- recovery tag：`recovery/C92-BETA-MERGE-DEV4-20261021/20261021081629-231bbea99bab`
+- 推送：`origin/dev4`（`4076b78a11a..231bbea99ba`）
+- PR：<https://github.com/Silent1566/webhtv/pull/471>（`dev4` → `beta`，中文描述，只创建不合并；创建时为 `MERGEABLE`）
+- 拉取：`git fetch origin && git pull --ff-only origin dev4` → `Already up to date`，`origin/dev4...HEAD` = `0/0`
+- 拉取时远端新状态：`origin/beta` 已前进到 `1983d649324`（PR #470，dev2 的 C92 抑制分支修复，同样使用 C92 前缀、不同后缀）；本 PR 相对该 head 仍为 `MERGEABLE`，未再二次合并
