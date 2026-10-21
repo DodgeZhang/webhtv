@@ -501,9 +501,21 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void getLive() {
         Live live = getHome();
+        setSource(live);
         if (!live.getGroups().isEmpty()) renderLive(live);
         mViewModel.parse(live);
         showProgress();
+    }
+
+    /**
+     * 控制栏的「直播源」按钮显示当前直播源名称：固定写「直播源」看不出此刻播的是哪一路源，
+     * 用户换源（含失效自动换源）都会重新走 {@link #getLive()} 刷新。名称为空时回退原文案。
+     */
+    private void setSource(Live live) {
+        String name = live == null ? "" : live.getName();
+        String label = name.isEmpty() ? getString(R.string.live_control_source) : name;
+        mBinding.control.action.source.setText(label);
+        refreshControlDialog();
     }
 
     private void renderLive(Live live) {
