@@ -165,6 +165,7 @@ import com.fongmi.android.tv.ui.adapter.TmdbRailAdapter;
 import com.fongmi.android.tv.ui.adapter.TmdbVideoAdapter;
 import com.fongmi.android.tv.ui.controller.VodPlayerControlController;
 import com.fongmi.android.tv.ui.custom.CustomSeekView;
+import com.fongmi.android.tv.ui.helper.TmdbDetailPrefetch;
 import com.fongmi.android.tv.ui.helper.TmdbVideoPlayback;
 import com.fongmi.android.tv.ui.custom.EpisodeTitlePopup;
 import com.fongmi.android.tv.ui.custom.PlayerGesture;
@@ -247,6 +248,7 @@ import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.target.Target;
 import com.bumptech.glide.request.transition.Transition;
 import com.github.catvod.crawler.SpiderDebug;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -306,6 +308,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
 
     private final TmdbService tmdbService = new TmdbService();
     private final Task.Scope detailTasks = new Task.Scope(Task.executor());
+    /** identity 已知时与站点详情并行取回 TMDB 详情；单槽、按 tmdbId+mediaType 匹配。 */
+    private final TmdbDetailPrefetch detailPrefetch = new TmdbDetailPrefetch(Task.largeExecutor());
     private final IntroSkipPlayback introSkipPlayback = new IntroSkipPlayback();
     private androidx.appcompat.app.AlertDialog introSkipConfirmDialog;
     private boolean introSkipListenersReady;
@@ -2431,6 +2435,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         int generation = ++loadGeneration;
         tmdbCredentialScope = SubscriptionTmdbCredentialStore.currentScope();
         detailTasks.cancelAll();
+        detailPrefetch.cancel();
+        startTmdbDetailPrefetch(initialTmdbItem, reusableBundle);
         int mode = getDetailMode();
         String key = getKeyText();
         String id = getIdText();
@@ -2486,6 +2492,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             SpiderDebug.log("tmdb-detail-flow", "runtime policy mode=%d runtime=%d source=%s tmdbReady=%s siteAllowed=%s sourceOnly=%s network=%s",
                     mode, decision.runtimeMode(), sourceState, tmdbReady, tmdbAllowed, decision.sourceOnly(), decision.networkAllowed());
             if (decision.runtimeMode() == Setting.DETAIL_OPEN_DIRECT) {
+                detailPrefetch.cancel();
                 String reason = !tmdbAllowed ? "site_tmdb_disabled"
                         : sourceState == TmdbSourceState.IDENTITY_ONLY ? "source_identity_only_without_key"
                         : "source_absent_or_invalid";
@@ -2497,6 +2504,8 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 return;
             }
             if (sourceBundle != null) {
+                // 源内嵌 payload 路径不消费预取的完整详情：结果丢弃，同时释放单槽与在途线程。
+                detailPrefetch.cancel();
                 if (reusableBundle != null) sourceBundle = TmdbSourceMerger.merge(sourceBundle, sourcePayload, reusableBundle, null, TmdbLanguagePolicy.requestLanguage(tmdbConfig)).bundle();
                 TmdbBundle initialBundle = sourceBundle;
                 runOnAliveUi(() -> {
@@ -2528,6 +2537,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             }
 
             if (reusableBundle != null) {
+                detailPrefetch.cancel();
                 runOnAliveUi(() -> {
                     if (generation != loadGeneration) return;
                     activeRuntimeDecision = decision;
@@ -2550,6 +2560,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
             }
             if (finalVod == null || tmdbFuture == null) {
                 if (tmdbFuture != null) tmdbFuture.cancel(true);
+                detailPrefetch.cancel();
                 return;
             }
             try {
@@ -2841,7 +2852,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         List<TmdbItem> searchItems = new ArrayList<>();
         try {
             if (initialTmdbItem != null) {
-                tmdbBundle = loadTmdbBundle(initialTmdbItem);
+                tmdbBundle = loadPrefetchedTmdbBundle(initialTmdbItem);
             } else {
                 boolean manual = isManualTmdbMatch();
                 TmdbItem match = getCachedTmdbMatch();
@@ -2905,9 +2916,51 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         SpiderDebug.log("tmdb-detail-flow", "apply tmdb result cost=%dms mode=%d bundle=%s search=%d", System.currentTimeMillis() - start, getDetailMode(), bundle != null, result == null ? 0 : result.searchItems().size());
     }
 
+    /**
+     * identity 已知时在站点详情请求发出前启动 TMDB 详情预取。
+     * <p>
+     * 站点详情与 TMDB 详情互不依赖，并行可省掉一个网络往返。代价（用户已确认）：
+     * 源内嵌完整 TMDB payload（T3/T4）的页面也会多发 1 次请求，但结果只被
+     * {@link #loadPrefetchedTmdbBundle} 消费，源数据路径会直接丢弃，不改变渲染。
+     * 预取只在 TMDB 可用且站点允许时启动；已复用 bundle 或自动匹配（identity 未知）不预取。
+     */
+    private void startTmdbDetailPrefetch(@Nullable TmdbItem item, @Nullable TmdbBundle reusableBundle) {
+        if (item == null || reusableBundle != null) return;
+        TmdbConfig config = tmdbConfig;
+        if (config == null || !config.isReady()) return;
+        if (!isTmdbAllowedForCurrentSite()) return;
+        detailPrefetch.start(item, () -> {
+            long start = System.currentTimeMillis();
+            JsonObject detail = tmdbService.detail(item, config);
+            SpiderDebug.log("tmdb-detail-flow", "tmdb prefetch cost=%dms id=%d media=%s", System.currentTimeMillis() - start, item.getTmdbId(), item.getMediaType());
+            return new TmdbDetailPrefetch.Result(item, detail, List.of());
+        });
+    }
+
+    /**
+     * 消费站点详情期间并行取回的 TMDB 详情，避免第二次网络请求；预取缺失、被取消或失败时
+     * 回落到常规 {@link #loadTmdbBundle}（此时文件缓存可能已被预取写入，通常只剩解析成本）。
+     */
+    private TmdbBundle loadPrefetchedTmdbBundle(TmdbItem item) throws Exception {
+        ListenableFuture<TmdbDetailPrefetch.Result> future = detailPrefetch.take(item);
+        if (future == null) return loadTmdbBundle(item);
+        try {
+            TmdbDetailPrefetch.Result prefetched = future.get();
+            if (prefetched == null || prefetched.getDetail() == null) return loadTmdbBundle(item);
+            SpiderDebug.log("tmdb-detail-flow", "tmdb prefetch hit id=%d media=%s", item.getTmdbId(), item.getMediaType());
+            return toTmdbBundle(prefetched.getItem() == null ? item : prefetched.getItem(), prefetched.getDetail());
+        } catch (Throwable e) {
+            SpiderDebug.log("tmdb-detail-flow", "tmdb prefetch unusable id=%d media=%s error=%s", item.getTmdbId(), item.getMediaType(), e.getMessage());
+            return loadTmdbBundle(item);
+        }
+    }
+
     private TmdbBundle loadTmdbBundle(TmdbItem item) throws Exception {
+        return toTmdbBundle(item, tmdbService.detail(item, tmdbConfig));
+    }
+
+    private TmdbBundle toTmdbBundle(TmdbItem item, JsonObject detail) {
         long start = System.currentTimeMillis();
-        JsonObject detail = tmdbService.detail(item, tmdbConfig);
         item = normalizeTmdbItemTitle(item, detail);
         List<Integer> seasons = new ArrayList<>();
         Map<Integer, Integer> seasonCounts = new HashMap<>();
@@ -11315,6 +11368,7 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         introSkipPlayback.reset();
         loadGeneration++;
         cancelAiSeasonAnalysis(false);
+        detailPrefetch.cancel();
         detailTasks.close();
         subtitlePlaybackSession.stop(this);
         if (inlinePiPLayout) exitInlinePiPLayout();
