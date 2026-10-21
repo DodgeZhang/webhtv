@@ -13,8 +13,8 @@
 - **Scope**：`app/`、`docs/`
 - **任务守卫**：`C89-beta-merge-review-dev3-20261021`，base HEAD `26e77bb7280e80c8bdea6fdb6001febbf6b2d6e0`，branch `dev3`，受保护脏路径 0
 - **基线**：`dev3` HEAD = `26e77bb728`（相对 `origin/dev3` ahead 1，未推送）；merge-base `cf828bf8a7`
-- **当前状态**：合并 + 复评 + 修复 + 验证完成；提交/推送/PR 待执行（§7 回填）
-- **下一动作**：`task_guard.sh finish` → 推送 `dev3` → 创建 PR → 拉取远端最新代码
+- **当前状态**：全部完成；交付坐标见 §7
+- **下一动作**：无
 
 ---
 
@@ -87,4 +87,9 @@ D 结论：`beta` 侧自 merge-base 起**没有任何内容变更**。`b89af5e54
 
 ## 7. 交付坐标
 
-待回填（合并提交 / recovery tag / 推送 / PR / 拉取）。
+- 合并提交：`5351ade5be4c2ca4b59b770311a49cb36759fd3b`（双父 `26e77bb7280e80c8bdea6fdb6001febbf6b2d6e0` + `b89af5e548930563757c41059562fd5029c3c160`）
+- Recovery tag：`recovery/C89-beta-merge-review-dev3-20261021/20261021023221-5351ade5be4c`
+- 推送：`dev3`（`cf828bf8a7..5351ade5be`）
+- PR：**#467** <https://github.com/Silent1566/webhtv/pull/467>（`base=beta` / `head=dev3` / `state=OPEN` / `mergedAt=null`，只创建不合并）
+- 拉取远端最新代码：`git pull --ff-only origin dev3` → `Already up to date`；`git fetch origin beta` → `b89af5e548`（= 本次合并目标）
+- 口径提示：本仓库有两个 remote，`gh pr create` 不带 `-R Silent1566/webhtv` 时解析到 upstream `fish2018/webhtv`，会报 `No commits between beta and dev3`；创建 PR 必须显式指定 `-R`。
