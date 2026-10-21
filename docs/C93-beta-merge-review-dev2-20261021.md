@@ -96,10 +96,20 @@
 
 ## 8. 交付坐标
 
-- 合并提交：见 §9（本轮 `finish` 生成的单提交，双父 `3e73bd375378bf60023644f770191e25f70669b8` + `8f7acb519c4cf91df0441c7d61253e6d1c87e6cd`）
-- recovery tag：见 §9
-- 推送 / PR / 拉取：见 §9
+- 合并提交：`bf0566640cee3e1790a9ab019a3404b6be6fc4be`（双父 `3e73bd375378bf60023644f770191e25f70669b8` + `8f7acb519c4cf91df0441c7d61253e6d1c87e6cd`）
+- recovery tag：`recovery/C93-beta-merge-dev2-20261021/20261021112407-bf0566640cee`
+- 推送：`origin/dev2`（`84c6d3bf15..bf0566640c`，13 个提交，含上一轮 C93 的 2 个未推送提交）
+- PR：<https://github.com/Silent1566/webhtv/pull/473>（`dev2` → `beta`，中文描述，只创建不合并；创建时 `MERGEABLE` / `CLEAN`）
+- 拉取：`git fetch origin --prune && git pull --ff-only origin dev2` → `Already up to date`；`origin/dev2...HEAD` = `0/0`；拉取时 `origin/beta` 仍为 `8f7acb519c`（未前进）
+- 回填提交：`docs(C94): 回填交付坐标`（见本文件 git 历史）
 
 ## 9. 交付回填
 
-（`finish` 后回填：合并提交、recovery tag、推送范围、PR 链接与 MERGEABLE 状态、拉取结果、`origin/beta` 当时 tip）
+| 项 | 值 |
+| --- | --- |
+| 合并提交 | `bf0566640cee3e1790a9ab019a3404b6be6fc4be` |
+| recovery tag | `recovery/C93-beta-merge-dev2-20261021/20261021112407-bf0566640cee` |
+| 推送范围 | `84c6d3bf15..bf0566640c`（`origin/dev2`） |
+| PR | #473 <https://github.com/Silent1566/webhtv/pull/473>，`base=beta`/`head=dev2`/`OPEN`/`mergedAt=null`/`MERGEABLE`+`CLEAN` |
+| 拉取结果 | `Already up to date`，`origin/dev2...HEAD` = `0/0` |
+| `origin/beta` 当时 tip | `8f7acb519c4cf91df0441c7d61253e6d1c87e6cd` |

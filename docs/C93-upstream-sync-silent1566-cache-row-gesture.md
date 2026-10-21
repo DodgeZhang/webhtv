@@ -15,8 +15,8 @@
 - **Lane**：`upstream`
 - **Scope**：`app/`、`docs/`
 - **任务守卫**：`C93-upstream-sync-silent1566-cache-row-gesture`，base HEAD `3964eeae7ccf4f10f5a2e3696a2909c7a92b3952`，branch `dev2`，受保护脏路径 `.wh_diag/`（未跟踪，保持不动）
-- **当前状态**：**已完成**（合并、验证、提交、recovery tag 全部落地；未推送）
-- **交付坐标**：合并提交 `5262c92e3fa925a5a84bdfcf27665325422bd11d`（双父 `3964eeae7ccf4f10f5a2e3696a2909c7a92b3952` + `15e8f6af48c97fd3078b472b5d9735e91fab5d74`）；recovery tag `recovery/C93-upstream-sync-silent1566-cache-row-gesture/20261021105141-5262c92e3fa9`；回填提交 `docs(C93)`（见 §6）；未推送
+- **当前状态**：**已完成**（合并、验证、提交、recovery tag 全部落地；已随 C94 轮推送）
+- **交付坐标**：合并提交 `5262c92e3fa925a5a84bdfcf27665325422bd11d`（双父 `3964eeae7ccf4f10f5a2e3696a2909c7a92b3952` + `15e8f6af48c97fd3078b472b5d9735e91fab5d74`）；recovery tag `recovery/C93-upstream-sync-silent1566-cache-row-gesture/20261021105141-5262c92e3fa9`；回填提交 `docs(C93)`（见 §6）；已随 C94 轮推送 `origin/dev2`（`84c6d3bf15..bf0566640c`，PR #473，只创建不合并）
 - **下一动作**：无（本任务已闭环）。如需设备端手势复验，按 §5「未覆盖」执行
 
 ---
@@ -106,5 +106,5 @@
 
 - 合并提交：`5262c92e3fa925a5a84bdfcf27665325422bd11d`（双父 `3964eeae7ccf4f10f5a2e3696a2909c7a92b3952` + `15e8f6af48c97fd3078b472b5d9735e91fab5d74`）
 - recovery tag：`recovery/C93-upstream-sync-silent1566-cache-row-gesture/20261021105141-5262c92e3fa9`
-- 未推送（用户未授权 push）
+- 已推送：随 C94 轮 `git push origin dev2`（`84c6d3bf15..bf0566640c`，含本任务 2 个提交 + 后续合并提交），PR #473 <https://github.com/Silent1566/webhtv/pull/473>（只创建不合并）
 - 后续：如需设备端手势复验，应在可导出/可导航的构建上执行，并复用设计文档中 5557 的 journal 断言口径
