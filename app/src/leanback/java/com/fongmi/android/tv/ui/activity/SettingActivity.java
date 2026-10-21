@@ -100,9 +100,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     }
 
     private void setCacheText() {
-        // The gesture hint only makes sense while cache management is on: with the feature switch
-        // off the long press has no panel to open and repeats the plain clear instead.
-        mBinding.cacheHint.setVisibility(CachePolicyStore.isManagementEnabled() ? View.VISIBLE : View.GONE);
         if (!CachePolicyStore.isManagementEnabled()) {
             FileUtil.getCacheSize(new Callback() {
                 @Override
@@ -134,8 +131,8 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.language.setOnClickListener(this::setLanguage);
         mBinding.cache.setOnClickListener(this::onCacheClear);
         // The plain click restores the pre-split one-key clear; the panel moved to the long press.
-        // Design §15.2 is kept by the row's printed hint, which names both gestures (deviation
-        // recorded in docs/CACHE-MGMT-01-cache-management-design.md).
+        // The row stays single-line by user request, so §15.2's "not long-press only" intent is a
+        // recorded deviation rather than a printed hint (docs/CACHE-MGMT-01-cache-management-design.md).
         mBinding.cache.setOnLongClickListener(this::onCacheManage);
         mBinding.backup.setOnClickListener(this::onBackup);
         mBinding.enhance.setOnClickListener(this::onEnhance);

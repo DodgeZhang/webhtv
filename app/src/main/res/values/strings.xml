@@ -681,7 +681,6 @@
     <string name="setting_proxy">Proxy</string>
     <string name="setting_cache">Cache</string>
     <string name="cache_management_title">Cache management</string>
-    <string name="cache_row_hint">Tap to clean · Hold to manage</string>
     <string name="cache_management_scanning">Calculating…</string>
     <string name="cache_management_summary">Total %1$s</string>
     <string name="cache_management_summary_with_quota">Total %1$s / %2$s system quota</string>

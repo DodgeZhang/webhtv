@@ -663,7 +663,6 @@
     <string name="setting_proxy">Proxy</string>
     <string name="setting_cache">暫存</string>
     <string name="cache_management_title">暫存管理</string>
-    <string name="cache_row_hint">短按清理 · 長按管理</string>
     <string name="cache_management_scanning">計算中…</string>
     <string name="cache_management_summary">共 %1$s</string>
     <string name="cache_management_summary_with_quota">共 %1$s / 系統配額 %2$s</string>
