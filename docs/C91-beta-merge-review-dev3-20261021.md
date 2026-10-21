@@ -92,9 +92,9 @@
 
 ## 7. 交付坐标
 
-- 合并提交：（见评估索引 `C91` 行回填）
-- Recovery tag：（同上）
-- 推送：`dev3`
-- PR：（同上，`base=beta` / `head=dev3`，只创建不合并）
-- 拉取远端最新代码：（同上）
+- 合并提交：`a8ae5e8602afd47c5a2079a9f1a79d215f1a08f7`（双父 `7faf6cea93026f477f0fefc29e0a20555126db9b` + `2c3af2f009430db2e595941de7b53fed37f62718`）
+- Recovery tag：`recovery/C91-beta-merge-review-dev3-20261021/20261021055048-a8ae5e8602af`
+- 推送：`dev3`（`3a170afeec..a8ae5e8602`）
+- PR：**#469** <https://github.com/Silent1566/webhtv/pull/469>（`base=beta` / `head=dev3` / `state=OPEN` / `mergedAt=null`，只创建不合并）
+- 拉取远端最新代码：`git pull --ff-only origin dev3` → `Already up to date`；`git fetch origin beta` → `2c3af2f009`（= 本次合并目标）
 - 口径提示：本仓库有两个 remote，`gh pr create` 不带 `-R Silent1566/webhtv` 时解析到 upstream `fish2018/webhtv`，会报 `No commits between beta and dev3`；创建 PR 必须显式指定 `-R`。
