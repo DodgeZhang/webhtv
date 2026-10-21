@@ -8454,9 +8454,13 @@ private boolean runtimeSourceOnly;
 
     @Override
     public void onKeyUp() {
+        long position = player().getPosition();
+        long duration = player().getDuration();
+        if (isEndingShortcutDue(position, duration)) {
+            showControl(mBinding.control.action.ending);
+            return;
+        }
         if (!hasRememberedFocus()) {
-            long position = player().getPosition();
-            long duration = player().getDuration();
             if (player().canSetOpening(position, duration)) {
                 showControl(mBinding.control.action.opening);
                 return;
@@ -8467,6 +8471,22 @@ private boolean runtimeSourceOnly;
             }
         }
         showControl(getFocus2());
+    }
+
+    /**
+     * 「快播完」时按上键的目标就是设片尾，这个入口必须优先于「恢复上次控件」。
+     *
+     * <p>09-29 的 c7fba76a46 为修「片头区间唤醒被抢焦点」把片头/片尾两个分支一起收进
+     * {@link #hasRememberedFocus()}；而记忆焦点只在进出全屏时清空，用户只要碰过一次控制栏
+     * （按过下键、点过选集/字幕/弹幕等），此后整场播放的片尾快捷入口就永久失效，片头分支
+     * 却仍会在片头区间生效，表现为「能跳片头、跳不了片尾」。片头区间保留该收敛语义，
+     * 片尾区间恢复上游的快捷聚焦。
+     *
+     * <p>限定「已过中点」才抢焦点：短剧/短片整段都落在两侧可设窗口内，开场阶段按上键
+     * 仍应给片头。该条件对长内容恒成立（片尾窗口必定在后半程），不改变原本能命中的场景。
+     */
+    private boolean isEndingShortcutDue(long position, long duration) {
+        return position > 0 && duration > 0 && position >= duration / 2 && player().canSetEnding(position, duration);
     }
 
     @Override

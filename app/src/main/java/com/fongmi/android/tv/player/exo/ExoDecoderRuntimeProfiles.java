@@ -4,6 +4,7 @@ import com.fongmi.android.tv.setting.PlayerSetting;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Prefers;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /** Process-level access to persistent EXO video decoder runtime profiles. */
@@ -114,7 +115,7 @@ public final class ExoDecoderRuntimeProfiles implements ExoDecoderRuntimeSession
 
     /** Number of decoder+format combinations currently excluded for this device. */
     public int blacklistedCount() {
-        return store.activeBlacklist(System.currentTimeMillis()).size();
+        return activeBlacklist().size();
     }
 
     /**
@@ -123,13 +124,28 @@ public final class ExoDecoderRuntimeProfiles implements ExoDecoderRuntimeSession
      * decoding, which on 4K content looks like unexplained frame drops.
      */
     public String blacklistSummary() {
-        List<ExoDecoderRuntimeProfileStore.Entry> active =
-                store.activeBlacklist(System.currentTimeMillis());
+        List<ExoDecoderRuntimeProfileStore.Entry> active = activeBlacklist();
         if (active.isEmpty()) return "";
         ExoDecoderRuntimeKey.Key latest = active.get(0).key();
         String size = latest.width() > 0 && latest.height() > 0
                 ? " " + latest.width() + "×" + latest.height() : "";
         return "硬解已排除 " + active.size() + " 条（" + mimeLabel(latest.mimeType()) + size + "）";
+    }
+
+    /**
+     * Exclusions recorded under the current playback environment only. Entries survive an app or
+     * media3 upgrade in the store (30-day TTL) but can never match a key built with the new
+     * environment digest, so reporting them as active would point at a hardware decode fallback
+     * that is not happening.
+     */
+    private List<ExoDecoderRuntimeProfileStore.Entry> activeBlacklist() {
+        String environmentDigest = environment.digest();
+        List<ExoDecoderRuntimeProfileStore.Entry> result = new ArrayList<>();
+        for (ExoDecoderRuntimeProfileStore.Entry entry
+                : store.activeBlacklist(System.currentTimeMillis())) {
+            if (environmentDigest.equals(entry.key().environmentDigest())) result.add(entry);
+        }
+        return result;
     }
 
     private static String mimeLabel(String mimeType) {

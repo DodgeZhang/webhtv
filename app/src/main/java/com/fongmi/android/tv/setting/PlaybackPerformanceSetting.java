@@ -499,7 +499,10 @@ public class PlaybackPerformanceSetting {
 
     public static String getSummary() {
         ensureInitialized();
-        String exclusions = ExoDecoderRuntimeProfiles.process().blacklistSummary();
+        // The decoder exclusion is EXO-only, while the profile name follows the selected kernel.
+        // Appending it for MPV/IJK would report a hardware-decode fallback that cannot happen there.
+        String exclusions = PlayerSetting.getPlayer() == PlayerSetting.EXO
+                ? ExoDecoderRuntimeProfiles.process().blacklistSummary() : "";
         return exclusions.isEmpty() ? getProfileName() : getProfileName() + "，" + exclusions;
     }
 

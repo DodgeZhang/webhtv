@@ -195,8 +195,9 @@ final class ExoDecoderRuntimeProfileStore {
     }
 
     /**
-     * Current persistent decoder exclusions, newest first. Read-only: used to make the silent
-     * hardware-decoder blacklist visible to the user and to diagnostics.
+     * Current persistent decoder exclusions, newest first. Used to make the silent
+     * hardware-decoder blacklist visible to the user and to diagnostics. It does not change the
+     * exclusion state, but it may persist expiry pruning of stale entries.
      */
     synchronized List<Entry> activeBlacklist(long nowEpochMs) {
         ensureLoaded(nowEpochMs);

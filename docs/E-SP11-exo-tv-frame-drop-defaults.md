@@ -262,6 +262,21 @@ adb shell run-as <包名> cat shared_prefs/<包名>_preferences.xml | grep perf_
 
 **边界**：设置页那一行的**实际渲染未做屏幕走查**；目前证据是「摘要逻辑单测通过 + 编译通过 + 装机可启动」。若需要，可在构造一条黑名单条目后截图确认。
 
+## 13. C91 复评修复（2026-10-21，`7faf6cea93` 与本轮改动）
+
+`docs/C91-beta-merge-review-dev3-20261021.md` 对提交 `7faf6cea93` 的复评结论：4 项必修，已全部落地并各有可证伪锁。
+
+| # | 级别 | 问题 | 修复 | 锁 |
+|---|---|---|---|---|
+| 1 | **high** | 「输入丢帧阈值」关闭时不调用 setter，而 media3 fork（`1.11.0-alpha01-fongmi`）的 `lateThresholdToDropDecoderInputUs` 默认就是 15 ms。E-SP11 把开启值也改成 15 ms 后，**开/关完全等价**，开关变 no-op（关掉仍丢输入帧）。fork 源码 `MediaCodecVideoRenderer.java:700-707` 明确只有 `C.TIME_UNSET` 才不丢。 | `ExoUtil.java`、`ExoRuntimeAwareVideoRenderer.java` 两条构建路径：开 → `15_000L`；关 → `C.TIME_UNSET`（后者补 `else` 分支与 `import androidx.media3.common.C`）。 | `PlaybackPerformanceSettingSourceTest.lateDropThresholdSwitchCanActuallyDisableDropping` |
+| 2 | medium | `blacklistedCount()/blacklistSummary()` 统计 store 内**所有**黑名单条目，但键含 `environmentDigest`（fingerprint + app 版本 + media3 版本）且条目 30 天 TTL 跨升级保留 ⇒ 升级后旧条目仍被显示成「当前生效的硬解排除」。 | 新增 `ExoDecoderRuntimeProfiles.activeBlacklist()`，按当前 `environment.digest()` 过滤后再计数/取最新。 | `ExoDecoderRuntimeProfilesSummaryTest.summaryIgnoresExclusionsRecordedUnderAnotherEnvironment` |
+| 3 | low | `PlaybackPerformanceSetting.getSummary()` 无条件追加 EXO 摘要，而该行同时服务 EXO/MPV/IJK；后两者会显示该内核不可能发生的降级。 | 仅 `PlayerSetting.getPlayer() == PlayerSetting.EXO` 时追加。 | 复核（无单测，行为受内核选择控制） |
+| 4 | low | 两项设置说明与实现不符（把掉帧风险写死成「电视盒」；「输入丢帧阈值」未说明 15 ms 与关闭代价）。 | `PlaybackPerformanceCatalog` 改为条件表述，补 15 ms 与「关闭后不丢输入帧、可能累积音画延迟」。 | 复核 |
+
+**验证**：双 flavor arm64 Debug Java 编译 `BUILD SUCCESSFUL in 3m 19s`；`--tests '*ExoDecoderRuntime*' --tests '*PlaybackPerformance*'` **50 例 0 失败**；exo 全包 **617 例 / 1 skipped / 0 失败**；`check_ui_tokens.sh` PASS。
+
+**仍未解决（与本任务原有边界一致）**：阶段 B 设备 bisect 与电视盒实测未执行。本轮 `adb devices` 只有 `127.0.0.1:5557` 与 `emulator-5556`，均为 x86_64 / SDK 28 镜像，且未构建 x86_64 产物 ⇒「阈值关闭后的丢帧行为」与「摘要那一行的实际渲染」都没有设备端证据。
+
 ## 11. 下一步（唯一动作）
 
 装上新包后先只做 §4 的 A（全默认）与 B（关「输入丢帧阈值」）两组对照：若新默认下 A 组已明显好于旧版，说明「5 ms 阈值 + durationToProgress」就是主线，收工；若 A 仍掉帧而 B 好转，再单独评估把 `perf_late_drop_input` 默认关掉（此时阈值已放宽，需重新取值）。

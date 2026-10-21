@@ -52,6 +52,23 @@ public class ExoDecoderRuntimeProfilesSummaryTest {
     }
 
     @Test
+    public void summaryIgnoresExclusionsRecordedUnderAnotherEnvironment() {
+        ExoDecoderRuntimeProfiles profiles = profiles(new MemoryBackend());
+        long now = System.currentTimeMillis();
+        // The environment digest covers Build.FINGERPRINT plus the app/media3 versions, so an
+        // upgraded install can no longer match these keys. They stay in the store for 30 days and
+        // must not be reported as an active hardware-decode fallback.
+        failTwice(profiles, key(9, 1, "video/hevc", 3840, 2160), now);
+        failTwice(profiles, key(1, 2, "video/avc", 1920, 1080), now);
+
+        assertEquals(1, profiles.blacklistedCount());
+        String summary = profiles.blacklistSummary();
+        assertTrue(summary, summary.startsWith("硬解已排除 1 条"));
+        assertTrue(summary, summary.contains("H.264"));
+        assertFalse(summary, summary.contains("HEVC"));
+    }
+
+    @Test
     public void activeBlacklistOrdersNewestFirstAndSkipsHealthyEntries() {
         ExoDecoderRuntimeProfileStore store = new ExoDecoderRuntimeProfileStore(new MemoryBackend());
         long now = System.currentTimeMillis();
@@ -101,8 +118,17 @@ public class ExoDecoderRuntimeProfilesSummaryTest {
             String mimeType,
             int width,
             int height) {
+        return key(1, decoder, mimeType, width, height);
+    }
+
+    private static ExoDecoderRuntimeKey.Key key(
+            int environment,
+            int decoder,
+            String mimeType,
+            int width,
+            int height) {
         return new ExoDecoderRuntimeKey.Key(
-                digest(1),
+                digest(environment),
                 digest(decoder + 1000),
                 mimeType,
                 digest(decoder + 2000),
