@@ -13,7 +13,8 @@ import static org.junit.Assert.assertTrue;
  * 钉住「切换线路不自动播放」开关的接线不变式：存储键、抑制点、程序化例外、设置页与布局。
  *
  * <p>只钉不变式，不钉具体实现形态：抑制必须发生在 {@code onRefresh()} 的拆流与取流之前
- * （旧流继续播，直到用户点具体集数），且程序化切线路（历史恢复、自动换源、TMDB 匹配）必须继续自动起播。
+ * （旧流继续播，直到用户点具体集数；同时仍在途的旧取流结果必须就地作废），
+ * 且程序化切线路（历史恢复、自动换源、TMDB 匹配）必须继续自动起播。
  */
 public class FlagSwitchPlaybackWiringTest {
 
@@ -39,6 +40,8 @@ public class FlagSwitchPlaybackWiringTest {
             int guard = body.indexOf("if (mDeferFlagSwitchPlayback)");
             int fetch = body.indexOf("getPlayer(getFlag(), getEpisode());");
             int release = body.indexOf("mDeferFlagSwitchPlayback = false;", guard);
+            int branchEnd = body.indexOf("return;", guard);
+            String guardBranch = branchEnd > guard ? body.substring(guard, branchEnd) : "";
 
             assertTrue(path + " 的 onRefresh 必须在拆流前检查抑制标记", guard >= 0);
             assertTrue(path + " 的取流调用必须仍然存在", fetch >= 0);
@@ -47,6 +50,10 @@ public class FlagSwitchPlaybackWiringTest {
                     guard < body.indexOf("player().stop();"));
             assertTrue(path + " 的抑制必须早于 clear()，否则当前正在播的视频会被清掉",
                     guard < body.indexOf("player().clear();"));
+            assertTrue(path + " 的抑制分支必须在早退前作废仍在途的旧取流请求，否则旧线路稍后会自动起播",
+                    guardBranch.contains("cancelPlayerContent()"));
+            assertTrue(path + " 的抑制分支必须在早退前复位取流上下文，否则旧结果会被当成当前请求",
+                    guardBranch.contains("invalidatePlayerContent()"));
             assertTrue(path + " 的抑制标记必须在 onRefresh 内消费即复位，否则后续播放键恢复会被永久吞掉",
                     release > guard && release < fetch);
         }
