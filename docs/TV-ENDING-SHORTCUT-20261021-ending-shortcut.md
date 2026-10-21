@@ -77,7 +77,11 @@ private boolean isEndingShortcutDue(long position, long duration) {
 
 - `bash ./gradlew :app:compileLeanbackArm64_v8aDebugJavaWithJavac :app:testMobileArm64_v8aDebugUnitTest --tests 'com.fongmi.android.tv.ui.activity.PlayerControlFocusIntegrationTest'` → `BUILD SUCCESSFUL in 3m`（110 tasks）。
 - 定向单测 XML：`TEST-com.fongmi.android.tv.ui.activity.PlayerControlFocusIntegrationTest.xml` → `tests="11" skipped="0" failures="0" errors="0"`（原 10 项 + 新增 `leanbackEndingShortcutOutranksRememberedFocusNearTheEnd`）。
-- 未做设备实测：本次仅改唤醒时的焦点落点，无播放器/解码/网络路径变化；真机复验见「残留风险」。
+- 真机实测（设备 `192.168.50.3:5557`，SM-N9700，1920×1080，覆盖安装 leanback debug 包，`install -r` Success）：
+  - 用例 A（片头窗口）：第 1 集 07:35/48:08，控制栏隐藏时按上键 → 控制栏唤出且焦点在「片头」（与修复前一致）。
+  - 用例 B（结尾窗口 + 记忆焦点，本次回归的关键路径）：第 2 集 49:03/49:42，先把焦点移到「弹幕」等普通控件并隐藏控制栏（`mFocus2` 生效）→ 按上键 → 焦点落在「片尾」。修复前该路径走 `showControl(getFocus2())`，会回到记忆控件，不会到片尾。
+  - 用例 C（片头语义保持）：第 2 集 00:15，记忆焦点为「弹幕」→ 按上键 → 焦点回到「弹幕」而非「片头」，确认 09-29 收敛未被破坏。
+  - 说明：未在旧包上做对照复现（旧行为由 `c7fba76a46` 的代码路径直接判定）；测试期间未修改用户的片头/片尾设置值。
 
 ## 回滚
 
@@ -87,5 +91,5 @@ private boolean isEndingShortcutDue(long position, long duration) {
 ## 残留风险 / 未验证
 
 - 片尾已设过的剧集在结尾窗口仍会聚焦片尾（便于复核、长按清空），若误按确认会按当前位置重设片尾——与 09-29 之前的上游行为一致。
-- 设备侧行为未取证（无稳定片源与遥控注入条件）；交付后真机复验：片头窗口按上键→片头；先用下键制造记忆焦点，最后 2 分钟按上键→片尾。
+- 设备实测已完成（见「验证」）；未在旧包上做同一路径的对照复现，旧行为结论来自代码路径判定。
 - 若用户实际使用融合播放页（内联控制栏），本修复不生效，该页没有片头/片尾唤醒快捷聚焦，需另立需求。
