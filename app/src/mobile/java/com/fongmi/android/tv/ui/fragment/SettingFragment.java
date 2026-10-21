@@ -335,9 +335,11 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
      * The settings row's long press: open the cache management panel (graded cleanup, module
      * limits, auto cleanup and the running state).
      *
-     * <p>With the plain click now clearing everything this is the panel's only entry, so the row
-     * prints the gesture hint under its title. With cache management switched off there is no panel
-     * to open, so the shortcut keeps the legacy behaviour and repeats the plain clear.</p>
+     * <p>With the plain click now clearing everything this is the panel's only entry. The row stays
+     * single-line by user request, so the gesture is not printed under the title and the panel is
+     * reached by the long press alone (deviation recorded in
+     * docs/CACHE-MGMT-01-cache-management-design.md). With cache management switched off there is
+     * no panel to open, so the long press keeps the legacy behaviour and repeats the plain clear.</p>
      */
     private boolean onCacheManage(View view) {
         if (!CachePolicyStore.isManagementEnabled()) {

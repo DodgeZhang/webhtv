@@ -380,7 +380,7 @@ public final class CacheCleanupManager {
 
     /**
      * True when the user asked for exactly these files (the per-row button, or the settings row's
-     * long-press "clear everything").
+     * "clear everything" tap).
      *
      * <p>An explicit request ignores the age windows a tiered or automatic run keeps. That rule
      * already applied to the legacy paths, and the temporary-file row was the one module that

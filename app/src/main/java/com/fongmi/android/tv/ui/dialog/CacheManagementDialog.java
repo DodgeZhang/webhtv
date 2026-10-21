@@ -79,7 +79,8 @@ public class CacheManagementDialog extends DialogFragment {
      * management split, and that one-key clear never opened a screen either: the click is the
      * deliberate act, the cleanup runs in the background, and the settings row re-reads itself once
      * the cleanup publishes its change. The panel - graded cleanup, module limits, auto cleanup -
-     * moved to the row's long press, which the row prints under its title.</p>
+     * moved to the row's long press, which is now its only entry: the row stays single-line by user
+     * request, so no gesture hint is printed under the title.</p>
      */
     public static void cleanEverything() {
         if (CacheCleanupManager.isRunning()) {
