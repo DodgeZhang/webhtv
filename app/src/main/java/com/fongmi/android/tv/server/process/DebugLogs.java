@@ -224,15 +224,20 @@ public class DebugLogs implements Process {
         String localUrl = Server.get().getAddress("/debug/logs");
         String lanUrl = Server.get().getAddress(false) + "/debug/logs";
         boolean enabled = DebugLogStore.isEnabled();
+        boolean temporary = DebugLogStore.isCrashSessionTemporary();
+        String status = temporary ? "崩溃会话 · 自动开启" : enabled ? "记录中" : "已关闭";
+        String clear = temporary ? "" : "<button id=\"clear\" class=\"danger\" data-debug-action=\"/debug/clear\" aria-label=\"清空日志\">清空</button>";
+        String banner = temporary ? "<p class=\"crash-banner\">崩溃会话日志：崩溃界面自动开启，重启后恢复原设置；仅在本界面存活期间可下载。</p>" : "";
         return "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
                 + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">"
                 + "<title>调试日志</title><style>" + css() + "</style></head><body>"
-                + "<main><header class=\"console-head\"><div class=\"brand\"><h1>调试日志</h1><span id=\"meta\" class=\"meta\" data-version=\"" + DebugLogStore.version() + "\">" + (enabled ? "记录中" : "已关闭") + " · " + DebugLogStore.bytes() / 1024 + " KB</span></div>"
-                + "<div class=\"primary-actions\"><a class=\"action\" href=\"/debug/diagnose\">AI诊断</a><a id=\"download\" class=\"action\" href=\"/debug/logs.txt\" download=\"webhtv-debug-log.txt\" title=\"下载 TXT 日志\" aria-label=\"下载 TXT 日志\">下载</a><button id=\"clear\" class=\"danger\" data-debug-action=\"/debug/clear\" aria-label=\"清空日志\">清空</button><button id=\"pause\" aria-pressed=\"false\">暂停</button><button id=\"tools-open\" aria-haspopup=\"dialog\" aria-controls=\"log-drawer\">工具<span id=\"filter-count\" class=\"count\" hidden></span></button></div>"
+                + "<main><header class=\"console-head\"><div class=\"brand\"><h1>调试日志</h1><span id=\"meta\" class=\"meta\" data-version=\"" + DebugLogStore.version() + "\">" + status + " · " + DebugLogStore.bytes() / 1024 + " KB</span></div>"
+                + "<div class=\"primary-actions\"><a class=\"action\" href=\"/debug/diagnose\">AI诊断</a><a id=\"download\" class=\"action\" href=\"/debug/logs.txt\" download=\"webhtv-debug-log.txt\" title=\"下载 TXT 日志\" aria-label=\"下载 TXT 日志\">下载</a>" + clear + "<button id=\"pause\" aria-pressed=\"false\">暂停</button><button id=\"tools-open\" aria-haspopup=\"dialog\" aria-controls=\"log-drawer\">工具<span id=\"filter-count\" class=\"count\" hidden></span></button></div>"
                 + "<div id=\"search-panel\" class=\"search-panel\" hidden><input id=\"filter\" type=\"search\" aria-label=\"搜索日志\" placeholder=\"搜索日志关键词\"><button id=\"search-hide\">收起</button></div>"
                 + "<div class=\"category-row\"><nav class=\"tabs\" aria-label=\"日志分类\"><button class=\"chip on\" data-mode=\"all\" aria-pressed=\"true\">全部</button><button class=\"chip\" data-mode=\"diagnostic\">音视频诊断</button><button class=\"chip\" data-mode=\"console\">Console</button><button class=\"chip\" data-mode=\"player\">播放</button><button class=\"chip\" data-mode=\"proxy\">代理</button><button class=\"chip\" data-mode=\"webhome\">WebHome</button><button class=\"chip\" data-mode=\"webview\">WebView</button><button class=\"chip\" data-mode=\"api\">站源</button><button class=\"chip\" data-mode=\"pan\">网盘</button><button class=\"chip\" data-mode=\"server\">服务</button><button class=\"chip\" data-mode=\"sync\">同步</button><button class=\"chip\" data-mode=\"startup\">启动</button><button class=\"chip\" data-mode=\"error\">错误</button></nav><button id=\"search-toggle\" aria-expanded=\"false\" aria-controls=\"search-panel\">搜索</button></div></header>"
+                + banner
                 + "<div id=\"logs\" class=\"logs\"></div><pre id=\"raw\" class=\"fallback\">" + logs + "</pre></main>"
-                + diagnosticHtml(localUrl, lanUrl, enabled)
+                + diagnosticHtml(localUrl, lanUrl, enabled, temporary)
                 + "<button id=\"topBtn\" class=\"backtop\" type=\"button\" aria-label=\"回到顶部\" title=\"回到顶部\">↑ 顶部</button>"
                 + "<script>" + scriptEnhanced() + diagnosticScript() + toolbarScript() + "</script></body></html>";
     }
@@ -250,6 +255,7 @@ public class DebugLogs implements Process {
             .brand{grid-area:brand;overflow:hidden}h1{margin:0;font-size:16px;line-height:21px;font-weight:650}.meta{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;line-height:16px;color:#656d76}.meta.partial{color:#9a6700}
             .primary-actions{grid-area:actions;display:flex;gap:4px}.primary-actions button,.primary-actions a.action,#search-toggle{min-width:44px;min-height:44px;padding:6px 9px;border-color:transparent;font-size:13px}.primary-actions .danger{color:#cf222e}
             .count{margin-left:4px;min-width:16px;padding:0 4px;border-radius:8px;background:#0969da;color:#fff;font-size:11px;line-height:16px}
+            .crash-banner{margin:0 8px 8px;padding:8px 10px;border:1px solid #d0d7de;border-left:4px solid #bf8700;border-radius:7px;background:#fff8c5;color:#7d4e00;font-size:13px}
             .category-row{grid-area:tabs;display:flex;align-items:center}.category-row>button{flex:0 0 auto}.tabs{flex:1;display:flex;gap:0;overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}.tabs::-webkit-scrollbar{display:none}
             .tabs .chip{flex:0 0 auto;min-height:44px;padding:7px 12px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#57606a;font-size:13px}
             .tabs .chip.on{color:#0969da;border-bottom-color:#0969da;font-weight:650}.tabs .chip:focus-visible{outline-offset:-3px}
@@ -326,7 +332,10 @@ public class DebugLogs implements Process {
                 + "async function poll(){try{if(!paused){const r=await fetch('/debug/stream?afterSeq='+lastSeq+'&run='+encodeURIComponent(lastRun)+'&generation='+lastGeneration,{cache:'no-store'});const j=await r.json();lastSeq=j.newestSeq;lastRun=j.runId;lastGeneration=j.generation;const h=j.health||{};meta.textContent=(h.completeness==='partial'?'日志不完整':j.enabled?'记录中':'已关闭')+' · '+Math.ceil((j.bytes||0)/1024)+' KB';meta.classList.toggle('partial',h.completeness==='partial');meta.title=h.completeness==='partial'?'日志不完整，详见下载说明':meta.textContent;if(j.reset||j.gap||j.text){raw=(j.reset||j.gap?'':raw)+(j.text||'');if(raw.length>524288){const cut=raw.indexOf('\\n',raw.length-524288);raw=cut<0?'':raw.slice(cut+1)}rawEl.textContent=raw;render();if(stick&&!toolsOpen())scrollTo(0,document.body.scrollHeight)}}}catch(e){meta.textContent='日志连接失败，稍后重试'}setTimeout(poll,1500)}render();poll();";
     }
 
-    private String diagnosticHtml(String localUrl, String lanUrl, boolean enabled) {
+    private String diagnosticHtml(String localUrl, String lanUrl, boolean enabled, boolean temporary) {
+        String control = temporary
+                ? "<span class=\"hint\">崩溃会话临时日志：本页自动开启，重启后恢复原设置。</span>"
+                : "<button data-debug-action=\"" + (enabled ? "/debug/disable" : "/debug/enable") + "\">" + (enabled ? "关闭采集" : "开启采集") + "</button>";
         return String.format(java.util.Locale.ROOT, """
             <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
             <dialog id="log-drawer" class="log-drawer" role="dialog" aria-labelledby="drawer-title" aria-modal="true">
@@ -354,14 +363,14 @@ public class DebugLogs implements Process {
                 </section>
                 <section id="tool-panel-utilities" role="tabpanel" aria-labelledby="tool-tab-utilities" hidden>
                   <div class="form-section"><h3>诊断包</h3><div class="action-row"><button id="diag-zip">下载诊断 ZIP</button></div><p class="hint">包含保留日志、报告和结构化事件；仅需 TXT 时使用顶部「下载」。</p></div>
-                  <div class="form-section"><h3>采集管理</h3><div class="action-row"><a class="action" href="/debug/logs">刷新页面</a></div><div class="action-row"><button data-debug-action="%s">%s</button><button id="info-toggle" aria-expanded="false" aria-controls="address-panel">地址说明</button></div>
+                  <div class="form-section"><h3>采集管理</h3><div class="action-row"><a class="action" href="/debug/logs">刷新页面</a></div><div class="action-row">%s<button id="info-toggle" aria-expanded="false" aria-controls="address-panel">地址说明</button></div>
                     <section id="address-panel" hidden><p class="hint">页面显示最近日志窗口，下载包含保留的轮转日志。关闭采集会清空日志。音视频就绪回调不代表实际看见或听见。</p><div class="addr"><a href="%s">本机地址：%s</a><a href="%s">局域网地址：%s</a></div></section>
                   </div><div class="form-section"><h3>日志概况</h3><p id="summary" class="hint summary"></p></div>
                 </section>
               </div>
               <p id="diag-feedback" class="drawer-feedback" role="status"></p>
             </dialog>
-            """, enabled ? "/debug/disable" : "/debug/enable", enabled ? "关闭采集" : "开启采集",
+            """, control,
                 escape(localUrl), escape(localUrl), escape(lanUrl), escape(lanUrl));
     }
 
