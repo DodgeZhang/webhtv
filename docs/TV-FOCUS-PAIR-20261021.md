@@ -4,11 +4,11 @@
 
 - 目标：修掉电视端搜索页/搜索结果页范围下拉的**焦点行白字压白底**（用户现场照片 `image.png`，sha256 `83e49a09…50a`），并把「焦点/按下/选中态的**填充**与**同态前景**来自不同色族」这一类缺陷用可执行守卫锁死，避免继续「按截图修一屏」。
 - lane：`standard`。
-- 允许路径（task guard 实际 scope）：`app/src/leanback/res/drawable/selector_search_scope_item.xml`、`app/src/main/res/drawable/selector_display_option.xml`、`app/src/testLeanback/java/com/fongmi/android/tv/ui/activity/TvFocusStatePairContrastTest.java`、`docs/TV-FOCUS-PAIR-20261021.md`。
+- 允许路径（task guard 实际 scope）：`app/src/leanback/res/drawable/selector_search_scope_item.xml`、`app/src/leanback/res/drawable/shape_keyboard_normal.xml`、`app/src/main/res/drawable/selector_display_option.xml`、`app/src/testLeanback/java/com/fongmi/android/tv/ui/activity/TvFocusStatePairContrastTest.java`、`scripts/verify_scope_focus_contrast.py`、`docs/TV-FOCUS-PAIR-20261021.md`。
 - 保护面：开工时 `dev4` @ `687a6b65da9`，工作树干净（预存脏路径 0 个）。
-- 已完成证据：守卫先红后绿（红时复现 **1.19:1**）；变异检验（回退 `white_20`→`white_90` 必红）；`check_ui_tokens.sh --strict` PASS；leanback 4437 项 / mobile 5220 项（失败均为已记录的 Windows `renameTo` / 并发 flaky，见 §5）；`assembleLeanbackArm64_v8aDebug` 成功。
-- 未完成：**真机像素采样被 ADB 阻塞**（详见 §6）。
-- 下一步唯一动作：ADB 恢复后按 §6 命令覆盖安装并采样焦点行，回填本文件 §6。
+- 已完成证据：守卫先红后绿（红时复现 **1.19:1**）；变异检验（回退 `white_20`→`white_90` 必红）；`check_ui_tokens.sh --strict` PASS；leanback 4437 项 / mobile 5220 项（失败均为已记录的 Windows `renameTo` / 并发 flaky，见 §5）；`assembleLeanbackArm64_v8aDebug` 成功；**真机（`127.0.0.1:5561`）像素采样 6/6 PASS**（焦点行 6.51:1、焦点+选中 6.80:1、选中 6.14:1、默认 10.17:1、键盘 7.07:1、触发器 6.00:1，见 §6）。
+- 未覆盖：搜索结果页（`CollectActivity`）分组下拉与屏显弹窗（`DisplayDialog`）受模拟器「无站源配置 / 无 TMDB 入口」限制，未做设备采样；两者与已验证路径共用同一批资源，并由守卫的接线门与服务端断言覆盖（见 §6.3）。
+- 下一步唯一动作：无（本任务已交付）。可选后续：接上站源配置后在搜索结果页复测一次分组下拉。
 
 ## 1. 根因（数值证据）
 
@@ -88,6 +88,17 @@ F2 同步按同一判据收敛：填充改半透明叠加层（`white_10`/`white
 
 `display_option_text.xml` **未改**：选中态黑字不变；焦点/按下在「焦点+按下」时由 focused 分支给白字；触摸单按下走默认 `muted`，压在 10% 白底上仍 ≥4.5:1。
 
+### 3.3 `shape_keyboard_normal.xml`（搜索键盘按键，按实测判定）
+
+同一屏的第二类：键盘按键铺在**用户壁纸**上，文字是 `?attr/webhtvColorOnWallpaper`（恒定浅色），没有表面层兜底。设备实测（浅色壁纸）：
+
+| 键底 | 实测底色 | 白字 | 结论 |
+|---|---|---|---:|
+| `black_20`（原值） | `#7B768C` | `#FFFFFF` | **4.36:1 ✗**（低于正文 4.5:1） |
+| `black_40`（采用） | `#5B5667` / `#5C5869` | `#FFFFFF` | **7.07 / 6.87:1 ✓** |
+
+只改搜索键盘专用的 `shape_keyboard_normal.xml`；全应用表面共用的 `shape_item_normal`（同为 `black_20`）不在本任务范围——那是「normal surface 是否要整体加深」的另一项全局决策，见 §7。
+
 ## 4. 守卫测试（本任务的「不再犯」机制）
 
 新增 `app/src/testLeanback/java/com/fongmi/android/tv/ui/activity/TvFocusStatePairContrastTest.java`（纯 JUnit + 文件解析，无新依赖）：
@@ -112,39 +123,51 @@ F2 同步按同一判据收敛：填充改半透明叠加层（`white_10`/`white
 | leanback 单测 | `:app:testLeanbackArm64_v8aDebugUnitTest` | 4437 项，2 失败：`MpvFontConfigTest`、`MpvHlsCacheCoordinatorTest` —— 既有 Windows `renameTo` 环境问题（`docs/C57-beta-merge-review-dev2-20261010.md:140-143` 已用 merge-base worktree 取证） |
 | mobile 单测 | `:app:testMobileArm64_v8aDebugUnitTest` | 5220 项，3 失败：上述两者 + `MultiThreadProxyRouteTest#proxyStreamsParallelShardsAsSingleOrderedPartialResponse` —— 已记录并发 flaky（`docs/C36-beta-merge-review-dev3-20261004.md:52`，隔离重跑 4/4 通过） |
 | 资源编译 | `:app:assembleLeanbackArm64_v8aDebug` | BUILD SUCCESSFUL；`app/build/outputs/apk/leanbackArm64_v8a/debug/app-leanback-arm64_v8a-debug.apk`（205,480,228 B，13:24） |
+| 真机像素采样 | `python scripts/verify_scope_focus_contrast.py build/device-verify` | **6/6 PASS**（明细见 §6.2）；键盘 4.36 → 7.07:1 |
+| 二次构建+安装 | `:app:assembleLeanbackArm64_v8aDebug`（1m43s）+ `adb -s 127.0.0.1:5561 install -r` | BUILD SUCCESSFUL / `Success`（14:46，含键盘 `black_40`） |
 
-## 6. 真机像素采样（阻塞，待 ADB 恢复后执行）
+## 6. 真机（模拟器 `127.0.0.1:5561`）像素采样
 
-**阻塞证据**：开工时 `adb devices` 曾列出 `192.168.50.3:5555/5557` 与 4 个 emulator；执行安装前全部消失。`adb kill-server/start-server` 后重连：
-
-```
-adb connect 192.168.50.3:5555 → cannot connect: 由于目标计算机积极拒绝 (10061)
-adb connect 192.168.50.3:5556..5562 → 同样拒绝
-adb mdns services → 空
-ping 192.168.50.3 → 通（0% 丢包）
-```
-
-即设备在线但 **adbd 未监听 TCP**（需在设备上重新开启网络调试）。本机仅有 x86_64 AVD，而产物只有 `arm64-v8a`/`armeabi-v7a`，无法用模拟器替代。
-
-恢复后的执行清单：
+### 6.1 设备与安装
 
 ```
-adb connect 192.168.50.3:5555
-adb -s 192.168.50.3:5555 install -r app/build/outputs/apk/leanbackArm64_v8a/debug/app-leanback-arm64_v8a-debug.apk
-# 首页 → 搜索 → 方向上到「全部 ▾」→ 确认 → 逐项下移到最底部（央视）
-adb -s 192.168.50.3:5555 exec-out screencap -p > search-scope-focus.png
-# 搜索结果页 → 分组下拉（CollectActivity）重复一次
+adb connect 127.0.0.1:5561          # 分配机：Android 9 / x86_64 / 1920x1080 / 已装 arm64 包（ROM 带 ARM 转译）
+adb -s 127.0.0.1:5561 install -r app/build/outputs/apk/leanbackArm64_v8a/debug/app-leanback-arm64_v8a-debug.apk
+adb -s 127.0.0.1:5561 shell am start -n com.silent.android.webhtv/com.fongmi.android.tv.ui.activity.HomeActivity
+# 方向键居中 = 搜索；右 = 范围触发器；确认 = 展开下拉；下 = 移动焦点
+adb -s 127.0.0.1:5561 exec-out screencap -p > build/device-verify/final-popup-focused.png
 ```
 
-采样口径（数字截图，不用手机翻拍）：距文字笔画外缘 2–3px 取填充色，笔画中心取文字色，按 WCAG 相对亮度算比值；预期：焦点行 `fill≈#33FFFFFF` 压在玻璃上 → 底色 `#5D5D81` 量级、白字 **6.3–7.1:1**；`focused+selected` 行琥珀环对底 ≥4.4:1；`selected` 行仍 5.55–6.45:1。另需目视确认：焦点行完整落在面板圆角内（截图中底部白块疑似越过圆角，照片透视无法判定）。
+（`192.168.50.3:5555` 在本轮已不可达：`ping` 通但 adbd 拒绝 TCP，故改用分配机端口 5561；该设备与 `emulator-5560` 是同一实例。）
+
+### 6.2 采样结果（数字截图，非翻拍；脚本 `scripts/verify_scope_focus_contrast.py`）
+
+| 场景 | 截图 | 填充 | 文字 | 对比度 | 门槛 |
+|---|---|---|---|---:|---|
+| 焦点行「当前站」 | `final-popup-focused.png` | `#5A5B7D` | `#FFFFFF` | **6.51:1** | 4.5 ✓ |
+| 焦点+选中「全部」（新增合并态，琥珀环） | `final-popup-merged.png` | `#585879` | `#FFFFFF` | **6.80:1** | 4.5 ✓ |
+| 选中未聚焦「全部」 | `final-popup-focused.png` | `#4E485A` | `#FFD35C` | **6.14:1** | 4.5 ✓ |
+| 未聚焦默认行「当前站」 | `final-popup-merged.png` | `#323259` | `#EBEBEE` | **10.17:1** | 4.5 ✓ |
+| 键盘按键（`black_40` 后） | `search-after2.png` | `#5B5667` | `#FFFFFF` | **7.07:1** | 4.5 ✓ |
+| 范围触发器「全部」 | `search-after2.png` | `#695E7D` | `#FFFFFF` | **6.00:1** | 4.5 ✓ |
+
+脚本复跑：`python scripts/verify_scope_focus_contrast.py build/device-verify` → 6/6 PASS，退出码 0。
+目视确认：焦点行完整落在面板圆角内（用户照片里「底部白块越过圆角」是翻拍透视，不是裁剪缺陷）。
+
+### 6.3 未覆盖的设备场景（说明，不是缺陷）
+
+- 搜索结果页分组下拉（`CollectActivity`）：模拟器没有站源配置，`搜索 → 结果页` 不可达；它使用**同一对** `selector_search_scope_item` / `selector_search_scope_text`，并由守卫的接线门（两个 Activity 都必须引用同一对资源）与注册表断言覆盖。
+- 屏显弹窗芯片（`DisplayDialog`）：需要 TMDB 详情页入口；资源层由注册表 5 个状态（default/focused/focusedSelected/selected/pressed）断言覆盖。
+- 键盘按键的上限说明：`black_40` 在**极亮壁纸**上仍可能低于 4.5:1（半透明底压在任意壁纸上没有物理保证）；实测该分配机壁纸 7.07:1。若要绝对保证，需要改成不透明底或给键盘加 scrim——属另一项全局决策（见 §7）。
 
 ## 7. 遗留与边界
 
 - **播放层纯白画面上限**：`player_scrim` 只有 48%–56% 黑，纯白画面下任何前景的物理上限约 3.7:1。这是播放层既有设计边界（改它会动整个播控层观感），本任务只把芯片的「字与底几乎同色」修到正常画面上 ≥5.7:1，并在守卫里按中等亮度画面（`#7C7C7C`/`#404040`）取值。
 - **F2 焦点环未纳入 3:1 断言**：`?attr/tvPlayerRing` 是播放层分区环色，其对**调暗后的玻璃**已由色板派生保证 ≥3:1；叠加 20% 白后环对填充会降到约 1.9:1，与既有 `selector_control_sheet_button` 同族同性质，故守卫只断言文字 4.5:1，环的 3:1 契约仍由 `TvTabFocusRingPaletteContractTest`/播放层契约覆盖。
-- **键盘按键**（截图里白字压浅蓝键，`shape_keyboard_normal` = `black_20`，宿主是用户壁纸）：原计划的「真机采样 → 不达标则 black_40/black_60 阶梯」被 ADB 阻塞，未执行，`shape_keyboard_normal.xml` 未改。恢复后按 §6 采样决定（判定阶梯写在计划中：≥4.5:1 则不改并记录）。
+- **键盘按键（已修，但只是本机达标）**：`shape_keyboard_normal` 由 `black_20`（实测 4.36:1）上调到 `black_40`（实测 7.07:1）。半透明底压任意壁纸没有物理上限，**极亮壁纸**仍可能低于 4.5:1；若要绝对保证，应改为不透明底或给键盘加 scrim。
+- **`shape_item_normal` 仍是 `black_20`（未改）**：它被全应用表面（首页菜单、各类列表行、触发器）共用，实测该分配机上触发器 6.00:1 达标；换到极亮壁纸会逼近门槛。这属于「normal surface 是否整体加深」的全局决策，需要独立任务与整屏回归，本任务不扩大面。
 - 未改：布局、焦点导航、弹窗宽高/位置、`shape_search_scope_popup` 玻璃色与透明度、移动端搜索下拉实现、`display_option_*` 颜色 token 本体、主题/Resolver/Binder、`WEBHTV-UI-CONFORMANCE-AUDIT-20261013.md` 的架构级条目。
 
 ## 8. 回滚
 
-撤销本任务提交即可完全恢复旧行为（纯资源 + 新增测试文件，无数据迁移、无接口/协议/ABI 变化）。旧值：焦点填充 `@color/white_90`、屏显芯片默认/焦点 `@color/webhtv_color_player_control_muted`。
+撤销本任务提交即可完全恢复旧行为（纯资源 + 新增测试文件，无数据迁移、无接口/协议/ABI 变化）。旧值：焦点填充 `@color/white_90`、屏显芯片默认/焦点 `@color/webhtv_color_player_control_muted`、键盘键底 `@color/black_20`。
