@@ -345,7 +345,9 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         if (mFolder != null && mFolder.isAdded() && !mFolder.isHidden()) {
             mFolder.clearContentFocusRequest();
             mFolder.setUserVisibleHint(false);
-            getSupportFragmentManager().beginTransaction().hide(mFolder).commit();
+            // 这条路径也会从选中监听（updateTypeRecyclerVisibility）进来，同样可能
+            // 落在已保存状态窗口里；本地可见性状态照旧清，事务则只在能提交时才提交。
+            if (canCommitFragmentTransaction()) getSupportFragmentManager().beginTransaction().hide(mFolder).commit();
         }
     }
 
@@ -423,6 +425,25 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         clearCategoryContent();
     }
 
+    /**
+     * 宿主已保存状态、正在结束或已销毁时不能再提交 Fragment 事务。
+     *
+     * <p>首页的分类页重建由**进程级**单例 {@code VodConfig} 的加载回调驱动
+     * （{@code BaseConfig.loadConfig()} 用 {@code App.post(callback::success)} 投递），
+     * 回调与 Activity 生命周期无关：外观页改主题色/主题模式/UI 缩放都会
+     * {@code recreate()}，而配置加载可能在这个重建窗口里才返回。此前
+     * {@link #clearCategoryContent()} 无条件 {@code commit()}，于是这条延迟回调在
+     * 已保存状态上抛 {@code IllegalStateException: Can not perform this action after
+     * onSaveInstanceState} 并崩溃（见 docs/CRASH-FRAGMENT-STATE-20261022.md）。
+     *
+     * <p>判定条件与文件内既有的 4 处守卫（{@code switchType}、
+     * {@code focusCategoryButton}、{@code showCategoryContent}、
+     * {@code openCustomCsp}）保持一致。
+     */
+    private boolean canCommitFragmentTransaction() {
+        return !isFinishing() && !isDestroyed() && !getSupportFragmentManager().isStateSaved();
+    }
+
     private void clearCategoryContent() {
         invalidatePendingFocusRequests();
         mBinding.typeRecycler.removeCallbacks(mTypeSwitch);
@@ -431,6 +452,9 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
         mFolder = null;
         mBinding.progressLayout.setVisibility(View.VISIBLE);
         mBinding.categoryContainer.setVisibility(View.GONE);
+        // 状态清理是纯内存赋值，与能否提交事务无关；这里必须已经丢弃 mFolder，
+        // 否则 isCurrentCategory() 会把一个即将消失的 Fragment 当成当前分类。
+        if (!canCommitFragmentTransaction()) return;
 
         FragmentTransaction transaction = null;
         for (Fragment fragment : getSupportFragmentManager().getFragments()) {
@@ -724,6 +748,9 @@ public class HomeActivity extends BaseActivity implements ExitConfirmDialog.List
 
     private void getVideo(boolean forceNative) {
         syncCategorySite();
+        // 这次刷新打给的是一个已经过去（已保存状态）的窗口：重建后的实例会由
+        // initAfterFirstFrame → initConfig 自己加载。继续重排只会再撞一次事务守卫。
+        if (!canCommitFragmentTransaction()) return;
         if (!forceNative && WebHomeTarget.canLoad(getHome())) {
             ensureWebView();
         }
