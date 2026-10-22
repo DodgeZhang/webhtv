@@ -89,4 +89,12 @@
 
 ## 7. 交付坐标
 
-（回填：review 提交 / recovery tag / 推送 / PR / 拉取最新）
+| 项 | 值 |
+| --- | --- |
+| 合并目标 | `origin/beta@dec93c43bf85b42c6920a8ce262f5632e63bd9ae`（PR #472–#478 合入后，38 提交） |
+| 合并提交 | `fb7028f7a42dce5f6848807a7044727fee9feb07`（父：`7fe44116aaf` + `dec93c43bf8`） |
+| 复评修复提交 | `389a9a4148eaf64440ecb3b3ccf9f73d62d0bdad`（仅文档，2 文件 +109 −16） |
+| Recovery tag | `recovery/C98-BETA-MERGE-DEV4-20261022/20261022100541-389a9a4148ea` |
+| 推送 | `git push origin dev4`：`0f7e833b59f..389a9a4148e` |
+| PR | **#479** https://github.com/Silent1566/webhtv/pull/479 （base `beta`，只创建不合并） |
+| 拉取最新 | 推送后 `git fetch origin --prune`；本地 `dev4` 与 `origin/dev4` 同步（本坐标提交随后再推一次），`origin/beta` 仍为 `dec93c43bf8`（PR 未合并） |
