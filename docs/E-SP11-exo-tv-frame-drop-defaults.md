@@ -525,3 +525,33 @@ exo-frame-timing: trace=p-… frames=3120 avgOffsetMs=-3 lateBatches=41 codecErr
 **未验证（如实记录）**：`exo-frame-timing` 与三个新计数器的**设备端输出尚未读到**（X7 Ultra 未连接）；`SpiderDebug` 开启时每帧入桶的实际开销也未测量，理论上可忽略，但需要在电视盒上确认掉帧率没有因此上升到可感知。
 
 **下一步（唯一动作）**：§15 的设备分组测试。读取三样东西即可完成归因：`exo-frame`（生效配置）、`exo-frame-timing`（每帧迟到分布）、以及 `video.output.summary` 里的 `droppedInputBuffers` 增量。
+
+---
+
+## 19. 复评复盘（2026-10-22，C97）：§17/§18 的三个新观测字段未进白名单，整条事件被丢弃
+
+**结论先行**：§18 表格第 1 行新增的 `droppedInputBuffers` / `skippedInputBuffers` / `droppedToKeyframe` **从未真正出现在导出日志里**。它们不在 `DiagnosticEvent.FIELDS` 白名单内，`DiagnosticEvent.put()` 直接抛 `IllegalArgumentException`，而 `PlaybackDiagnosticCollector.emit()` 的 `catch (RuntimeException ignored) { DebugLogStore.collectorFailure(); }` 会把异常吞掉 ⇒ **整条 `video.output.summary` 不导出**（连原有的 `inputBuffers`/`submittedBuffers`/`droppedBuffers` 一起消失），并每 5 秒累计一次 collectorFailure。因此 §18 的「零新增日志行」在当时实际等价于「整行消失」。
+
+**证据链**
+
+| # | 事实 | 位置 |
+| --- | --- | --- |
+| 1 | 未登记字段即抛异常 | `DiagnosticEvent.put()`：`if (!FIELDS.contains(name) …) throw new IllegalArgumentException("Unknown diagnostic field/status")` |
+| 2 | 异常被吞，整条事件丢失 | `PlaybackDiagnosticCollector.emit()` 的 `try { facts.accept(event); DebugLogStore.event(event); } catch (RuntimeException ignored) { collectorFailure(); }` |
+| 3 | 机械比对：57 个 `observed` 字面量中恰好这 3 个不在 303 个白名单字段内（其余 54 个全中） | `ExoDiagnosticCollector.java` × `DiagnosticEvent.FIELDS` |
+| 4 | 触发条件 = 诊断开启，即该采集器唯一的运行条件 | `PlaybackDiagnosticCollector.enabled() == DebugLogStore.isEnabled()` |
+
+**为什么原验证没抓到**：§17/§18 的 5 个新契约测试全是「读源码断言字符串」，没有一个真正 `new DiagnosticEvent(...).observed(新字段, …)`；`:app:test*` 只编译 `catvod` 主源集，不执行事件构造，所以编译/单测全绿与「事件被丢弃」可以同时成立。
+
+**修复（本轮已落地并验证）**
+
+| # | 改动 | 文件 |
+| --- | --- | --- |
+| 1 | 白名单追加 `droppedInputBuffers` / `skippedInputBuffers` / `droppedToKeyframe`（放在既有 `droppedBuffers`/`skippedBuffers` 之后，纯增量、不升 `schemaVersion`） | `catvod/.../diagnostics/DiagnosticEvent.java` |
+| 2 | 新增跨模块契约锁：扫描 `ExoDiagnosticCollector` 全部 `observed("…")` 字面量，逐个用真实 `DiagnosticEvent` 构造验证白名单接受；断言三个输入侧字段仍在采集端（防空转）；自证未登记字段必抛异常 | `app/src/test/.../exo/DiagnosticEventFieldAllowlistTest.java` |
+
+**验证**：`:app:compileLeanback…JavaWithJavac` + `:app:compileMobile…JavaWithJavac` BUILD SUCCESSFUL；定向单测 **633 例 / 1 skipped / 0 失败**（含新增 2 例）；全量 leanback 单测 8 例失败与合并前基线逐条相同（均为既有平台/陈旧契约，与本改动无交集）。详见 `docs/C97-beta-merge-review-dev2-20261022.md` §4、§5。
+
+**同类缺陷（已报告，未在本轮修）**：`ExoDiagnosticCodecAdapter` 的 `video.candidates` 事件用了同样未登记的 `snapshotId`/`queryCount`，同样会被整条丢弃（`ExoDiagnosticCodecAdapter.java:116-137`）；该文件未被本轮任一分支改动，属既有缺陷。
+
+**仍未验证（不变）**：`exo-frame` / `exo-frame-timing` / 三个新计数器在设备端的**实际读数**仍未采集（X7 Ultra 未连接）。修复保证的是「事件会被导出」，不是「数值已正确」；§15 的设备分组测试仍是下一步唯一动作。
