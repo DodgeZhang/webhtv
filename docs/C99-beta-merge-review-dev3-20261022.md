@@ -19,8 +19,8 @@
 - **Scope**：`app/`、`docs/`
 - **任务守卫**：`C99-beta-merge-review-dev3-20261022`，base HEAD `39f44ccd1cf1360ce77314616f8be5b3d13397c7`（合并提交），
   branch `dev3`，受保护脏路径 22 条（未跟踪 `.design-evidence/`，保持不动）
-- **当前状态**：合并、首轮评审、修复、验证、第二轮复评均完成；剩余提交、推送、PR、拉取与交付坐标回填
-- **下一动作**：`bash .codex/scripts/task_guard.sh finish --verified ... --commit-message ...`，随后推送 `dev3`、创建到 `beta` 的 PR
+- **当前状态**：合并、首轮评审、修复、验证、第二轮复评、提交、推送、PR、拉取均完成（交付坐标见 §7）
+- **下一动作**：无；等待 PR 评审/合并（本轮只创建 PR，不合并）
 
 ---
 
@@ -116,8 +116,10 @@
 ## 7. 交付坐标
 
 - 合并提交：`39f44ccd1cf1360ce77314616f8be5b3d13397c7`（双亲 `29733de98d` / `275c225edc`）。
-- 评审/修复提交：待本轮 `task_guard finish` 生成后回填。
-- Recovery tag：同上。
-- 推送：待推送 `dev3` 后回填。
-- PR：待创建后回填。
-- 拉取：待拉取后回填。
+- 评审/修复提交：`631877c7d4869b070b835e46d0c6e1cefd3d2f49`（在合并提交之上，4 文件 +141 −6）。
+- Recovery tag：`recovery/C99-beta-merge-review-dev3-20261022/20261022111136-631877c7d486`。
+- 推送：`origin/dev3` `fbcd47fbc1..631877c7d4`。
+- PR：[#480](https://github.com/Silent1566/webhtv/pull/480)（`dev3` → `beta`，中文描述含具体改动内容，只创建不合并）。
+- 拉取：`git fetch origin --prune` + `git pull --ff-only origin dev3`，`dev3` 与 `origin/dev3` 同步（0/0）；
+  `origin/beta` 仍为 `275c225edc`。
+- 工作树：干净（受保护未跟踪目录 `.design-evidence/` 保持不动）；本节回填为文档单提交。
