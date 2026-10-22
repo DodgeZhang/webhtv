@@ -104,9 +104,13 @@ flavor（2）：`mobile/AdBlockStatsDialog`、`leanback/AdBlockStatsDialog` —�
 
 ## 风险与回滚
 
-- 风险：`area()` 在「宿主根窗口 insets 仍为 0 且 content 视图尚未布局」的首帧会退化为整块显示，窗口
-  会先按旧尺寸出现、随后由 `follow` 或弹窗自身的下一次 `onStart` 收敛；已由 helper 的缓存与
-  「只在变化时重算」抑制抖动。
+- 风险：`area()` 的三级后备都读不到 inset 时（弹窗窗口在 API 28 恒报 0；宿主根窗口也报 0 且 content
+  视图尚未布局）会退化为整块显示，即**回到改动前的旧尺寸**（不引入新的裁切，但也不会事后自动收敛）。
+  `follow`（insets 变化时重算）只在 `SiteHealthReportDialog` 与 `CacheManagementDialog` 上安装：其余
+  弹窗在 `onStart` 时宿主已 resume、根窗口 insets 通常可同步读到，故首帧就是安全区；若某宿主三者同时为 0，
+  窗口保持旧尺寸而不是事后抖动重排 —— 这是本轮有意的取舍（给全仓 28 个弹窗装 listener 会放大布局回环
+  面与生命周期风险）。`Area` 本身是无状态计算，`OBSERVED` 只为 `follow` 提供上次结果，缓存值等于本次
+  上报值时不会触发重排。
 - 风险：系数整体作用于更小的基准，弹窗在带系统栏手机上会比旧版**略小**（差额 = 状态栏 + 导航栏），
   这是把窗口放进安全区的必然结果，与主题编辑器既有修复一致。
 - 回滚：回退本单元提交即可；无 schema/持久化/资源/字符串/依赖变化。

@@ -61,8 +61,14 @@ public class DialogSafeAreaTest {
             String source = read(DIALOGS + dialog + ".java");
             assertTrue(dialog + " must size from the bar-safe area, not the raw display",
                     source.contains("DialogSafeArea."));
-            assertFalse(dialog + " must not size its window from the raw display height",
-                    source.contains("params.height = (int) (ResUtil.getScreenHeight("));
+            // Any raw-display height in these files is the defect this contract exists to
+            // prevent: a window or an inner scroll/list cap taller than the bar-safe area puts
+            // the dialog's last row under the navigation bar. Width stays out of the assertion
+            // because the navigation bar sits at the bottom; the horizontal-cutout audit is a
+            // separate task. Matching the whole call also catches the inner-cap variants that
+            // the old exact-string check (`params.height = (int) (...)`) did not.
+            assertFalse(dialog + " must not derive any height from the raw display",
+                    source.contains("ResUtil.getScreenHeight("));
         }
 
         for (String flavor : new String[]{"mobile", "leanback"}) {
@@ -70,6 +76,8 @@ public class DialogSafeAreaTest {
             assertTrue(flavor + " ad-block statistics dialog must size from the bar-safe area",
                     source.contains("DialogSafeArea.width(activity, window)")
                             && source.contains("DialogSafeArea.height(activity, window)"));
+            assertFalse(flavor + " ad-block statistics dialog must not derive its height from the raw display",
+                    source.contains("ResUtil.getScreenHeight(") || source.contains("heightPixels"));
         }
     }
 

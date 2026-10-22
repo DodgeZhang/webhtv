@@ -63,7 +63,7 @@ window.setLayout(params.width, params.height);
 
 ## 后续建议（不在本单范围）
 
-仍按「原始显示尺寸 × 百分比」定窗口高度的全屏弹窗存在同型风险，建议单独任务审计：`GroupRuleDialog`、`PanNetworkDiagnosticDialog`、`ShellProxyDialog`、`WebHomeExtensionDialog`、`PlayerButtonConfigDialog`、`ViewingRecordSyncDialog`、`PlaybackRemoteSyncDialog`、`PlaybackWebhookDialog`、`ManagePageDialog`、`MpvConfigDialog`、`GitCloudDialog`、`MultiThreadProxyDialog`、`LoginStatePathDialog`。
+仍按「原始显示尺寸 × 百分比」定窗口高度的全屏弹窗存在同型风险，建议单独任务审计：`GroupRuleDialog`、`PanNetworkDiagnosticDialog`、`ShellProxyDialog`、`WebHomeExtensionDialog`、`PlayerButtonConfigDialog`、`ViewingRecordSyncDialog`、`PlaybackRemoteSyncDialog`、`PlaybackWebhookDialog`、`ManagePageDialog`、`MpvConfigDialog`、`GitCloudDialog`、`MultiThreadProxyDialog`、`LoginStatePathDialog`。（以上 13 个已由后续任务 `DIALOG-SAFE-01` 统一覆盖，见 `docs/DIALOG-SAFE-01-dialog-system-bar-safe-area-20261022.md`。）
 
 ## Recovery anchor
 
