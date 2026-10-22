@@ -71,8 +71,8 @@
 
 ## 6. 交付坐标
 
-- 合并提交：`待回填`（双亲 `e90de26e630b83ca85c84423a6029e2949bfc45a` + `275c225edc`）。
-- recovery tag：`待回填`。
-- 推送：`待回填`。
-- PR：`待回填`（`base=beta`/`head=dev1`，只创建不合并）。
-- 拉取：`待回填`。
+- 合并提交：`d6b5d4cf4f0dc357c11da422a681851ce608951c`（双亲 `e90de26e630b83ca85c84423a6029e2949bfc45a` + `275c225edc`）。
+- recovery tag：`recovery/C99-BETA-MERGE-DEV1-20261022/20261022111807-d6b5d4cf4f0d`（本地保留，不推送）。
+- 推送：`dev1`（`d29f8563b3..d6b5d4cf4f`），`origin/dev1` 与本地一致。
+- PR：**#481** <https://github.com/Silent1566/webhtv/pull/481>（`base=beta`/`head=dev1`/`OPEN`/`mergeable=MERGEABLE`/`mergeStateStatus=CLEAN`，只创建不合并）。
+- 拉取：`git fetch origin --prune` 后 `origin/beta` 前进到 `b9c39f85ec`（他人新推进的 beta 更新留在下一轮合并）；`git pull --ff-only origin dev1` 为 up to date。
