@@ -2,10 +2,8 @@ package com.fongmi.android.tv.ui.activity;
 
 import androidx.annotation.Nullable;
 
-import java.util.Objects;
-
 /**
- * 把「当前这个引擎该不该挂到 PlayerView 上」从 {@link PlaybackActivity#attachSurface(boolean)} 里
+ * 把「当前这个引擎该不该挂到 PlayerView 上」从 {@code PlaybackActivity#attachSurface(boolean)} 里
  * 拆出来，变成一个可单测的纯判定。
  *
  * <p>背景（设备日志 {@code webhtv-debug-log (27).txt}，2026-10-21 21:50）：自动连播时服务侧
@@ -48,7 +46,9 @@ final class VideoSurfaceBinding {
      * @param next    当前会话应当挂着的引擎实例
      */
     static <T> Result<T> resolve(@Nullable T current, @Nullable T next) {
-        if (Objects.equals(current, next)) return Result.skipped(next);
+        // 实例身份比较：口径是「视图上挂着的引擎是不是当前引擎」。这里刻意不用 equals，
+        // 免得将来某个 Player 实现自定义相等语义，把两个不同实例误判为同一个而漏绑。
+        if (current == next) return Result.skipped(next);
         return Result.rebound(next, current != null);
     }
 }

@@ -20,7 +20,7 @@ public final class DiagnosticEvent {
             "input.open", "input.read.summary", "drm.state", "play.clock", "env.display", "display.change",
             "video.candidates", "video.decoder.attempt", "video.configure", "video.output.format", "video.sample.summary",
             "video.output.summary", "video.first-output", "video.surface-render-callback", "video.flush-reuse-release", "video.error",
-            "surface.created", "surface.changed", "surface.destroyed", "surface.bind", "surface.resize", "surface.visibility",
+            "surface.created", "surface.changed", "surface.destroyed", "surface.bind", "surface.rebind", "surface.resize", "surface.visibility",
             "video.presentation.source", "video.effects", "audio.track", "audio.candidates", "audio.decoder.attempt",
             "audio.decoder.output", "audio.processing", "audio.output.configure", "audio.output.write", "audio.output.playhead",
             "audio.route", "audio.focus", "audio.volume", "audio.output.lifecycle", "audio.error", "audio.sync",
@@ -67,7 +67,8 @@ public final class DiagnosticEvent {
             "focusResult", "focusAction", "effectiveGain", "javaBytes", "nativeBytes", "lowRam", "trimLevel", "powerSave",
             "thermalStatus", "batteryLevel", "fingerprintDigest", "library", "buildId", "loadResult", "expectedDigest",
             "actualDigest", "manifestMatch", "backend", "seekable", "live", "retainedBeforeMs", "retainedAfterMs",
-            "requestedBeforeMs", "requestedAfterMs", "complete", "operationCount", "keyframes", "firstInputMs", "firstOutputMs");
+            "requestedBeforeMs", "requestedAfterMs", "complete", "operationCount", "keyframes", "firstInputMs", "firstOutputMs",
+            "detachedFirst", "surfaceViewPresent");
 
     private final JsonObject root = new JsonObject();
     private final JsonObject observed = new JsonObject();

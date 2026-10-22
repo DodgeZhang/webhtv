@@ -52,26 +52,13 @@ public class PlaybackOwnershipKeysTest {
     }
 
     @Test
-    public void missingSideNeverReportsMismatch() {
+    public void missingExpectedSideNeverReportsMismatch() {
+        // 既有语义：expected 为空 = 不限制归属；actual 为空但 expected 非空必须判否。
         assertTrue(PlaybackOwnershipKeys.sameSession(null, EPISODE));
         assertTrue(PlaybackOwnershipKeys.sameSession("", HISTORY));
-        assertFalse(PlaybackOwnershipKeys.isMismatch(null, HISTORY));
-        assertFalse(PlaybackOwnershipKeys.isMismatch("", HISTORY));
-    }
-
-    @Test
-    public void mismatchOnlyWhenBothSidesDescribeDifferentSessions() {
-        assertTrue(PlaybackOwnershipKeys.isMismatch(HISTORY, "VE:php_other@@@1@@@2|flag|3"));
-        assertFalse(PlaybackOwnershipKeys.isMismatch(HISTORY, EPISODE));
-        assertFalse(PlaybackOwnershipKeys.isMismatch(HISTORY, HISTORY));
-    }
-
-    @Test
-    public void episodeKeyExposesFlagAndIndexWithoutLosingThem() {
-        assertEquals("\u84dd\u8393\u1d38\u1d50\u00b7\u6807\u6e05", PlaybackOwnershipKeys.flagOfEpisode(EPISODE));
-        assertEquals("3", PlaybackOwnershipKeys.indexOfEpisode(EPISODE));
-        assertNull(PlaybackOwnershipKeys.flagOfEpisode(HISTORY));
-        assertNull(PlaybackOwnershipKeys.indexOfEpisode(HISTORY));
+        assertTrue(PlaybackOwnershipKeys.sameSession("", ""));
+        assertFalse(PlaybackOwnershipKeys.sameSession(HISTORY, null));
+        assertFalse(PlaybackOwnershipKeys.sameSession(EPISODE, null));
     }
 
     @Test
@@ -81,8 +68,6 @@ public class PlaybackOwnershipKeysTest {
         String historyKey = "php_x@@@1@@@2";
         String episodeKey = "VE:" + historyKey + "|a|b|7";
         assertEquals(historyKey + "|a", PlaybackOwnershipKeys.sessionKeyOf(episodeKey));
-        assertEquals("b", PlaybackOwnershipKeys.flagOfEpisode(episodeKey));
-        assertEquals("7", PlaybackOwnershipKeys.indexOfEpisode(episodeKey));
     }
 
     @Test
@@ -91,11 +76,14 @@ public class PlaybackOwnershipKeysTest {
         assertNull(PlaybackOwnershipKeys.historyKeyOfEpisode("VE:" + HISTORY));
         // 结构不完整时退回原字符串，绝不能因为无法解析就把两个不同会话判成同一会话。
         assertEquals("VE:" + HISTORY, PlaybackOwnershipKeys.sessionKeyOf("VE:" + HISTORY));
+        assertEquals("VE:|x|1", PlaybackOwnershipKeys.sessionKeyOf("VE:|x|1"));
     }
 
     @Test
-    public void displayLabelSummarisesEpisodeKeys() {
-        assertEquals("\u84dd\u8393\u1d38\u1d50\u00b7\u6807\u6e05 \u00b7 3", PlaybackOwnershipKeys.displayLabel(EPISODE));
-        assertEquals(HISTORY, PlaybackOwnershipKeys.displayLabel(HISTORY));
+    public void blankAndNonEpisodeKeysAreTheirOwnSession() {
+        assertNull(PlaybackOwnershipKeys.sessionKeyOf(null));
+        assertNull(PlaybackOwnershipKeys.sessionKeyOf(""));
+        assertEquals("VP:php@@@1@@@2", PlaybackOwnershipKeys.sessionKeyOf("VP:php@@@1@@@2"));
+        assertNull(PlaybackOwnershipKeys.historyKeyOfEpisode("VP:php@@@1@@@2"));
     }
 }

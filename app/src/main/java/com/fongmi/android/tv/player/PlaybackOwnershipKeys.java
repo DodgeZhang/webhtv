@@ -4,9 +4,6 @@ import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * 播放归属令牌的等价判定。
  *
@@ -49,7 +46,7 @@ public final class PlaybackOwnershipKeys {
     @Nullable
     public static String sessionKeyOf(@Nullable String key) {
         if (TextUtils.isEmpty(key)) return null;
-        if (!key.startsWith(EPISODE_PREFIX)) return key;
+        if (!isEpisodeKey(key)) return key;
         String historyKey = historyKeyOfEpisode(key);
         return TextUtils.isEmpty(historyKey) ? key : historyKey;
     }
@@ -66,81 +63,20 @@ public final class PlaybackOwnershipKeys {
         return right != null && left.equals(right);
     }
 
-    /**
-     * {@code expected}（Activity 现算的记录键）与 {@code actual}（播放器里固化的 key）是否失配，
-     * {@code expected} 为空时永不失配。
-     */
-    public static boolean isMismatch(@Nullable String expected, @Nullable String actual) {
-        String left = sessionKeyOf(expected);
-        return left != null && !left.equals(sessionKeyOf(actual));
-    }
-
     /** 选集键 {@code VE:<historyKey>|<线路名>|<集序号>} 承载的记录键；非选集键或结构不完整返回 {@code null}。 */
     @Nullable
     static String historyKeyOfEpisode(@Nullable String key) {
         if (!isEpisodeKey(key)) return null;
         String body = key.substring(EPISODE_PREFIX.length());
-        List<Integer> separators = separatorsOf(body);
         // 记录键本身可能含 '|'（线路名同理），所以从右往左裁掉「集序号」「线路名」两段。
-        if (separators.size() < 2) return null;
         int last = body.lastIndexOf(EPISODE_SEPARATOR);
+        if (last <= 0) return null;
         int previous = body.lastIndexOf(EPISODE_SEPARATOR, last - 1);
         if (previous <= 0) return null;
         return body.substring(0, previous);
     }
 
-    /**
-     * 选集键对应的线路名（去掉首尾空白后按原样比较；不剥离源站名前的 {@code __} 标记，
-     * 该标记由记录键决定，不在这里改写）。
-     */
-    @Nullable
-    public static String flagOfEpisode(@Nullable String key) {
-        String body = bodyOfEpisode(key);
-        if (body == null) return null;
-        String[] parts = body.split("\\|", -1);
-        if (parts.length < 3) return null;
-        return parts[parts.length - 2];
-    }
-
-    /**
-     * 选集键对应的集序号（原文片段，不做数值解析）。
-     *
-     * <p>返回原文而不是 {@code int}：源站集序号可能是非数字文本，把它强行解析成数字会让
-     * 判定从「同会话，但无法定位集」退化成「不同会话」，那是更糟的副作用。
-     */
-    @Nullable
-    public static String indexOfEpisode(@Nullable String key) {
-        String body = bodyOfEpisode(key);
-        if (body == null) return null;
-        int last = body.lastIndexOf(EPISODE_SEPARATOR);
-        if (last < 0 || last == body.length() - 1) return null;
-        return body.substring(last + 1);
-    }
-
-    /** 一次播放会话的显示用标签：选集键展示「线路名 · 第 n 集」，其余原样。 */
-    @Nullable
-    public static String displayLabel(@Nullable String key) {
-        if (!isEpisodeKey(key)) return key;
-        String flag = flagOfEpisode(key);
-        String index = indexOfEpisode(key);
-        if (TextUtils.isEmpty(flag) || TextUtils.isEmpty(index)) return sessionKeyOf(key);
-        return flag + " · " + index;
-    }
-
-    public static boolean isEpisodeKey(@Nullable String key) {
+    private static boolean isEpisodeKey(@Nullable String key) {
         return !TextUtils.isEmpty(key) && key.startsWith(EPISODE_PREFIX);
-    }
-
-    @Nullable
-    private static String bodyOfEpisode(@Nullable String key) {
-        if (!isEpisodeKey(key)) return null;
-        String body = key.substring(EPISODE_PREFIX.length());
-        return TextUtils.isEmpty(body) ? null : body;
-    }
-
-    private static List<Integer> separatorsOf(String body) {
-        List<Integer> positions = new ArrayList<>();
-        for (int i = 0; i < body.length(); i++) if (body.charAt(i) == EPISODE_SEPARATOR) positions.add(i);
-        return positions;
     }
 }

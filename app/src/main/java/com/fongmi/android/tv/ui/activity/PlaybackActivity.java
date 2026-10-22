@@ -21,6 +21,7 @@ import android.view.ViewConfiguration;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.Lifecycle;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
@@ -235,8 +236,9 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
      *
      * <p>比较必须走 {@link PlaybackOwnershipKeys#sameSession(String, String)} 而不是字符串相等：
      * 自动连播时服务侧用「浏览下一集」的 {@code VE:<historyKey>|<线路>|<集>} 键起播，与本页面现算的
-     * 记录键不是同一个字符串，但仍是同一次播放会话。旧实现在这里判假，导致 {@link #onPlayerRebuild}
-     * 整段跳过、Surface 永不重绑 —— 设备日志里那次「有声音没画面、重开才恢复」正是这条路径。
+     * 记录键不是同一个字符串，但仍是同一次播放会话。旧实现在这里判假，导致回调里的
+     * {@code onPlayerRebuild(...)} 整段跳过、Surface 永不重绑 —— 设备日志里那次「有声音没画面、
+     * 重开才恢复」正是这条路径。
      */
     protected boolean isOwner() {
         String key = activePlaybackKey();
@@ -373,24 +375,33 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
      * {@code PlaybackService#startBrowse} 用 {@code VE:} 选集键起播，页面一度判不出归属，
      * 于是既没有重建回调去重绑，也没有其它路径补绑；解码器与音频照常工作，视频帧却全部被丢弃。
      *
-     * <p>与 {@link #attachSurface(boolean)} 的区别是它只做绑定、不重设 render、不改快门策略，
-     * 因此可以在每次 BUFFERING/READY 上安全地廉价校验一次：绑定已经正确时立刻返回。
+     * <p>与 {@link #attachSurface(boolean)} 的区别：它不重设 render、不接 ASS/字幕会话，也不解绑
+     * （引擎未就绪时直接返回），只把「当前引擎」补到视图上并重放当前快门策略；绑定已正确时立刻
+     * 返回。且只在页面 RESUMED 时执行——后台的旧播放页同样会收到服务侧回调，在那里补绑会把引擎
+     * 从用户正在看的页面上抢走。
      */
     private void ensureVideoSurfaceBound(String reason) {
         if (mService == null || isFinishing() || isDestroyed()) return;
+        // 只有正处在 RESUMED 的页面可能是这条会话的显示方。后台/返回栈里的旧播放页同样会收到
+        // 服务侧回调；在那里补绑会把同一个引擎从用户正在看的页面上抢走，结果还是黑屏。
+        if (!getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) return;
+        PlayerManager manager = player();
+        if (manager == null || manager.isReleased()) return;
         PlayerView view = getExoView();
         if (view == null) return;
         Player currentPlayer = view.getPlayer();
-        Player nextPlayer = player().getPlayer();
+        Player nextPlayer = manager.getPlayer();
+        // 引擎尚未就绪时保持现状：这个兜底路径只负责「绑上当前引擎」，绝不在这里解绑。
+        if (nextPlayer == null) return;
         VideoSurfaceBinding.Result<Player> binding = VideoSurfaceBinding.resolve(currentPlayer, nextPlayer);
         if (!binding.applied()) return;
         if (binding.detachedFirst()) view.setPlayer(null);
         view.setPlayer(binding.player());
-        surfaceDiagnostics.rebind(reason, binding.detachedFirst(), currentPlayer != null, view.getVideoSurfaceView());
+        surfaceDiagnostics.rebind(reason, binding.detachedFirst(), view.getVideoSurfaceView());
         logSurfaceState("ensure bound reason=" + reason);
         syncVideoSurfaceSize(null);
         syncShutter();
-        if (player().isNativePlayer()) view.post(this::syncShutter);
+        if (manager.isNativePlayer()) view.post(this::syncShutter);
     }
 
     /**
@@ -730,8 +741,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         if (binding.applied()) {
             if (binding.detachedFirst()) getExoView().setPlayer(null);
             getExoView().setPlayer(binding.player());
-            surfaceDiagnostics.rebind("attach", binding.detachedFirst(),
-                    currentPlayer != null, getExoView().getVideoSurfaceView());
+            surfaceDiagnostics.rebind("attach", binding.detachedFirst(), getExoView().getVideoSurfaceView());
             logSurfaceState("attach after setPlayer");
             syncVideoSurfaceSize(null);
             if (restoreExoShutter) syncShutter();

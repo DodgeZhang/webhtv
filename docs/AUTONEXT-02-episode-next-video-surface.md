@@ -4,7 +4,7 @@
 
 - 目标：修好「自动连播/下一集后有声无画、重开 App 才恢复」。
 - 证据：用户设备日志 `webhtv-debug-log (27).txt`（2026-10-21 21:50，`MAA-AN10` / Android 16 / `5.6.0(560)` mobile）。
-- 状态：窄修复已实现，定向单测与双 flavor 编译已通过；未做设备端连播复现（见「验证边界」）。
+- 状态：窄修复已实现，定向单测与双 flavor 编译已通过；2026-10-22 在 C96（`docs/C96-beta-merge-review-dev1-20261022.md`）完成独立评审，修复 4 项（诊断白名单、补绑运行面、投机 API、实例身份口径）后复评通过；未做设备端连播复现（见「验证边界」）。
 - 回滚：撤销本单元提交；未改依赖、lock、native、布局与播放策略。
 
 ## 1. 日志读出的因果链
@@ -61,18 +61,19 @@
 
 三处，都是窄口径：
 
-1. **单点判定收敛**：新增 `com.fongmi.android.tv.player.PlaybackOwnershipKeys`，把「两个 key 是否同属一次播放会话」做成纯字符串函数（`sessionKeyOf` / `sameSession` / `isMismatch`）。选集键 `VE:<historyKey>|…|…` 从右往左裁掉「集序号」「线路名」两段得到记录键；结构不完整时**退回原字符串**，绝不因为解析失败把两个不同会话判成同一会话。
+1. **单点判定收敛**：新增 `com.fongmi.android.tv.player.PlaybackOwnershipKeys`，把「两个 key 是否同属一次播放会话」做成纯字符串函数（生产面只有 `sessionKeyOf` / `sameSession`）。选集键 `VE:<historyKey>|…|…` 从右往左裁掉「集序号」「线路名」两段得到记录键；结构不完整时**退回原字符串**，绝不因为解析失败把两个不同会话判成同一会话。
 2. **两处归属判定改为同会话比较**：`PlaybackActivity#isOwner()` 与 `PlaybackService#isNavigationOwner()` 都改走 `sameSession(...)`。
-3. **绑定判定可测化 + 兜底**：新增 `VideoSurfaceBinding.resolve(current, next)` 取代 `attachSurface()` 里的 `currentPlayer != nextPlayer` 内联判断；并在 `onPlaybackStateChanged` 的 `BUFFERING/READY` 上调一次 `ensureVideoSurfaceBound(...)`，即使将来再有别的路径让归属判假，新媒体起播时也会把当前引擎补绑到视图上。
-
-`SurfaceDiagnosticCollector.rebind(...)` 新增 `surface.rebind` 事件（`detachedFirst` / `hadPreviousPlayer` / `surfaceViewAttached` / `surfaceViewShown` / 尺寸），把「没触发重绑」与「触发了但 Surface 不可用」在下次现场区分开。
+3. **绑定判定可测化 + 兜底**：新增 `VideoSurfaceBinding.resolve(current, next)` 取代 `attachSurface()` 里的 `currentPlayer != nextPlayer` 内联判断（按**实例身份**比较，不用 `equals`）；并在 `onPlaybackStateChanged` 的 `BUFFERING/READY` 上调一次 `ensureVideoSurfaceBound(...)`。兜底只在页面 `RESUMED` 且 `PlayerManager` 未失效时执行，引擎未就绪直接返回——它只绑不卸，也绝不接入 render 切换或 ASS/字幕会话，避免后台旧页面抢走共享引擎。
+4. **诊断证据**：`SurfaceDiagnosticCollector.rebind(...)` 新增 `surface.rebind` 事件（`reason` / `detachedFirst` / `surfaceViewPresent` / `attached` / `shown` / `width` / `height` / `surfaceId` / `valid`），把「没触发重绑」与「触发了但 Surface 不可用」在下次现场区分开。事件名与字段名已登记进 catvod `DiagnosticEvent` 白名单（未登记会被 `emit` 吞成 `collectorFailure`，等于没有证据），并由 `SurfaceRebindDiagnosticTest` 锁住。
 
 ## 4. 验证
 
 | 项 | 命令 | 结果 |
 | --- | --- | --- |
-| 定向单测 | `:app:testMobileArm64_v8aDebugUnitTest --tests VideoSurfaceBindingTest --tests PlaybackOwnershipKeysTest --tests PlaybackOwnershipSourceTest` | 36 tests passed |
-| 双 flavor 编译 | `:app:compileMobileArm64_v8aDebugJavaWithJavac :app:compileLeanbackArm64_v8aDebugJavaWithJavac` | `BUILD SUCCESSFUL in 1m 33s` |
+| 定向单测 | `:app:testMobileArm64_v8aDebugUnitTest --tests PlaybackOwnershipKeysTest --tests SurfaceRebindDiagnosticTest --tests VideoSurfaceBindingTest --tests PlaybackOwnershipSourceTest` | **38 例通过**（10 / 2 / 6 / 20，0 失败 0 错误 0 跳过） |
+| 双 flavor 编译 | `:app:compileMobileArm64_v8aDebugJavaWithJavac :app:compileLeanbackArm64_v8aDebugJavaWithJavac` | `BUILD SUCCESSFUL in 1m 8s` |
+
+`PlaybackOwnershipKeysTest` 覆盖 key 形态等价/不等价矩阵（同会话、跨站点、跨 VOD、裸前缀不得吞噬、缺一侧、结构不完整退回原串、记录键含 `|`）；`SurfaceRebindDiagnosticTest` 锁住诊断白名单（正向可写入 + 反向确会拒绝未登记名字）；`VideoSurfaceBindingTest` 覆盖引擎相同/被替换/视图为空/会话清空四个分支；`PlaybackOwnershipSourceTest` 增加「服务侧归属比较」「选集键前缀跨包同值」「补绑只在 RESUMED 且绝不解绑」三条源码契约。
 
 ### 验证边界
 
@@ -81,6 +82,7 @@
 
 ## 5. 风险与回滚
 
-- `sameSession` 在结构不完整的选集键上退回字符串比较，行为与修复前一致，不会放宽归属。
-- `ensureVideoSurfaceBound` 只在 `BUFFERING/READY` 上运行且「绑定已正确即返回」，不改变正常播放路径；它只做绑定、不重设 render、不动快门策略。
+- `sameSession` 在结构不完整的选集键上退回字符串比较，行为与修复前一致，不会放宽归属；`VE:` 解析从右裁两段，线路名本身含 `|` 时记录键会多并入一段，属已知限制（有测试固化）。
+- `ensureVideoSurfaceBound` 只在 `BUFFERING/READY` 且页面 `RESUMED` 时运行，`PlayerManager` 失效或引擎未就绪直接返回，绑定已正确即返回；它只做绑定、不重设 render、不接 ASS/字幕会话、绝不解绑，不改变正常播放路径。
+- 诊断事件名/字段名是 catvod 白名单契约，后续改名必须同步 `DiagnosticEvent`，否则 `emit` 会静默记成 `collectorFailure`；`SurfaceRebindDiagnosticTest` 负责在构建期发现。
 - 回滚：撤销本单元提交，恢复三处 `equals` 与内联实例判断即可。

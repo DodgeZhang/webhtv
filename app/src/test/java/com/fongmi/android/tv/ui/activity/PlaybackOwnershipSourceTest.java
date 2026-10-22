@@ -389,6 +389,48 @@ public class PlaybackOwnershipSourceTest {
                 guard.contains("isFinishing()") && guard.contains("isDestroyed()"));
     }
 
+    /**
+     * 归属判定两侧必须同源：页面与服务各用一份，任一侧退回字符串相等就会重现 AUTONEXT-02。
+     */
+    @Test
+    public void serviceNavigationOwnershipComparesTheSameSessions() throws Exception {
+        String service = read("app/src/main/java/com/fongmi/android/tv/service/PlaybackService.java");
+
+        int owner = service.indexOf("private boolean isNavigationOwner()");
+        int ownerEnd = service.indexOf("\n    }", owner);
+        assertTrue("isNavigationOwner must exist", owner > 0 && ownerEnd > owner);
+        assertTrue("service-side navigation ownership must compare sessions, not raw strings",
+                service.substring(owner, ownerEnd).contains("PlaybackOwnershipKeys.sameSession("));
+
+        // 选集键前缀在 browse 与 player 两个包里各写一份，必须同值，否则归属判定会静默失效。
+        assertTrue("VodBrowse must keep the episode prefix",
+                read("app/src/main/java/com/fongmi/android/tv/browse/VodBrowse.java")
+                        .contains("static final String VOD_EP = \"VE:\";"));
+        assertTrue("PlaybackOwnershipKeys must use the same episode prefix",
+                read("app/src/main/java/com/fongmi/android/tv/player/PlaybackOwnershipKeys.java")
+                        .contains("static final String EPISODE_PREFIX = \"VE:\";"));
+    }
+
+    /**
+     * Surface 补绑只能在用户实际在看的那一页执行，否则后台旧页面会把引擎抢走。
+     */
+    @Test
+    public void surfaceTopUpRunsOnlyWhileThePageIsResumedAndNeverUnbinds() throws Exception {
+        String source = read(PLAYBACK);
+
+        int topUp = source.indexOf("private void ensureVideoSurfaceBound(String reason)");
+        int end = source.indexOf("\n    }", topUp);
+        assertTrue("ensureVideoSurfaceBound must exist", topUp > 0 && end > topUp);
+        String body = source.substring(topUp, end);
+
+        assertTrue("only a RESUMED page may re-bind the shared engine",
+                body.contains("isAtLeast(Lifecycle.State.RESUMED)"));
+        assertTrue("an engine that is not ready must not unbind the view",
+                body.contains("if (nextPlayer == null) return;"));
+        assertTrue("the top-up must not drop the ASS/subtitle sessions",
+                !body.contains("detachSurface()"));
+    }
+
     private static int countOccurrences(String text, String needle) {
         int count = 0;
         int index = 0;
