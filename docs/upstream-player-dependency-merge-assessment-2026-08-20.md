@@ -5087,3 +5087,13 @@ C3 的触发来源主要是 media `990abc2368fd74779f525ee345734470659f3d53`（`
 - 验证：定向单测 38 例 0 失败 0 错误 0 跳过；双 flavor arm64 Debug Java 编译 `BUILD SUCCESSFUL in 1m 8s`；`git diff --check` 与冲突标记扫描为空。
 - 未执行：设备端「自动连播 → 出画」端到端复现；`:catvod:testDebugUnitTest`（其 `DebugLogStoreTest` 在 merge-base 与 `origin/beta` 上即编译失败，非本轮引入）。
 - 下一动作：由当前 C96 guard 提交修复与文档并打 recovery tag，推送 `dev1`、创建到 `beta` 的 PR、拉取远端最新代码。
+
+## 检查点 64：2026-10-22 C97 dev2 合并 beta 并复评 E-SP11 掉帧归因
+
+- 基线：`dev2@14a45844fd`（E-SP11 4 个未推送提交）；目标：`origin/beta@3203ca9da0`（PR #474 / #475 / #476 后），merge-base `b8fdbee6f6`。合并提交 `ae923e1312`，双亲 `14a45844fd` / `3203ca9da0`，0 冲突、10 个带入提交（32 路径 +2269 −123）、路径交集 0、0 丢失、0 复活。
+- 评审范围：全量复评 E-SP11 的 10 个路径（`PlaybackTelemetryMapper`、`ExoDiagnosticCollector`、`ExoFrameSchedulingRendererSettings`、`ExoPlaybackDiagnostics`、`ExoRuntimeAwareVideoRenderer`、`ExoUtil`、`PlaybackAnalyticsListener`、2 个测试、1 个任务文档）；`beta` 带入的 C95（dev3）/C96（dev1）内容已在各自任务复评，本轮 0 冲突 + 0 路径交集 ⇒ 跳过并留证。
+- 首轮发现 1 项必修（blocker）：`ExoDiagnosticCollector` 新增的 `droppedInputBuffers`/`skippedInputBuffers`/`droppedToKeyframe` 未登记 `DiagnosticEvent.FIELDS`，`put()` 抛异常被 `emit()` 吞成 `collectorFailure()` 并**丢弃整条 `video.output.summary`**（诊断开启即触发）；修复为白名单纯增量 + 新增 `DiagnosticEventFieldAllowlistTest`（扫描采集端 `observed` 字段 → 真实构造事件 → 未登记字段必抛异常自证）。修复后第二轮复评通过。
+- 报告未修：`ExoDiagnosticCodecAdapter` 的 `snapshotId`/`queryCount` 同类未登记（既有缺陷）；`:catvod:testDebugUnitTest` 因 `DebugLogStoreTest` 引用已删除方法而编译失败（`cf209ec021` 起即存在）；`PlaybackAutoContext` 的 `renderedFps` 缺同口径 scope 标注。
+- 验证：`app` 双 flavor arm64 Debug Java 编译 `BUILD SUCCESSFUL`；定向单测 633 例 / 1 skipped / 0 失败；全量 leanback 单测 4492 例 / 3 skipped / 8 失败，8 例在合并前基线独立 worktree 中逐条复现（失败名 `diff` 无差异）⇒ 0 新增失败；`git diff --check` 与冲突标记扫描为空。
+- 未执行：设备端 `exo-frame` / `exo-frame-timing` / 输入侧计数读数（X7 Ultra 未连接）。
+- 下一动作：PR #478 合并后，下一轮任务开头合并 `origin/beta` 的最新 tip（已前进到 `d72134c5aa`，与本轮 0 路径交集）。

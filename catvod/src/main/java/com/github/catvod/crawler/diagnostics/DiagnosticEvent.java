@@ -48,6 +48,7 @@ public final class DiagnosticEvent {
             "durationMs", "positionMs", "bufferedMs", "windowMs", "count", "bytes", "firstPtsUs", "lastPtsUs", "lastAgeMs",
             "inputBuffers", "outputBuffers", "submittedBuffers", "discardedBuffers", "encryptedBuffers", "eosBuffers",
             "ptsRegressions", "droppedBuffers", "skippedBuffers", "renderCallbacks", "metricScope", "physicalDisplay",
+            "droppedInputBuffers", "skippedInputBuffers", "droppedToKeyframe",
             "writeCalls", "requestedBytes", "acceptedBytes", "shortWrites", "zeroWrites", "writeErrors", "maxWriteUs",
             "sessionId", "bufferSize", "bufferUnit", "playState", "state", "headRaw", "headFrames", "headDeltaFrames",
             "timestampValid", "timestampFrames", "timestampNs", "timestampAgeMs", "underruns", "routeId", "routeType",
