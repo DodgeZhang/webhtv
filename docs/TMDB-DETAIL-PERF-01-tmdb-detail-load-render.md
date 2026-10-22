@@ -2,18 +2,18 @@
 
 - 任务 ID：`TMDB-DETAIL-PERF-01`
 - 范围：原生 TMDB 详情页（`TmdbDetailActivity`）与它依赖的 `TmdbService` / `TmdbImageSelector`
-- 状态：分析完成；W3（消歧瘦身）、W4（图片档位）已实施并验证；W1（站点详情 ∥ TMDB 详情）因与 C16 契约冲突待用户裁决；W2/W5 见 §7
+- 状态：分析完成；W1（identity 已知时站点详情 ∥ TMDB 详情）、W2（阻塞段移出共享线程池）、W3（消歧瘦身）、W4（图片档位）已实施并验证（§8/§9）；W5（主线程渲染去重）已按「先量化再决定」试做并回滚（§9.3）；W3 的真实消歧端到端计时仍缺可复现条目（§10）
 - 基线：`dev4 @ 3964eeae7ccf4f10f5a2e3696a2909c7a92b3952`
 
-## 1. 结论：能优化，收益集中在两处可量化项
+## 1. 结论：能优化，收益集中在可量化项
 
 | 项 | 现状 | 实测代价 | 优化后 | 结论 |
 |---|---|---|---|---|
 | 自动匹配消歧 | 串行拉取最多 6 个候选的**完整** detail（含 images/translations/external_ids/content_ratings/recommendations/similar） | TV 样例 `446,404 B`/次；电影样例 `192,107 B`/次 | 只取打分真正用到的 `credits`（TV 另加 `aggregate_credits`）：TV `335,387 B`（−25%）、电影 `56,056 B`（−71%） | **已优化** |
-| 详情页图片 | 详情页把所有 TMDB 图片强制升到 `/original/`（hero、轮播、海报/图集 rail） | poster original `1,187,694 B` vs w500 `85,680 B`（−93%）；backdrop original `982,744 B` vs w1280 `121,009 B`（−88%） | rail 用 w500/w780；轮播在 ≤1080p 屏用 w1280 并限制解码尺寸；hero 与全屏查看/保存仍用 original | **已优化** |
-| 首屏串行等待 | `站点详情 → TMDB 详情 → 分季 → 绑定` 全部串行 | 两次网络 RTT + 一次分季 RTT | 站点详情 ∥ TMDB 详情可省 1 个 RTT，但与 C16「源内嵌完整 payload 时 TMDB 请求数为 0」冲突 | **待裁决**（§6） |
-| 共享线程池阻塞 | 协调任务占用全局 5 线程池一个线程并阻塞在 `tmdbFuture.get()` | 并发打开详情/首页加载时排队 | 改回调续接或换池 | 暂缓（§7） |
-| 主线程重复渲染 | 一轮 apply 内重复清理/重复渲染/多次 `bindTmdbSection` | 低端 TV 上屏帧偏重 | 去重 + 签名短路 | 暂缓（§7，需先量化） |
+| 详情页图片 | 详情页把所有 TMDB 图片强制升到 `/original/`（hero、轮播、海报/图集 rail） | poster original `1,187,694 B` vs w500 `85,680 B`（−93%）；backdrop original `982,744 B` vs w1280 `121,009 B`（−88%） | rail 用 w500/w780、hero 海报用 w780；hero 大背景、背景轮播、全屏查看/保存仍用 original（§8.3） | **已优化** |
+| 首屏串行等待 | `站点详情 → TMDB 详情 → 分季 → 绑定` 全部串行 | 两次网络 RTT + 一次分季 RTT | identity 已知时站点详情 ∥ TMDB 详情，省 1 个 RTT；T3/T4 完整 payload 页面按 C16 §6.3 例外多发 1 次预热请求（结果丢弃） | **已优化**（§6/§8.2） |
+| 共享线程池阻塞 | 协调任务占用全局 5 线程池一个线程并阻塞在 `tmdbFuture.get()` | 并发打开详情/首页加载时排队 | 收尾段整体提交到 `Task.largeExecutor()`（20 线程），共享 5 线程池派发后立即释放 | **已优化**（§9.4） |
+| 主线程重复渲染 | 一轮 apply 内重复清理/重复渲染/多次 `bindTmdbSection` | 低端 TV 上屏帧偏重 | 去重 + 签名短路（已实现并实测） | **已试做并回滚**（§9.3：中位 164→202 ms，无改善） |
 
 ## 2. 研究门记录（AGENTS.md §7/§8）
 
@@ -81,13 +81,13 @@ TMDB 图片（同一条目 poster/backdrop）：
 | backdrop `w1280` | 121,009 |
 | backdrop `original` | 982,744 |
 
-推论：详情页首屏（poster + backdrop）与 rail 图片从 original 降到档位后，图片字节下降约 88%–93%；消歧路径在 TV 上节省 25%、电影上节省 71%，且候选数最多 6 个，字节节省按倍数累积。
+推论：详情页 hero 海报与 rail 图片从 original 降到档位后，图片字节下降约 83%–93%（backdrop 轮播与 hero 大背景仍为 original，未计入）；消歧路径在 TV 上节省 25%、电影上节省 71%，且候选数最多 6 个，字节节省按倍数累积。
 
 ## 5. 决策
 
 - 采用「不改动匹配判定输入」的最小改造：消歧用 lite detail，最终赢家再取完整 detail；不改变 `scoreTmdbTitle/Year/MediaType/People`、`TmdbMatchPolicy` 的任何判据。
-- 图片只在 rail/轮播降档，hero 与全屏查看/保存仍用 original；档位只使用官方 OAS 声明的尺寸。
-- 不做：匹配阈值、源数据优先级、C16 请求顺序契约、线程池容量、新依赖。
+- 图片只在 rail 与 hero 海报降档（rail w500/w780、hero 海报 w780），hero 大背景/背景轮播/全屏查看/保存仍用 original；档位只使用官方 OAS 声明的尺寸。
+- 不做：匹配阈值、源数据优先级、原有 C16 补齐顺序（仅新增 §6.3 预热例外）、线程池容量、新依赖。
 
 ## 6. W1（站点 ∥ TMDB）：已由用户裁决为「要速度」，已实施
 
@@ -97,12 +97,12 @@ TMDB 图片（同一条目 poster/backdrop）：
 
 **裁决（2026-10-21，用户选 B）**：允许 identity 已知的页面提前发 1 次 TMDB 详情请求，T3/T4 源接受「多 1 次预热请求」，但预热结果必须丢弃、不得上屏或覆盖源字段。契约已同步修订为 C16 §6.3（例外条款），§6.1/§12/§19.13/具体分支/阶段 4 记录同步更新。
 
-## 7. W2/W5 暂缓理由
+## 7. W2/W5 决策变更（原暂缓理由已被后续实施/实测取代）
 
-- W2（不阻塞共享 5 线程池）：需要把 `loadContent` 的 `Future.get()` 改为回调续接，涉及 180 行主流程与代际/凭据校验位置，属结构性改动；收益是并发场景下的排队改善，不是单页首屏时延，先不做。
-- W5（主线程去重）：需先在设备上量化「loading 消失那一帧」的 UI 线程耗时，避免无证据优化；待补设备基线后再决定。
+- W2（不阻塞共享 5 线程池）：原计划「把 `Future.get()` 改为回调续接」，因涉及 180 行主流程与代际/凭据校验位置而暂缓。后续改用范围更小的等价方案：不改主流程语义，只把「等结果 → 补搜索/消歧 → 预取首季 → 回 UI 绑定」整段抽成 `completeTmdbLoad(...)` 并提交到 `Task.largeExecutor()`；协调任务派发后即释放共享池线程。收益仍是并发排队改善而非单页首屏时延，已实施并验证（§9.4）。
+- W5（主线程去重）：按原计划先量化「loading 消失那一帧」的 UI 线程耗时再决定；设备实测无改善，已回滚（§9.3）。
 
-## 8. 实施结果（W3 + W4）
+## 8. 实施结果（W1 + W3 + W4）
 
 ### 8.1 W3 消歧瘦身 + 有界并行
 
@@ -129,7 +129,7 @@ TMDB 图片（同一条目 poster/backdrop）：
 
 ### 8.3 W4 图片档位
 
-- `TmdbImageSelector` 新增 `tierUrl/tierUrl(url,size)`、`posterTier`（w500）、`photoTier`（w780）、`heroPosterTier`（w780）；只替换官方 OAS 声明的档位，非 `/t/p/` 地址原样返回。
+- `TmdbImageSelector` 新增 `tierUrl(url, size)`、`posterTier`（w500）、`photoTier`（w780）、`heroPosterTier`（w780）；只替换官方 OAS 声明的档位，非 `/t/p/` 地址原样返回。
 - `TmdbDetailActivity` 新增 `setRailPosters/setRailPhotos`，图集 rail、海报 rail、季剧照 rail 全部走小档位（`applyTmdbBundle`、`loadTmdbMediaBlocks`、`bindSeasonTmdbMedia` 三处）。
 - hero 海报改用 `heroPosterTier`（w780）；hero 大背景、背景轮播、全屏查看、保存图片**仍是 original**（`highResTmdbImage` 未改）。
 
@@ -200,6 +200,7 @@ bash gradlew :app:assembleMobileArm64_v8aDebug \
 - 4K 屏下 hero 海报由 original 降到 w780：hero 显示尺寸远小于原图，按显示尺寸解码后无可见差异；若后续有 4K 实机反馈明显变软，只需把 `heroPosterTier` 改回 `originalUrl`（单点回退）。
 - 预热失败时的回落会再发一次详情请求（与改造前单次尝试相比多一次重试机会，属容错放宽）。
 - 设备安装环境坑（非代码问题）：本模拟器的 PackageManager 曾卡死在 install-commit，重启模拟器后 `cmd package install-create/write/commit` 正常（≤1 s）。
+- W3 赢家升级的失败窗口：lite 打分已通过、但赢家完整详情请求失败且无陈旧缓存时，本次自动匹配放弃并回落「手动选择 / 无 TMDB」。改造前该候选的完整详情在打分阶段已取到，因此这是 W3 新增的极窄窗口（条件是 lite 成功而紧随其后的完整详情失败）。
 
 ### 9.3 W5 主线程渲染去重：已试做并**回滚**
 
@@ -222,8 +223,8 @@ bash gradlew :app:assembleMobileArm64_v8aDebug \
 ## 10. 后续（未做）
 
 1. **W3 端到端复核**：需要一条同名多候选（会真正进入消歧）的条目；拿到后按 §9.1 的成对方法复测。
-3. **详情页 `recommendations`/`similar` 拆分**：内嵌块占载荷 23%+22%（缓存实测 recommendations 17,391 B / similar 16,908 B，合计 46%），但要改成两个独立 `/recommendations`、`/similar` 请求；主机侧实测这两个请求本身各需 ~1.0–1.6 s，而详情里内嵌这些块只多 ~0.2–0.5 s，按当前网络没有收益，除非 TMDB 延迟显著降低或改成后台加载。
+2. **详情页 `recommendations`/`similar` 拆分**：内嵌块占同次缓存样本（约 76 KB）的 23%+22%（缓存实测 recommendations 17,391 B / similar 16,908 B，合计 46%；与 §4 的 `tv/1399` 446,404 B 样本不是同一基数），但要改成两个独立 `/recommendations`、`/similar` 请求；主机侧实测这两个请求本身各需 ~1.0–1.6 s，而详情里内嵌这些块只多 ~0.2–0.5 s，按当前网络没有收益，除非 TMDB 延迟显著降低或改成后台加载。
 
 ## 11. 回滚
 
-W1、W3、W4 互不依赖：W1 回滚 = 去掉 `startTmdbDetailPrefetch`/`loadPrefetchedTmdbBundle` 与 `detailPrefetch` 字段（`TmdbDetailPrefetch` 可继续对包内可见），并把 C16 §6.3 恢复为「请求数为 0」；W3 回滚 = 还原 `TmdbService` 的 lite 入口与 `TmdbCandidate` 结构；W4 回滚 = 去掉 `setRail*` 档位替换与 `heroPosterTier`。三者均不触碰匹配阈值与源数据优先级。
+W1、W2、W3、W4 互不依赖：W1 回滚 = 去掉 `startTmdbDetailPrefetch`/`loadPrefetchedTmdbBundle` 与 `detailPrefetch` 字段（`TmdbDetailPrefetch` 可继续对包内可见），并把 C16 §6.3 恢复为「请求数为 0」；W2 回滚 = 把 `completeTmdbLoad` 的等待与收尾逻辑并回 `loadContent` 的协调任务（等价于 §9.4 之前的单任务结构）；W3 回滚 = 还原 `TmdbService` 的 lite 入口与 `TmdbCandidate` 结构；W4 回滚 = 去掉 `setRail*` 档位替换与 `heroPosterTier`。四者均不触碰匹配阈值与源数据优先级。
