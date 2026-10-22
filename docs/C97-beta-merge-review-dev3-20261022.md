@@ -81,9 +81,10 @@
 
 ## 7. 交付坐标
 
-- 合并提交：`6a36571e51be6ab5fff30e413eb63761ce40ec6d`。
-- 评审/修复提交：（见推送后的回填提交）。
-- Recovery tag：（见推送后的回填提交）。
-- 推送：（见推送后的回填提交）。
-- PR：（见推送后的回填提交）。
-- 拉取：（见推送后的回填提交）。
+- 合并提交：`6a36571e51be6ab5fff30e413eb63761ce40ec6d`（双亲 `cae6e4b6e9` / `3203ca9da0`）。
+- 评审/修复提交：`bccb5b5a35dd7fc5a74cf3d8a38be844c6ba1416`（在合并提交之上，4 文件 +210 −23）。
+- Recovery tag：`recovery/C97-beta-merge-review-dev3-20261022/20261022074657-bccb5b5a35dd`。
+- 推送：`origin/dev3` `5fa1a24256..bccb5b5a35`。
+- PR：[#477](https://github.com/Silent1566/webhtv/pull/477)（`dev3` → `beta`，中文描述含具体改动内容，只创建不合并）。
+- 拉取：`git fetch origin --prune` + `git pull --ff-only origin dev3`，`dev3` 与 `origin/dev3` 同步；`origin/beta` 仍为 `3203ca9da0`。
+- 工作树：干净；本节回填为文档单提交（受保护未跟踪目录 `.design-evidence/` 保持不动）。
