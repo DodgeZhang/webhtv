@@ -151,6 +151,43 @@ public class PlaybackPerformanceSettingSourceTest {
     }
 
     @Test
+    public void inputSideDropCountersReachTheDiagnosticLog() throws Exception {
+        // The 「输入丢帧阈值」 switch drops decoder input frames before they are decoded. Reporting
+        // only the output counters let that happen invisibly, which is the one question a
+        // dropped-frame report has to answer.
+        String collector = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "player", "exo", "ExoDiagnosticCollector.java"));
+
+        assertContainsAll(collector,
+                "droppedInputBufferCount",
+                "skippedInputBufferCount",
+                "droppedToKeyframeCount",
+                "droppedInputBuffers are pre-decoder drops");
+    }
+
+    @Test
+    public void frameLatenessHistogramDoesNotRequireExperimentEnrollment() throws Exception {
+        // The per-frame lateness distribution used to be collected only for devices enrolled in
+        // the frame-scheduling A/B experiment, so an ordinary report could not say how late frames
+        // were. Diagnostics-on must be enough.
+        String listener = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "player", "exo", "PlaybackAnalyticsListener.java"));
+
+        assertContainsAll(listener,
+                "frameSchedulingExperimentActive || SpiderDebug.isEnabled()",
+                "logFrameTimingIfDue()",
+                "\"exo-frame-timing\"",
+                "FRAME_TIMING_LOG_INTERVAL_MS");
+    }
+
+    @Test
+    public void telemetryNamesTheRenderedFpsScope() throws Exception {
+        // 58.824 in the telemetry line is a presentation-timestamp cadence, not rendered
+        // throughput; a stuttering 60 fps stream still reports it. Name the scope in the line.
+        String mapper = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "player", "PlaybackTelemetryMapper.java"));
+
+        assertContainsAll(mapper, "renderedFpsScope=pts-cadence-estimate;not-throughput");
+    }
+
+    @Test
     public void durationProgressKeepsUpstreamDefaultUntilMigrated() throws Exception {
         String source = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "setting", "PlaybackPerformanceSetting.java"));
         String getter = methodBody(source, "public static boolean isVideoDurationProgressEnabled()", "public static void putVideoDurationProgressEnabled");

@@ -162,10 +162,15 @@ public final class ExoDiagnosticCollector implements AnalyticsListener {
     private void counters(Context owner, DecoderCounters c, boolean video) {
         if (c == null || !PlaybackDiagnosticCollector.enabled()) return;
         c.ensureUpdated();
+        // Input-side drops are what the 「输入丢帧阈值」 switch produces. Reporting only the output
+        // counters made a threshold that silently discards decoder input frames invisible, which is
+        // exactly the question a dropped-frame report has to answer.
         log.emit(owner, video ? "video.output.summary" : "audio.decoder.output", "media3-decoder-counters", "renderer-enable-lifetime", e -> e
                 .observed("inputBuffers", c.queuedInputBufferCount).observed("submittedBuffers", c.renderedOutputBufferCount)
                 .observed("skippedBuffers", c.skippedOutputBufferCount).observed("droppedBuffers", c.droppedBufferCount)
-                .observed("metricScope", "renderer counters since enable; submitted does not mean physical presentation")
+                .observed("droppedInputBuffers", c.droppedInputBufferCount).observed("skippedInputBuffers", c.skippedInputBufferCount)
+                .observed("droppedToKeyframe", c.droppedToKeyframeCount)
+                .observed("metricScope", "renderer counters since enable; droppedInputBuffers are pre-decoder drops from the late threshold; submitted does not mean physical presentation")
                 .unknown("physicalDisplay", NOT_OBSERVABLE));
         if (c.queuedInputBufferCount > 0) log.evidence(owner, video, 1);
         if (c.renderedOutputBufferCount > 0) log.evidence(owner, video, video ? 3 : 2);

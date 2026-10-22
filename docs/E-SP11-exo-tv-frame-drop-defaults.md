@@ -467,3 +467,39 @@ adb shell run-as com.silent.android.webhtv cat shared_prefs/com.silent.android.w
 **未验证（如实记录）**：新日志行**未在真机/模拟器上读出过**——`exo-frame` 的 `SpiderDebug.isEnabled()` 门控与导出日志通道尚未在设备端确认；电视盒（X7 Ultra）本会话未连接。这条需要在下一次装机时用 `grep exo-frame` 确认。
 
 **下一步（唯一动作）**：§15 的设备分组测试（同文件同位置），并在该轮日志里确认 `exo-frame:` 行出现、且 `lateDropInputUs` 与设置页一致。
+
+---
+
+## 18. 实施记录（2026-10-22）：补齐掉帧归因缺的两类证据
+
+**动机**：§17 只解决了「配置未知」。真正卡住归因的是两处**测量缺失**——①「输入丢帧阈值」丢在解码前的帧**根本不计**；②每帧迟到分布只在 A/B 实验投放的设备上采集，普通设备上永远拿不到，导致「跳帧」与「顿住」在日志上不可区分（[androidx/media#3347](https://github.com/androidx/media/issues/3347) 的定案正是靠这个量测）。
+
+| # | 改动 | 文件 | 作用 |
+|---|---|---|---|
+| 1 | 已有 `video.output.summary` 行补三个计数器：`droppedInputBuffers` / `skippedInputBuffers` / `droppedToKeyframe`，并把 `metricScope` 写明「droppedInputBuffers 是迟到阈值造成的解码前丢弃」 | `ExoDiagnosticCollector.counters()` | **零新增日志行**（字段挂在既有 5 s 采样上）；阈值开关是否真在丢帧从此可见 |
+| 2 | 迟到分布采集门槛从「实验投放」放宽到「实验投放**或**诊断日志开启」，并新增节流输出 `exo-frame-timing`（30 s 一行） | `PlaybackAnalyticsListener.onVideoFrameProcessingOffset()` + 新增 `logFrameTimingIfDue()` | 能回答「帧晚了多少毫秒」；离线包 `SpiderDebug` 关闭时行为与原来完全一致（不采集、不输出） |
+| 3 | 遥测行给 `renderedFps` 补 `renderedFpsScope=pts-cadence-estimate;not-throughput` | `PlaybackTelemetryMapper.runtimeLogSummary()` | 明确 `58.824` 是 PTS 节拍估计、不是渲染吞吐（§14.2 差点被它误导） |
+| 4 | 契约锁：新增 1 个行为测试 + 3 个源码锁 | `ExoFrameTimingMetricsTest`、`PlaybackPerformanceSettingSourceTest` | ①②③ 任一项被改回去，单测直接红 |
+
+**新增日志样例**
+
+```
+exo-frame-timing: trace=p-… frames=3120 avgOffsetMs=-3 lateBatches=41 codecErrors=0
+  offsetBucketsUs=210/96/1180/1310/240/60/24
+  metricScope=buckets=<-20ms/-20..0/0..20/20..50/50..75/75..100/>=100ms;
+  positive=early, negative=position-passed-the-frame; renderer-side only
+```
+
+`offsetBucketsUs` 七个桶直接对应「晚了多少」：前两桶（<-20 ms、-20..0）就是迟到帧，正是 #3347 里 30–130 ms 迟到那类现象的观测口径。
+
+**行为影响**：**离线包无变化**（`SpiderDebug.isEnabled()` 默认关，采集与输出都被门控）；诊断开时每帧多几次整数累加、每 30 s 一行日志。不改任何播放决策。
+
+**验证（本会话实测）**
+- `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` → **BUILD SUCCESSFUL**
+- `:app:compileMobileArm64_v8aDebugJavaWithJavac` → **BUILD SUCCESSFUL**
+- `:app:testLeanbackArm64_v8aDebugUnitTest --tests '*PlaybackPerformanceSettingSourceTest*' --tests '*ExoFrameTimingMetricsTest*' --tests '*ExoFrameScheduling*'` → **41 例 0 失败**
+- `:app:testLeanbackArm64_v8aDebugUnitTest --tests '*tv.player.*'` → **1511 例 / 2 skipped / 0 失败**（208 个测试类）
+
+**未验证（如实记录）**：`exo-frame-timing` 与三个新计数器的**设备端输出尚未读到**（X7 Ultra 未连接）；`SpiderDebug` 开启时每帧入桶的实际开销也未测量，理论上可忽略，但需要在电视盒上确认掉帧率没有因此上升到可感知。
+
+**下一步（唯一动作）**：§15 的设备分组测试。读取三样东西即可完成归因：`exo-frame`（生效配置）、`exo-frame-timing`（每帧迟到分布）、以及 `video.output.summary` 里的 `droppedInputBuffers` 增量。
