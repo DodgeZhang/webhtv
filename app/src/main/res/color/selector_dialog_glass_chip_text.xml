@@ -15,7 +15,7 @@
    以上两个比值都是不透明原始色对按 WCAG 2.x 相对亮度直接算出的。
    所以常态取固定浅色（white_90）；勾选/激活/选中取固定深色
    （black，对浅灰选中底 16.87:1）；**焦点取固定浅色**，因为焦点底是固定的高饱和蓝
-   shape_dialog_glass_chip_focused（#FF1B45B8），黑字压在那块蓝上只有约 3.2:1。
+   shape_dialog_glass_chip_focused（#FF1B45B8），黑字压在那块蓝上只有约 2.6:1。
 
    焦点分支必须排在勾选/激活/选中之前，与 selector_dialog_glass_chip 的背景分支一一对应：
    Android 取首个全匹配项，背景既然「焦点 > 选中」，前景也必须「焦点 > 选中」；

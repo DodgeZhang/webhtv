@@ -55,6 +55,10 @@ public class TvContentInsetContractTest {
     public void theInsetConsumerNeverTurnsInsetsIntoPadding() throws Exception {
         String source = sourceOfMethod(read(LEANBACK_BASE), "bindFullWindowContent");
 
+        // 正向锚点：方法体必须真的被切出来，否则下面两条否定断言会对着空串空转。
+        assertTrue("必须能定位到 bindFullWindowContent 的方法体",
+                source.contains("void bindFullWindowContent()")
+                        && source.contains("setDecorFitsSystemWindows"));
         assertFalse("消费 inset 后不允许再用 bottom inset 设置 padding（那会把黑带换个形式留下）",
                 source.contains("getSystemWindowInsetBottom")
                         || source.contains("Type.systemBars()")
@@ -72,7 +76,9 @@ public class TvContentInsetContractTest {
     }
 
     private static String sourceOfMethod(String source, String name) {
-        int start = source.indexOf(name + "()");
+        // 必须从方法声明起切，不能从调用点起：否则先撞上 javadoc 里的 {@link ...} 花括号，
+        // 返回的是一段注释片段，否定断言就永远对着空串空转。
+        int start = source.indexOf("void " + name + "(");
         if (start < 0) return "";
         int brace = source.indexOf('{', start);
         if (brace < 0) return "";
@@ -80,9 +86,9 @@ public class TvContentInsetContractTest {
         for (int i = brace; i < source.length(); i++) {
             char c = source.charAt(i);
             if (c == '{') depth++;
-            else if (c == '}' && --depth == 0) return source.substring(brace, i + 1);
+            else if (c == '}' && --depth == 0) return source.substring(start, i + 1);
         }
-        return source.substring(brace);
+        return source.substring(start);
     }
 
     private static String read(String path) throws Exception {
