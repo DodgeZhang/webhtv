@@ -16,9 +16,6 @@ import android.widget.ProgressBar;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.LinearLayoutCompat;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
@@ -46,14 +43,6 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
     private Filter filter = Filter.ALL;
     private Sort sort = Sort.RECENT;
     private String query = "";
-    /**
-     * System-bar insets reported by this dialog's own window, or {@code null} before they arrive.
-     *
-     * <p>{@code onStart} can run before the window has been laid out, so the insets may still be
-     * missing when the window is first sized; the listener installed in {@link #onStart} re-sizes
-     * the window once the platform reports them.
-     */
-    private ThemeDialogLayout.Insets windowInsets;
 
     public static void show(Fragment fragment) {
         new SiteHealthReportDialog().show(fragment.getChildFragmentManager(), null);
@@ -78,43 +67,32 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
         super.onStart();
         Dialog dialog = getDialog();
         if (dialog == null || dialog.getWindow() == null) return;
-        configureWindow(dialog.getWindow());
+        Window window = dialog.getWindow();
+        configureWindow(window);
         // The window can be laid out before the platform reports its system-bar insets, in which
         // case the first sizing falls back to the display bounds and the footer's cancel button
         // ends up under the navigation bar. Re-sizing when the real insets arrive is what makes
         // the fix independent of that ordering.
-        View decorView = dialog.getWindow().getDecorView();
-        ViewCompat.setOnApplyWindowInsetsListener(decorView, (view, insets) -> {
-            ThemeDialogLayout.Insets next = insetsOf(insets);
-            if (!next.equals(windowInsets)) {
-                windowInsets = next;
-                Dialog current = getDialog();
-                if (current != null && current.getWindow() != null) configureWindow(current.getWindow());
-            }
-            return insets;
-        });
-        ViewCompat.requestApplyInsets(decorView);
+        DialogSafeArea.follow(requireActivity(), window, () -> configureWindow(window));
         binding.close.requestFocus();
     }
 
     /**
      * Sizes the dialog window from the system-bar-safe area instead of the raw display.
      *
-     * <p>{@link ResUtil#getScreenHeight} returns the whole display on API 30+, so a window sized
-     * from it is taller than the area the window manager actually offers a floating dialog: the
-     * window is centred in the bar-safe area and its last row - the fixed-height cancel button -
-     * is painted under the navigation bar and clipped. The theme editor had the same defect and
-     * the same fix (see {@code docs/THEME-EDITOR-20261001-inline-preview.md}); the gutter stays
-     * the existing 16dp portrait / 24dp landscape value so television geometry is unchanged.
+     * <p>{@link ResUtil#getScreenHeight} returns the whole display, so a window sized from it is
+     * taller than the area the window manager actually offers a floating dialog: the window is
+     * centred in the bar-safe area and its last row - the fixed-height cancel button - is painted
+     * under the navigation bar and clipped. {@link DialogSafeArea} resolves that area for every
+     * dialog in this package; the gutter stays the existing 16dp portrait / 24dp landscape value
+     * so television geometry is unchanged.
      */
     private void configureWindow(Window window) {
         WindowManager.LayoutParams params = window.getAttributes();
         window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         window.getDecorView().setPadding(0, 0, 0, 0);
         int margin = ResUtil.dp2px(ResUtil.isLand(requireContext()) ? 24 : 16);
-        int screenWidth = ResUtil.getScreenWidth(requireContext());
-        int screenHeight = ResUtil.getScreenHeight(requireContext());
-        ThemeDialogLayout.Area area = ThemeDialogLayout.safeArea(screenWidth, screenHeight, systemBarInsets(screenWidth, screenHeight));
+        ThemeDialogLayout.Area area = DialogSafeArea.area(requireActivity(), window);
         params.width = ThemeDialogLayout.width(area.width(), margin);
         params.height = ThemeDialogLayout.height(area.height(), margin);
         // Gravity.CENTER centres the window inside the bar-safe area; an explicit params.x/y
@@ -122,52 +100,6 @@ public class SiteHealthReportDialog extends BaseAlertDialog {
         params.gravity = Gravity.CENTER;
         window.setAttributes(params);
         window.setLayout(params.width, params.height);
-    }
-
-    /**
-     * The system bars this dialog window has to stay clear of.
-     *
-     * <p>1) The dialog window's own report is the exact value whenever the platform fills it in.
-     * 2) A floating dialog window on API 28 keeps reporting {@code systemBars() = [0,0,0,0]} while
-     * a navigation bar is on screen, so an all-zero report is treated as unknown and the host
-     * activity's root insets are used instead. 3) Until either is known, the space the host content
-     * view already gave up is used; that can only over-reserve, never clip.
-     */
-    private ThemeDialogLayout.Insets systemBarInsets(int screenWidth, int screenHeight) {
-        if (windowInsets != null && !windowInsets.isEmpty()) return windowInsets;
-        ThemeDialogLayout.Insets host = hostWindowInsets();
-        if (!host.isEmpty()) return host;
-        ThemeDialogLayout.Insets fallback = ThemeDialogLayout.Insets.ofContent(screenWidth, screenHeight, contentWidth(), contentHeight());
-        return fallback.isEmpty() ? ThemeDialogLayout.Insets.none() : fallback;
-    }
-
-    private ThemeDialogLayout.Insets hostWindowInsets() {
-        try {
-            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(requireActivity().getWindow().getDecorView());
-            return insets == null ? ThemeDialogLayout.Insets.none() : insetsOf(insets);
-        } catch (RuntimeException error) {
-            return ThemeDialogLayout.Insets.none();
-        }
-    }
-
-    private ThemeDialogLayout.Insets insetsOf(WindowInsetsCompat insets) {
-        Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-        Insets gestures = insets.getInsets(WindowInsetsCompat.Type.systemGestures());
-        // Only the bottom edge takes the gesture area into account: some OEM gesture-navigation
-        // builds under-report systemBars().bottom while the handle still covers the window, but
-        // letting the left/right gesture regions into the max would needlessly narrow the dialog
-        // on three-button-navigation phones.
-        return new ThemeDialogLayout.Insets(bars.left, bars.top, bars.right, Math.max(bars.bottom, gestures.bottom));
-    }
-
-    private int contentWidth() {
-        View content = requireActivity().findViewById(android.R.id.content);
-        return content == null ? 0 : content.getWidth();
-    }
-
-    private int contentHeight() {
-        View content = requireActivity().findViewById(android.R.id.content);
-        return content == null ? 0 : content.getHeight();
     }
 
     @Override
