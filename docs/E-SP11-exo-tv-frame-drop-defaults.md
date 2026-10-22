@@ -3,7 +3,7 @@
 - **任务 ID**：`E-SP11`（Exo 性能专项，`E-SP*` 家族）
 - **开始时间**：2026-10-21 11:05 (+08:00, Asia/Shanghai)
 - **lane**：诊断 + 默认值治理（非上游合并、非 ABI/原生改动）
-- **当前状态**：**阶段 A（只读归因）完成；阶段 C 已实施两处「对齐上游」改动（未编译、未装机、未实测）；阶段 B（设备 bisect）待做**
+- **当前状态**：**2026-10-22 更新：10-21 测试版（`590c424568`）相对 10-17 测试版（`323afa1a`）在**同一台 X7 Ultra、同一个 4K HEVC HDR10 60fps 文件**（`contentLength=5566387403`/`duration=2889979`/`15408796 bps` 逐字节相同）上实测掉帧 0.17/s → 1.14/s（约 6.7 倍）；证据、假设与判定规则见 §14，设备分组操作单见 §15，强制最佳实践评审见 §16；阶段 B 仍在进行中**
 - **阻塞**：本机 shell 无法启动（`bash` 与 `pwsh` 均报 `DSH workspace preparation failed (not a user permission denial)`），因此 `task_guard.sh`、Gradle 编译/单测、`git` 校验、AAR 反编译在本轮均无法执行；电视盒真机不在本会话可达范围。
 
 ---
@@ -277,6 +277,169 @@ adb shell run-as <包名> cat shared_prefs/<包名>_preferences.xml | grep perf_
 
 **仍未解决（与本任务原有边界一致）**：阶段 B 设备 bisect 与电视盒实测未执行。本轮 `adb devices` 只有 `127.0.0.1:5557` 与 `emulator-5556`，均为 x86_64 / SDK 28 镜像，且未构建 x86_64 产物 ⇒「阈值关闭后的丢帧行为」与「摘要那一行的实际渲染」都没有设备端证据。
 
-## 11. 下一步（唯一动作）
+## 11. 下一步（历史记录，已被 §14 / §15 取代）
 
-装上新包后先只做 §4 的 A（全默认）与 B（关「输入丢帧阈值」）两组对照：若新默认下 A 组已明显好于旧版，说明「5 ms 阈值 + durationToProgress」就是主线，收工；若 A 仍掉帧而 B 好转，再单独评估把 `perf_late_drop_input` 默认关掉（此时阈值已放宽，需重新取值）。
+（原文保留）装上新包后先只做 §4 的 A（全默认）与 B（关「输入丢帧阈值」）两组对照：若新默认下 A 组已明显好于旧版，说明「5 ms 阈值 + durationToProgress」就是主线，收工；若 A 仍掉帧而 B 好转，再单独评估把 `perf_late_drop_input` 默认关掉（此时阈值已放宽，需重新取值）。
+
+---
+
+## 14. 最新 TV 测试版回归归因（2026-10-22，本会话，证据级：观测）
+
+**用户现象**：最新 TV 测试版 EXO 掉帧、变卡；给出两份导出日志（`webhtv-debug-log (28).txt`、`(29).txt`）。
+
+### 14.1 构建坐标（两份日志同进程、同构建）
+
+- `appVersion=5.6.0` / `versionCode=560` / `buildTime=202610212003` / `buildTag=v5.6.0-beta-202610211951`
+- `gitRevision=590c424568d5d1eaa713fe8a06c6c57cd013f42c`（当时 `origin/beta` 的 tip；本地 `dev2` 已并入）
+- `media3=1.11.0-alpha01-fongmi`、flavor `leanback`、abi `arm64_v8a`
+- 设备：`Dangbei X7 Ultra`（`device=horse_popular`，Android 14 / API 34，MTK）
+- 片源：`video/hevc`、`hvc1.2.4.L153.90`、3840×2160、HDR10、**60 fps**（PTS 实测 60.0 帧/秒）、平均码率 ≈15.3 Mbps、时长 3 200 615 ms
+- 解码：`c2.mtk.hevc.decoder`（**硬解**，非 FFmpeg 软解）；`tunneling=false`、音频 `offload=false` → PCM；`renderTarget=surface-view`；Surface 固定 `1920x1080`；显示 `1920x1080@60Hz`
+- 线路：`EXTERNAL_LOOPBACK_PROXY`（外部回环代理，upstream 不可见）；`bandwidthBps=13 276 094 < mediaBps=15 344 176`、`pathTrust=blocked`、`throughputConfidence=low`
+
+### 14.2 跨构建对照（同一台 X7 Ultra、同类 4K HDR10 60 fps 片源、同一硬解路径与线路类型）
+
+| 构建 | 日志 | 稳态窗口 | 解码输入 | 提交渲染 | 丢帧 |
+|---|---|---|---|---|---|
+| `v5.6.0-beta-202610170951` = `323afa1a5a9b962749bd3e78840a4f729a2f4701` | (25) | 15:33:02→15:34:17（75 s） | 57.1/s | 56.3/s | **0**（`drop` 32→32） |
+| `v5.6.0-beta-202610211951` = `590c424568d5d1eaa713fe8a06c6c57cd013f42c` | (29) | 00:14:37→00:15:02（25 s） | 61.1/s | 55.0/s | **+154（6.2/s）** |
+
+整段会话按 `playback-telemetry` 的 `dropped` 增量/时间跨度：10-17 版 **0.17/s**（32 / 188 s）；10-21 版 **0.90–2.31/s**（66 / 74 s、235 / 102 s）。两版 `renderedFps=58.824`（PTS 中位数推出的内容节拍，不是渲染吞吐）。
+
+### 14.3 同时确认的事实（含误读纠正）
+
+1. 掉帧发生在**缓冲充足**时：`bufferedMs` 18–52 s、`loading=false`、`state=READY`、`rebufferCount=0` ⇒ 不是网络饥饿的直接结果。
+2. 10-21 版另有 2 次 seek 后 5–10 s 的 `BUFFERING`（位置 730038 / 1279570，`bufferedMs=0`），其中一次 `input.open` 返回 0 字节。这是「变卡」的另一半，必须与掉帧分开陈述。
+3. `skippedBuffers=815` 与 `discardedBuffers` 含 seek/flush 的 drop-to-keyframe（media3 `MediaCodecVideoRenderer.skipOutputBuffer` / `dropToKeyframe` 路径），不能全部算作稳态掉帧。
+4. `ptsRegressions ≈ 输入的一半` 是 HEVC B 帧解码序的**正常现象**（`ExoDiagnosticCodecAdapter.input()` 只比较相邻入队 PTS），不是缺陷。
+5. 10-21 版解码输入仍是**满帧率 60/s** ⇒ 15 ms 输入丢帧阈值窗口内几乎没有输入帧被丢；阈值是否被触发过**未被观测**。
+6. 导出日志里**没有任何 `perf_*` 取值行** ⇒ 设备实际开关值未知；`droppedFrames` 只统计渲染器侧（`onDroppedVideoFrames`），解码输入阶段的丢弃不可见。这两点是 §16 要补的观测缺口。
+
+### 14.4 窗口内 EXO 相关提交（`323afa1a5a9b962749bd3e78840a4f729a2f4701..590c424568d5d1eaa713fe8a06c6c57cd013f42c`，仅 `player/` + `setting/`）
+
+| commit（40 位） | 内容 | 与帧节奏的关系 |
+|---|---|---|
+| `7faf6cea93026f477f0fefc29e0a20555126db9b` | E-SP11：`ENHANCED_LATE_THRESHOLD_TO_DROP_INPUT_US` 5 000→15 000；`perf_video_duration_progress` 默认 true→false + 迁移 | **直接**：唤醒时点 / 解码输入时点 |
+| `a8ae5e8602afd47c5a2079a9f1a79d215f1a08f7` | C91 复评：两条构建路径统一「关=`C.TIME_UNSET`」；解码器排除摘要按 environment 过滤 | 直接（阈值语义） |
+| `e79ed9058aab6cfce6f9433116e673cb89aeb140` | 硬解下保留 ffmpeg 视频回退（`EXTENSION_RENDERER_MODE_OFF→ON`） | 间接：改变渲染器列表（HEVC 仍先命中 MediaCodec） |
+| `c1fd4aa13f3de8d43729ba8f28407ea3cac1e725` | E-SP10：回环代理 EOF 恢复退避 + 预加载让位 | 间接：预加载争用 |
+| `ad7f5834de429a35fb729c27744110226d800c0c`、`48f59db5ae8e577cd0fba8c25be787876882d022`、`8d47a5dd34618af520ba8f01c2d6aaa6a28f78e7`、`203bb7d567ec56960aa2276e865db680b983b020`、`2d403b2a31fe96adfd4eb6fb9d848168d598d433`、`51d805e4a8c93eec4367b231963a5ce4aeb00ed6`、`d6dae3da12fec4c6054d63aa402d8d13bd175581` | 取流 / 线路切换 / 直播 manifest 重试 / 错误分类 | 与稳态渲染无直接关系 |
+
+### 14.5 media3 fork 口径复核（`third_party/sources/media` @ `e3e922d`，`1.11.0-alpha01-fongmi`）
+
+- `DEFAULT_LATE_THRESHOLD_TO_DROP_DECODER_INPUT_US = 15_000`（`MediaCodecVideoRenderer.java:153`）；只有 `C.TIME_UNSET` 才真正不丢输入帧（`:698-705`、`:1816-1823`）。
+- `minEarlyUsToDropDecoderInput = -threshold`：阈值越小 = 越早丢迟到输入帧；越大 = 越晚丢。
+- `enableDurationToProgressUs=false` 走 `Renderer` 兜底（`Renderer.java:157` `DEFAULT_DURATION_TO_PROGRESS_US=10 000`、`:166` `DEFAULT_IDLE_DURATION_TO_PROGRESS_US=1 000 000`）；`true` 时按下一帧 `earlyUs` 精确推迟唤醒（`MediaCodecVideoRenderer.java:1557-1600`）。
+- `DEFAULT_EARLY_SCHEDULING_THRESHOLD_US = 50_000`（`:212`），与本仓 `ExoFrameSchedulingExperimentPolicy.BASELINE_EARLY_SCHEDULING_THRESHOLD_US` 一致，**窗口内未变**。
+
+### 14.6 假设与判定规则（可证伪）
+
+- **H1（阈值）**：15 ms 让更多迟到帧进入解码器，渲染器在释放时才丢。若成立 ⇒ 把开关设为「关闭」（`C.TIME_UNSET` = 永不丢输入）应让掉帧**进一步恶化**。
+- **H2（唤醒）**：`duration_progress` 默认 true→false 改变了播放循环唤醒时点。若成立 ⇒ 把「解码耗时推进」打开应**显著降低**掉帧。
+- **H3（都不是）**：两开关均无效果 ⇒ 回归来自 `e79ed9058a…` / `c1fd4aa13f…` 或更外层（缓存/预加载），改为逐个 revert 构建 bisect。
+- **H4（不是代码）**：两版同片源对照无显著差值 ⇒ 改判片源/线路（估算带宽 13.27 Mbps < 码率 15.34 Mbps + 外部回环代理），交付结论与替代方案而不是代码补丁。
+
+### 14.7 边界（不得含糊）
+
+- 两份 10-21 日志是**同一构建、同一进程**，不能做构建级 A/B；跨构建结论依赖与 10-17 版（`323afa1a…`）的机器内对照，仍须补一次严格同片源 A/B。
+- 两条开关都必须写成**条件表述**：`duration_progress` 只在「动态调度开 + 解码器异步队列」时生效；输入丢帧阈值只在帧「预测将迟到」时生效。
+- 4K HDR10 60 fps ≈15 Mbps 可能已接近该 SoC 的舒服区（10-17 版更早窗口也有 24 帧掉落）⇒ 验收用**相对基线差值**，不要求 0 丢帧。
+
+---
+
+## 15. 设备 bisect 操作单（零改动，用户在 X7 Ultra 上执行）
+
+**第 0 步：先把「未观测」变成事实**（读现场开关值，而不是按默认值推断）：
+
+```bash
+adb shell run-as com.silent.android.webhtv cat shared_prefs/com.silent.android.webhtv_preferences.xml | grep -E 'perf_(late_drop_input|video_duration_progress|dynamic_scheduling|codec_async_queueing)'
+```
+
+**设置入口**：播放器设置 → 播放性能（`PlaybackPerformanceDialog`）。**先把预设切到「自定义」**，否则预设回写会覆盖单项开关。相关项名称：「Media3 动态调度」「解码耗时推进」「输入丢帧阈值」「MediaCodec 队列」。
+
+**分组（同片源、同位置、同一次安装；每组稳态 ≥5 min）**
+
+| 组 | 改动 | 目的 |
+|---|---|---|
+| A | 当前默认 | 复现基线（预期 0.9–2.3 drops/s） |
+| B | 只把「解码耗时推进」打开 | 判 H2 |
+| C | B + 「输入丢帧阈值」关闭 | 判 H1（若 H1 成立应更差） |
+| D | C + 「MediaCodec 队列」改自动 | 排除强制异步队列 |
+
+**取数**（每组结束导出一次诊断日志，或看设置页摘要里的掉帧数）：
+- `playback-metrics: droppedFrames=<n> total=<n> elapsed=<ms>ms` → `drop/s = n / (elapsed/1000)`；
+- `av-diag` 的 `video.output.summary`（`source=media3-decoder-counters`）：`droppedBuffers` 增量 ÷ `inputBuffers` 增量；
+- 同时记录 `bufferedMs` 与是否出现 `BUFFERING`（把掉帧与 seek 缓冲分开）。
+
+**判定**：某组相对 A 的 `drop/s` 降幅 ≥70% ⇒ 该开关为主线（H1/H2）；四组都无明显收益 ⇒ H3；若 A 组本身就无法复现（与 10-17 版无差别）⇒ H4。
+
+**对照**：用 10-17 版 APK（`v5.6.0-beta-202610170951`，`323afa1a5a9b962749bd3e78840a4f729a2f4701`）同片源跑一次，确认基线量级；若用户认为「上一个好版本」是别的 tag，以用户指认为准。
+
+**回填**：把每组的开关值、`drop/s`、位置区间、是否 `BUFFERING` 写回本节。
+
+**追加要求（2026-10-22 修订，见 §15.1 / §16.3）**：A/B 必须用**同一文件、同一位置区间**。日志 (25) 与日志 (28) 已经证实播的是**同一个文件**（`contentLength=5566387403`、`duration=2889979`、`bitrate=15408796` 三者逐字节相同），但**位置区间不同**（(25) 在 1413–2128 s，(28) 在 14–1254 s）。由于外部证据（§16.3）显示同型号 MTK 解码器的迟到帧与**编码内容**强相关，切换开关时请固定在**同一位置**（建议从 2:00 起连续 5 分钟）。
+
+### 15.1 同文件跨构建对照（更强的证据）
+
+| 构建 | 文件 | 位置区间 | `dropped` 增量 / 时长 | 速率 |
+|---|---|---|---|---|
+| `v5.6.0-beta-202610170951` = `323afa1a5a9b962749bd3e78840a4f729a2f4701`（日志 25） | 玩偶 4K HEVC HDR10 60fps、`contentLength=5566387403`、`duration=2889979 ms`、15 408 796 bps | 1413–2128 s | 32 / 188 s（其中稳态 75 s 增量为 **0**） | **0.17/s** |
+| `v5.6.0-beta-202610211951` = `590c424568d5d1eaa713fe8a06c6c57cd013f42c`（日志 28） | **同一文件**（三个字段完全一致） | 14–1254 s | 206 / 181 s | **1.14/s** |
+
+同文件、同设备、同解码器（`c2.mtk.hevc.decoder`）、同固定 Surface 1920×1080、同线路类型 ⇒ **构建间相差约 6.7 倍**。
+残余混淆：两段**位置不同**（内容相关性未被完全排除）；这是把 §15 的分组测试固定到同一位置的原因。
+
+---
+
+## 16. 强制最佳实践评审（2026-10-22，§5 gate；证据分级：一手源码/官方文档/上游 issue）
+
+**决策问题（单一）**：E-SP11 把 `perf_video_duration_progress` 默认 true→false、丢帧阈值 5→15 ms（「对齐上游」）对**电视盒**是否是正确的默认值？应保留、回退还是改成设备分级？
+
+### 16.1 上游实际基线（一手源码）
+
+| 来源 | 修订 | 证据 | 结论 |
+|---|---|---|---|
+| `/f/Workspace/_refs/FongMiTV-fongmi`（本地 clone） | `a00ebd2571d5b7635a768b0241635a45a07bb4a2`（2026-05-14，**早于**锁定的 `1a19fee2…`） | `app/src/main/java/com/fongmi/android/tv/player/exo/ExoUtil.java`：`buildRenderersFactory()` 只有 `setAudioPrefer/setVideoPrefer/setEnableDecoderFallback(true)/setExtensionRendererMode`；`getRenderMode(HARD)=EXTENSION_RENDERER_MODE_ON` | 五个帧节奏开关**全部未调用** |
+| `https://github.com/FongMi/TV` @ `1a19fee278fa2234da725d61a53bf59b69fe9127`（锁文件 `third_party/fongmi-repositories-lock.json` 的 `repositories.tv.selected_commit`，2026-10-22 经 raw 获取 HTTP 200） | 同上 | `ExoUtil.buildPlayer()` = `new ExoPlayer.Builder(...).setSkipSilenceEnabled(...)` + `preloadManagerBuilder.buildExoPlayer(...)`；`buildRenderersFactory()` = `DefaultRenderersFactory` + `setEnableDecoderFallback/setDolbyVisionOutputPolicy/setExtensionRendererMode(ON)` | 确认：上游**没有** `experimentalSetDynamicSchedulingEnabled`、`setEnableDurationToProgressUs` / `setEnableMediaCodecVideoRendererDurationToProgressUs`、`experimentalSetLateThresholdToDropDecoderInputUs`、`setVideoRendererEarlySchedulingThresholdUs`、`forceEnableMediaCodecAsynchronousQueueing` ⇒ 上游对这些全部吃 media3 默认 |
+| `third_party/sources/media`（本仓 media3 fork 源码） | `e3e922d`（`1.11.0-alpha01-fongmi`） | `MediaCodecVideoRenderer.java:153/212/305-306/481-483/698-705/1816-1823`；`Renderer.java:157/166` | fork 默认与上游一致：late-drop **15 ms**、early scheduling **50 ms**、`enableDurationToProgressUs` **false**、dynamic scheduling 由调用方 opt-in |
+
+**⇒ 「未修改的上游」= 四个开关全关（dynamic scheduling off / durationToProgress false / late-drop 15 ms / 队列 auto）。** 本仓是**主动偏离**：`perf_dynamic_scheduling=true`、`perf_codec_async_queueing=true`、`perf_surface_fixed_size=true`，并由 E-SP11 把 duration_progress 与阈值改成上游值。
+
+### 16.2 官方文档口径（一手）
+
+- `setEnableDurationToProgressUs`：默认 **false**；仅在「动态调度开启 + 解码器异步且已注册 Callback」时生效；`true` 的作用是**增加 CPU 空闲、降低功耗**（[Builder 官方文档](https://developer.android.com/reference/kotlin/androidx/media3/exoplayer/video/MediaCodecVideoRenderer.Builder)）。
+- `experimentalSetLateThresholdToDropDecoderInputUs`：默认 `DEFAULT_LATE_THRESHOLD_TO_DROP_DECODER_INPUT_US = 15000`；`TIME_UNSET` 才不丢（同上文档）。
+- `1.9.0-rc01` release notes：该默认值改为 15 ms，并「enable more efficient dropping of video frames **before decoding** for eligible videos」；同版本还改了 `getMinDurationToProgressUs` 在「无需 render 时返回更大值」（[release](https://github.com/androidx/media/releases/tag/1.9.0-rc01)）。
+
+### 16.3 上游 issue（与本案高度同型，改变判断权重）
+
+- [androidx/media#3347](https://github.com/androidx/media/issues/3347)：**`c2.mtk.hevc.decoder`（MediaTek MT8696）** 在特定 HEVC 片源上 **~30% 的帧迟到 30–130 ms**（中位 ~70 ms），同一硬件同一内容 **VLC 无卡顿**；作者直接给 `MediaCodecVideoRenderer` 加日志量测 `earlyUs` 后确认根因是**解码器交付延迟**，并明确「放宽 `shouldDropOutputBuffer` 阈值（-30 ms → -500 ms）**不解决问题**，只是把『跳帧』换成『顿住』」；触发因素被定位到**编码器世代**（x265 3.3 编码的同一素材可复现，x265 4.1 不复现）。
+- [androidx/media#3286](https://github.com/androidx/media/issues/3286)：动态调度会让 `getCurrentPosition()` 最多滞后 200 ms（1.11.0 alpha 起明显）。
+
+**对本决策的影响**：
+1. `late drop` 阈值是**观测输入侧**的开关，只影响「预测将迟到」的输入帧；上述实测到的 30–130 ms 迟到**两侧阈值都会命中**，所以「5 ms vs 15 ms」未必能区分现象 ⇒ H1 的先验概率下调。
+2. 「放宽阈值=修好」已被上游实测**否证**；本仓若照此方向调参，需要设备端证据而不是文档推断。
+3. 掉帧可能由**片源编码器世代 + 该 MTK 解码路径**决定，而非本仓代码 ⇒ H4 权重上调。**但本条不否定构建差异**：§15.1 的两条记录播的是**同一个文件**（`contentLength`/`duration`/`bitrate` 逐字节相同），构建间仍相差约 6.7 倍；残余混淆只剩「位置区间不同」，因此设备复测必须固定同一位置。
+
+### 16.4 当前 WebHTV 实现复核（具体文件/符号）
+
+- 生效链路：`PlaybackPerformanceSetting.isVideoDurationProgressEnabled()` / `isLateDropInputEnabled()` → `ExoUtil.resolveFrameSchedulingDecision()`（`ExoUtil.java:963-990`）→ `ExoFrameSchedulingRendererSettings.apply(DefaultRenderersFactory)`（`:953-958`）与 `ExoRuntimeAwareVideoRenderer.builder()`（`:108-118`）**两条路径**；硬解 + 兜底开时走后者（`ExoUtil.java:1175-1190`）。
+- `ExoFrameSchedulingExperimentPolicy.stable()`：`durationToProgress = isVideoDurationProgressEnabled() && !synchronousCodecQueue`；`earlySchedulingThresholdUs` 恒定 50 ms（与 fork 默认一致）。
+- 观测缺口：`ExoFrameSchedulingPlayerSettings` 已持有 decision + 队列模式，但**没有任何一行进入导出日志**（`grep -c scheduling` = 0）⇒ §17 的 D 项。
+- 既有测试与契约锁：`PlaybackPerformanceSettingSourceTest.lateDropThresholdSwitchCanActuallyDisableDropping`（C91 新增）、`ExoFrameSchedulingRendererSettingsTest`、`ExoFrameSchedulingExperimentPolicyTest`。
+- 与本窗口其它改动的关系：`e79ed9058a`（硬解保留 ffmpeg 回退 = `EXTENSION_RENDERER_MODE_ON`）实际上是**回到上游口径**（上游 `getRenderMode(HARD)=ON`），因此它不是本仓相对上游的新偏离，嫌疑下调。
+
+### 16.5 三方案比较与推荐
+
+| 方案 | 内容 | 利 | 弊/风险 |
+|---|---|---|---|
+| 不改（no change） | 保持 15 ms / duration_progress=false | 与上游一致、与 E-SP11 既定结论一致 | 与本机 10-17 版实测（0/s vs 6.2/s）方向相反；若 B 阶段给不出构建差异，则等于无解释 |
+| 完全照上游 | 再关掉 dynamic scheduling 与强制异步队列 | 最大化上游一致性 | 主动放弃本仓为省 CPU/4K 设计的主干；手机端功耗/温度可能回退；无证据表明必要 |
+| 本仓适配（**推荐起点**） | 按 B 阶段结果**只回退**造成回归的那一个默认值（duration_progress 或阈值），其余保留；并补 §17 的配置观测行 | 单点回滚、可证伪、保留省电主干 | 若真实原因是 §16.3 的解码器/片源路径，则改默认值无效，必须转 H4 |
+
+**推荐**：先完成 B（同集同位置、两组构建），再决定回退哪一项；**不在缺少设备证据时凭文档改默认值**。若 B 显示构建间无差异，则按 H4 交付结论（片源编码器世代 + MTK 解码路径），并把「4K 单轨无降级余地」列为产品侧风险。
+
+### 16.6 类别覆盖与限制（如实记录）
+
+- 已覆盖：上游源码（本地 clone + 锁定 commit 的 raw）、本仓 media3 fork 源码、官方 API 文档、上游 release notes、上游 issue。
+- **未覆盖/限制**：`OK影视-5.1.6` 只有 APK 无源码，未反编译（时间盒与「源码已能决定问题」）；`_refs/FongMiTV-fongmi` 本地 clone 为 `a00ebd25…`，早于锁定的 `1a19fee2…`（关键文件已用 raw 拉取锁定版本交叉确认）；未查学术论文（该问题属工程实现细节，论文类别不改变决策）。
