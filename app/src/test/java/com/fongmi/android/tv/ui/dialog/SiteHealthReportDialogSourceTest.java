@@ -44,4 +44,49 @@ public class SiteHealthReportDialogSourceTest {
                 source.contains("readableOnPanel(color)"));
         assertTrue(source.contains("ThemeController.current().colorSurfaceContainerHigh()"));
     }
+
+    /**
+     * The footer cancel button was painted under the navigation bar on phones: the window was
+     * sized from the raw display ({@code ResUtil.getScreenHeight} returns the whole display on
+     * API 30+) instead of the system-bar-safe area, so the centred floating window's last row fell
+     * outside the bar-safe area. These assertions keep the dialog on the same shared
+     * {@code ThemeDialogLayout} contract the theme editor already uses.
+     */
+    @Test
+    public void dialogSizesItsWindowFromTheSystemBarSafeArea() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/fongmi/android/tv/ui/dialog/SiteHealthReportDialog.java"));
+
+        assertTrue("must derive its window from the system-bar-safe area",
+                source.contains("ThemeDialogLayout.safeArea("));
+        assertTrue("must size the width from the shared helper",
+                source.contains("ThemeDialogLayout.width("));
+        assertTrue("must size the height from the shared helper",
+                source.contains("ThemeDialogLayout.height("));
+        assertTrue("must read the window's own system-bar insets",
+                source.contains("ViewCompat.setOnApplyWindowInsetsListener("));
+        assertTrue("must include the display cutout in those insets",
+                source.contains("WindowInsetsCompat.Type.displayCutout()"));
+        assertTrue("must consider the gesture area so an OEM gesture bar cannot clip the footer",
+                source.contains("WindowInsetsCompat.Type.systemGestures()"));
+        assertTrue("must re-size the window when the real insets arrive",
+                source.contains("ViewCompat.requestApplyInsets("));
+        assertTrue("must fall back to the host content view while insets are unknown",
+                source.contains("findViewById(android.R.id.content)"));
+        // A floating dialog window on API 28 keeps reporting systemBars() = [0,0,0,0] while a
+        // navigation bar is on screen; accepting that as "no bars" re-clips the footer.
+        assertTrue("must treat an all-zero inset report as unknown",
+                source.contains("!windowInsets.isEmpty()"));
+        assertTrue("must also read the host activity's root window insets",
+                source.contains("ViewCompat.getRootWindowInsets(requireActivity().getWindow().getDecorView())"));
+        assertTrue("must centre the window inside the bar-safe area",
+                source.contains("params.gravity = Gravity.CENTER"));
+        assertTrue("must apply the size to the window", source.contains("window.setLayout("));
+        assertFalse("must not offset the window; Gravity.CENTER already centres it",
+                source.contains("params.x = ") || source.contains("params.y = "));
+        assertFalse("must not size the window from the raw display height",
+                source.contains("params.height = Math.max(1, ResUtil.getScreenHeight(requireContext()) - margin * 2)"));
+        assertFalse("must not size the window from the raw display width",
+                source.contains("params.width = Math.max(1, ResUtil.getScreenWidth(requireContext()) - margin * 2)"));
+    }
 }
