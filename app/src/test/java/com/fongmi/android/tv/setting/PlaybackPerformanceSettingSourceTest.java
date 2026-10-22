@@ -122,8 +122,32 @@ public class PlaybackPerformanceSettingSourceTest {
                 "ENHANCED_LATE_THRESHOLD_TO_DROP_INPUT_US = 15_000L",
                 "PlaybackPerformanceSetting.isLateDropInputEnabled()",
                 "C.TIME_UNSET");
-        assertContainsAll(renderer, "C.TIME_UNSET", "isLateDropInputEnabled()");
-        assertTrue(renderer.contains("import androidx.media3.common.C;"));
+        // Both renderer paths must read the one shared accessor so they cannot drift apart.
+        assertContainsAll(renderer, "ExoUtil.effectiveLateDropThresholdUs()");
+        assertDoesNotContainAny(renderer, "isLateDropInputEnabled()");
+    }
+
+    @Test
+    public void frameSchedulingConfigurationReachesTheDiagnosticLog() throws Exception {
+        // A dropped-frame report is unattributable while exported logs carry no configuration,
+        // so the player build must emit one line naming what actually reached the factory.
+        String util = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "player", "exo", "ExoUtil.java"));
+        String diagnostics = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "player", "exo", "ExoPlaybackDiagnostics.java"));
+        String settings = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "player", "exo", "ExoFrameSchedulingRendererSettings.java"));
+
+        assertContainsAll(util,
+                "long lateDropThresholdUs = effectiveLateDropThresholdUs();",
+                "ExoPlaybackDiagnostics.logFrameScheduling(",
+                "frameSchedulingSettings.codecQueueModeLabel()",
+                "frameSchedulingSettings.dynamicSchedulingEnabled()");
+        assertContainsAll(diagnostics, "static void logFrameScheduling(", "ExoFrameSchedulingRendererSettings.describe(");
+        assertContainsAll(settings,
+                "static String describe(",
+                "durationToProgress=",
+                "earlySchedulingUs=",
+                "lateDropInputUs=",
+                "\"unset\"",
+                "metricScope=settings-applied-only");
     }
 
     @Test

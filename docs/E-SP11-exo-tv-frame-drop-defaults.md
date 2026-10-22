@@ -443,3 +443,27 @@ adb shell run-as com.silent.android.webhtv cat shared_prefs/com.silent.android.w
 
 - 已覆盖：上游源码（本地 clone + 锁定 commit 的 raw）、本仓 media3 fork 源码、官方 API 文档、上游 release notes、上游 issue。
 - **未覆盖/限制**：`OK影视-5.1.6` 只有 APK 无源码，未反编译（时间盒与「源码已能决定问题」）；`_refs/FongMiTV-fongmi` 本地 clone 为 `a00ebd25…`，早于锁定的 `1a19fee2…`（关键文件已用 raw 拉取锁定版本交叉确认）；未查学术论文（该问题属工程实现细节，论文类别不改变决策）。
+
+---
+
+## 17. 实施记录（2026-10-22）：帧调度配置进入诊断日志 + 阈值单一取值口
+
+**动机**：§14.3 第 6 条 —— 导出日志里没有任何 `perf_*`，`droppedFrames` 报告无法归属到某个开关组合；同时两条渲染器构建路径各自重复写了一遍「开=15 ms / 关=`C.TIME_UNSET`」，任何一次单边改动都会让「设置页显示的」与「实际生效的」分叉。
+
+| # | 改动 | 文件 | 说明 |
+|---|---|---|---|
+| 1 | 新增单一取值口 `effectiveLateDropThresholdUs()` | `ExoUtil.java` | `isLateDropInputEnabled()` → `ENHANCED_LATE_THRESHOLD_TO_DROP_INPUT_US`，否则 `C.TIME_UNSET`；`DefaultRenderersFactory` 路径与 `ExoRuntimeAwareVideoRenderer` 路径**都只读它**，消除双写漂移 |
+| 2 | 新增一行帧节奏配置日志 | `ExoFrameSchedulingRendererSettings.describe()`、`ExoPlaybackDiagnostics.logFrameScheduling()`、`ExoUtil.buildRenderersFactory()` | 每次建播放器输出 `exo-frame: renderer dynamicScheduling=… codecQueue=… decision=… decisionUnit=… durationToProgress=… earlySchedulingUs=… lateDropInputUs=…(或 unset) metricScope=settings-applied-only; not a smoothness measurement` |
+| 3 | 契约锁更新/新增 | `PlaybackPerformanceSettingSourceTest` | 原 `lateDropThresholdSwitchCanActuallyDisableDropping` 改为断言两条路径都读共享取值口且渲染器**不再**自带 `isLateDropInputEnabled()`；新增 `frameSchedulingConfigurationReachesTheDiagnosticLog` 断言日志链路字段齐全、关闭态渲染为 `unset` |
+
+**行为影响**：**无播放行为变化**。取的值与改动前逐个相同（开=15 000 µs，关=`C.TIME_UNSET`）；新增的只有一行日志与一个静态取值口。
+
+**验证（本会话实测）**
+- `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` → **BUILD SUCCESSFUL**
+- `:app:compileMobileArm64_v8aDebugJavaWithJavac` → **BUILD SUCCESSFUL**
+- `:app:testLeanbackArm64_v8aDebugUnitTest --tests '*PlaybackPerformanceSettingSourceTest*' --tests '*ExoFrameScheduling*'` → **30 例 0 失败**（含新增 1 例）
+- `:app:testLeanbackArm64_v8aDebugUnitTest --tests '*tv.player.exo.*'` → **617 例 / 1 skipped / 0 失败**（与该包既有基线一致）
+
+**未验证（如实记录）**：新日志行**未在真机/模拟器上读出过**——`exo-frame` 的 `SpiderDebug.isEnabled()` 门控与导出日志通道尚未在设备端确认；电视盒（X7 Ultra）本会话未连接。这条需要在下一次装机时用 `grep exo-frame` 确认。
+
+**下一步（唯一动作）**：§15 的设备分组测试（同文件同位置），并在该轮日志里确认 `exo-frame:` 行出现、且 `lateDropInputUs` 与设置页一致。
