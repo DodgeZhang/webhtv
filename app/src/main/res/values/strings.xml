@@ -1989,6 +1989,7 @@
     <string-array name="select_fullscreen_menu_key">
         <item>Control</item>
         <item>Episodes</item>
+        <item>Next episode</item>
     </string-array>
 
     <string-array name="select_home_menu_key">

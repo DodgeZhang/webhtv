@@ -10835,8 +10835,10 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
         }
         if (handleInlineSeekKey(event)) return true;
         if (KeyUtil.isMenuKey(event) && (inlineFullscreen || isInlineControlsVisible())) {
+            int menuKey = Setting.getFullscreenMenuKey();
             if (isInlineControlsVisible()) hideInlineControls();
-            else if (Setting.getFullscreenMenuKey() == 1) showInlineEpisodes();
+            else if (menuKey == Setting.FULLSCREEN_MENU_KEY_EPISODES) showInlineEpisodes();
+            else if (menuKey == Setting.FULLSCREEN_MENU_KEY_NEXT_EPISODE) checkInlineNext();
             else showInlineControls(true);
             return true;
         }
