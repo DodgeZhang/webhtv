@@ -72,4 +72,9 @@
 
 ## 6. 交付坐标
 
-（占位，提交/推送/PR 后回填）
+- 合并提交：`41f55daa17d272b0a51602a9998df1956a862d5d`（双亲 `da7ac6440a9d1da247bcabdb4f2ed291bf29001c` + `4dc58561bb`）。
+- recovery tag：`recovery/C96-BETA-MERGE-DEV1-20261022/20261022041245-41f55daa17d2`（本地保留，不推送）。
+- 推送：`dev1`（`225d2bbcce..41f55daa17`）。
+- PR：**#476** <https://github.com/Silent1566/webhtv/pull/476>（`base=beta`/`head=dev1`/`OPEN`/`mergeable=MERGEABLE`/`mergeStateStatus=CLEAN`，只创建不合并）。
+- 拉取：`git fetch origin --prune` + `git pull --ff-only origin dev1` 为 up to date；`origin/beta` 仍为 `4dc58561bb`。
+- 相对 `beta` 的唯一非合并内容差异：`docs/C95-beta-merge-review-dev3-20261021.md` 末尾多余空行被移除（任务守卫空白门要求，无内容变更）。
