@@ -131,8 +131,8 @@
 
 ## 6. 交付坐标
 
-- 合并+评审提交：**待 `finish` 回填**
-- recovery tag：**待 `finish` 回填**
-- 推送：`dev2`
-- PR：到 `beta`（中文描述，含 §3/§4 的具体改动）
-- 拉取远端最新：PR 创建后执行
+- 合并+评审提交：`ae923e13125c536f06f940409661fead798e1dfe`（双亲 `14a45844fd` / `3203ca9da0`）
+- recovery tag：`recovery/C97-beta-merge-dev2-20261022/20261022083445-ae923e13125c`
+- 推送：`dev2`（`b8fdbee6f6..ae923e1312`）
+- PR：到 `beta` 的 **#478**（中文描述，含 §3/§4 的具体改动）
+- 拉取远端最新：`git fetch origin --prune` 已执行；`origin/beta` 自 `3203ca9da0` 前进到 `d72134c5aa`（PR #477 / dev3 的 C97：首页配置回调事务守卫，4 路径），与本轮改动**路径交集为 0** ⇒ PR #478 无冲突面；按本仓既有节奏，该 5 个提交在下一轮任务开头随 `origin/beta` 一并合入 `dev2`。
