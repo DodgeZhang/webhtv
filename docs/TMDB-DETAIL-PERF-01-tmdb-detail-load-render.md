@@ -201,11 +201,22 @@ bash gradlew :app:assembleMobileArm64_v8aDebug \
 - 预热失败时的回落会再发一次详情请求（与改造前单次尝试相比多一次重试机会，属容错放宽）。
 - 设备安装环境坑（非代码问题）：本模拟器的 PackageManager 曾卡死在 install-commit，重启模拟器后 `cmd package install-create/write/commit` 正常（≤1 s）。
 
+### 9.3 W5 主线程渲染去重：已试做并**回滚**
+
+按用户选择实现了一版去重（`applyLoaded` 只清一次渲染缓存、不再重复 `bindTmdbSection`、`loadTmdbMediaBlocks` 不再自己先绑定、`applyTmdbResultNow` 不再重复 `renderSeasonSelection`），编译与 521 例单测全绿，但设备实测**没有改善**：
+
+| 构建 | `apply loaded cost` 样本 | 中位 | 均值 |
+| --- | --- | ---: | ---: |
+| 无 W5 | 153 / 211 / 180 / 166 / 163 / 162 ms | 164 ms | 172 ms |
+| 有 W5 | 221 / 180 / 224 / 183 ms | 202 ms | 202 ms |
+
+结论：被删掉的几次调用不在关键路径上（`bindPage` 内的 `bindTmdbSection` 与删除的那次几乎不重叠于可见工作；`rebindAttached` 对同数据本就是空操作），而上屏那一帧的大头是 `bindBackdrop`/`bindFlags`/`renderEpisodes` 与本机调度抖动。按计划中「实测不达标就放弃」的条款，W5 已 `git checkout` 回滚、未提交；结论记在此处，避免以后重复试做。
+
 ## 10. 后续（未做）
 
 1. **W2 共享线程池阻塞**：把 `loadContent` 的 `Future.get()` 换成回调续接，属结构性改动，收益在并发场景。
-2. **W5 主线程渲染去重**：需先补设备端「loading 消失那一帧」的 UI 线程耗时基线。
-3. **W3 端到端复核**：需要一条同名多候选（会真正进入消歧）的条目；拿到后按 §9.1 的成对方法复测。
+2. **W3 端到端复核**：需要一条同名多候选（会真正进入消歧）的条目；拿到后按 §9.1 的成对方法复测。
+3. **详情页 `recommendations`/`similar` 拆分**：内嵌块占载荷 23%+22%（缓存实测 recommendations 17,391 B / similar 16,908 B，合计 46%），但要改成两个独立 `/recommendations`、`/similar` 请求；主机侧实测这两个请求本身各需 ~1.0–1.6 s，而详情里内嵌这些块只多 ~0.2–0.5 s，按当前网络没有收益，除非 TMDB 延迟显著降低或改成后台加载。
 
 ## 11. 回滚
 
