@@ -2563,66 +2563,76 @@ public class TmdbDetailActivity extends PlaybackActivity implements TrackDialog.
                 detailPrefetch.cancel();
                 return;
             }
-            try {
-                long tmdbWaitStart = System.currentTimeMillis();
-                TmdbLoadResult result = tmdbFuture.get();
-                if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
-                SpiderDebug.log("tmdb-detail-flow", "tmdb wait cost=%dms mode=%d bundle=%s search=%d total=%dms", System.currentTimeMillis() - tmdbWaitStart, mode, result != null && result.bundle() != null, result == null ? 0 : result.searchItems().size(), System.currentTimeMillis() - loadStart);
-                if (result != null && result.bundle() == null && finalVod != null) {
-                    String detailTitle = finalVod.getName();
-                    String initialTitle = getTmdbRawTitle();
-                    if (!TextUtils.isEmpty(detailTitle) && !normalize(detailTitle).equals(normalize(initialTitle))) {
-                        logTmdbMatch("基础匹配未命中，使用站源标题重试：初始标题=%s，站源标题=%s", initialTitle, detailTitle);
-                        AutoTmdbMatch detailRetry = searchResolvedTmdbMatch(detailTitle, finalVod);
-                        if (detailRetry.item() != null) {
-                            result = new TmdbLoadResult(loadTmdbBundle(detailRetry.item()), detailRetry.items());
-                        } else if (!detailRetry.items().isEmpty()) {
-                            result = new TmdbLoadResult(null, detailRetry.items());
-                        }
+            // 收尾阶段要阻塞等待 TMDB 结果，转投大线程池执行，释放共享 5 线程池的线程。
+            detailTasks.submit(Task.largeExecutor(),
+                    () -> completeTmdbLoad(generation, mode, finalVod, finalError, singlePassStandaloneTmdb, tmdbFuture, decision, loadStart));
+        });
+    }
+
+    private void completeTmdbLoad(int generation, int mode, Vod loadedVod, String error,
+                                  boolean singlePassStandaloneTmdb, Future<TmdbLoadResult> tmdbFuture,
+                                  DetailRuntimeModePolicy.Decision decision, long loadStart) {
+        final Vod finalVod = loadedVod;
+        final String finalError = error;
+        try {
+            long tmdbWaitStart = System.currentTimeMillis();
+            TmdbLoadResult result = tmdbFuture.get();
+            if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
+            SpiderDebug.log("tmdb-detail-flow", "tmdb wait cost=%dms mode=%d bundle=%s search=%d total=%dms", System.currentTimeMillis() - tmdbWaitStart, mode, result != null && result.bundle() != null, result == null ? 0 : result.searchItems().size(), System.currentTimeMillis() - loadStart);
+            if (result != null && result.bundle() == null && finalVod != null) {
+                String detailTitle = finalVod.getName();
+                String initialTitle = getTmdbRawTitle();
+                if (!TextUtils.isEmpty(detailTitle) && !normalize(detailTitle).equals(normalize(initialTitle))) {
+                    logTmdbMatch("基础匹配未命中，使用站源标题重试：初始标题=%s，站源标题=%s", initialTitle, detailTitle);
+                    AutoTmdbMatch detailRetry = searchResolvedTmdbMatch(detailTitle, finalVod);
+                    if (detailRetry.item() != null) {
+                        result = new TmdbLoadResult(loadTmdbBundle(detailRetry.item()), detailRetry.items());
+                    } else if (!detailRetry.items().isEmpty()) {
+                        result = new TmdbLoadResult(null, detailRetry.items());
                     }
-                }
-                if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
-                if (result != null && result.bundle() == null && finalVod != null) {
-                    String query = cleanTmdbSearchQuery(finalVod.getName());
-                    logTmdbMatch("基础匹配未命中，使用站源详情继续消歧：片名=%s，清洗后=%s，年份=%s，演员=%s，导演=%s，简介长度=%d",
-                            finalVod.getName(), query, finalVod.getYear(), finalVod.getActor(), finalVod.getDirector(), finalVod.getContent().length());
-                    TmdbBundle bundle = chooseTmdbBundle(result.searchItems(), query, finalVod);
-                    List<TmdbItem> matchedSearchItems = result.searchItems();
-                    if (bundle == null) {
-                        SplitYearSearch split = searchSplitYearTmdbItems(query, finalVod);
-                        if (split != null) {
-                            bundle = chooseTmdbBundle(split.items(), split.query(), finalVod);
-                            matchedSearchItems = split.items();
-                        }
-                    }
-                    result = new TmdbLoadResult(bundle, matchedSearchItems);
-                }
-                if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
-                TmdbLoadResult loadedResult = result;
-                if (singlePassStandaloneTmdb) loadedResult = preloadInitialStandaloneSeason(loadedResult, finalVod);
-                if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
-                TmdbLoadResult finalResult = loadedResult;
-                runOnAliveUi(() -> {
-                    if (generation != loadGeneration || (!singlePassStandaloneTmdb && vod == null)) return;
-                    activeRuntimeDecision = decision;
-                    if (singlePassStandaloneTmdb) {
-                        applyLoaded(finalVod, finalResult == null ? null : finalResult.bundle(), finalResult == null ? new ArrayList<>() : finalResult.searchItems(), finalError, true);
-                    } else {
-                        applyTmdbResult(finalResult);
-                    }
-                });
-            } catch (Throwable ignored) {
-                if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
-                SpiderDebug.log("tmdb-detail-flow", "tmdb wait failed mode=%d total=%dms", mode, System.currentTimeMillis() - loadStart);
-                if (singlePassStandaloneTmdb) {
-                    runOnAliveUi(() -> {
-                        if (generation != loadGeneration) return;
-                        activeRuntimeDecision = decision;
-                        applyLoaded(finalVod, null, new ArrayList<>(), finalError, false);
-                    });
                 }
             }
-        });
+            if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
+            if (result != null && result.bundle() == null && finalVod != null) {
+                String query = cleanTmdbSearchQuery(finalVod.getName());
+                logTmdbMatch("基础匹配未命中，使用站源详情继续消歧：片名=%s，清洗后=%s，年份=%s，演员=%s，导演=%s，简介长度=%d",
+                        finalVod.getName(), query, finalVod.getYear(), finalVod.getActor(), finalVod.getDirector(), finalVod.getContent().length());
+                TmdbBundle bundle = chooseTmdbBundle(result.searchItems(), query, finalVod);
+                List<TmdbItem> matchedSearchItems = result.searchItems();
+                if (bundle == null) {
+                    SplitYearSearch split = searchSplitYearTmdbItems(query, finalVod);
+                    if (split != null) {
+                        bundle = chooseTmdbBundle(split.items(), split.query(), finalVod);
+                        matchedSearchItems = split.items();
+                    }
+                }
+                result = new TmdbLoadResult(bundle, matchedSearchItems);
+            }
+            if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
+            TmdbLoadResult loadedResult = result;
+            if (singlePassStandaloneTmdb) loadedResult = preloadInitialStandaloneSeason(loadedResult, finalVod);
+            if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
+            TmdbLoadResult finalResult = loadedResult;
+            runOnAliveUi(() -> {
+                if (generation != loadGeneration || (!singlePassStandaloneTmdb && vod == null)) return;
+                activeRuntimeDecision = decision;
+                if (singlePassStandaloneTmdb) {
+                    applyLoaded(finalVod, finalResult == null ? null : finalResult.bundle(), finalResult == null ? new ArrayList<>() : finalResult.searchItems(), finalError, true);
+                } else {
+                    applyTmdbResult(finalResult);
+                }
+            });
+        } catch (Throwable ignored) {
+            if (generation != loadGeneration || Thread.currentThread().isInterrupted()) return;
+            SpiderDebug.log("tmdb-detail-flow", "tmdb wait failed mode=%d total=%dms", mode, System.currentTimeMillis() - loadStart);
+            if (singlePassStandaloneTmdb) {
+                runOnAliveUi(() -> {
+                    if (generation != loadGeneration) return;
+                    activeRuntimeDecision = decision;
+                    applyLoaded(finalVod, null, new ArrayList<>(), finalError, false);
+                });
+            }
+        }
     }
 
     private boolean shouldLoadInitialStandaloneTmdbDetailInSinglePass(@Nullable TmdbBundle reusableBundle, @Nullable Future<TmdbLoadResult> tmdbFuture) {

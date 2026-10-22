@@ -212,10 +212,16 @@ bash gradlew :app:assembleMobileArm64_v8aDebug \
 
 结论：被删掉的几次调用不在关键路径上（`bindPage` 内的 `bindTmdbSection` 与删除的那次几乎不重叠于可见工作；`rebindAttached` 对同数据本就是空操作），而上屏那一帧的大头是 `bindBackdrop`/`bindFlags`/`renderEpisodes` 与本机调度抖动。按计划中「实测不达标就放弃」的条款，W5 已 `git checkout` 回滚、未提交；结论记在此处，避免以后重复试做。
 
+### 9.4 W2 共享线程池阻塞：已实施
+
+- 结构：`loadContent` 的协调任务只负责站点详情、策略判定与派发；把「等 TMDB 结果 → 必要时补搜索/消歧 → 预取首季 → 回 UI 绑定」整体抽成 `completeTmdbLoad(...)`，提交到 `Task.largeExecutor()`（20 线程）执行。共享 `Task.executor()`（5 线程）在派发后立即释放，不再被一次 1–3 秒的等待长期占用。
+- 语义：`detailTasks.submit(...)` 在作用域内继承同一代际，`cancelAll()/close()` 仍会中断该收尾任务；方法内每一处 UI 交接都保留 `generation != loadGeneration` 校验（4 处）；失败路径与首季预取逻辑逐字保留。
+- 验证：58→59 个测试类 / 519→521 例全绿（新增 `TmdbDetailPoolBlockingSourceTest` 2 例：协调任务体内不得出现 `tmdbFuture.get()`、收尾任务必须由 `Task.largeExecutor()` 承载且保留代际/季预取/失败回退）；设备 3 次冷启（`w2-known-1..3`）阶段结构不变（`prefetch hit`、`bundle cost` 仍是毫秒级、`tmdb wait` 701/9/409 ms、上屏总时长 1233/1610/1083 ms）。
+- 预期收益如实说明：单页首屏时延基本不变（同一段工作只是换了执行线程）；收益在并发场景——首页刷新、搜索、站点加载等共用这 5 个线程时，不再出现"开一个详情页就少一个公共线程"的排队。
+
 ## 10. 后续（未做）
 
-1. **W2 共享线程池阻塞**：把 `loadContent` 的 `Future.get()` 换成回调续接，属结构性改动，收益在并发场景。
-2. **W3 端到端复核**：需要一条同名多候选（会真正进入消歧）的条目；拿到后按 §9.1 的成对方法复测。
+1. **W3 端到端复核**：需要一条同名多候选（会真正进入消歧）的条目；拿到后按 §9.1 的成对方法复测。
 3. **详情页 `recommendations`/`similar` 拆分**：内嵌块占载荷 23%+22%（缓存实测 recommendations 17,391 B / similar 16,908 B，合计 46%），但要改成两个独立 `/recommendations`、`/similar` 请求；主机侧实测这两个请求本身各需 ~1.0–1.6 s，而详情里内嵌这些块只多 ~0.2–0.5 s，按当前网络没有收益，除非 TMDB 延迟显著降低或改成后台加载。
 
 ## 11. 回滚
