@@ -41,6 +41,7 @@ import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.player.PlaybackAutoContext;
+import com.fongmi.android.tv.player.PlaybackOwnershipKeys;
 import com.fongmi.android.tv.player.PlaybackServiceReleasePolicy;
 import com.fongmi.android.tv.player.PlaybackTelemetry;
 import com.fongmi.android.tv.player.PlayerManager;
@@ -229,10 +230,18 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         pinnedPlaybackKey = null;
     }
 
+    /**
+     * 本次播放会话是否由本页面拥有。
+     *
+     * <p>比较必须走 {@link PlaybackOwnershipKeys#sameSession(String, String)} 而不是字符串相等：
+     * 自动连播时服务侧用「浏览下一集」的 {@code VE:<historyKey>|<线路>|<集>} 键起播，与本页面现算的
+     * 记录键不是同一个字符串，但仍是同一次播放会话。旧实现在这里判假，导致 {@link #onPlayerRebuild}
+     * 整段跳过、Surface 永不重绑 —— 设备日志里那次「有声音没画面、重开才恢复」正是这条路径。
+     */
     protected boolean isOwner() {
         String key = activePlaybackKey();
         PlayerManager manager = player();
-        return key == null || (manager != null && key.equals(manager.getKey()));
+        return PlaybackOwnershipKeys.sameSession(key, manager == null ? null : manager.getKey());
     }
 
     public final boolean pauseForOverlayPlayback() {
@@ -355,6 +364,33 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     protected void onPlayerRebuilt() {
+    }
+
+    /**
+     * 保证「当前引擎」此刻确实挂在 PlayerView 上，必要时补一次绑定。
+     *
+     * <p>这是设备日志里那次「有声音没画面、重开才恢复」的收口点：自动连播由服务侧
+     * {@code PlaybackService#startBrowse} 用 {@code VE:} 选集键起播，页面一度判不出归属，
+     * 于是既没有重建回调去重绑，也没有其它路径补绑；解码器与音频照常工作，视频帧却全部被丢弃。
+     *
+     * <p>与 {@link #attachSurface(boolean)} 的区别是它只做绑定、不重设 render、不改快门策略，
+     * 因此可以在每次 BUFFERING/READY 上安全地廉价校验一次：绑定已经正确时立刻返回。
+     */
+    private void ensureVideoSurfaceBound(String reason) {
+        if (mService == null || isFinishing() || isDestroyed()) return;
+        PlayerView view = getExoView();
+        if (view == null) return;
+        Player currentPlayer = view.getPlayer();
+        Player nextPlayer = player().getPlayer();
+        VideoSurfaceBinding.Result<Player> binding = VideoSurfaceBinding.resolve(currentPlayer, nextPlayer);
+        if (!binding.applied()) return;
+        if (binding.detachedFirst()) view.setPlayer(null);
+        view.setPlayer(binding.player());
+        surfaceDiagnostics.rebind(reason, binding.detachedFirst(), currentPlayer != null, view.getVideoSurfaceView());
+        logSurfaceState("ensure bound reason=" + reason);
+        syncVideoSurfaceSize(null);
+        syncShutter();
+        if (player().isNativePlayer()) view.post(this::syncShutter);
     }
 
     /**
@@ -685,11 +721,17 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         // 此时 render 值通常不变，旧的 attachSurface 只按“PlayerView 是否为空”判断，
         // 会把已释放的旧引擎继续留在 PlayerView 上，新引擎从未绑定 Surface。
         // 以引擎实例身份而不是“是否为空”判断，自动下一集的黑屏路径才能强制重绑。
+        //
+        // 判定本身交给 VideoSurfaceBinding：口径是「PlayerView 上挂着的引擎实例是否就是当前引擎」，
+        // 与 Activity 是否自认归属无关。设备日志里的那次「有声音没画面」正因归属判假而漏绑。
         Player currentPlayer = getExoView().getPlayer();
         Player nextPlayer = player().getPlayer();
-        if (currentPlayer != nextPlayer) {
-            if (currentPlayer != null) getExoView().setPlayer(null);
-            getExoView().setPlayer(nextPlayer);
+        VideoSurfaceBinding.Result<Player> binding = VideoSurfaceBinding.resolve(currentPlayer, nextPlayer);
+        if (binding.applied()) {
+            if (binding.detachedFirst()) getExoView().setPlayer(null);
+            getExoView().setPlayer(binding.player());
+            surfaceDiagnostics.rebind("attach", binding.detachedFirst(),
+                    currentPlayer != null, getExoView().getVideoSurfaceView());
             logSurfaceState("attach after setPlayer");
             syncVideoSurfaceSize(null);
             if (restoreExoShutter) syncShutter();
@@ -1027,6 +1069,9 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
         @Override
         public void onPlayerRebuild(Player player, boolean resetVideoSurface) {
+            // 归属必须与「当前引擎是否属于本页面」一致：AUTONEXT-02 之前这里判假的原因是
+            // 服务侧用 VE: 选集键起播而页面拿记录键比对（见 PlaybackOwnershipKeys）。判假时
+            // 整段被跳过，新引擎永远拿不到 Surface，画面全黑而声音正常。
             if (isOwner()) {
                 nativeOutputPending = player().shouldKeepVideoShutterClosed();
                 getSeekView().setProgressPlayer(player);
@@ -1087,6 +1132,11 @@ public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
 
     @Override
     public void onPlaybackStateChanged(int state) {
+        // 绑定视频 Surface 是所有权无关的必经动作：服务侧「浏览下一集」（VE: 选集键）起播时
+        // isOwner() 为假，旧实现让下面的早退把 Surface 重绑一起吞掉，新引擎于是永远拿不到
+        // Surface —— 解码器/音频正常、画面全黑，只有重开 App 才好。每次 BUFFERING/READY 都是
+        // 新媒体起播的必经点，在这里补一次「当前引擎是否已挂在视图上」的校验。
+        if (state == Player.STATE_BUFFERING || state == Player.STATE_READY) ensureVideoSurfaceBound("state=" + state);
         if (mService != null && isOwner()) surfaceDiagnostics.bind(getExoView(), player().getPlaybackTraceId());
         if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-lifecycle", "state changed state=%d %s", state, lifecycleState());
         syncKeepScreenOn();

@@ -48,6 +48,25 @@ public final class SurfaceDiagnosticCollector implements SurfaceHolder.Callback 
         handler.removeCallbacks(tick); playerView = null; surfaceView = null;
     }
 
+    /**
+     * 记录一次「把引擎重新绑到视频视图」的判定结果。
+     *
+     * <p>故障判定需要它：设备日志里 {@code video.output.summary} 长期 {@code surfaceId=none}、
+     * {@code submittedBuffers=0}，但看不到「是否尝试过重绑、当时视图是否可用」。这条事件把
+     * 「没触发重绑」与「触发了但 Surface 不可用」区分开，下一次现场不必再靠推断。
+     */
+    public void rebind(String reason, boolean detachedFirst, boolean hadPreviousPlayer, View surface) {
+        if (!PlaybackDiagnosticCollector.enabled()) return;
+        log.emit("surface.rebind", "playback-attach", e -> e.observed("reason", reason)
+                .observed("detachedFirst", detachedFirst).observed("hadPreviousPlayer", hadPreviousPlayer)
+                .observed("surfaceViewPresent", surface != null)
+                .observed("surfaceViewAttached", surface != null && surface.isAttachedToWindow())
+                .observed("surfaceViewShown", surface != null && surface.isShown())
+                .observed("surfaceWidth", surface == null ? null : surface.getWidth())
+                .observed("surfaceHeight", surface == null ? null : surface.getHeight())
+                .unknown("physicalDisplay", NOT_OBSERVABLE));
+    }
+
     public void resize(String mode, int width, int height) {
         if (!PlaybackDiagnosticCollector.enabled()) return;
         resizeOperation = PlaybackDiagnosticCollector.id("surface-resize");

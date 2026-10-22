@@ -28,11 +28,13 @@ public class PlaybackOwnershipSourceTest {
         String source = read(PLAYBACK);
 
         int owner = source.indexOf("protected boolean isOwner()");
-        int ownerEnd = source.indexOf('}', source.indexOf("return key == null", owner));
-        String body = source.substring(owner, ownerEnd);
+        int ownerEnd = source.indexOf("\n    }", owner);
+        String body = owner < 0 ? "" : source.substring(owner, ownerEnd);
 
         assertTrue("isOwner must exist", owner > 0);
         assertTrue("ownership must read the pinned session key", body.contains("activePlaybackKey()"));
+        assertTrue("ownership must compare sessions, not raw strings",
+                body.contains("PlaybackOwnershipKeys.sameSession("));
         assertFalse("ownership must not recompute the key from the live intent",
                 body.contains("getPlaybackKey()"));
     }
@@ -136,6 +138,7 @@ public class PlaybackOwnershipSourceTest {
         // isOwner() 为 false，onPlayerRebuild() 里的 setRender() 整段被跳过，render 值不变。
         // 只按“PlayerView.player 是否为空”判断，就会把已释放的旧引擎留在 View 上，
         // 新引擎从未拿到 Surface —— 画面全黑、声音正常，手动切内核/软硬解才恢复。
+        // AUTONEXT-02 起判定收敛到 VideoSurfaceBinding，attachSurface 只执行它的结论。
         String source = read(PLAYBACK);
         int attach = source.indexOf("private void attachSurface(boolean restoreExoShutter)");
         int end = source.indexOf("\n    }", attach);
@@ -145,11 +148,11 @@ public class PlaybackOwnershipSourceTest {
         assertTrue("the surface rebind must compare the live engine instance, not emptiness",
                 body.contains("Player currentPlayer = getExoView().getPlayer();")
                         && body.contains("Player nextPlayer = player().getPlayer();")
-                        && body.contains("if (currentPlayer != nextPlayer) {"));
+                        && body.contains("VideoSurfaceBinding.resolve(currentPlayer, nextPlayer);"));
         assertTrue("the identity branch must hand the view the new engine",
-                body.contains("getExoView().setPlayer(nextPlayer);"));
-        int detach = body.indexOf("if (currentPlayer != null) getExoView().setPlayer(null);");
-        int rebind = body.indexOf("getExoView().setPlayer(nextPlayer);");
+                body.contains("getExoView().setPlayer(binding.player());"));
+        int detach = body.indexOf("if (binding.detachedFirst()) getExoView().setPlayer(null);");
+        int rebind = body.indexOf("getExoView().setPlayer(binding.player());");
         assertTrue("the released engine must be detached before the replacement is bound",
                 detach > 0 && rebind > detach);
         assertFalse("attachment must no longer depend on the view merely being empty",
