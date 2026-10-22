@@ -1938,6 +1938,7 @@
     <string-array name="select_fullscreen_menu_key">
         <item>控制栏</item>
         <item>选集</item>
+        <item>下一集</item>
     </string-array>
 
     <string-array name="select_home_menu_key">

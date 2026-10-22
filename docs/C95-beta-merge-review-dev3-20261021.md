@@ -93,4 +93,3 @@ bash ./gradlew :app:assembleMobileArm64_v8aDebug --no-daemon
 - PR：[#475](https://github.com/Silent1566/webhtv/pull/475)（`dev3` → `beta`，中文描述，只创建不合并）。
 - 拉取：`git fetch origin --prune` + `git pull --ff-only origin dev3`，`dev3` 与 `origin/dev3` 同步；`origin/beta` 仍为 `590c424568`。
 - 工作树：干净；本节回填为文档单提交。
-
