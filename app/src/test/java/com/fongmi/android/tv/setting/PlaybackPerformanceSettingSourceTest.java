@@ -168,14 +168,17 @@ public class PlaybackPerformanceSettingSourceTest {
     public void frameLatenessHistogramDoesNotRequireExperimentEnrollment() throws Exception {
         // The per-frame lateness distribution used to be collected only for devices enrolled in
         // the frame-scheduling A/B experiment, so an ordinary report could not say how late frames
-        // were. Diagnostics-on must be enough.
+        // were. Diagnostics-on must be enough, and stop-only delivery must not be the only trigger:
+        // media3 reports the offset from onStopped() alone.
         String listener = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "player", "exo", "PlaybackAnalyticsListener.java"));
+        String collector = read(sourcePath("main", "java", "com", "fongmi", "android", "tv", "player", "exo", "ExoDiagnosticCollector.java"));
 
         assertContainsAll(listener,
                 "frameSchedulingExperimentActive || SpiderDebug.isEnabled()",
-                "logFrameTimingIfDue()",
+                "static void logFrameTimingIfDue()",
                 "\"exo-frame-timing\"",
                 "FRAME_TIMING_LOG_INTERVAL_MS");
+        assertContainsAll(collector, "PlaybackAnalyticsListener.logFrameTimingIfDue();");
     }
 
     @Test

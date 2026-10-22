@@ -529,10 +529,12 @@ public class PlaybackAnalyticsListener implements AnalyticsListener, VideoFrameM
     /**
      * Emits the accumulated frame-lateness histogram at most once per interval.
      *
-     * <p>Throttled on purpose: {@link #onVideoFrameProcessingOffset} fires per rendered batch, so
-     * logging every call would swamp the retained window the report has to fit into.
+     * <p>media3 reports the processing offset only from {@code MediaCodecVideoRenderer.onStopped()},
+     * i.e. once per renderer stop — not per frame. Stop-only delivery would leave a report exported
+     * mid-playback with no histogram at all, so the collector's existing 5-second tick calls this
+     * too (still throttled). No extra timer, no extra thread.
      */
-    private static void logFrameTimingIfDue() {
+    static void logFrameTimingIfDue() {
         if (!SpiderDebug.isEnabled()) return;
         long now = nowElapsed();
         if (now - lastFrameTimingLogMs < FRAME_TIMING_LOG_INTERVAL_MS) return;

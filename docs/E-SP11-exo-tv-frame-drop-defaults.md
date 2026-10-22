@@ -494,11 +494,33 @@ exo-frame-timing: trace=p-… frames=3120 avgOffsetMs=-3 lateBatches=41 codecErr
 
 **行为影响**：**离线包无变化**（`SpiderDebug.isEnabled()` 默认关，采集与输出都被门控）；诊断开时每帧多几次整数累加、每 30 s 一行日志。不改任何播放决策。
 
-**验证（本会话实测）**
+### 18.1 开销核对（2026-10-22，用户提问"会不会带来性能问题"）
+
+先把调用频率量清楚，不靠推断：
+
+| 观测点 | 实际触发 | 依据 |
+|---|---|---|
+| `onVideoFrameProcessingOffset` | **每次渲染器停止 1 次**（不是每帧、也不是每批） | fork 源码 `MediaCodecVideoRenderer.java:1187` 是 `maybeNotifyVideoFrameProcessingOffset()` 的**唯一**调用点（在 `onStopped()` 内）；`:2402-2403` 只做累加 |
+| `SpiderDebug.isEnabled()` | 一次 **volatile 静态读** | `DebugLogStore.java:25` `return enabled;`，不查 SharedPreferences |
+| `counters()`（§17/§18 的计数行） | 既有 **5 秒 tick** + 停止时 | `ExoDiagnosticCollector.sample()` 末尾 `postDelayed(tick, 5000)` |
+| `exo-frame-timing` | 30 秒节流；触发源是 **5 秒 tick**（不是帧回调） | `PlaybackAnalyticsListener.logFrameTimingIfDue()` 由 `ExoDiagnosticCollector` 的 tick 调用 |
+
+| 增量 | 量级 |
+|---|---|
+| 计数器三字段 | 约 +90 B / 5 s ⇒ **+130 KB/h** |
+| `exo-frame-timing` | 约 +300 B / 30 s ⇒ **+36 KB/h** |
+| `exo-frame`（§17） | 每次建播放器 1 行，可忽略 |
+| 合计 | **≈ +165 KB/h**；对照实测导出量 3.4 MB / 约 15 min ≈ 13 MB/h ⇒ **+1.3%**；磁盘窗口上限 40 MB（`diag.health` `diskLimitBytes`）⇒ 留存时长基本不变 |
+
+**更正（本会话已修）**：§18 表格第 2 行原写"每渲染批回调"，实测为**仅 `onStopped()` 交付**。这带来两个后果并已处理：①注释与测试锁改成正确表述；②**只在停止时交付会让"播放中导出日志"没有迟到数据**，因此把输出挂到既有 5 秒 tick（仍 30 s 节流），不新增定时器/线程。
+
+**仍未测量**：电视盒上诊断开启时由入桶带来的实际掉帧影响（理论上可忽略：每 5 秒几次整数累加 + 每 30 秒一次字符串拼接，且都不在渲染线程的每帧路径上）。真机确认方式：同片源对比"诊断开 / 关"两轮的 `dropped` 速率。
+
+**验证（本会话实测，含 18.1 修正后）**
 - `:app:compileLeanbackArm64_v8aDebugJavaWithJavac` → **BUILD SUCCESSFUL**
 - `:app:compileMobileArm64_v8aDebugJavaWithJavac` → **BUILD SUCCESSFUL**
-- `:app:testLeanbackArm64_v8aDebugUnitTest --tests '*PlaybackPerformanceSettingSourceTest*' --tests '*ExoFrameTimingMetricsTest*' --tests '*ExoFrameScheduling*'` → **41 例 0 失败**
-- `:app:testLeanbackArm64_v8aDebugUnitTest --tests '*tv.player.*'` → **1511 例 / 2 skipped / 0 失败**（208 个测试类）
+- `:app:testLeanbackArm64_v8aDebugUnitTest --tests '*PlaybackPerformanceSettingSourceTest*' --tests '*ExoFrameTimingMetricsTest*' --tests '*tv.player.exo.*'` → **631 例 / 1 skipped / 0 失败**（含 18.1 修正后的 tick 接线锁）
+- （§18 首轮）`:app:testLeanbackArm64_v8aDebugUnitTest --tests '*tv.player.*'` → **1511 例 / 2 skipped / 0 失败**（208 个测试类）
 
 **未验证（如实记录）**：`exo-frame-timing` 与三个新计数器的**设备端输出尚未读到**（X7 Ultra 未连接）；`SpiderDebug` 开启时每帧入桶的实际开销也未测量，理论上可忽略，但需要在电视盒上确认掉帧率没有因此上升到可感知。
 
