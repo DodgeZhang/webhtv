@@ -71,28 +71,33 @@ at gd.run → Handler.handleCallback → Looper.loop
 | 位置 | 改动 |
 | --- | --- |
 | `syncCategorySite()` 之后 | 新增 `private boolean canCommitFragmentTransaction()`，条件 = `!isFinishing() && !isDestroyed() && !getSupportFragmentManager().isStateSaved()`（KDoc 记录崩溃证据与为何不用 `commitAllowingStateLoss`） |
-| `clearCategoryContent()` | 视图/适配器/`mCurrentType`/`mFolder` 清理**之后**、遍历 Fragment **之前**插入 `if (!canCommitFragmentTransaction()) return;` |
-| `getVideo(boolean)` | `syncCategorySite();` 之后插入同一守卫直接返回 —— 这次刷新针对的是一个已经过去的窗口 |
+| `clearCategoryContent()` | 视图/适配器/`mCurrentType`/`mFolder` 清理**之后**再判守卫：能提交就调 `removeCategoryFragments()`；不能提交但实例仍存活（只是 `isStateSaved()`）时置 `mPendingCategoryCleanup`，回到前台补做 |
+| `getVideo(boolean)` | `syncCategorySite();` 之后判守卫：实例仍存活时置 `mPendingContentRefresh`（含 `forceNative` 意图）推迟到 `onResume`；正在结束/已销毁则丢弃 |
+| `onResume()` | 末尾调 `resumeDeferredFragmentWork()` —— 先补做分类页移除、再补做被推迟的内容刷新，进入前仍过一次 `canCommitFragmentTransaction()` |
+| `canDeferFragmentWork()` / `removeCategoryFragments()` | 新增两个私有方法：前者区分「仍存活但状态已保存」与「正在结束/已销毁」；后者把原先内联在 `clearCategoryContent()` 里的移除事务抽成单点，供即时与推迟两条路径共用 |
 | `showHomeContent()` | `hide(mFolder).commit()` 改为 `if (canCommitFragmentTransaction()) …hide(mFolder).commit()`；`clearContentFocusRequest()`/`setUserVisibleHint(false)` 等非事务状态照旧清理 |
 
 关键取舍：`clearCategoryContent()` 的守卫放在状态清理**之后**而不是方法开头。若整段提前 return，`mFolder` 会继续指向一个即将被移除的 Fragment，`isCurrentCategory()`（:1063）会把「当前分类」误判为有效，重建窗口里 `updateFilter`/`focusCategoryButton` 会作用到错误对象。
 
 **未改动**：`showCategoryContent()`（已自带早退）、`FolderFragment`（:105/:121 两次 `commit()` 都在 `initView()`/`openFolder()` 的即时交互路径，日志中无对应栈）、mobile flavor（`HomeActivity` 走 `FragmentStateManager`，`VodFragment` 自己收状态浮层，无此形状栈）。
 
-## 5. 验证
+## 5. 验证（2026-10-22 15:2x–15:3x +08:00，含评审轮修复后重跑）
 
 | 检查 | 命令 | 结果 |
 | --- | --- | --- |
-| TV 编译 + 定向单测 | `bash ./gradlew --console=plain :app:testLeanbackArm64_v8aDebugUnitTest --tests HomeFragmentCommitStateGuardTest --tests HomeSiteSwitchClearsTypesTest --tests HomeCategoryNavigationSourceTest --tests HomeSiteLockSourceTest` | **BUILD SUCCESSFUL in 30s**；`HomeFragmentCommitStateGuardTest` 5/5、`HomeSiteSwitchClearsTypesTest` 1/1，0 failure 0 error |
-| mobile 侧同源测试 | `bash ./gradlew --console=plain :app:testMobileArm64_v8aDebugUnitTest --tests HomeCategoryNavigationSourceTest --tests HomeSiteLockSourceTest --tests HomeSiteSwitchClearsTypesTest` | **BUILD SUCCESSFUL in 15s**；13 + 4 + 1 = 18 项，0 failure 0 error |
+| TV 编译 + 定向单测 | `bash ./gradlew --console=plain :app:testLeanbackArm64_v8aDebugUnitTest --tests '…HomeFragmentCommitStateGuardTest' --tests '…HomeSiteSwitchClearsTypesTest' --tests '…HomeCategoryNavigationSourceTest' --tests '…HomeSiteLockSourceTest' --no-daemon` | **BUILD SUCCESSFUL in 1m 16s**；实际执行 `HomeFragmentCommitStateGuardTest` 6/6、`HomeSiteSwitchClearsTypesTest` 1/1，0 failure 0 error |
+| mobile 侧同源测试 | `bash ./gradlew --console=plain :app:testMobileArm64_v8aDebugUnitTest --tests '…HomeCategoryNavigationSourceTest' --tests '…HomeSiteLockSourceTest' --tests '…HomeSiteSwitchClearsTypesTest' --no-daemon` | **BUILD SUCCESSFUL in 3m 2s**；13 + 4 + 1 = 18 项，0 failure 0 error |
 
-新增 `app/src/test/java/com/fongmi/android/tv/ui/activity/HomeFragmentCommitStateGuardTest.java`（5 项）：
+> 口径更正：`HomeCategoryNavigationSourceTest`（13 项）与 `HomeSiteLockSourceTest`（4 项）在 `app/src/testMobile/` 源集，只有 mobile flavor 会执行；leanback 侧本轮实际跑到的是上面 7 项。两份 flavor 的 Java 源码都在这些任务里编译通过。
 
-1. `guardHelperRejectsFinishingDestroyedAndSavedState`
-2. `categoryStateIsClearedEvenWhenCommitIsSkipped`（重置项位置 < 守卫位置 < `transaction.commit()`）
-3. `savedCategoryPageNeverCommitsWithoutTheGuard`（`clearCategoryContent` 内只剩一处 `transaction.commit();`）
-4. `homeContentRefreshStopsBeforeReshapingASavedStateHost`（`syncCategorySite()` < 守卫 < `WebHomeTarget.canLoad`）
-5. `hidingTheHomeChromeNeverCommitsWithoutTheGuard`
+新增/更新的 `app/src/test/java/com/fongmi/android/tv/ui/activity/HomeFragmentCommitStateGuardTest.java`（6 项）：
+
+1. `guardHelperRejectsFinishingDestroyedAndSavedState`（守卫三条件 + 推迟谓词只接受存活宿主）
+2. `categoryStateIsClearedEvenWhenCommitIsSkipped`（重置项 < 守卫 < `removeCategoryFragments()`；存活宿主必须置 `mPendingCategoryCleanup`；不得退化为 `commitAllowingStateLoss`）
+3. `savedCategoryPageNeverCommitsWithoutTheGuard`（`clearCategoryContent()` 内 0 处 `transaction.commit();`，只委托；`removeCategoryFragments()` 内恰 1 处）
+4. `homeContentRefreshStopsBeforeReshapingASavedStateHost`（`syncCategorySite()` < 守卫 < `WebHomeTarget.canLoad`；推迟时保留 `forceNative` 意图）
+5. `deferredWorkIsResumedWhenTheHostReturnsToForeground`（`onResume()` 调 `resumeDeferredFragmentWork()`；补做前仍判守卫，标志只消费一次）
+6. `hidingTheHomeChromeNeverCommitsWithoutTheGuard`
 
 放在 `test/` 而非 `testLeanback/`：与既有 `HomeSiteSwitchClearsTypesTest` 同源集，两个 flavor 都会跑到，且不需要 Robolectric。
 
@@ -102,5 +107,9 @@ at gd.run → Handler.handleCallback → Looper.loop
 
 ## 6. 回滚与交付
 
-- 回滚：撤销本任务的单个原子提交即可；无数据迁移、无偏好写入、无 schema 变更。
-- 延迟回调被丢弃的那一次刷新由重建后的实例重做，因此不存在「丢了内容」的可观察差异。
+- 回滚：撤销本任务的两个原子提交（原实现提交 `cae6e4b6e9` + 评审轮修复提交）即可；无数据迁移、无偏好写入、无 schema 变更。
+- 重建路径上被丢弃的那一次刷新由重建后的实例重做；未重建（只是退后台）的路径由 `onResume` 补做，因此不存在「丢了内容」的可观察差异。
+
+## 7. 评审轮
+
+见 `docs/C97-beta-merge-review-dev3-20261022.md` §3 F1：初版把「守卫拒绝提交」等同于「丢弃工作」，在**实例没有重建、只是被保存了状态**（例如配置加载期间用户切到别的应用，回来仍是同一实例）时会丢掉一次首页刷新，并让旧站点的 `FolderFragment` 留在容器里；评审轮改为「存活即推迟、回到前台补做」，并已补测（本节 §5 为修复后重跑结果）。
