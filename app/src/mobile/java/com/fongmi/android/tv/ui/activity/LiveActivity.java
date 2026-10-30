@@ -71,9 +71,12 @@ import com.fongmi.android.tv.playback.PlaybackOrientation;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.LiveEpgSetting;
 import com.fongmi.android.tv.setting.LiveSetting;
+import com.fongmi.android.tv.setting.PlayerButtonSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.CustomCspSetting;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.theme.LiveListScrim;
+import com.fongmi.android.tv.theme.PlaybackMenuScrim;
 import com.fongmi.android.tv.ui.adapter.ChannelAdapter;
 import com.fongmi.android.tv.ui.helper.PipExitDecision;
 import com.fongmi.android.tv.ui.adapter.EpgDataAdapter;
@@ -106,8 +109,10 @@ import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class LiveActivity extends PlaybackActivity implements CustomKeyDown.Listener, TrackDialog.Listener, Biometric.Callback, PassListener, ConfigListener, LiveListener, GroupAdapter.OnClickListener, ChannelAdapter.OnClickListener, EpgDataAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener, LiveControlDialog.Listener, LiveEpgDialog.Listener {
 
@@ -128,6 +133,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private PlayerOsdController mOsd;
     private Result mPendingStartResult;
     private List<Group> mHides;
+    private Map<String, View> mActionButtons;
     private String mPlaybackKey;
     private String mPendingReloadUrl;
     private String mPendingReloadMsg;
@@ -139,6 +145,12 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private Runnable mEndRetry;
     private Runnable mBufferingTimeout;
     private boolean rotate;
+    /**
+     * 平板全屏内的方向覆盖：true 表示全屏时请求竖屏。
+     * 直播的 {@link #rotate} 语义是「是否全屏」，与点播的「是否竖屏」不同，
+     * 因此用手动旋转必须用独立状态，避免破坏 {@link #isEmbeddedLiveUi()} 的判定。
+     */
+    private boolean livePortraitFullscreen;
     private int count;
     private boolean mFailedThisSession;
     /**
@@ -165,6 +177,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private int groupBasePaddingBottom;
     private int channelBasePaddingBottom;
     private int epgBasePaddingBottom;
+    private int statusBarInset;
 
     public static void start(Context context) {
         context.startActivity(new Intent(context, LiveActivity.class).putExtra("empty", LiveConfig.isEmpty()));
@@ -291,17 +304,25 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
             public String getTitle() {
                 return mChannel == null ? "" : mChannel.getName();
             }
+
+            @Override
+            public boolean isFullscreen() {
+                // PiP 小窗不算全屏：媒体徽标只在真全屏显示。
+                return !isEmbeddedLiveUi() && !isInPictureInPictureMode();
+            }
         }, 12f);
         setVideoView();
         setNavigation();
         setViewModel();
         applyPadLiveMode();
+        setupActionButtons();
         mBinding.exo.post(() -> applyLiveResizeMode(LiveSetting.getScale()));
     }
 
     private void applyPlaybackOverlay() {
         mBinding.control.getRoot().setBackgroundResource(R.color.transparent);
-        mBinding.control.bottom.setBackgroundResource(Setting.isPlaybackOverlayEnabled() ? R.drawable.shape_controller_scrim : R.color.transparent);
+        if (Setting.isPlaybackOverlayEnabled()) mBinding.control.bottom.setBackground(PlaybackMenuScrim.create(this));
+        else mBinding.control.bottom.setBackgroundResource(R.color.transparent);
     }
 
     @Override
@@ -382,6 +403,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void setupWindowInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(mBinding.getRoot(), (view, insets) -> {
+            updateStatusBarInset(insets);
             updateLiveListBottomInset(insets);
             return insets;
         });
@@ -418,6 +440,42 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void setPlayerKernel() {
         mBinding.control.action.player.setText(player().getPlayerText());
+    }
+
+    /**
+     * 直播动作栏登记点播同名的播放器按钮，使「设置-播放-播放器按钮」的开关与排序对直播同样生效。
+     * 直播专属按钮（配置、直播源、线路、反色、跨类）不登记，始终按布局显示。
+     */
+    private void setupActionButtons() {
+        mActionButtons = new HashMap<>();
+        addActionButton(PlayerButtonSetting.PLAYER, mBinding.control.action.player);
+        addActionButton(PlayerButtonSetting.DECODE, mBinding.control.action.decode);
+        addActionButton(PlayerButtonSetting.PLAY_PARAMS, mBinding.control.action.playParams);
+        addActionButton(PlayerButtonSetting.SPEED, mBinding.control.action.speed);
+        addActionButton(PlayerButtonSetting.SCALE, mBinding.control.action.scale);
+        addActionButton(PlayerButtonSetting.CHANGE, mBinding.control.action.change);
+        addActionButton(PlayerButtonSetting.TEXT, mBinding.control.action.text);
+        addActionButton(PlayerButtonSetting.AUDIO, mBinding.control.action.audio);
+        addActionButton(PlayerButtonSetting.VIDEO, mBinding.control.action.video);
+        PlayerButtonSetting.applyOrder(mBinding.control.action.container, mActionButtons);
+    }
+
+    private void addActionButton(String id, View view) {
+        mActionButtons.put(id, view);
+    }
+
+    /**
+     * 先恢复无动态条件的按钮，再统一套用用户关闭项。
+     * 顺序不能反过来：applyVisibility 只隐藏、不恢复，必须在条件判定之后执行。
+     */
+    private void applyActionButtonVisibility() {
+        if (mActionButtons == null) return;
+        mBinding.control.action.player.setVisibility(View.VISIBLE);
+        mBinding.control.action.decode.setVisibility(View.VISIBLE);
+        mBinding.control.action.playParams.setVisibility(View.VISIBLE);
+        mBinding.control.action.scale.setVisibility(View.VISIBLE);
+        mBinding.control.action.change.setVisibility(View.VISIBLE);
+        PlayerButtonSetting.applyVisibility(mActionButtons);
     }
 
     private void setScale(int scale) {
@@ -501,9 +559,24 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void getLive() {
         Live live = getHome();
+        setSource(live);
         if (!live.getGroups().isEmpty()) renderLive(live);
         mViewModel.parse(live);
         showProgress();
+    }
+
+    /**
+     * 控制栏的「直播源」按钮显示当前直播源名称：固定写「直播源」看不出此刻播的是哪一路源，
+     * 用户换源（含失效自动换源）都会重新走 {@link #getLive()} 刷新。名称为空时回退原文案。
+     * 按钮文案被源名取代后读屏会只剩一个孤立的源名，因此同步补回「直播源」动作语义。
+     */
+    private void setSource(Live live) {
+        String name = live == null ? "" : live.getDisplayName();
+        boolean named = !name.isEmpty();
+        String label = named ? name : getString(R.string.live_control_source);
+        mBinding.control.action.source.setText(label);
+        mBinding.control.action.source.setContentDescription(named ? getString(R.string.live_control_source_named, name) : null);
+        refreshControlDialog();
     }
 
     private void renderLive(Live live) {
@@ -528,7 +601,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private void setWidth(Live live) {
         if (isEmbeddedLiveUi()) return;
         int padding = ResUtil.dp2px(48);
-        if (live.getWidth() == 0) for (Group item : live.getGroups()) live.setWidth(Math.max(live.getWidth(), ResUtil.getTextWidth(item.getName(), 14)));
+        if (live.getWidth() == 0) for (Group item : live.getGroups()) live.setWidth(Math.max(live.getWidth(), ResUtil.getTextWidth(item.getDisplayName(), 14)));
         int width = live.getWidth() == 0 ? 0 : Math.min(live.getWidth() + padding, ResUtil.getScreenWidth() / 4);
         setWidth(mBinding.group, width);
     }
@@ -623,8 +696,24 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void onRotate() {
         Log.i(ORIENTATION_TAG, "rotate clicked embedded=" + isEmbeddedLiveUi() + " " + orientationState());
-        if (isEmbeddedLiveUi()) enterFullscreenLive();
-        else exitFullscreenLive();
+        if (isEmbeddedLiveUi()) {
+            enterFullscreenLive();
+        } else if (ResUtil.isPad()) {
+            toggleFullscreenOrientation();
+        } else {
+            exitFullscreenLive();
+        }
+    }
+
+    /**
+     * 平板全屏内的旋转：只切换全屏方向（竖屏全屏↔横屏全屏），不退出全屏，
+     * 与点播 {@code VideoActivity#onRotate} 的语义保持一致。
+     */
+    private void toggleFullscreenOrientation() {
+        livePortraitFullscreen = !livePortraitFullscreen;
+        Log.i(ORIENTATION_TAG, "rotate fullscreen portrait=" + livePortraitFullscreen + " " + orientationState());
+        setR1Callback();
+        requestOrientation("rotate-fullscreen-pad", getFullscreenOrient());
     }
 
     private void onPiP() {
@@ -697,6 +786,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void exitFullscreenLive() {
+        livePortraitFullscreen = false;
         setRotate(false);
         hideInfo();
         hideControl();
@@ -709,7 +799,8 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private int getFullscreenOrient() {
-        return ResUtil.isPad() ? ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE : PlaybackOrientation.getEnterFullscreenOrientation(player().isPortrait());
+        if (ResUtil.isPad()) return livePortraitFullscreen ? ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT : ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;
+        return PlaybackOrientation.getEnterFullscreenOrientation(player().isPortrait());
     }
 
     private int getEmbeddedOrient() {
@@ -964,12 +1055,15 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void showControl() {
         if (service() == null || isInPictureInPictureMode()) return;
+        // 与点播一致：每次唤出控制栏都重算轨道类按钮。applyVisibility 只隐藏不恢复，
+        // 若直播存活期间（如 PiP）在设置里重新开启字幕/音轨/视轨，只有这里能把它们恢复。
+        setTrackVisible();
         setPlayParamsState();
         boolean embedded = isEmbeddedLiveUi();
         if (!embedded && isVisible(mBinding.recycler)) hideUI(false);
         mBinding.control.info.setVisibility(player().isEmpty() ? View.GONE : View.VISIBLE);
         mBinding.control.cast.setVisibility(View.GONE);
-        mBinding.control.right.rotate.setVisibility(isLock() || isPadLiveFullscreenMode() ? View.GONE : View.VISIBLE);
+        mBinding.control.right.rotate.setVisibility(isLock() ? View.GONE : View.VISIBLE);
         mBinding.control.center.setVisibility(isLock() ? View.GONE : View.VISIBLE);
         mBinding.control.bottom.setVisibility(isLock() ? View.GONE : View.VISIBLE);
         mBinding.control.action.getRoot().setVisibility(embedded ? View.GONE : View.VISIBLE);
@@ -1002,6 +1096,10 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         mBinding.control.action.playParams.setSelected(visible);
         mBinding.control.osdDiagnostics.setSelected(visible);
         mBinding.control.osdDiagnostics.setAlpha(visible ? 1f : 0.6f);
+        // 「播放参数」被播放器按钮设置关闭后，顶栏快捷图标一并隐藏；未关闭时保留一键开关。
+        boolean entry = PlayerButtonSetting.isVisible(PlayerButtonSetting.PLAY_PARAMS) && service() != null && !player().isEmpty();
+        mBinding.control.osdDiagnostics.setVisibility(entry ? View.VISIBLE : View.GONE);
+        applyActionButtonVisibility();
     }
 
     private void showInfo() {
@@ -1665,6 +1763,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         mBinding.control.action.audio.setVisibility(player().haveTrack(C.TRACK_TYPE_AUDIO) ? View.VISIBLE : View.GONE);
         mBinding.control.action.video.setVisibility(player().haveTrack(C.TRACK_TYPE_VIDEO) ? View.VISIBLE : View.GONE);
         mBinding.control.action.speed.setVisibility(player().isVod() ? View.VISIBLE : View.GONE);
+        applyActionButtonVisibility();
     }
 
     private MediaMetadata buildMetadata() {
@@ -2030,6 +2129,8 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
             cancelPendingLivePiP(false);
         }
         setVideoView(isInPictureInPictureMode);
+        // PiP 窗口里也要按当前模式重算状态栏占位，否则嵌入式高度会把 video 往下挤。
+        applyStatusBarInset();
         if (isInPictureInPictureMode) {
             dismissLiveControlDialog();
             hideControl();
@@ -2123,6 +2224,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         updateLiveMenuInsets();
         if (isEmbeddedLiveUi()) {
             Util.showSystemUI(this);
+            ViewCompat.requestApplyInsets(mBinding.getRoot());
             getWindow().setStatusBarColor(Color.TRANSPARENT);
             getWindow().setNavigationBarColor(Color.TRANSPARENT);
             WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
@@ -2146,6 +2248,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
             keepLiveMenuVisible();
         }
         embeddedUiMode = embedded;
+        applyStatusBarInset();
         updateControlInsets();
         updateVideoHeight(videoSize);
         applyLiveResizeMode(LiveSetting.getScale());
@@ -2173,7 +2276,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private void applyLiveListStyle() {
         if (mBinding == null) return;
         if (liveMenuOverlay) {
-            mBinding.recycler.setBackgroundResource(R.drawable.shape_live_list);
+            mBinding.recycler.setBackground(LiveListScrim.create(this));
         } else {
             mBinding.recycler.setBackgroundResource(LiveSetting.isListStyleClassic() ? R.color.transparent : R.drawable.shape_live_embedded_list);
         }
@@ -2200,7 +2303,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         if (mBinding.getRoot() instanceof LinearLayoutCompat root) {
             LinearLayoutCompat.LayoutParams params = new LinearLayoutCompat.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0);
             params.weight = 14;
-            root.addView(mBinding.recycler, Math.min(1, root.getChildCount()), params);
+            root.addView(mBinding.recycler, Math.min(root.indexOfChild(mBinding.video) + 1, root.getChildCount()), params);
         } else if (mBinding.getRoot() instanceof FrameLayout root) {
             root.addView(mBinding.recycler, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START));
         }
@@ -2244,6 +2347,22 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
         LinearLayoutCompat.LayoutParams params = new LinearLayoutCompat.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT);
         params.weight = weight;
         view.setLayoutParams(params);
+    }
+
+    private void updateStatusBarInset(@Nullable WindowInsetsCompat insets) {
+        int top = insets == null ? 0 : insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+        // 全屏期间状态栏被隐藏，派发的 inset 是 0；退出全屏后仍要用最后一次可见的高度。
+        if (top > 0) statusBarInset = top;
+        applyStatusBarInset();
+    }
+
+    private void applyStatusBarInset() {
+        if (mBinding.statusBar == null) return;
+        ViewGroup.LayoutParams params = mBinding.statusBar.getLayoutParams();
+        int height = isEmbeddedLiveUi() ? statusBarInset : 0;
+        if (params.height == height) return;
+        params.height = height;
+        mBinding.statusBar.setLayoutParams(params);
     }
 
     private void updateLiveMenuInsets() {

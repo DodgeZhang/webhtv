@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.ui.dialog;
 
 import android.app.Dialog;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -21,6 +22,7 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.DialogFragment;
 import androidx.viewbinding.ViewBinding;
 
+import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.cache.CacheCenter;
 import com.fongmi.android.tv.cache.CacheCleanupManager;
@@ -38,6 +40,7 @@ import com.fongmi.android.tv.cache.CachePolicyStore;
 import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.cache.CacheSnapshot;
 import com.fongmi.android.tv.databinding.DialogCacheManagementBinding;
+import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Notify;
@@ -65,6 +68,76 @@ public class CacheManagementDialog extends DialogFragment {
 
     public static void show(FragmentActivity activity) {
         new CacheManagementDialog().show(activity.getSupportFragmentManager(), null);
+    }
+
+    /**
+     * Runs the settings row's plain click: every cache the panel can name is cleared the way the
+     * single-key clear of the pre-split settings row left them, and the outcome is reported as a
+     * notification.
+     *
+     * <p>The panel deliberately stays closed. This entry re-creates the action from before the cache
+     * management split, and that one-key clear never opened a screen either: the click is the
+     * deliberate act, the cleanup runs in the background, and the settings row re-reads itself once
+     * the cleanup publishes its change. The panel - graded cleanup, module limits, auto cleanup -
+     * moved to the row's long press, which is now its only entry: the row stays single-line by user
+     * request, so no gesture hint is printed under the title.</p>
+     */
+    public static void cleanEverything() {
+        if (CacheCleanupManager.isRunning()) {
+            Resources resources = rowResources();
+            Notify.show(resources.getString(R.string.cache_cleanup_busy));
+            return;
+        }
+        Resources resources = rowResources();
+        Notify.show(resources.getString(R.string.cache_cleanup_full_started));
+        CacheCleanupManager.execute(CachePolicyEngine.plan(CacheCleanupMode.FULL), "settings_row",
+                result -> Notify.show(describe(result, resources)));
+    }
+
+    /**
+     * The resources the row's toasts resolve their text from.
+     *
+     * <p>{@link Notify} renders through the application context, whose resources carry the system
+     * locale instead of the in-app language the settings screens apply, so a row toast would
+     * otherwise disagree with the panel that reports the identical outcome. Resolving through the
+     * same helper the settings screens use keeps both surfaces in one language.</p>
+     */
+    private static Resources rowResources() {
+        return Setting.wrapLanguage(App.get()).getResources();
+    }
+
+    /**
+     * Words a cleanup outcome exactly as the panel's status line does, so the same action reads the
+     * same way whether it was started from the panel or from the settings row.
+     *
+     * <p>The resources are passed in rather than read globally: the panel renders - and notifies -
+     * through its host context, which carries the in-app language choice, while the row has to
+     * ask for that same choice explicitly.</p>
+     */
+    static String describe(CacheCleanupResult result, Resources resources) {
+        int message;
+        if (result.status() == CacheCleanupStatus.COMPLETED) {
+            message = R.string.cache_cleanup_done;
+        } else if (result.status() == CacheCleanupStatus.CANCELLED) {
+            message = R.string.cache_cleanup_cancelled;
+        } else if (result.status() == CacheCleanupStatus.FAILED) {
+            message = R.string.cache_cleanup_failed;
+        } else if (result.status() == CacheCleanupStatus.NOT_ALLOWED) {
+            message = R.string.cache_cleanup_not_allowed;
+        } else if (result.status() == CacheCleanupStatus.DEFERRED) {
+            message = R.string.cache_cleanup_deferred;
+        } else {
+            message = R.string.cache_cleanup_partial;
+        }
+        if (result.status() == CacheCleanupStatus.COMPLETED) {
+            return resources.getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
+                    result.deletedFiles());
+        }
+        if (result.status() == CacheCleanupStatus.PARTIAL) {
+            return resources.getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
+                    result.deletedFiles(), result.skippedFiles());
+        }
+        return resources.getString(message);
     }
 
     @NonNull
@@ -126,14 +199,15 @@ public class CacheManagementDialog extends DialogFragment {
     public void onStart() {
         super.onStart();
         applyWindowSize();
+        DialogSafeArea.follow(requireActivity(), getDialog() == null ? null : getDialog().getWindow(), this::applyWindowSize);
     }
 
     private void applyWindowSize() {
         Dialog dialog = getDialog();
         Window window = dialog == null ? null : dialog.getWindow();
         if (window == null) return;
-        int width = Math.round(ResUtil.getScreenWidth(requireContext()) * SCREEN_FRACTION);
-        int height = Math.round(ResUtil.getScreenHeight(requireContext()) * SCREEN_FRACTION);
+        int width = Math.round(DialogSafeArea.width(requireActivity(), window) * SCREEN_FRACTION);
+        int height = Math.round(DialogSafeArea.height(requireActivity(), window) * SCREEN_FRACTION);
         WindowManager.LayoutParams params = window.getAttributes();
         params.width = width;
         params.height = height;
@@ -327,26 +401,7 @@ public class CacheManagementDialog extends DialogFragment {
         setCleanupInteractive(true);
         setDismissableWhileIdle(true);
         binding.cancel.setVisibility(android.view.View.GONE);
-        int message;
-        if (result.status() == CacheCleanupStatus.COMPLETED) {
-            message = R.string.cache_cleanup_done;
-        } else if (result.status() == CacheCleanupStatus.CANCELLED) {
-            message = R.string.cache_cleanup_cancelled;
-        } else if (result.status() == CacheCleanupStatus.FAILED) {
-            message = R.string.cache_cleanup_failed;
-        } else if (result.status() == CacheCleanupStatus.NOT_ALLOWED) {
-            message = R.string.cache_cleanup_not_allowed;
-        } else if (result.status() == CacheCleanupStatus.DEFERRED) {
-            message = R.string.cache_cleanup_deferred;
-        } else {
-            message = R.string.cache_cleanup_partial;
-        }
-        String text = result.status() == CacheCleanupStatus.COMPLETED
-                ? getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()), result.deletedFiles())
-                : result.status() == CacheCleanupStatus.PARTIAL
-                ? getString(message, FileUtil.byteCountToDisplaySize(result.releasedBytes()),
-                result.deletedFiles(), result.skippedFiles())
-                : getString(message);
+        String text = describe(result, getResources());
         // The cleanup already finished, so a modal confirmation here would force the user to
         // dismiss an extra dialog for an action that is already done. Notify passively instead
         // and keep the outcome visible in the panel's own status line.
@@ -487,8 +542,7 @@ public class CacheManagementDialog extends DialogFragment {
         button.setMinWidth(ResUtil.dp2px(96));
         button.setMinimumHeight(ResUtil.dp2px(44));
         button.setTextSize(14);
-        button.setForeground(androidx.core.content.ContextCompat.getDrawable(requireContext(),
-                R.drawable.selector_cache_button_focus));
+        applyFocusRing(button, R.color.focus_ring_primary);
         button.setText(R.string.cache_limit_button);
         button.setEnabled(supportsLimit(id));
         if (supportsLimit(id)) {
@@ -524,6 +578,26 @@ public class CacheManagementDialog extends DialogFragment {
                 });
     }
 
+    /**
+     * 焦点环走 MaterialButton 自带的描边通道，而不是 foreground `<shape>`。
+     *
+     * <p>原因（2026-10-10 实测）：按钮的圆角由 {@code ShapeAppearance.M3.Comp.Button.Small.
+     * Container.Shape.Round} → {@code Corner.Full} 决定，是 <b>50%</b>（52dp 高按钮 = 26dp 胶囊），
+     * 而 foreground 环写的是固定 dp，两者在几何上无法对齐：实测 foreground 环的外边界
+     * （声明 28dp + w/2）画在按钮 padding 盒（72/30/72/30）上，而按钮填充又被 4dp inset，
+     * 圆角与盒位都不一致。改用 {@code app:strokeColor}/{@code app:strokeWidth} 后，Material
+     * 用同一个 {@code ShapeAppearanceModel} 同时画填充与描边，几何天然一致。
+     *
+     * <p>环色按仓库既有规则取「焦点态实际填充色的配对 on-色」：tonal（secondaryContainer）
+     * 用 {@code focus_ring_secondary}，outlined/text（无容器填充）用 {@code focus_ring_primary}。
+     * 两者都由主题解析器从用户 seed 生成并做过对比度校验（浅色表 primary 对 secondaryContainer
+     * 4.91:1、on_secondary_container 对 secondaryContainer 13.18:1；夜间表 5.44:1 / 7.24:1）。
+     */
+    private void applyFocusRing(MaterialButton button, int strokeColorRes) {
+        button.setStrokeColor(androidx.core.content.ContextCompat.getColorStateList(requireContext(), strokeColorRes));
+        button.setStrokeWidth(requireContext().getResources().getDimensionPixelSize(R.dimen.webhtv_focus_ring_width));
+    }
+
     private MaterialButton moduleButton(CacheModuleId id) {
         MaterialButton button = new MaterialButton(requireContext(), null,
                 com.google.android.material.R.attr.materialButtonTonalStyle);
@@ -531,8 +605,7 @@ public class CacheManagementDialog extends DialogFragment {
         button.setMinWidth(ResUtil.dp2px(112));
         button.setMinimumHeight(ResUtil.dp2px(44));
         button.setTextSize(14);
-        button.setForeground(androidx.core.content.ContextCompat.getDrawable(requireContext(),
-                R.drawable.selector_cache_button_focus));
+        applyFocusRing(button, R.color.focus_ring_secondary);
         // Read the restriction from the registry instead of hardcoding one module: an entry that
         // declares allowManualCleanup=false must not be offered as directly cleanable.
         boolean restricted = !CachePolicyEngine.manualCleanupAllowed(id, requireContext().getCacheDir());

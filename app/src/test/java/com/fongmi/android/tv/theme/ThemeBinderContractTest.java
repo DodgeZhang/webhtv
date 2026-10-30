@@ -231,6 +231,14 @@ public class ThemeBinderContractTest {
         // `new WebHtvAlertDialogBuilder(`.
         java.util.regex.Pattern forbidden = java.util.regex.Pattern.compile(
                 "new\\s+(?:[A-Za-z_][\\w.]*\\.)?AlertDialog\\.Builder\\(");
+        // Same shape for the Material builder: the qualified `new com.google.android.material
+        // .dialog.MaterialAlertDialogBuilder(` must be caught too. The previous version used a
+        // literal `contains("new MaterialAlertDialogBuilder(")`, so every call site that spelled
+        // the class out in full slipped through - five of them in the two VideoActivity files
+        // were building dialogs that never reached ThemeController.bindDialog, which meant a
+        // user-chosen theme silently did not apply to them.
+        java.util.regex.Pattern forbiddenMaterial = java.util.regex.Pattern.compile(
+                "new\\s+(?:[A-Za-z_][\\w.]*\\.)?MaterialAlertDialogBuilder\\(");
         java.util.List<String> raw = new java.util.ArrayList<>();
         for (String sourceSet : new String[]{"main", "mobile", "leanback"}) {
             Path base = root.resolve("src/" + sourceSet);
@@ -240,7 +248,7 @@ public class ThemeBinderContractTest {
                     if (path.toString().contains("graphify-out")) continue;
                     if (exempt.contains(path.getFileName().toString())) continue;
                     String text = Files.readString(path, StandardCharsets.UTF_8);
-                    if (text.contains("new MaterialAlertDialogBuilder(")) {
+                    if (forbiddenMaterial.matcher(text).find()) {
                         raw.add(sourceSet + "/" + path.getFileName() + " -> MaterialAlertDialogBuilder");
                     }
                     if (forbidden.matcher(text).find()) {
@@ -440,12 +448,20 @@ public class ThemeBinderContractTest {
         assertFalse(fromCompiled.rolesFor(compiled.colorSurface()).isEmpty());
 
         // Pin the fix itself: the baseline must be read from the compiled resources
-        // instead of being inferred from uiMode.
+        // instead of being inferred from uiMode, and it must be read through the context
+        // that inflates the views. Probing the application context instead re-broke the
+        // same invariant the other way round: on API < 31 a forced MODE_NIGHT_YES only
+        // reaches the activity's resources, so the application context still reported the
+        // light table while every inflated ?attr/color* was dark.
         String controller = read("src/main/java/com/fongmi/android/tv/theme/ThemeController.java");
-        assertTrue(controller.contains("compiledDarkPalette()"));
+        assertTrue(controller.contains("compiledDarkPalette(context)"));
         assertTrue(controller.contains("R.color.webhtv_color_primary"));
         assertTrue(controller.contains("R.color.webhtv_color_on_warning"));
-        assertTrue(controller.contains("resolvedDark()"));
+        assertTrue(controller.contains("resolvedDark(context)"));
+        assertTrue(controller.contains("baseline = frozenPalette(activity);"));
+        assertTrue(controller.contains("current = resolveWith(profile, activity);"));
+        assertFalse("the probe must not read the application context as its primary source",
+                controller.contains("Context context = App.get();"));
         assertFalse("the frozen palette must not be derived from uiMode alone",
                 controller.contains("ThemeResolver.resolve(currentThemeMode(), ThemeSeed.NONE, 0, 0, null, null, systemDark)"));
     }

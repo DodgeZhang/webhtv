@@ -38,7 +38,7 @@
             android:maxWidth="150dp"
             android:paddingStart="9dp"
             android:paddingEnd="9dp"
-            android:textColor="?attr/colorPrimary"
+            android:textColor="@color/fixed_light_accent"
             android:textSize="10sp"
             android:textStyle="bold"
             tools:text="智能推荐" />
@@ -191,7 +191,7 @@
                         android:minWidth="58dp"
                         android:paddingStart="7dp"
                         android:paddingEnd="7dp"
-                        android:textColor="@color/webhtv_color_success"
+                        android:textColor="@color/fixed_light_success"
                         android:textSize="10sp"
                         android:textStyle="bold"
                         tools:text="豆瓣 9.3" />
@@ -382,6 +382,8 @@
             android:textColor="@color/dialog_primary_button_text"
             android:textSize="13sp"
             app:backgroundTint="@color/dialog_primary_button_bg"
+            app:strokeWidth="@dimen/webhtv_focus_ring_width"
+            app:strokeColor="@color/focus_ring_primary_container"
             app:cornerRadius="8dp" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>

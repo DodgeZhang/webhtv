@@ -2,7 +2,7 @@ package com.fongmi.android.tv.theme;
 
 import java.util.Locale;
 
-/** Persisted B-safe theme profile limited to the 16 user-editable semantic slots. */
+/** Persisted B-safe theme profile limited to the 19 user-editable semantic slots. */
 public final class ThemeProfile {
 
     public static final int SCHEMA_VERSION = 2;
@@ -76,12 +76,17 @@ public final class ThemeProfile {
         return SEED_NONE;
     }
 
-    /** The 13 color slots plus 3 opacity slots a user may edit. */
+    /** The 14 color slots plus 5 opacity slots a user may edit. */
     public static final class SlotSet {
         public String primary;
         public String primaryContainer;
         public String secondaryContainer;
         public String focus;
+        /**
+         * 播放页「当前播放/当前生效」环色。与 focus 分开，因为这两个状态在播放页同时存在、
+         * 必须可区分；取值会在播放页固定玻璃面板上做可读性夹取（ThemeResolver）。
+         */
+        public String playerCurrent;
         public String surface;
         public String surfaceContainer;
         public String surfaceContainerHigh;
@@ -94,6 +99,16 @@ public final class ThemeProfile {
         public Float scrimOpacity;
         public Float dialogOpacity;
         public Float overlayOpacity;
+        /**
+         * 播放菜单遮盖层（播放页底部控制条黑幕）的强度，只缩放 alpha，色相固定取
+         * colorPlayerScrim；null 表示回落到 {@code PlaybackMenuScrim.DEFAULT_OPACITY}。
+         */
+        public Float playerScrimOpacity;
+        /**
+         * 直播页频道抽屉（列表）遮盖层的强度，只缩放 alpha，色相固定为纯黑；null 表示回落到
+         * {@code LiveListScrim.DEFAULT_OPACITY}，此时渲染结果与 shape_live_list.xml 逐值一致。
+         */
+        public Float liveListScrimOpacity;
 
         public SlotSet copy() {
             SlotSet copy = new SlotSet();
@@ -101,6 +116,7 @@ public final class ThemeProfile {
             copy.primaryContainer = primaryContainer;
             copy.secondaryContainer = secondaryContainer;
             copy.focus = focus;
+            copy.playerCurrent = playerCurrent;
             copy.surface = surface;
             copy.surfaceContainer = surfaceContainer;
             copy.surfaceContainerHigh = surfaceContainerHigh;
@@ -113,6 +129,8 @@ public final class ThemeProfile {
             copy.scrimOpacity = scrimOpacity;
             copy.dialogOpacity = dialogOpacity;
             copy.overlayOpacity = overlayOpacity;
+            copy.playerScrimOpacity = playerScrimOpacity;
+            copy.liveListScrimOpacity = liveListScrimOpacity;
             return copy;
         }
     }

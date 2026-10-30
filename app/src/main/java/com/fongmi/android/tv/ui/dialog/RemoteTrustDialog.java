@@ -26,6 +26,7 @@ import android.view.inputmethod.InputMethodManager;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.LinearLayoutCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.ViewCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
@@ -1310,7 +1311,7 @@ public final class RemoteTrustDialog {
 
     private static int configContentHeight(Context context) {
         boolean land = ResUtil.isLand(context);
-        int height = (int) (ResUtil.getScreenHeight(context) * (land ? 0.44f : 0.34f));
+        int height = (int) (DialogSafeArea.height(context) * (land ? 0.44f : 0.34f));
         return Math.max(dp(context, land ? 220 : 190), Math.min(dp(context, land ? 360 : 300), height));
     }
 
@@ -3087,7 +3088,7 @@ public final class RemoteTrustDialog {
         input.setSingleLine(singleLine);
         input.setTextSize(14);
         input.setMinHeight(dp(context, 46));
-        input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        ViewCompat.setImportantForAutofill(input, View.IMPORTANT_FOR_AUTOFILL_NO);
         input.setSelectAllOnFocus(false);
         input.setTextColor(Color.BLACK);
         input.setHintTextColor(Color.parseColor("#666666"));

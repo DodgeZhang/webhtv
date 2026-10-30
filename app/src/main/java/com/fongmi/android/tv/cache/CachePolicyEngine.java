@@ -94,6 +94,10 @@ public final class CachePolicyEngine {
             case LIGHT -> LIGHT;
             case STANDARD -> STANDARD;
             case DEEP -> DEEP;
+            // The settings row's plain click is the one-key clear from before the cache management
+            // split, so it must cover every cache the panel can name - including the report-only
+            // leftovers a tiered run deliberately protects.
+            case FULL -> EnumSet.allOf(CacheModuleId.class);
             case MODULE -> Set.of();
         };
         ArrayList<CacheModuleId> ordered = new ArrayList<>();

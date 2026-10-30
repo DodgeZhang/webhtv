@@ -43,6 +43,10 @@ public final class ThemePreviewView extends LinearLayout {
                         ThemeEditor.Slot.PRIMARY_CONTAINER, ThemeEditor.Slot.SECONDARY_CONTAINER, ThemeEditor.Slot.FOCUS),
                 colorGroup(R.string.theme_editor_group_surfaces, ThemeEditor.Slot.SURFACE,
                         ThemeEditor.Slot.SURFACE_CONTAINER, ThemeEditor.Slot.SURFACE_CONTAINER_HIGH));
+        // 「当前播放环色」单独一组：它不是页面角色，而是播放页叠在视频上的状态色，
+        // 解析时会在固定玻璃面板上做可读性夹取。
+        addView(colorGroup(R.string.theme_editor_group_player, ThemeEditor.Slot.PLAYER_CURRENT).view,
+                ThemeEditorUi.fullWidth(context, 12));
         addGroups(wide,
                 colorGroup(R.string.theme_editor_group_text, ThemeEditor.Slot.ON_SURFACE,
                         ThemeEditor.Slot.ON_SURFACE_VARIANT, ThemeEditor.Slot.OUTLINE),
@@ -50,7 +54,9 @@ public final class ThemePreviewView extends LinearLayout {
                         ThemeEditor.Slot.WARNING, ThemeEditor.Slot.ERROR));
         Group layers = group(R.string.theme_editor_group_layers);
         for (ThemeEditor.Slot slot : new ThemeEditor.Slot[]{ThemeEditor.Slot.SCRIM_OPACITY,
-                ThemeEditor.Slot.DIALOG_OPACITY, ThemeEditor.Slot.OVERLAY_OPACITY}) {
+                ThemeEditor.Slot.DIALOG_OPACITY, ThemeEditor.Slot.OVERLAY_OPACITY,
+                ThemeEditor.Slot.PLAYER_SCRIM_OPACITY,
+                ThemeEditor.Slot.LIVE_LIST_SCRIM_OPACITY}) {
             OpacityRow row = new OpacityRow(slot);
             opacities.put(slot, row);
             layers.view.addView(row.view, ThemeEditorUi.fullWidth(context, 8));
@@ -235,6 +241,8 @@ public final class ThemePreviewView extends LinearLayout {
             float opacity = switch (slot) {
                 case SCRIM_OPACITY -> ThemeEditorUi.alpha(tokens.colorScrim());
                 case DIALOG_OPACITY -> tokens.dialogOpacity();
+                case PLAYER_SCRIM_OPACITY -> PlaybackMenuScrim.DEFAULT_OPACITY;
+                case LIVE_LIST_SCRIM_OPACITY -> LiveListScrim.DEFAULT_OPACITY;
                 default -> ThemeEditorUi.alpha(tokens.colorOverlayLight());
             };
             if (raw != null) opacity = Float.parseFloat(raw);
@@ -262,6 +270,7 @@ public final class ThemePreviewView extends LinearLayout {
             case SUCCESS -> "✓";
             case WARNING -> "!";
             case ERROR -> "×";
+            case PLAYER_CURRENT -> "▶";
             default -> "";
         };
     }
@@ -272,6 +281,7 @@ public final class ThemePreviewView extends LinearLayout {
             case PRIMARY_CONTAINER -> tokens.colorPrimaryContainer();
             case SECONDARY_CONTAINER -> tokens.colorSecondaryContainer();
             case FOCUS -> tokens.colorFocus();
+            case PLAYER_CURRENT -> tokens.colorPlayerCurrentRing();
             case SURFACE -> tokens.colorSurface();
             case SURFACE_CONTAINER -> tokens.colorSurfaceContainer();
             case SURFACE_CONTAINER_HIGH -> tokens.colorSurfaceContainerHigh();
@@ -289,6 +299,8 @@ public final class ThemePreviewView extends LinearLayout {
         return switch (slot) {
             case SCRIM_OPACITY -> ThemeProfileValidator.MIN_SCRIM_OPACITY;
             case DIALOG_OPACITY -> ThemeProfileValidator.MIN_DIALOG_OPACITY;
+            case PLAYER_SCRIM_OPACITY -> ThemeProfileValidator.MIN_PLAYER_SCRIM_OPACITY;
+            case LIVE_LIST_SCRIM_OPACITY -> ThemeProfileValidator.MIN_LIVE_LIST_SCRIM_OPACITY;
             default -> ThemeProfileValidator.MIN_OVERLAY_OPACITY;
         };
     }
@@ -297,6 +309,8 @@ public final class ThemePreviewView extends LinearLayout {
         return switch (slot) {
             case SCRIM_OPACITY -> ThemeProfileValidator.MAX_SCRIM_OPACITY;
             case DIALOG_OPACITY -> ThemeProfileValidator.MAX_DIALOG_OPACITY;
+            case PLAYER_SCRIM_OPACITY -> ThemeProfileValidator.MAX_PLAYER_SCRIM_OPACITY;
+            case LIVE_LIST_SCRIM_OPACITY -> ThemeProfileValidator.MAX_LIVE_LIST_SCRIM_OPACITY;
             default -> ThemeProfileValidator.MAX_OVERLAY_OPACITY;
         };
     }
@@ -307,6 +321,7 @@ public final class ThemePreviewView extends LinearLayout {
             case PRIMARY_CONTAINER -> R.string.theme_editor_slot_primary_container;
             case SECONDARY_CONTAINER -> R.string.theme_editor_slot_secondary_container;
             case FOCUS -> R.string.theme_editor_slot_focus;
+            case PLAYER_CURRENT -> R.string.theme_editor_slot_player_current;
             case SURFACE -> R.string.theme_editor_slot_surface;
             case SURFACE_CONTAINER -> R.string.theme_editor_slot_surface_container;
             case SURFACE_CONTAINER_HIGH -> R.string.theme_editor_slot_surface_container_high;
@@ -319,6 +334,8 @@ public final class ThemePreviewView extends LinearLayout {
             case SCRIM_OPACITY -> R.string.theme_editor_slot_scrim_opacity;
             case DIALOG_OPACITY -> R.string.theme_editor_slot_dialog_opacity;
             case OVERLAY_OPACITY -> R.string.theme_editor_slot_overlay_opacity;
+            case PLAYER_SCRIM_OPACITY -> R.string.theme_editor_slot_player_scrim_opacity;
+            case LIVE_LIST_SCRIM_OPACITY -> R.string.theme_editor_slot_live_list_scrim_opacity;
         };
     }
 }

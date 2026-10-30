@@ -11,6 +11,7 @@ import com.fongmi.android.tv.bean.TmdbEpisode;
 import com.fongmi.android.tv.bean.TmdbItem;
 import com.fongmi.android.tv.bean.TmdbPerson;
 import com.fongmi.android.tv.bean.TmdbVideo;
+import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.utils.TmdbImageSelector;
 import com.fongmi.android.tv.utils.TmdbLanguagePolicy;
 import com.fongmi.android.tv.utils.TmdbProxy;
@@ -147,6 +148,27 @@ public class TmdbService {
         return requestJson(url, config, "detail", sourceDetailCacheKey(item, seasonNumber, config, missing), fallbackKeys, DETAIL_CACHE_TTL, "TMDB 详情返回为空", "TMDB 详情失败: HTTP ", false);
     }
 
+    /**
+     * 自动匹配消歧专用详情：只取打分真正用到的字段。
+     * <p>
+     * 消歧只读 {@code credits}/{@code aggregate_credits}（人物打分）与根对象基础字段
+     * （标题/年份/国家/季数/分季标题），不读 images、translations、external_ids、
+     * content_ratings、release_dates、recommendations、similar。2026-10-21 实测：
+     * TV 样例 446,404B → 335,387B（−25%），电影样例 192,107B → 56,056B（−71%）；
+     * 最多 6 个候选时按倍数累积。
+     * <p>
+     * 与 {@link #detail} 共用文件缓存机制但使用独立命名空间（{@code detail-lite}），
+     * 避免 lite 结果污染完整详情缓存；必须保留 {@code aggregate_credits}，因为
+     * {@link #cast} 优先读它，去掉会改变人物打分输入。
+     */
+    public JsonObject detailForDisambiguation(@NonNull TmdbItem item, @NonNull TmdbConfig config) throws Exception {
+        ensureReady(config);
+        String url = detailUrl(item, config, false, true);
+        String cacheKey = disambiguationCacheKey(item, config);
+        return requestJson(url, config, "detail-lite", cacheKey, List.of(), DETAIL_CACHE_TTL,
+                "TMDB 详情返回为空", "TMDB 详情失败: HTTP ", false);
+    }
+
     private String detailAppend(@NonNull TmdbItem item, boolean includeRelated) {
         boolean tv = "tv".equalsIgnoreCase(item.getMediaType());
         String append = tv
@@ -155,10 +177,18 @@ public class TmdbService {
         return includeRelated ? append + ",recommendations,similar" : append;
     }
 
+    private String disambiguationAppend(@NonNull TmdbItem item) {
+        return "tv".equalsIgnoreCase(item.getMediaType()) ? "credits,aggregate_credits" : "credits";
+    }
+
     private String detailUrl(@NonNull TmdbItem item, @NonNull TmdbConfig config, boolean includeRelated) {
+        return detailUrl(item, config, includeRelated, false);
+    }
+
+    private String detailUrl(@NonNull TmdbItem item, @NonNull TmdbConfig config, boolean includeRelated, boolean disambiguation) {
         return apiBuilder(config.getApiBase() + "/" + item.getMediaType() + "/" + item.getTmdbId(), config)
                 .addQueryParameter("language", requestLanguage(config))
-                .addQueryParameter("append_to_response", detailAppend(item, includeRelated))
+                .addQueryParameter("append_to_response", disambiguation ? disambiguationAppend(item) : detailAppend(item, includeRelated))
                 .addQueryParameter("include_image_language", requestLanguage(config) + ",null")
                 .build()
                 .toString();
@@ -625,8 +655,12 @@ public class TmdbService {
         return null;
     }
 
+    /**
+     * 请求语言与缓存分键共用同一个判定，两者必须同源：一旦不一致，
+     * 不同语言的响应用同一个键落盘，会把简体标题当成繁体的缓存命中。
+     */
     private String requestLanguage(TmdbConfig config) {
-        return TmdbLanguagePolicy.requestLanguage(config);
+        return TmdbLanguagePolicy.requestLanguage(config, Setting.getLanguage());
     }
 
     public List<TmdbItem> personWorks(JsonObject person, @NonNull TmdbConfig config) {
@@ -918,6 +952,11 @@ public class TmdbService {
         return cacheKey("detail", item.getMediaType(), item.getTmdbId(), cacheLanguage(config), includeRelated ? "full" : "core");
     }
 
+    /** 消歧 lite 详情的缓存键：与完整详情、core 详情都不共用条目。 */
+    String disambiguationCacheKey(@NonNull TmdbItem item, @NonNull TmdbConfig config) {
+        return cacheKey("detail-lite", item.getMediaType(), item.getTmdbId(), cacheLanguage(config));
+    }
+
     String sourceDetailCacheKey(@NonNull TmdbItem item, int seasonNumber, @NonNull TmdbConfig config, @NonNull Set<String> missing) {
         List<String> capabilities = new ArrayList<>();
         for (String capability : missing) if (!TextUtils.isEmpty(capability)) capabilities.add(capability.trim().toLowerCase(Locale.ROOT));
@@ -966,7 +1005,7 @@ public class TmdbService {
     }
 
     private String cacheLanguage(TmdbConfig config) {
-        return TmdbLanguagePolicy.requestLanguage(config);
+        return requestLanguage(config);
     }
 
     private boolean isOnAir(JsonObject detail) {

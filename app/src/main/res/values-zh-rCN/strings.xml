@@ -13,6 +13,7 @@
     <string name="live_refresh">刷新</string>
     <string name="live_line">线路 <xliff:g name="name">%s</xliff:g></string>
     <string name="live_control_source">直播源</string>
+    <string name="live_control_source_named">直播源：<xliff:g name="name">%s</xliff:g></string>
 
     <!-- Detail -->
     <string name="detail_title"><xliff:g name="name">%s</xliff:g>：<xliff:g name="name">%s</xliff:g></string>
@@ -41,6 +42,14 @@
     <string name="keep">收藏</string>
     <string name="keep_add">已收藏</string>
     <string name="keep_del">已取消收藏</string>
+    <!-- 收藏页空态：设计文档 §9.9 要求「标题 + 解释 + 一个主动作」。 -->
+    <string name="keep_empty_title">还没有收藏</string>
+    <string name="keep_empty_description">在任意详情页按「收藏」，就会出现在这里。</string>
+    <string name="keep_empty_action">去点播</string>
+    <!-- 历史页空态：设计文档 §9.9 要求「标题 + 解释 + 一个主动作」。 -->
+    <string name="history_empty_title">还没有观看记录</string>
+    <string name="history_empty_description">播放过的内容会自动出现在这里，方便继续观看。</string>
+    <string name="history_empty_action">去点播</string>
     <string name="exit_confirm_title">退出应用</string>
     <string name="exit_confirm_message">应用将关闭，播放和后台服务也会停止。</string>
     <string name="exit_confirm_playing_message">当前正在播放；后台播放会继续播放，完全退出会停止播放和后台服务。</string>
@@ -172,6 +181,11 @@
     <string name="push">推送</string>
 
     <!-- Setting -->
+    <!-- TV 设置页的分组标题；此前 17 项平铺、无分组，只能整屏扫。 -->
+    <string name="setting_group_sources">内容源</string>
+    <string name="setting_group_playback">播放与内容</string>
+    <string name="setting_group_personal">个性化与智能</string>
+    <string name="setting_group_data">数据与网络</string>
     <string name="setting_vod">点播</string>
     <string name="setting_live">直播</string>
     <string name="setting_wall">壁纸</string>
@@ -931,6 +945,7 @@
     <string name="theme_editor_slot_primary_container">主色容器</string>
     <string name="theme_editor_slot_secondary_container">次色容器</string>
     <string name="theme_editor_slot_focus">焦点色</string>
+    <string name="theme_editor_slot_player_current">播放中环色</string>
     <string name="theme_editor_slot_surface">表面色</string>
     <string name="theme_editor_slot_surface_container">卡片表面色</string>
     <string name="theme_editor_slot_surface_container_high">对话框表面色</string>
@@ -943,6 +958,8 @@
     <string name="theme_editor_slot_scrim_opacity">遮罩透明度</string>
     <string name="theme_editor_slot_dialog_opacity">对话框透明度</string>
     <string name="theme_editor_slot_overlay_opacity">浮层透明度（仅 Web 主题生效）</string>
+    <string name="theme_editor_slot_player_scrim_opacity">播放菜单遮盖层不透明度</string>
+    <string name="theme_editor_slot_live_list_scrim_opacity">直播列表遮盖层不透明度</string>
     <string name="theme_editor_import">导入配色</string>
     <string name="theme_editor_palette_style">配色风格 · 保留手动修改</string>
     <string name="theme_editor_palette_tonal">柔和</string>
@@ -970,6 +987,7 @@
     <string name="theme_editor_group_surfaces">背景与表面</string>
     <string name="theme_editor_group_text">文字与轮廓</string>
     <string name="theme_editor_group_states">状态提示</string>
+    <string name="theme_editor_group_player">播放器</string>
     <string name="theme_editor_group_layers">透明度与浮层</string>
     <string name="theme_import_title">导入配色</string>
     <string name="theme_import_input_hint">粘贴 TweakCN JSON 或 HTTPS JSON 链接</string>
@@ -1043,6 +1061,8 @@
     <string name="cache_cleanup_not_allowed">该缓存由所属模块管理，不能直接删除。</string>
     <string name="cache_cleanup_failed">缓存清理失败</string>
     <string name="cache_cleanup_cancelled">缓存清理已取消</string>
+    <string name="cache_cleanup_full_started">正在清理全部缓存…</string>
+    <string name="cache_cleanup_busy">正在清理，请稍候</string>
     <string name="cache_module_exo">Exo 播放缓存</string>
     <string name="cache_module_mpv_hls">MPV HLS/ISO 分片</string>
     <string name="cache_module_mpv_demuxer">MPV demuxer 预载</string>
@@ -1480,6 +1500,7 @@
     <string name="player_auto_play">点播自动播放</string>
     <string name="player_live_source_fallback">直播源失效自动切换</string>
     <string name="player_auto_change">自动换源</string>
+    <string name="player_defer_flag_switch">切换线路不自动播放</string>
     <string name="player_remember_brightness">记住播放亮度</string>
     <string name="player_failure_fallback">播放失败回退</string>
     <string name="player_speed">长按倍速</string>
@@ -1609,6 +1630,9 @@
     <!-- Search -->
     <string name="search_keyword">关键字…</string>
     <string name="site_search_hint">搜索站点…</string>
+    <string name="site_dialog_title">选择站点</string>
+    <string name="site_dialog_title_action">管理站点</string>
+    <string name="site_dialog_count">共 %1$d 个站点</string>
     <string name="site_group_all">全部</string>
     <string name="site_group_sort_desc">%1$s，长按拖动排序</string>
     <string name="site_group_sort_tv_desc">%1$s，长按确定键排序</string>
@@ -1658,6 +1682,30 @@
 
     <!-- Error -->
     <string name="error_config_get">配置取得失败</string>
+    <!-- 内容源加载失败时的错误态：设计文档 §9.9 要求「错误色 + 原因 + 重试动作」。 -->
+    <string name="error_config_load">内容源加载失败</string>
+    <!-- 首页空态（确实没有内容，与"加载失败"是两件事）：设计文档 §9.9 的三件套。 -->
+    <string name="home_empty_title">暂时没有内容</string>
+    <string name="home_empty_description">内容源没有返回可显示的内容。</string>
+    <string name="home_empty_action">重新加载</string>
+    <!--
+        「还没配接口」空态：重置应用、重装或恢复出厂后的首次启动就是这个状态。
+        它**不是失败**（没有地址可请求，也没有失败原因，重试永远不成功），所以标题不用错误色。
+        注意：无配置时首页已不再用这条空态接管（见 docs/HOME-NO-CONFIG-NAV-20261020.md），
+        这三条当前**没有 `R.string` 引用**，只是为了将来可能复用的独立说明卡而保留。
+    -->
+    <string name="home_no_config_title">还没有配置接口</string>
+    <string name="home_no_config_description">添加一个点播接口后即可浏览内容。</string>
+    <string name="home_no_config_action">添加接口</string>
+    <!--
+        本地文件浏览器空态。主动作是**重新扫描当前目录**，不是"返回上级"——因为：
+        根目录没有上级（返回会退出页面），而"重新扫描"在任何目录都成立，
+        且能反映外部变化（刚用别的应用放进来的文件）。
+    -->
+    <string name="file_empty_title">这里没有内容</string>
+    <string name="file_empty_description">这个目录下没有可显示的项。如果是刚放进来的文件，重新扫描即可看到。</string>
+    <string name="file_empty_action">重新扫描</string>
+    <string name="error_retry">重试</string>
     <string name="error_play_next">已经是最后一集了！</string>
     <string name="error_play_prev">已经是第一集了！</string>
     <string name="error_play_parse">播放地址解析失败</string>
@@ -1770,6 +1818,15 @@
     <string name="crash_details_title">错误信息</string>
     <string name="crash_details_message">应用版本：%1$s\n\n%2$s</string>
     <string name="crash_details_close">关闭</string>
+    <string name="crash_log_title">日志下载地址</string>
+    <string name="crash_log_hint">用同一局域网内的手机或电脑浏览器打开上面的地址，即可查看并下载本次崩溃日志。</string>
+    <string name="crash_log_preparing">正在准备日志服务…</string>
+    <string name="crash_log_unavailable">日志服务未启动，可点按「错误信息」查看堆栈。</string>
+    <string name="crash_log_no_lan">当前没有局域网地址（未连接网络？），只能在本机打开：\n%1$s</string>
+    <string name="crash_log_service_failed">日志服务未启动</string>
+    <string name="crash_log_copy">复制地址</string>
+    <string name="crash_log_copied">地址已复制</string>
+    <string name="crash_log_open">在浏览器打开</string>
 
     <!-- Hint -->
     <string name="copied">已复制</string>
@@ -1883,6 +1940,7 @@
     <string-array name="select_fullscreen_menu_key">
         <item>控制栏</item>
         <item>选集</item>
+        <item>下一集</item>
     </string-array>
 
     <string-array name="select_home_menu_key">
@@ -2055,6 +2113,7 @@
         <item>@string/display_mini</item>
         <item>@string/display_title</item>
         <item>播放参数</item>
+        <item>@string/display_media_badges</item>
     </string-array>
 
     <string-array name="select_live_player_osd">
@@ -2258,6 +2317,15 @@
     <string name="display_progress">进度</string>
     <string name="display_mini">迷你</string>
     <string name="display_title">标题</string>
+    <string name="display_media_badges">媒体信息</string>
+    <string name="osd_media_badge_position">媒体信息位置</string>
+    <string-array name="select_media_badge_position">
+        <item>左上角</item>
+        <item>右上角</item>
+        <item>左下角</item>
+        <item>右下角</item>
+        <item>关闭</item>
+    </string-array>
     <string name="play_decode_idle">解码</string>
     <string name="detail_close">关闭</string>
     <string name="detail_expand">展开</string>
@@ -2723,6 +2791,19 @@
     <string name="reader_chapter_failed">章节加载失败</string>
     <string name="reader_opening">正在打开 %1$s</string>
     <string name="reader_opening_default">正在打开阅读器</string>
+    <string name="reader_tts_channel">语音朗读</string>
+    <string name="reader_tts_playing">正在朗读</string>
+    <string name="reader_tts_paused">朗读已暂停</string>
+    <string name="reader_tts_error">朗读失败</string>
+    <string name="reader_tts_default_title">小说</string>
+    <string name="reader_tts_progress">第 %1$d/%2$d 段</string>
+    <string name="reader_tts_prev">上一段</string>
+    <string name="reader_tts_next">下一段</string>
+    <string name="reader_tts_pause">暂停</string>
+    <string name="reader_tts_resume">继续</string>
+    <string name="reader_tts_stop">停止</string>
+    <string name="reader_tts_timer">剩余 %1$d 分钟</string>
+    <string name="reader_tts_timer_action">+30 分钟</string>
     <string name="cat_web_opening">正在打开设置中心</string>
     <string name="cat_web_failed">页面加载失败：%1$s</string>
     <string name="cat_web_external">已用浏览器打开</string>
@@ -2922,7 +3003,9 @@
     <string name="following_official_unknown">官方状态未知</string>
     <string name="following_source">当前源可播至第 %1$d 集</string>
     <string name="following_source_unknown">当前源尚未检查</string>
+    <string name="following_source_failed">当前源检查失败</string>
     <string name="following_watched">看到第 %1$d 集</string>
+    <string name="following_watched_unknown">尚未记录观看进度</string>
     <string name="following_unwatched">还有 %1$d 集未看</string>
     <string name="following_unwatched_none">已看完当前更新</string>
     <string name="following_new_count">新 %1$d 集</string>
