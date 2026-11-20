@@ -40,6 +40,7 @@ import com.fongmi.android.tv.cache.CachePolicyStore;
 import com.fongmi.android.tv.cache.CacheScheduler;
 import com.fongmi.android.tv.cache.CacheSnapshot;
 import com.fongmi.android.tv.databinding.DialogCacheManagementBinding;
+import com.fongmi.android.tv.player.exo.MediaSourceFactory;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.theme.WebHtvAlertDialogBuilder;
 import com.fongmi.android.tv.utils.FileUtil;
@@ -259,6 +260,12 @@ public class CacheManagementDialog extends DialogFragment {
                 CacheLimitOptions.indexOf(CachePolicyStore.getTotalLimitBytes()), which -> {
                     CachePolicyStore.putTotalLimitBytes(CacheLimitOptions.BYTES[which]);
                     updatePolicyButtons();
+                    // The total reaches the playback caches only while nothing plays, so the panel
+                    // applies it here instead of leaving the old total on screen until the next
+                    // video. The refresh runs after the pass, against the state it left.
+                    CacheScheduler.get().convergeNow(() -> {
+                        if (binding != null && isAdded()) refresh(true);
+                    });
                 });
     }
 
@@ -438,9 +445,10 @@ public class CacheManagementDialog extends DialogFragment {
         if (binding == null || !isAdded()) return;
         long quota = snapshot.systemQuotaBytes();
         String total = FileUtil.byteCountToDisplaySize(snapshot.totalBytes());
-        binding.summary.setText(quota > 0
+        String summary = quota > 0
                 ? getString(R.string.cache_management_summary_with_quota, total, FileUtil.byteCountToDisplaySize(quota))
-                : getString(R.string.cache_management_summary, total));
+                : getString(R.string.cache_management_summary, total);
+        binding.summary.setText(summary + "\n" + totalLimitLine());
         if (resultLine != null) {
             binding.status.setText(resultLine);
             resultLine = null;
@@ -448,6 +456,25 @@ public class CacheManagementDialog extends DialogFragment {
                 ? getString(R.string.cache_management_scanned_at, new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date()))
                 : getString(R.string.cache_management_partial, snapshot.warnings().size()));
         renderModules(snapshot);
+    }
+
+    /**
+     * What bounds the whole cache directory, and when the cache converges to it.
+     *
+     * <p>The previous line reported the playback cache against its own capacity, which read as if
+     * the configured total applied to Exo alone - the number below the total then looked like a
+     * quota Exo was allowed to keep. The total limit is one budget shared by every module, so the
+     * line now states that total and when it is enforced, and it names the remainder that stayed
+     * over the limit because it sits in content the cleanup may not delete.</p>
+     */
+    private String totalLimitLine() {
+        long totalLimit = CachePolicyStore.getTotalLimitBytes();
+        if (totalLimit <= 0) return getString(R.string.cache_management_total_unlimited);
+        String line = getString(R.string.cache_management_total_limit,
+                FileUtil.byteCountToDisplaySize(totalLimit));
+        long blocked = CacheScheduler.blockedOverBytes();
+        return blocked <= 0 ? line : line + " · " + getString(R.string.cache_management_total_blocked,
+                FileUtil.byteCountToDisplaySize(blocked));
     }
 
     private void renderModules(@Nullable CacheSnapshot snapshot) {
@@ -559,7 +586,7 @@ public class CacheManagementDialog extends DialogFragment {
 
     private boolean supportsLimit(CacheModuleId id) {
         return switch (id) {
-            case GLIDE, LYRICS, KARAOKE, WEBHOME_EXT, EPG, PLUGIN_SCRIPTS, TEMP_FILES -> true;
+            case EXO, GLIDE, LYRICS, KARAOKE, WEBHOME_EXT, EPG, PLUGIN_SCRIPTS, TEMP_FILES -> true;
             default -> false;
         };
     }
@@ -571,11 +598,32 @@ public class CacheManagementDialog extends DialogFragment {
                     ? getString(R.string.cache_limit_unlimited)
                     : FileUtil.byteCountToDisplaySize(CacheLimitOptions.BYTES[index]);
         }
-        ChoiceDialog.showSingle(this, R.string.cache_limit_title,
+        ChoiceDialog.showSingle(this, id == CacheModuleId.EXO
+                        ? R.string.cache_limit_title_exo : R.string.cache_limit_title,
                 labels, CacheLimitOptions.indexOf(CachePolicyStore.getLimit(id)), which -> {
                     CachePolicyStore.putLimit(id, CacheLimitOptions.BYTES[which]);
-                    refresh(true);
+                    // The playback cache only converges when a player session ends, so a freshly
+                    // chosen limit would otherwise look ignored until the next playback.
+                    if (id == CacheModuleId.EXO) applyPlaybackLimit();
+                    else refresh(true);
                 });
+    }
+
+    /**
+     * Applies the playback limit off the UI thread.
+     *
+     * <p>Converging rebuilds the SimpleCache, which loads its index and evicts every span above the
+     * new capacity. That is disk work and must not sit between the click and the next frame.</p>
+     */
+    private void applyPlaybackLimit() {
+        Thread worker = new Thread(() -> {
+            MediaSourceFactory.enforceCapacityNow();
+            App.post(() -> {
+                if (binding == null || !isAdded()) return;
+                refresh(true);
+            });
+        }, "exo-cache-apply");
+        worker.start();
     }
 
     /**
